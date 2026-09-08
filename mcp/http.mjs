@@ -314,10 +314,24 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
   });
   server.requestTimeout = 30000;
   server.headersTimeout = 10000;
-  server.listen(port, "127.0.0.1", () =>
-    console.error(
-      `Hrouter Market Pulse: http://127.0.0.1:${port}/ ${demo ? "(demo)" : ""}`,
-    ),
-  );
+  server.ready = new Promise((resolve, reject) => {
+    let attempts = 0;
+    server.on("error", (error) => {
+      if (error.code === "EADDRINUSE" && attempts++ < 10) {
+        port = port >= 65535 ? 8787 : port + 1;
+        process.env.HROUTER_REPORT_PORT = String(port);
+        server.listen(port, "127.0.0.1");
+      } else reject(error);
+    });
+    server.once("listening", () => {
+      port = server.address().port;
+      process.env.HROUTER_REPORT_PORT = String(port);
+      console.error(
+        `Hrouter Market Pulse: http://127.0.0.1:${port}/ ${demo ? "(demo)" : ""}`,
+      );
+      resolve(server);
+    });
+    server.listen(port, "127.0.0.1");
+  });
   return server;
 }

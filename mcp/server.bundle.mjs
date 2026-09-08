@@ -11213,13 +11213,25 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
   });
   server2.requestTimeout = 3e4;
   server2.headersTimeout = 1e4;
-  server2.listen(
-    port,
-    "127.0.0.1",
-    () => console.error(
-      `Hrouter Market Pulse: http://127.0.0.1:${port}/ ${demo2 ? "(demo)" : ""}`
-    )
-  );
+  server2.ready = new Promise((resolve, reject) => {
+    let attempts = 0;
+    server2.on("error", (error2) => {
+      if (error2.code === "EADDRINUSE" && attempts++ < 10) {
+        port = port >= 65535 ? 8787 : port + 1;
+        process.env.HROUTER_REPORT_PORT = String(port);
+        server2.listen(port, "127.0.0.1");
+      } else reject(error2);
+    });
+    server2.once("listening", () => {
+      port = server2.address().port;
+      process.env.HROUTER_REPORT_PORT = String(port);
+      console.error(
+        `Hrouter Market Pulse: http://127.0.0.1:${port}/ ${demo2 ? "(demo)" : ""}`
+      );
+      resolve(server2);
+    });
+    server2.listen(port, "127.0.0.1");
+  });
   return server2;
 }
 
@@ -26206,10 +26218,7 @@ registerWorkspaceTool(
 );
 var demo = process.argv.includes("--demo");
 var dashboard = startDashboard({ demo });
-dashboard.on("error", (error2) => {
-  console.error(error2.message);
-  process.exitCode = 1;
-});
+await dashboard.ready;
 if (!demo && !process.argv.includes("--dashboard"))
   await server.connect(new StdioServerTransport());
 async function shutdown() {

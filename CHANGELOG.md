@@ -3,6 +3,7 @@
 ## 1.1.1
 
 - Enumerate regression test files explicitly so the same test command works on Windows with Node.js 20 and newer.
+- Select an available local dashboard port when an older plugin instance occupies the requested port; advertise the actual URL through MCP.
 
 ## 1.1.0
 

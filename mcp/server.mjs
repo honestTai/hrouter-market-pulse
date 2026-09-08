@@ -895,10 +895,7 @@ registerWorkspaceTool(
 
 const demo = process.argv.includes("--demo");
 const dashboard = startDashboard({ demo });
-dashboard.on("error", (error) => {
-  console.error(error.message);
-  process.exitCode = 1;
-});
+await dashboard.ready;
 if (!demo && !process.argv.includes("--dashboard"))
   await server.connect(new StdioServerTransport());
 

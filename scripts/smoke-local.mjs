@@ -9,8 +9,8 @@ import assert from "node:assert/strict";
 const storage = await mkdtemp(path.join(os.tmpdir(), "hrouter-local-smoke-"));
 const probe = createServer();
 await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
-const port = probe.address().port;
-await new Promise((resolve) => probe.close(resolve));
+const occupiedPort = probe.address().port;
+let port;
 const pluginRoot = path.resolve("plugins/hrouter-market-pulse");
 const transport = new StdioClientTransport({
   command: process.execPath,
@@ -19,7 +19,7 @@ const transport = new StdioClientTransport({
   env: {
     ...process.env,
     HROUTER_REPORT_DIR: storage,
-    HROUTER_REPORT_PORT: String(port),
+    HROUTER_REPORT_PORT: String(occupiedPort),
     HROUTER_WATCHLIST: "",
   },
   stderr: "pipe",
@@ -50,6 +50,16 @@ try {
       ),
     );
   await client.connect(transport);
+  const initialPreferences = await client.callTool({
+    name: "get_preferences",
+    arguments: {},
+  });
+  port = initialPreferences.structuredContent.reportPort;
+  assert.notEqual(
+    port,
+    occupiedPort,
+    "Dashboard must select an available port",
+  );
   const { tools } = await client.listTools();
   for (const name of [
     "get_quote",
@@ -122,6 +132,7 @@ try {
     }),
   );
 } finally {
+  await new Promise((resolve) => probe.close(resolve));
   await client.close();
   await transport.close();
   await rm(storage, { recursive: true, force: true });

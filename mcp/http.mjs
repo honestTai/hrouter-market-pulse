@@ -106,7 +106,7 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: "1.1.0",
+            version: "1.1.1",
             demo,
           });
         if (assets.has(url.pathname)) {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1
+
+- Enumerate regression test files explicitly so the same test command works on Windows with Node.js 20 and newer.
+
 ## 1.1.0
 
 - Rebuilt the market dashboard with Chinese / English switching, sortable watchlists, holdings, financial charts, indicators, events and decision records.

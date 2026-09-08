@@ -11032,7 +11032,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: "1.1.0",
+            version: "1.1.1",
             demo: demo2
           });
         if (assets.has(url.pathname)) {
@@ -25463,7 +25463,7 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: "1.1.0"
+  version: "1.1.1"
 });
 function toolResult(data, summary) {
   return {

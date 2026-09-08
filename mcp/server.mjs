@@ -47,7 +47,7 @@ import {
 
 const server = new McpServer({
   name: "hrouter-market-pulse",
-  version: "1.1.0",
+  version: "1.1.1",
 });
 
 function toolResult(data, summary) {

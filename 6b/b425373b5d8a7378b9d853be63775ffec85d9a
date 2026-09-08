@@ -1,0 +1,37 @@
+scripts/test.mjs
+  s_e376e2dbce1675::t_9b0d58ceb85c47 1-7
+CHANGELOG.md
+  s_e376e2dbce1675::t_9b0d58ceb85c47 3-6
+.codex-plugin/plugin.json
+  s_e376e2dbce1675::t_9b0d58ceb85c47 3
+package.json
+  s_e376e2dbce1675::t_9b0d58ceb85c47 3,18
+mcp/server.mjs
+  s_e376e2dbce1675::t_9b0d58ceb85c47 50
+mcp/http.mjs
+  s_e376e2dbce1675::t_9b0d58ceb85c47 109
+.github/workflows/ci.yml
+  s_e376e2dbce1675::t_9b0d58ceb85c47 8
+package-lock.json
+  s_e376e2dbce1675::t_0627b212561ffa 3,9
+plugins/hrouter-market-pulse/.codex-plugin/plugin.json
+  s_e376e2dbce1675::t_00d78d52073901 3
+plugins/hrouter-market-pulse/mcp/server.bundle.mjs
+  s_e376e2dbce1675::t_673eece2c62b07 11035,25466
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6bb425373b5d8a7378b9d853be63775ffec85d9a",
+  "prompts": {},
+  "sessions": {
+    "s_e376e2dbce1675": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0803f-6a95-7811-9b52-ef305369b8a2",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "honestTai <43802073+honestTai@users.noreply.github.com>"
+    }
+  }
+}

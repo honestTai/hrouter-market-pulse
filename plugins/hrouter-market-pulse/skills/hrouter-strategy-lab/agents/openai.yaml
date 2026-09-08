@@ -1,0 +1,5 @@
+interface:
+  display_name: "Hrouter Strategy Lab"
+  short_description: "可扩展证据、无泄漏回测、校准与漂移"
+  brand_color: "#078A68"
+  default_prompt: "Use $hrouter-strategy-lab to connect an evidence provider and run a leakage-aware holdout backtest."

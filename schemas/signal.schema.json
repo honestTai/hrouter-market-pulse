@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrouter.net/schemas/market-pulse/signal.schema.json",
+  "title": "Hrouter Market Pulse Signal",
+  "type": "object",
+  "required": ["schemaVersion", "strategy", "symbol", "generatedAt", "score", "selected", "reasons"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "strategy": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "symbol": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "effectiveAt": { "type": ["string", "null"], "format": "date-time" },
+    "score": { "type": "number" },
+    "minimumScore": { "type": "number" },
+    "selected": { "type": "boolean" },
+    "reasons": { "type": "array", "items": { "type": "object" } },
+    "missingFeatures": { "type": "array", "items": { "type": "string" } },
+    "evidenceIds": { "type": "array", "items": { "type": "string", "pattern": "^ev_[a-f0-9]{32}$" } },
+    "dataQuality": { "type": ["object", "null"] }
+  },
+  "additionalProperties": false
+}

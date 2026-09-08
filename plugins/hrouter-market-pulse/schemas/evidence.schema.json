@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrouter.net/schemas/market-pulse/evidence.schema.json",
+  "title": "Hrouter Market Pulse Evidence",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "providerId",
+    "sourceTier",
+    "kind",
+    "entity",
+    "title",
+    "sourceUrl",
+    "publishedAt",
+    "effectiveAt",
+    "availableAt",
+    "fetchedAt",
+    "contentHash"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "id": { "type": "string", "pattern": "^ev_[a-f0-9]{32}$" },
+    "externalId": { "type": ["string", "null"] },
+    "providerId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$" },
+    "sourceTier": { "enum": ["official", "primary", "secondary", "unknown"] },
+    "providerTrustStatus": { "enum": ["built-in", "user-declared"] },
+    "kind": { "enum": ["quote", "news", "filing", "financial", "corporate_action", "macro", "industry", "other"] },
+    "entity": {
+      "type": "object",
+      "required": ["symbol", "name", "identifiers"],
+      "properties": {
+        "symbol": { "type": ["string", "null"] },
+        "name": { "type": ["string", "null"] },
+        "identifiers": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string" },
+    "sourceUrl": { "type": "string", "format": "uri" },
+    "publishedAt": { "type": "string", "format": "date-time" },
+    "effectiveAt": { "type": "string", "format": "date-time" },
+    "availableAt": { "type": "string", "format": "date-time" },
+    "fetchedAt": { "type": "string", "format": "date-time" },
+    "providerFetchedAt": { "type": ["string", "null"], "format": "date-time" },
+    "pointInTimeStatus": { "enum": ["provider-declared", "first-observed-at-ingestion"] },
+    "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "payload": { "type": ["object", "null"] }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Hrouter Postmarket Review"
+  short_description: "三市场收盘复盘、归因和次日观察"
+  brand_color: "#171817"
+  default_prompt: "Use $hrouter-postmarket-review to review today's A/H/US watchlist."

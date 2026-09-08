@@ -1,0 +1,5 @@
+interface:
+  display_name: "Hrouter Stock Analysis"
+  short_description: "三市场个股研究、对比和持仓检查"
+  brand_color: "#C98518"
+  default_prompt: "Use $hrouter-stock-analysis to compare 600519, 0700.HK, and AAPL."

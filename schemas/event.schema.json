@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrouter.net/schemas/market-pulse/event.schema.json",
+  "title": "Hrouter Market Pulse Event",
+  "type": "object",
+  "required": ["schemaVersion", "eventType", "entity", "effectiveAt", "evidenceIds"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "eventType": { "type": "string", "minLength": 1 },
+    "entity": {
+      "type": "object",
+      "required": ["symbol", "name", "identifiers"],
+      "properties": {
+        "symbol": { "type": ["string", "null"] },
+        "name": { "type": ["string", "null"] },
+        "identifiers": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "effectiveAt": { "type": "string", "format": "date-time" },
+    "evidenceIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^ev_[a-f0-9]{32}$" }
+    },
+    "attributes": { "type": "object" }
+  },
+  "additionalProperties": false
+}

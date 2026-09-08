@@ -1,0 +1,43 @@
+{
+  "name": "hrouter-market-pulse",
+  "version": "1.1.0+codex.20260908100609",
+  "repository": "https://github.com/honestTai/hrouter-market-pulse",
+  "description": "Bilingual A-share, Hong Kong and US market workbench with verified quotes, portfolio risk, evidence and research validation.",
+  "author": {
+    "name": "Hrouter",
+    "url": "https://hrouter.net/"
+  },
+  "homepage": "https://hrouter.net/",
+  "license": "MIT",
+  "keywords": [
+    "stocks",
+    "a-shares",
+    "hong-kong",
+    "us-markets",
+    "market-research",
+    "backtesting",
+    "evidence",
+    "scheduled-tasks"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Hrouter Market Pulse",
+    "shortDescription": "Bilingual market desk, portfolio risk and auditable research",
+    "longDescription": "Use a Chinese or English workbench for A-share, Hong Kong and US quotes, holdings, financial charts, stateful alerts, sourced announcements and decision journals. Combine dated market calendars, currency-aware portfolio limits, shared-capital backtests, purged walk-forward evaluation and forecast outcome records with the current Codex task model for research interpretation.",
+    "developerName": "Hrouter",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://hrouter.net/",
+    "defaultPrompt": [
+      "\u9996\u6b21\u4f7f\u7528\uff0c\u5e2e\u6211\u914d\u7f6e\u4e09\u5e02\u573a\u81ea\u9009\u80a1\u548c\u5b9a\u65f6\u4efb\u52a1\u3002",
+      "\u63a5\u5165\u4e00\u4e2a\u5b98\u65b9\u516c\u544a\u6570\u636e\u6e90\uff0c\u5e76\u6309\u65f6\u95f4\u70b9\u5199\u5165\u8bc1\u636e\u5e93\u3002",
+      "\u4e3a\u6211\u7684\u9009\u80a1\u89c4\u5219\u505a\u65e0\u672a\u6765\u6570\u636e\u6cc4\u6f0f\u7684\u6837\u672c\u5916\u56de\u6d4b\u3002"
+    ],
+    "brandColor": "#E5483D"
+  },
+  "mcpServers": "./.mcp.json"
+}

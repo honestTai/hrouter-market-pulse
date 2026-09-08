@@ -1,0 +1,5 @@
+interface:
+  display_name: "Hrouter Intraday Monitor"
+  short_description: "三市场盘中异动、量价和关键位监控"
+  brand_color: "#078A68"
+  default_prompt: "Use $hrouter-intraday-monitor to check my watchlist and report only material changes."

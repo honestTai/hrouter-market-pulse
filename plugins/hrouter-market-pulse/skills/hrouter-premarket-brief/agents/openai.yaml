@@ -1,0 +1,5 @@
+interface:
+  display_name: "Hrouter Premarket Brief"
+  short_description: "三市场盘前信息、风险和观察清单"
+  brand_color: "#E5483D"
+  default_prompt: "Use $hrouter-premarket-brief to generate today's A/H/US premarket brief."

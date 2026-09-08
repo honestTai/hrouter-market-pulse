@@ -1,0 +1,20 @@
+{
+  "name": "hrouter-market-pulse",
+  "interface": {
+    "displayName": "Hrouter Market Pulse"
+  },
+  "plugins": [
+    {
+      "name": "hrouter-market-pulse",
+      "source": {
+        "source": "local",
+        "path": "./plugins/hrouter-market-pulse"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

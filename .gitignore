@@ -1,0 +1,13 @@
+node_modules/
+*.log
+data/
+.env
+.env.*
+!.env.example
+*.tmp
+output/
+work/
+coverage/
+.playwright-cli/
+*.zip
+*.log

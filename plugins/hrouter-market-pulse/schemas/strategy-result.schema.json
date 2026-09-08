@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrouter.net/schemas/market-pulse/strategy-result.schema.json",
+  "title": "Hrouter Market Pulse Strategy Result",
+  "type": "object",
+  "required": ["schemaVersion", "strategy", "generatedAt", "signals", "dataCoverage"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "strategy": { "type": "object" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "signals": { "type": "array", "items": { "$ref": "signal.schema.json" } },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["symbol", "error"],
+        "properties": {
+          "symbol": { "type": "string" },
+          "error": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "dataCoverage": { "type": "object" },
+    "meaning": { "type": "string" }
+  },
+  "additionalProperties": false
+}

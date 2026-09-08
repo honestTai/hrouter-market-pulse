@@ -1,0 +1,5 @@
+interface:
+  display_name: "Hrouter Market Setup"
+  short_description: "配置自选股、模型、看板和定时任务"
+  brand_color: "#E5483D"
+  default_prompt: "Use $hrouter-market-setup to configure my watchlist and scheduled reports."

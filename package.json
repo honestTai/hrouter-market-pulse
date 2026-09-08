@@ -1,0 +1,33 @@
+{
+  "name": "hrouter-market-pulse",
+  "version": "1.1.0",
+  "description": "Bilingual A/HK/US market research workbench and Codex plugin",
+  "homepage": "https://hrouter.net/",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/honestTai/hrouter-market-pulse.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "start": "node mcp/server.bundle.mjs --dashboard",
+    "demo": "node mcp/server.bundle.mjs --demo",
+    "check": "node --check mcp/server.bundle.mjs",
+    "smoke": "node scripts/smoke-local.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "lightweight-charts": "5.2.1",
+    "lucide": "1.42.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.9"
+  }
+}

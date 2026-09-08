@@ -1,0 +1,5 @@
+interface:
+  display_name: "Hrouter Portfolio Planner"
+  short_description: "透明选股排序、仓位上限与情景分析"
+  brand_color: "#C98518"
+  default_prompt: "Use $hrouter-portfolio-planner to rank my watchlist and calculate a user-constrained risk budget."

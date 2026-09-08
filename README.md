@@ -21,22 +21,34 @@
 | 策略验证 | 按时间推进的共享资金回测、市场持有规则、费用滑点、公司行动，以及滚动样本外评估 |
 | 决策复盘 | 保存原始判断和当时证据，追加结果回顾；预测先记录，结果后核对 |
 
-## 安装 Codex 插件
+## 安装 Codex 插件（可自动更新）
 
 需要 Node.js 20 或更新版本，以及支持插件的 Codex CLI / 桌面应用。
+
+自动更新安装器从 **v1.2.0** 起提供；更早的 ZIP 不包含安装器。
+
+**推荐：**从 [Releases](https://github.com/honestTai/hrouter-market-pulse/releases/latest) 下载最新正式版 ZIP，解压后在目录内运行：
+
+```bash
+node scripts/install.mjs --auto-update
+```
+
+这会安装插件，并明确启用**当前用户的自动更新任务**：约每 6 小时检查正式版本，校验后在插件进程退出时安装，保留设置和上一版。不会修改系统 PATH 或安装全局依赖。只想手动更新时省略 `--auto-update`。安装或更新后，新建 Codex 任务，再选择 Hrouter Market Pulse。
+
+已按旧方式安装的用户，需要先关闭旧插件任务，再执行一次 `node scripts/install.mjs --auto-update --migrate`。[完整更新说明、停用与回退](docs/AUTO_UPDATE.md)。
+
+```text
+设置中文界面，自选股为 600519、0700.HK、AAPL，生成盘中报告。
+```
+
+也可以使用普通 GitHub marketplace 安装；**以下方式不注册本项目的自动更新器**：
 
 ```bash
 codex plugin marketplace add honestTai/hrouter-market-pulse
 codex plugin add hrouter-market-pulse@hrouter-market-pulse
 ```
 
-安装包已包含 MCP 运行文件和图表资源。安装后新建一个 Codex 任务，再选择 Hrouter Market Pulse。
-
-```text
-设置中文界面，自选股为 600519、0700.HK、AAPL，生成盘中报告。
-```
-
-也可以从 Releases 下载 ZIP，解压后将解压目录作为本地 marketplace 安装。不要把 `plugins/hrouter-market-pulse` 当成 marketplace 根目录。
+安装包已包含 MCP 运行文件和图表资源。ZIP 的解压根目录才是 marketplace，不要把 `plugins/hrouter-market-pulse` 当作 marketplace 根目录。
 
 ## 本地运行与开发
 

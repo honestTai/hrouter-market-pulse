@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 — managed automatic updates
+
+- Opt-in, per-user auto-updater for stable GitHub Releases (macOS LaunchAgent, Linux user timer, Windows Scheduled Task), with manual status/check/disable/rollback controls.
+- Complete-plugin updates verified with bounded downloads, SHA-256, safe file manifests and isolated MCP/dashboard health checks.
+- Runtime leases defer replacement while a plugin process is alive; transaction recovery and a previous-version snapshot protect failed updates without touching report data.
+- Explicit migration for existing installs; disabled/uninstalled or externally changed plugins are not automatically re-enabled.
+- Cross-platform release validation and draft-first publication of a ZIP, update bundle, metadata and checksums.
+- Automatic updating requires a one-time managed installation; publishing this version cannot retrofit old installations silently.
+
+
 ## 1.1.1
 
 - Enumerate regression test files explicitly so the same test command works on Windows with Node.js 20 and newer.

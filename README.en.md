@@ -18,22 +18,34 @@ Bring quotes, holdings, alerts, filings, and decision records into one workspace
 - Purged walk-forward prediction evaluation, baseline comparisons, programmatic qualification, and an immutable forecast ledger.
 - Decision theses recorded before outcomes, followed by append-only reviews.
 
-## Install in Codex
+## Install in Codex (optional automatic updates)
 
-Requires Node.js 20+ and a Codex release with plugin support.
+Requires Node.js 20+ and a Codex CLI / desktop release with plugin support.
+
+The managed installer is available starting with **v1.2.0**; older ZIPs do not contain it.
+
+**Recommended:** download the latest stable ZIP from [Releases](https://github.com/honestTai/hrouter-market-pulse/releases/latest), extract it, and run:
+
+```bash
+node scripts/install.mjs --auto-update
+```
+
+This explicitly opts in to a **per-user background updater**. It checks stable releases roughly every six hours, verifies packages, waits for Market Pulse processes to exit before replacing the plugin, and keeps the previous version. No system-wide installs or PATH changes. Omit `--auto-update` for manual updates. Start a new Codex task after installation or an update.
+
+Existing marketplace users must first close old plugin tasks and run `node scripts/install.mjs --auto-update --migrate` once. See [automatic updates, disable, rollback, and release instructions](docs/AUTO_UPDATE.md).
+
+```text
+Use English. Add AAPL, MSFT, and 0700.HK to my watchlist and create an intraday report.
+```
+
+The ordinary GitHub marketplace method is still supported, but **does not register this project's updater**:
 
 ```bash
 codex plugin marketplace add honestTai/hrouter-market-pulse
 codex plugin add hrouter-market-pulse@hrouter-market-pulse
 ```
 
-Start a new task after installation. Select Hrouter Market Pulse and ask:
-
-```text
-Use English. Add AAPL, MSFT, and 0700.HK to my watchlist and create an intraday report.
-```
-
-The installable package includes its server bundle and browser assets. A release ZIP can also be extracted and registered using `codex plugin marketplace add <extracted-directory>`.
+The package includes its MCP server and browser assets. Use the extracted ZIP root as a marketplace, not its nested `plugins/hrouter-market-pulse` directory.
 
 ## Run locally
 

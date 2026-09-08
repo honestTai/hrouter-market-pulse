@@ -5,7 +5,10 @@
       "description": "Extensible A-share, Hong Kong, and US evidence, declarative strategies, experimental probability baselines, leakage-aware backtests, risk planning, and scheduled reports.",
       "cwd": ".",
       "command": "node",
-      "args": ["./mcp/server.bundle.mjs", "--stdio"],
+      "args": [
+        "./mcp/server.bundle.mjs",
+        "--stdio"
+      ],
       "env_vars": [
         "LOCALAPPDATA",
         "ALL_PROXY",
@@ -15,7 +18,9 @@
         "HROUTER_REPORT_DIR",
         "HROUTER_REPORT_PORT",
         "HROUTER_WATCHLIST",
-        "HROUTER_SEC_USER_AGENT"
+        "HROUTER_SEC_USER_AGENT",
+        "HROUTER_UPDATE_HOME",
+        "XDG_DATA_HOME"
       ],
       "tool_timeout_sec": 120
     }

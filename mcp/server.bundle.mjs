@@ -3257,8 +3257,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path5) {
-      let input = path5;
+    function removeDotSegments(path6) {
+      let input = path6;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3667,8 +3667,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path5 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path5 && path5 !== "/" ? path5 : void 0;
+        const path6 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path6 && path6 !== "/" ? path6 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -7193,18 +7193,131 @@ var require_dist = __commonJS({
   }
 });
 
+// mcp/update-coordination.mjs
+import { mkdir, readFile, writeFile, rename, rm, readdir, stat } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import os from "node:os";
+import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+function updateHome(env = process.env, platform = process.platform, home = os.homedir()) {
+  if (env.HROUTER_UPDATE_HOME) return path.resolve(env.HROUTER_UPDATE_HOME);
+  return platform === "win32" ? path.join(env.LOCALAPPDATA || path.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path.join(env.XDG_DATA_HOME || path.join(home, ".local", "share"), "hrouter-market-pulse-updater");
+}
+async function readJson(file, fallback = null) {
+  try {
+    return JSON.parse(await readFile(file, "utf8"));
+  } catch (error2) {
+    if (error2.code === "ENOENT") return fallback;
+    throw error2;
+  }
+}
+async function atomicJson(file, data) {
+  await mkdir(path.dirname(file), { recursive: true, mode: 448 });
+  const temp = `${file}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
+    await rename(temp, file);
+  } finally {
+    await rm(temp, { force: true });
+  }
+}
+function processAlive(pid) {
+  if (!Number.isSafeInteger(pid) || pid < 1) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error2) {
+    return error2.code !== "ESRCH";
+  }
+}
+async function acquireLock(home, name, { waitMs = 0, alive = processAlive } = {}) {
+  await mkdir(home, { recursive: true, mode: 448 });
+  const dir = path.join(home, `${name}.lock`);
+  const deadline = Date.now() + waitMs;
+  for (; ; ) {
+    try {
+      await mkdir(dir, { mode: 448 });
+      await atomicJson(path.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
+      return async () => {
+        await rm(dir, { recursive: true, force: true });
+      };
+    } catch (error2) {
+      if (error2.code !== "EEXIST") throw error2;
+      const owner = await readJson(path.join(dir, "owner.json"));
+      let stale = owner && !alive(owner.pid);
+      if (!owner) {
+        try {
+          stale = Date.now() - (await stat(dir)).mtimeMs > 6e5;
+        } catch (error3) {
+          if (error3.code === "ENOENT") continue;
+          throw error3;
+        }
+      }
+      if (stale) {
+        const reaping = `${dir}.reaping`;
+        let reaper = false;
+        try {
+          await mkdir(reaping, { mode: 448 });
+          reaper = true;
+          const current = await readJson(path.join(dir, "owner.json"));
+          let removable = current && !alive(current.pid);
+          if (!current) {
+            try {
+              removable = Date.now() - (await stat(dir)).mtimeMs > 6e5;
+            } catch (error3) {
+              if (error3.code !== "ENOENT") throw error3;
+            }
+          }
+          if (removable) await rm(dir, { recursive: true, force: true });
+        } catch (error3) {
+          if (!["EEXIST", "ENOENT"].includes(error3.code)) throw error3;
+        } finally {
+          if (reaper) await rm(reaping, { recursive: true, force: true });
+        }
+        if (reaper) continue;
+        if (Date.now() >= deadline) return null;
+        await delay(100);
+        continue;
+      }
+      if (Date.now() >= deadline) return null;
+      await delay(100);
+    }
+  }
+}
+async function acquireRuntimeLease(home = updateHome()) {
+  if (!await readJson(path.join(home, "state.json"))) return () => {
+  };
+  const unlock = await acquireLock(home, "activation", { waitMs: 12e4 });
+  if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
+  const file = path.join(home, "running", `${process.pid}-${randomUUID()}.json`);
+  try {
+    await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  } finally {
+    await unlock();
+  }
+  const release = () => {
+    rmSync(file, { force: true });
+  };
+  process.once("exit", release);
+  return () => {
+    process.removeListener("exit", release);
+    release();
+  };
+}
+
 // mcp/http.mjs
 import { createServer } from "node:http";
-import { readFile as readFile5 } from "node:fs/promises";
+import { readFile as readFile6 } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { randomUUID as randomUUID3 } from "node:crypto";
+import { randomUUID as randomUUID4 } from "node:crypto";
 
 // mcp/core.mjs
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { mkdir as mkdir2, readFile as readFile2, rename as rename2, writeFile as writeFile2 } from "node:fs/promises";
-import os from "node:os";
-import path2 from "node:path";
+import { randomUUID as randomUUID2 } from "node:crypto";
+import { mkdir as mkdir3, readFile as readFile3, rename as rename3, writeFile as writeFile3 } from "node:fs/promises";
+import os2 from "node:os";
+import path3 from "node:path";
 import { promisify } from "node:util";
 
 // mcp/market-rules.mjs
@@ -7385,8 +7498,8 @@ function sameTimeVolumeRatio(history, market, { now = (/* @__PURE__ */ new Date(
 }
 
 // mcp/monitor.mjs
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { mkdir as mkdir2, readFile as readFile2, rename as rename2, writeFile as writeFile2 } from "node:fs/promises";
+import path2 from "node:path";
 function evaluateAlertTransitions(quotes, previous = {}, { now = (/* @__PURE__ */ new Date()).toISOString(), rules = [], cooldownSeconds = 900, confirmations = 2, hysteresisPct = 0.2 } = {}) {
   const state = structuredClone(previous);
   const events = [];
@@ -7440,18 +7553,18 @@ function evaluateAlertTransitions(quotes, previous = {}, { now = (/* @__PURE__ *
 var writeQueue = Promise.resolve();
 function updateMonitorState(storageDir, quotes, options = {}) {
   const run = writeQueue.then(async () => {
-    await mkdir(storageDir, { recursive: true });
-    const file = path.join(storageDir, "monitor-state.json");
+    await mkdir2(storageDir, { recursive: true });
+    const file = path2.join(storageDir, "monitor-state.json");
     let previous = {};
     try {
-      previous = JSON.parse(await readFile(file, "utf8")).state ?? {};
+      previous = JSON.parse(await readFile2(file, "utf8")).state ?? {};
     } catch (error2) {
       if (error2.code !== "ENOENT") throw error2;
     }
     const result = evaluateAlertTransitions(quotes, previous, options);
     const temporary = `${file}.${process.pid}.tmp`;
-    await writeFile(temporary, JSON.stringify(result, null, 2), "utf8");
-    await rename(temporary, file);
+    await writeFile2(temporary, JSON.stringify(result, null, 2), "utf8");
+    await rename2(temporary, file);
     return result;
   });
   writeQueue = run.catch(() => {
@@ -8259,18 +8372,18 @@ async function getMarketSnapshot(market = "all") {
   };
 }
 function getStorageDir() {
-  if (process.env.HROUTER_REPORT_DIR) return path2.resolve(process.env.HROUTER_REPORT_DIR);
-  const root = process.env.LOCALAPPDATA || path2.join(os.homedir(), ".hrouter-market-pulse");
-  return path2.join(root, "HrouterMarketPulse");
+  if (process.env.HROUTER_REPORT_DIR) return path3.resolve(process.env.HROUTER_REPORT_DIR);
+  const root = process.env.LOCALAPPDATA || path3.join(os2.homedir(), ".hrouter-market-pulse");
+  return path3.join(root, "HrouterMarketPulse");
 }
 function preferencesPath() {
-  return path2.join(getStorageDir(), "config.json");
+  return path3.join(getStorageDir(), "config.json");
 }
 async function loadPreferences() {
   const envWatchlist = (process.env.HROUTER_WATCHLIST ?? "").split(",").map((value) => value.trim()).filter(Boolean);
   let saved = {};
   try {
-    saved = JSON.parse(await readFile2(preferencesPath(), "utf8"));
+    saved = JSON.parse(await readFile3(preferencesPath(), "utf8"));
   } catch (error2) {
     if (error2.code !== "ENOENT") throw error2;
   }
@@ -8430,7 +8543,7 @@ function sanitizePreferences(input, current = {}) {
 }
 async function savePreferences(input) {
   const next = sanitizePreferences(input, await loadPreferences());
-  await mkdir2(getStorageDir(), { recursive: true });
+  await mkdir3(getStorageDir(), { recursive: true });
   await atomicWrite(preferencesPath(), JSON.stringify(next, null, 2));
   return loadPreferences();
 }
@@ -8507,7 +8620,7 @@ async function createMarketReport(input = {}) {
   const declines = successful.filter((item) => (item.changePct ?? 0) < 0).length;
   const report = {
     schemaVersion: 2,
-    runId: generatedAt.replace(/[:.]/g, "-") + `-${phase}-${randomUUID().slice(0, 8)}`,
+    runId: generatedAt.replace(/[:.]/g, "-") + `-${phase}-${randomUUID2().slice(0, 8)}`,
     generatedAt,
     phase,
     phaseLabel: PHASE_LABELS[phase],
@@ -8542,37 +8655,37 @@ async function createMarketReport(input = {}) {
   };
 }
 async function atomicWrite(filePath, content) {
-  const temporary = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-  await writeFile2(temporary, content, "utf8");
-  await rename2(temporary, filePath);
+  const temporary = `${filePath}.${process.pid}.${randomUUID2()}.tmp`;
+  await writeFile3(temporary, content, "utf8");
+  await rename3(temporary, filePath);
 }
 async function saveReport(report) {
-  const reportDir = path2.join(getStorageDir(), "reports");
-  await mkdir2(reportDir, { recursive: true });
+  const reportDir = path3.join(getStorageDir(), "reports");
+  await mkdir3(reportDir, { recursive: true });
   const json = JSON.stringify(report, null, 2);
   const html = buildReportHtml(report);
   await Promise.all([
-    atomicWrite(path2.join(reportDir, `${report.runId}.json`), json),
-    atomicWrite(path2.join(reportDir, `${report.runId}.html`), html),
-    atomicWrite(path2.join(reportDir, "latest.json"), json),
-    atomicWrite(path2.join(reportDir, "latest.html"), html)
+    atomicWrite(path3.join(reportDir, `${report.runId}.json`), json),
+    atomicWrite(path3.join(reportDir, `${report.runId}.html`), html),
+    atomicWrite(path3.join(reportDir, "latest.json"), json),
+    atomicWrite(path3.join(reportDir, "latest.html"), html)
   ]);
 }
 async function loadReport(runId = "latest", format = "json") {
   const safeRunId = String(runId).replace(/[^A-Za-z0-9_-]/g, "");
   if (!safeRunId) throw new Error("\u65E0\u6548\u7684\u62A5\u544A\u7F16\u53F7");
-  return readFile2(path2.join(getStorageDir(), "reports", `${safeRunId}.${format}`), "utf8");
+  return readFile3(path3.join(getStorageDir(), "reports", `${safeRunId}.${format}`), "utf8");
 }
 
 // mcp/workspace.mjs
-import { randomUUID as randomUUID2, createHash as createHash2 } from "node:crypto";
-import { mkdir as mkdir4, readFile as readFile4, rename as rename4, writeFile as writeFile4 } from "node:fs/promises";
-import path4 from "node:path";
+import { randomUUID as randomUUID3, createHash as createHash2 } from "node:crypto";
+import { mkdir as mkdir5, readFile as readFile5, rename as rename5, writeFile as writeFile5 } from "node:fs/promises";
+import path5 from "node:path";
 
 // mcp/foundation.mjs
 import { createHash } from "node:crypto";
-import { mkdir as mkdir3, readFile as readFile3, rename as rename3, writeFile as writeFile3 } from "node:fs/promises";
-import path3 from "node:path";
+import { mkdir as mkdir4, readFile as readFile4, rename as rename4, writeFile as writeFile4 } from "node:fs/promises";
+import path4 from "node:path";
 
 // mcp/research-validation.mjs
 var number = (value) => value === null || value === void 0 || value === "" ? null : Number.isFinite(Number(value)) ? Number(value) : null;
@@ -8889,26 +9002,26 @@ function hashValue(value) {
 }
 async function loadJson(filePath, fallback) {
   try {
-    return JSON.parse(await readFile3(filePath, "utf8"));
+    return JSON.parse(await readFile4(filePath, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function atomicWriteJson(filePath, value) {
-  await mkdir3(path3.dirname(filePath), { recursive: true });
+  await mkdir4(path4.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile3(temporary, JSON.stringify(value, null, 2), "utf8");
-  await rename3(temporary, filePath);
+  await writeFile4(temporary, JSON.stringify(value, null, 2), "utf8");
+  await rename4(temporary, filePath);
 }
 function foundationDirectory() {
-  return path3.join(getStorageDir(), "foundation-v1");
+  return path4.join(getStorageDir(), "foundation-v1");
 }
 function evidencePath() {
-  return path3.join(foundationDirectory(), "evidence.json");
+  return path4.join(foundationDirectory(), "evidence.json");
 }
 function providersPath() {
-  return path3.join(foundationDirectory(), "providers.json");
+  return path4.join(foundationDirectory(), "providers.json");
 }
 function normalizeProviderId(value) {
   const id = String(value ?? "").trim().toLowerCase();
@@ -9682,7 +9795,7 @@ async function runBaselinePrediction(input) {
     }
   }
   const assessmentTask = predictionWriteQueue.then(async () => {
-    const target = path3.join(foundationDirectory(), "model-assessments.json");
+    const target = path4.join(foundationDirectory(), "model-assessments.json");
     const assessments = await loadJson(target, {});
     for (const result of results) assessments[result.symbol] = { evaluatedAt: (/* @__PURE__ */ new Date()).toISOString(), status: result.status, predictionId: result.predictionId ?? null };
     await atomicWriteJson(target, assessments);
@@ -9726,7 +9839,7 @@ async function recordPrediction(record2) {
   if (!Number.isFinite(record2.probability) || !(record2.probability >= 0 && record2.probability <= 1)) throw new Error("Prediction probability must be finite and within [0, 1]");
   const id = `prediction_${hashValue({ symbol: record2.symbol, modelVersion: record2.modelVersion, featureAt, horizonDays: record2.horizonDays }).slice(0, 32)}`;
   const task = predictionWriteQueue.then(async () => {
-    const target = path3.join(foundationDirectory(), "predictions.json");
+    const target = path4.join(foundationDirectory(), "predictions.json");
     const current = await loadJson(target, []);
     const existing = current.find((item) => item.id === id);
     if (existing) return existing;
@@ -9743,8 +9856,8 @@ async function recordPrediction(record2) {
 async function queryPredictionLedger(input = {}) {
   const symbol = input.symbol ? normalizeSymbol(input.symbol) : null;
   const limit = Math.max(1, Math.min(1e3, Math.trunc(input.limit ?? 100)));
-  const records = await loadJson(path3.join(foundationDirectory(), "predictions.json"), []);
-  const assessments = await loadJson(path3.join(foundationDirectory(), "model-assessments.json"), {});
+  const records = await loadJson(path4.join(foundationDirectory(), "predictions.json"), []);
+  const assessments = await loadJson(path4.join(foundationDirectory(), "model-assessments.json"), {});
   const matched = records.filter((record2) => (!symbol || record2.symbol === symbol) && (!input.status || record2.status === input.status)).sort((left, right) => Date.parse(right.recordedAt) - Date.parse(left.recordedAt));
   const latestBySymbol = new Map([...records].sort((left, right) => Date.parse(left.recordedAt) - Date.parse(right.recordedAt)).map((record2) => [record2.symbol, record2.id]));
   return {
@@ -9759,7 +9872,7 @@ async function queryPredictionLedger(input = {}) {
 }
 async function resolvePredictionOutcomes(input = {}) {
   const asOf = researchAsOf(input.asOf);
-  const records = await loadJson(path3.join(foundationDirectory(), "predictions.json"), []);
+  const records = await loadJson(path4.join(foundationDirectory(), "predictions.json"), []);
   const pending = records.filter((item) => item.status === "pending" && (!input.ids?.length || input.ids.includes(item.id)));
   const histories = /* @__PURE__ */ new Map();
   const updates = [];
@@ -9803,7 +9916,7 @@ async function resolvePredictionOutcomes(input = {}) {
     }
   }
   const task = predictionWriteQueue.then(async () => {
-    const target = path3.join(foundationDirectory(), "predictions.json");
+    const target = path4.join(foundationDirectory(), "predictions.json");
     const current = await loadJson(target, []);
     const byId = new Map(updates.map((update) => [update.id, update]));
     const next = current.map((record2) => record2.status === "pending" && byId.has(record2.id) ? { ...record2, ...byId.get(record2.id) } : record2);
@@ -9943,18 +10056,18 @@ var cleanText = (value, limit = 2e3) => String(value ?? "").trim().slice(0, limi
 var finite3 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
 async function readStore(name, fallback = []) {
   try {
-    return JSON.parse(await readFile4(path4.join(getStorageDir(), name), "utf8"));
+    return JSON.parse(await readFile5(path5.join(getStorageDir(), name), "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function writeStore(name, data) {
-  const target = path4.join(getStorageDir(), name);
-  await mkdir4(path4.dirname(target), { recursive: true });
-  const temp = `${target}.${randomUUID2()}.tmp`;
-  await writeFile4(temp, JSON.stringify(data, null, 2));
-  await rename4(temp, target);
+  const target = path5.join(getStorageDir(), name);
+  await mkdir5(path5.dirname(target), { recursive: true });
+  const temp = `${target}.${randomUUID3()}.tmp`;
+  await writeFile5(temp, JSON.stringify(data, null, 2));
+  await rename5(temp, target);
 }
 async function listDecisions({ symbol, limit = 200 } = {}) {
   const items = await readStore("decisions.json");
@@ -10018,7 +10131,7 @@ async function recordDecision(input) {
       );
   }
   const record2 = {
-    id: `decision_${randomUUID2()}`,
+    id: `decision_${randomUUID3()}`,
     symbol,
     state,
     thesis,
@@ -11040,7 +11153,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
           return respond(
             response,
             200,
-            await readFile5(fileURLToPath(new URL(name, assetRoot))),
+            await readFile6(fileURLToPath(new URL(name, assetRoot))),
             type
           );
         }
@@ -11161,7 +11274,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
               throw new Error("Symbol and thesis required");
             const entry = {
               ...body,
-              id: `demo_${randomUUID3()}`,
+              id: `demo_${randomUUID4()}`,
               createdAt: (/* @__PURE__ */ new Date()).toISOString(),
               reviews: [],
               demo: true
@@ -11713,8 +11826,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path5, errorMaps, issueData } = params;
-  const fullPath = [...path5, ...issueData.path || []];
+  const { data, path: path6, errorMaps, issueData } = params;
+  const fullPath = [...path6, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -11830,11 +11943,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path5, key) {
+  constructor(parent, value, path6, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path5;
+    this._path = path6;
     this._key = key;
   }
   get path() {
@@ -15472,10 +15585,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path5) {
-  if (!path5)
+function getElementAtPath(obj, path6) {
+  if (!path6)
     return obj;
-  return path5.reduce((acc, key) => acc?.[key], obj);
+  return path6.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -15795,11 +15908,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path5, issues) {
+function prefixIssues(path6, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path5);
+    iss.path.unshift(path6);
     return iss;
   });
 }
@@ -19212,11 +19325,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path5) {
-  if (path5.length === 0) {
+function getDotPath(path6) {
+  if (path6.length === 0) {
     return "object root";
   }
-  return path5.reduce((acc, seg, index) => {
+  return path6.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -25475,7 +25588,7 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: "1.1.1"
+  version: true ? "1.2.0" : "development"
 });
 function toolResult(data, summary) {
   return {
@@ -26217,6 +26330,8 @@ registerWorkspaceTool(
   resolvePredictionOutcomes
 );
 var demo = process.argv.includes("--demo");
+var releaseUpdateLease = demo ? () => {
+} : await acquireRuntimeLease();
 var dashboard = startDashboard({ demo });
 await dashboard.ready;
 if (!demo && !process.argv.includes("--dashboard"))
@@ -26224,6 +26339,7 @@ if (!demo && !process.argv.includes("--dashboard"))
 async function shutdown() {
   dashboard.close();
   await server.close();
+  releaseUpdateLease();
   process.exit(0);
 }
 process.on("SIGINT", shutdown);

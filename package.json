@@ -1,6 +1,6 @@
 {
   "name": "hrouter-market-pulse",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Bilingual A/HK/US market research workbench and Codex plugin",
   "homepage": "https://hrouter.net/",
   "license": "MIT",
@@ -19,7 +19,12 @@
     "start": "node mcp/server.bundle.mjs --dashboard",
     "demo": "node mcp/server.bundle.mjs --demo",
     "check": "node --check mcp/server.bundle.mjs",
-    "smoke": "node scripts/smoke-local.mjs"
+    "smoke": "node scripts/smoke-local.mjs",
+    "version": "node scripts/sync-version.mjs",
+    "release:pack": "node scripts/package-release.mjs",
+    "update:status": "node scripts/updater.mjs status",
+    "update:check": "node scripts/updater.mjs check",
+    "smoke:updater": "node scripts/smoke-updater.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

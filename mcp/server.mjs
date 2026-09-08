@@ -1,3 +1,4 @@
+import { acquireRuntimeLease } from "./update-coordination.mjs";
 import { startDashboard } from "./http.mjs";
 import {
   enrichReport,
@@ -47,7 +48,7 @@ import {
 
 const server = new McpServer({
   name: "hrouter-market-pulse",
-  version: "1.1.1",
+  version: typeof __HROUTER_VERSION__ === "string" ? __HROUTER_VERSION__ : "development",
 });
 
 function toolResult(data, summary) {
@@ -894,6 +895,7 @@ registerWorkspaceTool(
 );
 
 const demo = process.argv.includes("--demo");
+const releaseUpdateLease = demo ? () => {} : await acquireRuntimeLease();
 const dashboard = startDashboard({ demo });
 await dashboard.ready;
 if (!demo && !process.argv.includes("--dashboard"))
@@ -902,6 +904,7 @@ if (!demo && !process.argv.includes("--dashboard"))
 async function shutdown() {
   dashboard.close();
   await server.close();
+  releaseUpdateLease();
   process.exit(0);
 }
 

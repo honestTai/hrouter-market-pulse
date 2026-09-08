@@ -1,5 +1,8 @@
 import { build } from "esbuild";
-import { mkdir, copyFile, cp, readdir } from "node:fs/promises";
+import { mkdir, copyFile, cp, readdir, readFile, writeFile } from "node:fs/promises";
+const pkg = JSON.parse(await readFile("package.json", "utf8"));
+const manifest = JSON.parse(await readFile(".codex-plugin/plugin.json", "utf8"));
+if (manifest.version.split("+")[0] !== pkg.version) throw new Error("Run npm run version to synchronize plugin metadata before building");
 await mkdir("assets/vendor", { recursive: true });
 for (const [source, destination] of [
   [
@@ -28,9 +31,9 @@ for (const entry of await readdir("node_modules", { withFileTypes: true })) {
       if (!/^(LICENSE|LICENCE|COPYING|NOTICE)(\.(md|txt))?$/i.test(file))
         continue;
       try {
-        await copyFile(
-          `${dir}/${file}`,
+        await writeFile(
           `assets/vendor/licenses/${name.replaceAll("/", "-")}-${file}`,
+          (await readFile(`${dir}/${file}`, "utf8")).replaceAll("\r\n", "\n"),
         );
       } catch (error) {
         if (error.code !== "EISDIR") throw error;
@@ -44,6 +47,7 @@ await build({
   platform: "node",
   format: "esm",
   target: "node20",
+  define: { __HROUTER_VERSION__: JSON.stringify(pkg.version) },
   outfile: "mcp/server.bundle.mjs",
 });
 const distribution = "plugins/hrouter-market-pulse";

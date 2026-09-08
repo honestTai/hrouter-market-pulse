@@ -67,3 +67,7 @@ An unavailable data source is not replaced with demo prices. Check the per-sourc
 Official synchronization processes at most five symbols per request, with at most three simultaneous symbol fetches and a 15-minute successful-result cache. Remaining symbols are explicitly returned as `deferred`; submit them in the next batch. Intraday quote refresh reads stored evidence without blocking on a new filings download.
 
 The dashboard is local-only. A static copied HTML report requires its assets and server routes for interactions; use the release package or running dashboard for the full experience.
+
+## 插件升级 / Plugin upgrades
+
+For opt-in background upgrades, migration from older installations, disabling, rollback, and publisher release instructions, see [AUTO_UPDATE.md](AUTO_UPDATE.md). Quote refresh controls in the dashboard refresh market data, not installed application code.

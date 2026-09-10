@@ -1,0 +1,53 @@
+mcp/core.mjs
+  s_6f6868e1fe60c4::t_4204a0a5775be1 7,355-368,474,505-552,556-564,595-601,603,621
+  s_6f6868e1fe60c4::t_8f2121a99ba5fa 196,216,248,553-554
+  s_6f6868e1fe60c4::t_395ce98064dcab 278,591-593,604,606-608,614-616
+  s_6f6868e1fe60c4::t_4198d5e3cb24d7 555,602
+CHANGELOG.md
+  s_6f6868e1fe60c4::t_395ce98064dcab 3-8
+skills/hrouter-stock-analysis/SKILL.md
+  s_6f6868e1fe60c4::t_395ce98064dcab 21
+mcp/monitor.mjs
+  s_6f6868e1fe60c4::t_4204a0a5775be1 9,40
+tests/workspace-integration.test.mjs
+  s_6f6868e1fe60c4::t_71432e501f9229 258,309,318-325
+docs/METHODOLOGY.md
+  s_6f6868e1fe60c4::t_395ce98064dcab 7-9,35
+mcp/workspace.mjs
+  s_6f6868e1fe60c4::t_395ce98064dcab 110
+  s_6f6868e1fe60c4::t_0f5369332fd2d7 144-148
+tests/provider-failover.test.mjs
+  s_6f6868e1fe60c4::t_8a67955f85b4f8 77
+  s_6f6868e1fe60c4::t_4ed518ce6c114d 1-33,35-76,78-109
+  s_6f6868e1fe60c4::t_8f2121a99ba5fa 34
+.codex-plugin/plugin.json
+  s_6f6868e1fe60c4::t_8267b56afae545 3
+mcp/server.bundle.mjs
+  s_6f6868e1fe60c4::t_15c91b2839bbfb 7508,7539,7781,7801,7832,7862,7934-7947,8047,8076-8144,8170-8172,8174-8183,8185-8187,8193-8195,8200,10217,10250-10254,25695
+package-lock.json
+  s_6f6868e1fe60c4::t_7daa1f9a04af45 3,9
+package.json
+  s_6f6868e1fe60c4::t_412b4bd7f421b9 3
+plugins/hrouter-market-pulse/.codex-plugin/plugin.json
+  s_6f6868e1fe60c4::t_bdfccf0a1e9b4c 3
+plugins/hrouter-market-pulse/mcp/server.bundle.mjs
+  s_6f6868e1fe60c4::t_e4463934cd3bab 7508,7539,7781,7801,7832,7862,7934-7947,8047,8076-8144,8170-8172,8174-8183,8185-8187,8193-8195,8200,10217,10250-10254,25695
+plugins/hrouter-market-pulse/skills/hrouter-stock-analysis/SKILL.md
+  s_6f6868e1fe60c4::t_2459e3c2841f13 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d5fa71d489f4f1c886771783964a2c3eb2608c74",
+  "prompts": {},
+  "sessions": {
+    "s_6f6868e1fe60c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08b76-ced3-7723-9d76-a206aba62e2d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "honest.tai <honest.tai@outlook.com>"
+    }
+  }
+}

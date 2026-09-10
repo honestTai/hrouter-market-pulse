@@ -7505,7 +7505,7 @@ function evaluateAlertTransitions(quotes, previous = {}, { now = (/* @__PURE__ *
   const events = [];
   const timestamp = Date.parse(now);
   for (const quote of quotes) {
-    if (quote.error || quote.freshness?.signalEligible !== true || quote.crossCheck?.status !== "matched") {
+    if (quote.error || quote.signalEligible === false || quote.freshness?.signalEligible !== true || !["matched", "unavailable", "fallback"].includes(quote.crossCheck?.status)) {
       for (const key of Object.keys(state).filter((key2) => key2.startsWith(`${quote.symbol}:`))) state[key].candidateCount = 0;
       continue;
     }
@@ -7536,7 +7536,7 @@ function evaluateAlertTransitions(quotes, previous = {}, { now = (/* @__PURE__ *
           next.active = true;
           next.candidateCount = 0;
           if (!old.lastEventAt || timestamp - Date.parse(old.lastEventAt) >= (rule.cooldownSeconds ?? cooldownSeconds) * 1e3) {
-            events.push({ id: `${key}:${quote.asOf}:triggered`, key, symbol: quote.symbol, code: "threshold-crossed", state: "triggered", field: rule.field ?? "price", direction: above ? "above" : "below", threshold: rule.threshold, value, asOf: quote.asOf, generatedAt: now });
+            events.push({ id: `${key}:${quote.asOf}:triggered`, key, symbol: quote.symbol, code: "threshold-crossed", state: "triggered", field: rule.field ?? "price", direction: above ? "above" : "below", threshold: rule.threshold, value, asOf: quote.asOf, generatedAt: now, provider: quote.provider, crossCheck: quote.crossCheck, dataQuality: quote.dataQuality });
             next.lastEventAt = now;
           }
         }
@@ -7778,7 +7778,7 @@ function computeIndicators(closes, highs = [], lows = [], volumes = []) {
     volumeRatioBasis: "completed-day-vs-previous-20-completed-days"
   };
 }
-async function fetchJson(url, timeoutMs = 15e3) {
+async function fetchJson(url, timeoutMs = 15e3, allowCurlRetry = true) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -7798,7 +7798,7 @@ async function fetchJson(url, timeoutMs = 15e3) {
     }
     return await response.json();
   } catch (error2) {
-    if (![403, 429].includes(error2.httpStatus)) throw error2;
+    if (!allowCurlRetry || ![403, 429].includes(error2.httpStatus)) throw error2;
     const curl = process.platform === "win32" ? "curl.exe" : "curl";
     try {
       const { stdout } = await execFileAsync(curl, [
@@ -7829,7 +7829,7 @@ async function getYahooQuote(input, options = {}) {
   const interval = options.interval ?? "1d";
   const range = options.range ?? "6mo";
   const url = `${YAHOO_CHART}/${encodeURIComponent(symbol)}?interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}&events=div%2Csplits`;
-  const payload = await fetchJson(url);
+  const payload = await fetchJson(url, options.timeoutMs ?? 15e3, false);
   return parseYahooChart(input, payload, options);
 }
 function parseYahooChart(input, payload, options = {}) {
@@ -7859,6 +7859,7 @@ function parseYahooChart(input, payload, options = {}) {
   const meta = result.meta ?? {};
   const closes = rows.map((row) => row.close);
   const currentPrice = finite(meta.regularMarketPrice) ?? lastFinite(closes);
+  if (!(currentPrice > 0)) throw new Error(`Yahoo returned an invalid price for ${symbol}`);
   const latestTimestamp = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1e3).toISOString() : null;
   const quoteDate = latestTimestamp ? localMarketTime(latestTimestamp, market)?.date : null;
   const priorDailyClose = interval === "1d" && quoteDate ? rows.filter((row) => row.sessionDate < quoteDate).at(-1)?.close : null;
@@ -7930,7 +7931,20 @@ function parseYahooChart(input, payload, options = {}) {
 async function getHistoricalQuote(input, options = {}) {
   const allowedRanges = /* @__PURE__ */ new Set(["1y", "2y", "5y"]);
   const range = allowedRanges.has(options.range) ? options.range : "2y";
-  return getYahooQuote(input, { ...options, range, interval: "1d", historyLimit: 2e3 });
+  const historyOptions = { ...options, range, interval: "1d", historyLimit: 2e3 };
+  try {
+    const quote = await getYahooQuote(input, historyOptions);
+    if (!quote.history.length) throw new Error("Yahoo daily history is empty");
+    return quote;
+  } catch (error2) {
+    try {
+      const quote = await getTencentHistory(input, historyOptions);
+      quote.dataQuality.warnings.push(`Yahoo history unavailable: ${error2.message}`);
+      return quote;
+    } catch (fallbackError) {
+      throw new Error(`Daily history unavailable: Yahoo: ${error2.message}; Tencent: ${fallbackError.message}`);
+    }
+  }
 }
 function tencentCodeForSymbol(input) {
   const symbol = normalizeSymbol(input);
@@ -8030,6 +8044,7 @@ function parseTencentQuote(payload, input) {
     asOf: parseTencentTimestamp(fields[30], market),
     source: "Tencent Finance quote API",
     provider: "Tencent Finance",
+    providerSymbol: fields[2] || null,
     freshnessNotice: "\u516C\u5F00\u884C\u60C5\u53EF\u80FD\u5EF6\u8FDF\uFF1B\u4E0B\u5355\u524D\u5FC5\u987B\u4EE5\u5238\u5546\u884C\u60C5\u590D\u6838\u3002",
     dataQuality: {
       status: "warning",
@@ -8058,6 +8073,75 @@ async function getTencentQuote(input, timeoutMs = 15e3) {
     clearTimeout(timer);
   }
 }
+function parseTencentHistory(input, rawPayload, adjustedPayload, options = {}) {
+  const symbol = normalizeSymbol(input), market = marketFromSymbol(symbol);
+  const code = options.tencentCode ?? tencentCodeForSymbol(symbol);
+  const raw = rawPayload?.data?.[code]?.day;
+  const adjusted = adjustedPayload?.data?.[code]?.qfqday;
+  if (!Array.isArray(raw) || !raw.length) throw new Error(`Tencent daily history missing for ${symbol}`);
+  const adjustedByDate = new Map((adjusted ?? []).map((row) => [row[0], row]));
+  let previousDate = "";
+  const history = raw.map((row) => {
+    const [date3, o, c, h, l, v] = row;
+    const open = finite(o), close = finite(c), high = finite(h), low = finite(l), volume = finite(v);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date3) || !Number.isFinite(Date.parse(date3)) || new Date(date3).toISOString().slice(0, 10) !== date3 || date3 <= previousDate) throw new Error("Invalid or unordered Tencent session dates");
+    if (![open, close, high, low].every((value) => value > 0) || high < Math.max(open, close) || low > Math.min(open, close) || volume === null || volume < 0) throw new Error(`Invalid Tencent OHLCV at ${date3}`);
+    previousDate = date3;
+    const adjustedClose = adjusted ? finite(adjustedByDate.get(date3)?.[2]) : null;
+    if (adjusted && !(adjustedClose > 0)) throw new Error(`Tencent adjustment missing at ${date3}`);
+    const timestamp = marketLocalToIso(date3, 12 * 60, market);
+    return { timestamp, open, close, high, low, volume, adjustedClose, adjustmentFactor: adjustedClose === null ? null : adjustedClose / close, ...dailyBarMetadata(timestamp, market, options) };
+  });
+  const completed = history.filter((row) => row.complete);
+  const anchor = history.at(-1).adjustmentFactor ?? 1;
+  const rows = completed.map((row) => {
+    const factor = (row.adjustmentFactor ?? 1) / anchor;
+    return { ...row, close: row.close * factor, high: row.high * factor, low: row.low * factor };
+  });
+  const indicators = computeIndicators(rows.map((row) => row.close), rows.map((row) => row.high), rows.map((row) => row.low), rows.map((row) => row.volume));
+  indicators.asOf = completed.at(-1)?.availableAt ?? null;
+  indicators.priceBasis = adjusted ? "adjusted-to-latest-raw-price" : "unadjusted";
+  const latest = history.at(-1), previous = history.at(-2);
+  return {
+    symbol,
+    market,
+    name: symbol,
+    currency: market === "A" ? "CNY" : market === "HK" ? "HKD" : "USD",
+    provider: "Tencent Finance",
+    source: "Tencent Finance daily kline API",
+    period: "1d",
+    price: latest.close,
+    previousClose: previous?.close ?? null,
+    changePct: previous ? (latest.close / previous.close - 1) * 100 : null,
+    asOf: latest.availableAt,
+    indicators,
+    history: history.slice(-(options.historyLimit ?? 60)),
+    historyPriceBasis: "unadjusted",
+    corporateActions: [],
+    dataQuality: { status: "warning", warnings: ["Tencent daily history fallback; corporate-action records are not supplied.", ...!adjusted ? ["Adjusted history unavailable; indicators use unadjusted prices."] : []] }
+  };
+}
+async function getTencentHistory(input, options = {}) {
+  const symbol = normalizeSymbol(input);
+  let code = tencentCodeForSymbol(symbol);
+  if (marketFromSymbol(symbol) === "US" && !TENCENT_INDEX_CODES[symbol]) {
+    const snapshot = options.snapshot ?? await getTencentQuote(symbol, options.timeoutMs ?? 15e3);
+    if (!/^[A-Za-z0-9.^_-]+$/.test(snapshot.providerSymbol ?? "")) throw new Error("Tencent US history symbol unavailable");
+    code = `us${snapshot.providerSymbol}`;
+  }
+  const count = { "6mo": 180, "1y": 320, "2y": 640, "5y": 2e3 }[options.range ?? "6mo"] ?? 180;
+  const endpoint = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get";
+  const [raw, adjusted] = await Promise.all([
+    fetchJson(`${endpoint}?param=${encodeURIComponent(`${code},day,,,${count},`)}`, options.timeoutMs ?? 15e3, false),
+    fetchJson(`${endpoint}?param=${encodeURIComponent(`${code},day,,,${count},qfq`)}`, options.timeoutMs ?? 15e3, false)
+  ]);
+  const rawRows = raw?.data?.[code]?.day, adjustedRows = adjusted?.data?.[code]?.qfqday;
+  if (Array.isArray(rawRows) && Array.isArray(adjustedRows) && adjustedRows.length) {
+    const start = adjustedRows[0][0], end = adjustedRows.at(-1)[0];
+    raw.data[code].day = rawRows.filter((row) => row[0] >= start && row[0] <= end);
+  }
+  return parseTencentHistory(symbol, raw, adjusted, { ...options, tencentCode: code });
+}
 function crossCheckQuotes(quote, check2, options = {}) {
   const primaryFreshness = assessQuoteFreshness(quote, options);
   const secondaryFreshness = assessQuoteFreshness(check2, options);
@@ -8083,22 +8167,37 @@ async function getQuote(input, options = {}) {
     wantsIntraday ? getYahooQuote(symbol, { ...normalizedOptions, interval: "5m", range: "1mo", historyLimit: 4e3 }) : Promise.resolve(null)
   ]);
   if (!options.now) normalizedOptions.now = (/* @__PURE__ */ new Date()).toISOString();
-  const quote = yahooResult.status === "fulfilled" ? yahooResult.value : tencentResult.status === "fulfilled" ? tencentResult.value : null;
+  const sourceUsable = (result) => result.status === "fulfilled" && !["stale", "future", "unknown-timestamp"].includes(assessQuoteFreshness(result.value, normalizedOptions).status);
+  const yahooUsable = sourceUsable(yahooResult), tencentUsable = sourceUsable(tencentResult);
+  const quote = yahooUsable ? yahooResult.value : tencentUsable ? tencentResult.value : yahooResult.status === "fulfilled" ? yahooResult.value : tencentResult.status === "fulfilled" ? tencentResult.value : null;
   if (!quote) throw new Error(`\u884C\u60C5\u8BF7\u6C42\u5931\u8D25\uFF1AYahoo Finance: ${yahooResult.reason?.message}; Tencent Finance: ${tencentResult.reason?.message}`);
+  if (!quote.history.length) {
+    try {
+      const history = await getTencentHistory(symbol, { ...normalizedOptions, snapshot: tencentResult.status === "fulfilled" ? tencentResult.value : void 0 });
+      Object.assign(quote, { history: history.history, indicators: history.indicators, historyPriceBasis: history.historyPriceBasis, corporateActions: history.corporateActions, period: "1d", historySource: history.source });
+      quote.dataQuality.warnings = [...quote.dataQuality.warnings.filter((warning) => warning !== "\u5F53\u524D\u4EC5\u6709\u817E\u8BAF\u8D22\u7ECF\u5FEB\u7167\uFF0C\u5386\u53F2\u6307\u6807\u4E0D\u53EF\u7528"), ...history.dataQuality.warnings];
+    } catch (error2) {
+      quote.dataQuality.warnings.push(`Daily history unavailable: ${error2.message}`);
+    }
+  }
+  if (!options.now) normalizedOptions.now = (/* @__PURE__ */ new Date()).toISOString();
   quote.freshness = assessQuoteFreshness(quote, normalizedOptions);
-  quote.dataSources = [{ provider: quote.provider, role: yahooResult.status === "fulfilled" ? "primary" : "fallback", price: quote.price, asOf: quote.asOf, freshness: quote.freshness }];
-  if (yahooResult.status === "fulfilled" && tencentResult.status === "fulfilled") {
+  const selectedYahoo = quote === yahooResult.value;
+  quote.dataSources = [{ provider: quote.provider, role: selectedYahoo ? "primary" : "fallback", price: quote.price, asOf: quote.asOf, freshness: quote.freshness }];
+  if (yahooUsable && tencentUsable) {
     const check2 = tencentResult.value;
     quote.crossCheck = crossCheckQuotes(quote, check2, normalizedOptions);
     quote.source = "Yahoo Finance + Tencent Finance";
     quote.dataSources.push({ provider: check2.provider, role: "cross-check", price: check2.price, asOf: check2.asOf, freshness: quote.crossCheck.secondaryFreshness });
   } else {
-    quote.crossCheck = { status: yahooResult.status === "fulfilled" ? "unavailable" : "fallback", error: yahooResult.reason?.message ?? tencentResult.reason?.message };
+    const other = selectedYahoo ? tencentResult : yahooResult;
+    quote.crossCheck = { status: selectedYahoo ? "unavailable" : "fallback", error: other.reason?.message ?? "Other source has stale, future or missing quote time" };
+    if (other.status === "fulfilled") quote.dataSources.push({ provider: other.value.provider, role: "rejected", price: other.value.price, asOf: other.value.asOf, freshness: assessQuoteFreshness(other.value, normalizedOptions) });
   }
   if (quote.freshness.status !== "fresh") quote.dataQuality.warnings.push(quote.freshness.reason);
   if (quote.crossCheck.status !== "matched") quote.dataQuality.warnings.push(`Cross-check: ${quote.crossCheck.status}`);
   quote.dataQuality.status = quote.freshness.status === "stale" || quote.freshness.status === "future" ? "stale" : quote.dataQuality.warnings.length ? "warning" : "ok";
-  quote.signalEligible = quote.freshness.signalEligible && quote.crossCheck.status === "matched";
+  quote.signalEligible = quote.freshness.signalEligible && ["matched", "unavailable", "fallback"].includes(quote.crossCheck.status);
   if (wantsIntraday) {
     quote.intraday = intradayResult.status === "fulfilled" && intradayResult.value ? {
       status: "available",
@@ -10115,7 +10214,7 @@ async function recordDecision(input) {
       );
     if (quote?.signalEligible !== true)
       throw new Error(
-        "Candidate requires current, cross-checked, usable market data"
+        "Candidate requires current usable market data without a cross-source conflict"
       );
     if (!prediction || prediction.qualification?.currentlyEligible !== true)
       throw new Error(
@@ -10148,6 +10247,11 @@ async function recordDecision(input) {
       currency: quote.currency,
       asOf: quote.asOf,
       freshness: quote.freshness,
+      provider: quote.provider,
+      crossCheck: quote.crossCheck,
+      dataSources: quote.dataSources,
+      dataQuality: quote.dataQuality,
+      signalEligible: quote.signalEligible,
       indicators: quote.indicators
     } : null,
     quoteError,
@@ -25588,7 +25692,7 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: true ? "1.2.0" : "development"
+  version: true ? "1.2.1" : "development"
 });
 function toolResult(data, summary) {
   return {

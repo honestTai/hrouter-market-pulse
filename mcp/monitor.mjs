@@ -6,7 +6,7 @@ export function evaluateAlertTransitions(quotes, previous = {}, { now = new Date
   const events = [];
   const timestamp = Date.parse(now);
   for (const quote of quotes) {
-    if (quote.error || quote.freshness?.signalEligible !== true || quote.crossCheck?.status !== "matched") {
+    if (quote.error || quote.signalEligible === false || quote.freshness?.signalEligible !== true || !["matched", "unavailable", "fallback"].includes(quote.crossCheck?.status)) {
       for (const key of Object.keys(state).filter((key) => key.startsWith(`${quote.symbol}:`))) state[key].candidateCount = 0;
       continue;
     }
@@ -37,7 +37,7 @@ export function evaluateAlertTransitions(quotes, previous = {}, { now = new Date
           next.active = true;
           next.candidateCount = 0;
           if (!old.lastEventAt || timestamp - Date.parse(old.lastEventAt) >= (rule.cooldownSeconds ?? cooldownSeconds) * 1000) {
-            events.push({ id: `${key}:${quote.asOf}:triggered`, key, symbol: quote.symbol, code: "threshold-crossed", state: "triggered", field: rule.field ?? "price", direction: above ? "above" : "below", threshold: rule.threshold, value, asOf: quote.asOf, generatedAt: now });
+            events.push({ id: `${key}:${quote.asOf}:triggered`, key, symbol: quote.symbol, code: "threshold-crossed", state: "triggered", field: rule.field ?? "price", direction: above ? "above" : "below", threshold: rule.threshold, value, asOf: quote.asOf, generatedAt: now, provider: quote.provider, crossCheck: quote.crossCheck, dataQuality: quote.dataQuality });
             next.lastEventAt = now;
           }
         }

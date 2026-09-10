@@ -107,7 +107,7 @@ export async function recordDecision(input) {
       );
     if (quote?.signalEligible !== true)
       throw new Error(
-        "Candidate requires current, cross-checked, usable market data",
+        "Candidate requires current usable market data without a cross-source conflict",
       );
     if (!prediction || prediction.qualification?.currentlyEligible !== true)
       throw new Error(
@@ -141,6 +141,11 @@ export async function recordDecision(input) {
           currency: quote.currency,
           asOf: quote.asOf,
           freshness: quote.freshness,
+          provider: quote.provider,
+          crossCheck: quote.crossCheck,
+          dataSources: quote.dataSources,
+          dataQuality: quote.dataQuality,
+          signalEligible: quote.signalEligible,
           indicators: quote.indicators,
         }
       : null,

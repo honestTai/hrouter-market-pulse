@@ -255,7 +255,7 @@ test("same-day date-only SEC filings and financial facts ingest at first observa
   });
 });
 
-test("qualified candidates still require full quote agreement and an executable risk budget", async () => {
+test("qualified candidates reject quote conflicts and require an executable risk budget", async () => {
   await isolatedWorkspace(async () => {
     const evidence = await ingestOfficialRecords({ items: [filing("AAPL")] });
     const prediction = await recordPrediction({
@@ -306,7 +306,7 @@ test("qualified candidates still require full quote agreement and an executable 
         ...request,
         budgetRequest: { ...budgetRequest, availableCash: 10000 },
       }),
-      /cross-checked/,
+      /cross-source conflict/,
     );
     globalThis.fetch = validFetch;
     const accepted = await recordDecision({
@@ -315,6 +315,14 @@ test("qualified candidates still require full quote agreement and an executable 
     });
     assert.equal(accepted.verifiedBudget.ideas[0].quantityCeiling, 10);
     assert.equal((await listDecisions()).decisions.length, 1);
+    globalThis.fetch = async (url, ...args) => String(url).startsWith("https://qt.gtimg.cn/")
+      ? new Response("Unavailable", { status: 503 }) : validFetch(url, ...args);
+    const singleSource = await recordDecision({
+      ...request,
+      budgetRequest: { ...budgetRequest, availableCash: 10000 },
+    });
+    assert.equal(singleSource.snapshot.crossCheck.status, "unavailable");
+    assert.equal(singleSource.verifiedBudget.ideas[0].quantityCeiling, 10);
   });
 });
 

@@ -1,12 +1,25 @@
-# Hrouter Market Pulse
+<div align="center">
 
-**一个开源的 A 股、港股、美股研究工作台，也是可安装的 Codex 插件。**
+# HRouter Market Pulse
 
-[English](README.en.md) · [官网](https://hrouter.net/) · [使用文档](docs/USAGE.md) · [数据与方法](docs/METHODOLOGY.md) · [版本记录](CHANGELOG.md)
+**把行情、公告与研究记录，放到同一个工作台。**  
+**Your quotes, filings, and research notes—in one workspace.**
 
-![Hrouter Market Pulse 中文看盘工作台，使用合成演示数据](docs/images/dashboard-zh.png)
+[中文](README.md) · [English](README.en.md) · [下载插件 / Plugin releases](https://github.com/honestTai/hrouter-market-pulse/releases) · [GitHub](https://github.com/honestTai/hrouter-market-pulse) · [HRouter](https://hrouter.net/home)
 
-看盘时，把价格、持仓、异动、公告和判断依据放在同一个工作台。Hrouter Market Pulse 负责可复核的数据计算，Codex 当前任务模型负责研究和解释。无需另配一个模型服务。
+</div>
+
+不只看一张涨跌表：在中英文工作台里查看持仓、核对行情、跟踪异动和公告，并保留判断与复盘记录。
+
+Go beyond a price table: review holdings, cross-check quotes, follow alerts and filings, and keep a record of your reasoning.
+
+**适合谁 / Who it’s for**  
+希望结合可复核数据与 AI 整理 A 股、港股和美股研究的用户。  
+Researchers who want verifiable data and AI-assisted workflows for mainland China, Hong Kong, and US equities.
+
+插件使用当前 Codex 任务模型，无需另配模型服务。
+
+![HRouter Market Pulse 中文看盘工作台，使用合成演示数据](docs/images/dashboard-zh.png)
 
 ## 能做什么
 
@@ -33,7 +46,7 @@
 node scripts/install.mjs --auto-update
 ```
 
-这会安装插件，并明确启用**当前用户的自动更新任务**：约每 6 小时检查正式版本，校验后在插件进程退出时安装，保留设置和上一版。不会修改系统 PATH 或安装全局依赖。只想手动更新时省略 `--auto-update`。安装或更新后，新建 Codex 任务，再选择 Hrouter Market Pulse。
+这会安装插件，并明确启用**当前用户的自动更新任务**：约每 6 小时检查正式版本，校验后在插件进程退出时安装，保留设置和上一版。不会修改系统 PATH 或安装全局依赖。只想手动更新时省略 `--auto-update`。安装或更新后，新建 Codex 任务，再选择 HRouter Market Pulse。
 
 已按旧方式安装的用户，需要先关闭旧插件任务，再执行一次 `node scripts/install.mjs --auto-update --migrate`。[完整更新说明、停用与回退](docs/AUTO_UPDATE.md)。
 
@@ -87,3 +100,16 @@ plugins/hrouter-market-pulse/  自动构建的可安装插件
 代码采用 [MIT](LICENSE) 许可证。图表使用 [TradingView Lightweight Charts](https://www.tradingview.com/lightweight-charts/)，图标使用 [Lucide](https://lucide.dev/)，各自许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 欢迎提交包含复现步骤、数据时间和脱敏样例的 Issue 或 PR。项目官网：[https://hrouter.net/](https://hrouter.net/)。
+
+## 作者与 HRouter · About the author
+
+我是 **honestTai**，开发工具，也运营 [HRouter](https://hrouter.net/home)。这里持续分享实用代码、AI 应用、Skills 与插件，把工作中的需求变成可复用的项目。  
+I’m **honestTai**, the developer and operator behind HRouter. I share practical code, AI apps, skills, and plugins built around real workflows.
+
+此工作流使用你在 Codex 环境中的模型。HRouter 是我同时运营的模型路由服务，面向 AI 编程与应用开发。  
+This workflow uses the model in your Codex environment. HRouter is another part of my work: a model-routing service for AI coding and applications.
+
+[了解 HRouter · Explore HRouter](https://hrouter.net/home) · [发现更多项目 · More projects](https://github.com/honestTai)
+
+**觉得有用，欢迎 Star；有想法，欢迎到 Issues 交流。**  
+**Star the project if it helps, and share your ideas in Issues.**

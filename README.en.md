@@ -1,12 +1,20 @@
-# Hrouter Market Pulse
+<div align="center">
 
-**An open-source research workbench for mainland China, Hong Kong, and US equities, packaged as a Codex plugin.**
+# HRouter Market Pulse
 
-[简体中文](README.md) · [Website](https://hrouter.net/) · [Usage](docs/USAGE.md) · [Methodology](docs/METHODOLOGY.md)
+**Your quotes, filings, and research notes—in one workspace.**
+
+[中文](README.md) · [English](README.en.md) · [Plugin releases](https://github.com/honestTai/hrouter-market-pulse/releases) · [GitHub](https://github.com/honestTai/hrouter-market-pulse) · [HRouter](https://hrouter.net/home)
+
+</div>
+
+Go beyond a price table: review holdings, cross-check quotes, follow alerts and filings, and keep a record of your reasoning.
+
+**Who it’s for:** Researchers who want verifiable data and AI-assisted workflows for mainland China, Hong Kong, and US equities.
+
+The plugin uses the model in your current Codex task; no separate model service is required.
 
 ![English market workbench with clearly labeled synthetic demonstration data](docs/images/dashboard-en.png)
-
-Bring quotes, holdings, alerts, filings, and decision records into one workspace. Deterministic tools handle calculations and timestamps; the model in the current Codex task handles research and interpretation. No separate model service is required.
 
 ## Features
 
@@ -72,3 +80,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Include timestamps, source identifiers, 
 MIT-licensed project code. TradingView Lightweight Charts and Lucide retain their respective licenses and attributions in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Official website: [hrouter.net](https://hrouter.net/).
+
+## Meet the author & HRouter
+
+I’m **honestTai**, the developer and operator behind [HRouter](https://hrouter.net/home). I share practical tools, reusable workflows, skills, and plugins on GitHub.
+
+This workflow uses the model in your Codex environment. HRouter is another part of my work: a model-routing service for AI coding and applications.
+
+[Explore HRouter](https://hrouter.net/home) · [More projects](https://github.com/honestTai)
+
+If this project helps your workflow, give it a star and share what you build. Feedback and feature ideas are welcome in Issues.

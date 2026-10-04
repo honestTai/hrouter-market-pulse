@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — React workspace and evidence-backed fundamental research
+
+- Add an optional official Futu OpenD Python bridge and a React Paper trading page for actual HK/US SIMULATE accounts; no synthetic trading fallback or REAL path.
+- Add six MCP tools for account discovery, bounded autonomous paper execution, cancellations, broker reconciliation and traceable strategy/quote records.
+- Require UI-authorized strategies/limits; enforce durable idempotency, cash-only/long-only constraints, real quote freshness and unknown-response stops. No implicit scheduler or claimed paper performance.
+- Add isolated SDK setup, offline broker contract tests and integration documentation.
+- Replace the imperative dashboard with React 19, Radix Themes and Lucide React; locally bundle all scripts/styles with esbuild.
+- Add a responsive research workspace with light/dark themes, bilingual navigation, independent market/holdings/evidence/journal pages and accessible editors.
+- Retain real OHLC charting, freshness/quality gates and append-only records; keep currencies separate and unknown values missing.
+- Add React rendering, presentation-contract and demo HTTP integration tests; make demo refresh respect saved watchlists and positions.
+
+- Add deterministic financial evidence comparisons with period, accounting-basis, unit, scale and pre-disclosure estimate checks. Missing consensus is never replaced by guidance.
+- Add falsifiable thesis pillars, append-only evidence-backed assessments and point-in-time scorecards without changing decision states or weakening candidate gates.
+- Add sourced event-calendar queries with stable revision identity, cancellations, conflict flags and explicit evidence-coverage warnings; enhance dashboard event and thesis cards.
+- Add the fundamental-research workflow skill, integration documentation and upstream workflow attribution/license. No commercial connectors or subscriptions are enabled.
+
 ## 1.2.1 - automatic market data failover
 
 - Continue quote analysis, strategy selection and price alerts with a usable Yahoo or Tencent source when the other is unavailable; retain single-source warnings and block genuine cross-source conflicts.

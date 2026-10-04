@@ -13,20 +13,16 @@ export function buildReportHtml(report) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   <meta name="description" content="Hrouter Market Pulse: A-share, Hong Kong and US market research workspace.">
   <title>Hrouter Market Pulse</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/assets/dashboard.css">
-  <script defer src="/assets/vendor/lightweight-charts.js"></script>
-  <script defer src="/assets/vendor/lucide.js"></script>
   <script defer src="/assets/dashboard.js"></script>
 </head>
 <body>
   <script id="report-data" type="application/json">${safeJson(report)}</script>
   <div id="app"><div class="boot"><strong>Hrouter Market Pulse</strong><progress aria-label="Loading"></progress></div></div>
-  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <dialog id="editor-dialog"></dialog>
   <noscript>JavaScript is required / 请启用 JavaScript</noscript>
 </body>
 </html>`;

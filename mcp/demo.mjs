@@ -200,7 +200,7 @@ function bars(price, seed, now, intraday = false) {
 export function makeDemoReport(options = {}) {
   const now = options.now ? new Date(options.now) : new Date();
   const asOf = new Date(now.getTime() - 35000).toISOString();
-  const items = securities.map(
+  const allItems = securities.map(
     (
       [
         symbol,
@@ -216,7 +216,7 @@ export function makeDemoReport(options = {}) {
       index,
     ) => {
       const history = bars(price, index, now);
-      const position = demoPreferences.positions.find(
+      const position = (options.positions ?? demoPreferences.positions).find(
         (item) => item.symbol === symbol,
       );
       const sma = (period) =>
@@ -304,6 +304,7 @@ export function makeDemoReport(options = {}) {
         },
         indicators: {
           period: "1d",
+          asOf: history.at(-1).timestamp,
           sampleCount: history.length,
           sma5: sma(5),
           sma20: sma(20),
@@ -334,6 +335,10 @@ export function makeDemoReport(options = {}) {
       };
     },
   );
+  const items = options.watchlist ? options.watchlist.map((symbol) => allItems.find((item) => item.symbol === symbol) ?? {
+    symbol, market: symbol.endsWith(".HK") ? "HK" : /\.(SS|SZ)$/.test(symbol) ? "A" : "US",
+    error: "No synthetic fixture for this symbol; no market data was requested.", history: [],
+  }) : allItems;
   const indices = [
     {
       symbol: "000001.SS",
@@ -366,40 +371,6 @@ export function makeDemoReport(options = {}) {
       asOf,
     },
   ];
-  const sectors = [
-    {
-      name: "互联网服务",
-      nameZh: "互联网服务",
-      nameEn: "Internet services",
-      count: 2,
-      changePct: 0.44,
-      relativeChangePct: -0.82,
-    },
-    {
-      name: "消费电子",
-      nameZh: "消费电子",
-      nameEn: "Consumer electronics",
-      count: 2,
-      changePct: 1.92,
-      relativeChangePct: 1.05,
-    },
-    {
-      name: "半导体",
-      nameZh: "半导体",
-      nameEn: "Semiconductors",
-      count: 1,
-      changePct: 3.26,
-      relativeChangePct: 2.78,
-    },
-    {
-      name: "食品饮料",
-      nameZh: "食品饮料",
-      nameEn: "Food & beverage",
-      count: 1,
-      changePct: -0.83,
-      relativeChangePct: -1.47,
-    },
-  ];
   const events = [
     {
       id: "demo-evidence-1",
@@ -412,6 +383,11 @@ export function makeDemoReport(options = {}) {
       url: "https://www.hkexnews.hk/",
       publishedAt: new Date(now.getTime() - 7200000).toISOString(),
       effectiveAt: new Date(now.getTime() + 86400000).toISOString(),
+      scheduledAt: new Date(now.getTime() + 86400000).toISOString(),
+      eventType: "earnings",
+      eventStatus: "tentative",
+      dateConfidence: "estimated",
+      timezone: "Asia/Hong_Kong",
     },
     {
       id: "demo-evidence-2",
@@ -458,6 +434,18 @@ export function makeDemoReport(options = {}) {
       },
     ],
   };
+  const visibleSymbols = new Set(items.map((item) => item.symbol));
+  const knownItems = items.filter((item) => !item.error);
+  const sectorGroups = new Map();
+  for (const item of knownItems) {
+    const group = sectorGroups.get(item.sectorZh) ?? { name: item.sectorZh, nameZh: item.sectorZh, nameEn: item.sectorEn, count: 0, changePct: 0, relativeChangePct: 0 };
+    group.count++; group.changePct += item.changePct; group.relativeChangePct += item.relativeChangePct;
+    sectorGroups.set(item.sectorZh, group);
+  }
+  const selectedEvents = events.filter((event) => visibleSymbols.has(event.symbol));
+  const selectedMonitor = { ...monitor, events: monitor.events.filter((event) => visibleSymbols.has(event.symbol)) };
+  const advances = knownItems.filter((item) => item.changePct > 0).length;
+  const declines = knownItems.filter((item) => item.changePct < 0).length;
   return {
     schemaVersion: 2,
     demo: true,
@@ -469,24 +457,22 @@ export function makeDemoReport(options = {}) {
     items,
     context: {
       indices,
-      sectors,
-      breadth: { scope: "watchlist", advances: 5, declines: 3, unchanged: 0 },
+      sectors: [...sectorGroups.values()].map((g) => ({ ...g, changePct: g.changePct / g.count, relativeChangePct: g.relativeChangePct / g.count })),
+      breadth: { scope: "watchlist", advances, declines, unchanged: knownItems.length - advances - declines },
     },
-    events,
-    evidence: events,
-    monitor,
+    events: selectedEvents,
+    evidence: selectedEvents,
+    monitor: selectedMonitor,
     summary: {
-      requested: 8,
-      succeeded: 8,
-      failed: 0,
-      advances: 5,
-      declines: 3,
-      unchanged: 0,
-      alertCount: 3,
-      qualityWarningCount: 1,
-      signalEligibleCount: 7,
-      staleCount: 1,
-      marketCounts: { A: 2, HK: 3, US: 3 },
+      requested: items.length,
+      succeeded: knownItems.length,
+      failed: items.length - knownItems.length,
+      advances, declines, unchanged: knownItems.length - advances - declines,
+      alertCount: selectedMonitor.events.length,
+      qualityWarningCount: items.filter((item) => item.error || item.freshness?.status !== "fresh").length,
+      signalEligibleCount: items.filter((item) => item.signalEligible).length,
+      staleCount: items.filter((item) => item.freshness?.status === "stale").length,
+      marketCounts: Object.fromEntries(["A", "HK", "US"].map((market) => [market, items.filter((item) => item.market === market).length])),
     },
   };
 }

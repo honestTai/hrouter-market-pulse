@@ -11,3 +11,8 @@ coverage/
 .playwright-cli/
 *.zip
 *.log
+
+# Optional Futu bridge development environments
+.venv*/
+__pycache__/
+*.pyc

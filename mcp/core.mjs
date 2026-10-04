@@ -987,6 +987,13 @@ export async function getOnboardingGuide() {
         prompt: "为我的自选股配置盘前、盘中和盘后定时任务。",
       },
       {
+        id: "paper_trading",
+        required: false,
+        completed: false,
+        title: "可选：富途真实模拟盘",
+        prompt: "使用 $hrouter-paper-trading 检查 OpenD 连接，并说明如何授权我的模拟策略和限额。不要操作实盘。",
+      },
+      {
         id: "strategy_lab",
         required: false,
         completed: false,

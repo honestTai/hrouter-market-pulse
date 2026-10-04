@@ -3,6 +3,7 @@ import { mkdir, copyFile, cp, readdir, readFile, writeFile } from "node:fs/promi
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
 const manifest = JSON.parse(await readFile(".codex-plugin/plugin.json", "utf8"));
 if (manifest.version.split("+")[0] !== pkg.version) throw new Error("Run npm run version to synchronize plugin metadata before building");
+await import("./build-ui.mjs");
 await mkdir("assets/vendor", { recursive: true });
 for (const [source, destination] of [
   [
@@ -60,6 +61,8 @@ for (const name of [
   "schemas",
   "LICENSE",
   "THIRD_PARTY_NOTICES.md",
+  "licenses",
+  "bridges",
 ])
   await cp(name, `${distribution}/${name}`, { recursive: true });
 await copyFile(

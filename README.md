@@ -32,6 +32,7 @@ Researchers who want verifiable data and AI-assisted workflows for mainland Chin
 | 公告证据 | SEC 公告与财务事实、巨潮公告适配器，以及原始交易所公告导入；保留来源和首次可见时间 |
 | 风险预算 | 校验币种与汇率，纳入已有持仓、可用现金、组合风险和交易单位 |
 | 策略验证 | 按时间推进的共享资金回测、市场持有规则、费用滑点、公司行动，以及滚动样本外评估 |
+| 基本面研究 | 财报证据可比性检查、可证伪的投资逻辑卡、保留改期与取消历史的事件日历；不虚构共识预期 |
 | 决策复盘 | 保存原始判断和当时证据，追加结果回顾；预测先记录，结果后核对 |
 
 ## 安装 Codex 插件（可自动更新）
@@ -79,7 +80,7 @@ npm run demo
 
 ## 数据边界
 
-- 公开行情可能延迟或被限流。本项目没有券商级实时数据承诺，也不连接下单接口。
+- 公开行情可能延迟或被限流。本项目没有券商级实时数据承诺，真实资金下单始终禁用；富途模拟执行需单独授权。
 - HKEXnews 公告当前通过原始记录导入。完整市场广度需要带来源与统计范围的数据输入，自选池涨跌数始终标注为自选池。
 - 官方源不可用时显示失败或缺失，不用模拟行情替代。财务数据保留单位、期间与修订信息，不自动混算不同期间。
 - 内置交易日历的覆盖范围、回测执行假设和模型准入条件见[方法说明](docs/METHODOLOGY.md)。历史样本和模拟成交不能证明未来收益。
@@ -89,8 +90,9 @@ npm run demo
 
 ```text
 mcp/                       服务、行情、风控、研究与 HTTP 接口
-assets/                    看盘界面与本地第三方图表资源
-skills/                    7 个 Codex 工作流技能
+ui/                        React 组件、样式与展示层数据校验
+assets/                    构建产物与本地图表资源（不要手工修改 bundle）
+skills/                    9 个 Codex 工作流技能
 tests/                     离线回归测试
 docs/                      使用、方法、宣传与截图
 plugins/hrouter-market-pulse/  自动构建的可安装插件
@@ -113,3 +115,19 @@ This workflow uses the model in your Codex environment. HRouter is another part 
 
 **觉得有用，欢迎 Star；有想法，欢迎到 Issues 交流。**  
 **Star the project if it helps, and share your ideas in Issues.**
+
+### 基本面研究扩展
+
+新增财报对比、投资逻辑逐项复核与证据事件日历。未配置商业数据时仍可基于已导入的官方资料开展研究；缺少数据明确标注，不推断为超预期。[使用说明与边界](docs/RESEARCH_WORKFLOWS.md)。
+
+### React 面板开发
+
+面板采用 **React 19 + Radix Themes + Lucide React**，行情图继续使用 Lightweight Charts。包含市场、自选持仓、证据事件、模拟交易和研究记录五个页面，支持中英文、深浅色与窄屏布局；所有脚本、样式和字体回退均可本地运行，不依赖 CDN。
+
+修改 `ui/` 后执行 `npm run build:ui`，刷新本地页面；提交或打包前执行 `npm run build`，同步根目录与插件分发目录。完整说明见 [React 面板](docs/REACT_DASHBOARD.md)。
+
+### Agent 自主模拟交易
+
+新增「模拟交易」菜单，使用真实行情和富途 OpenD 的实际 SIMULATE 账户。用户授权策略、白名单和限额后，Agent 可以自主提交限价单、撤单和核对持仓，不需逐笔确认；真实资金交易在代码层禁用。首次支持港股、美股股票，不提供伪造余额、撮合结果或收益。
+
+`npm run setup:futu` 安装可选官方 Python SDK 到独立用户级 venv。连接和授权步骤见 [富途模拟交易](docs/PAPER_TRADING.md)。界面授权不会自动创建后台交易任务。

@@ -20,7 +20,10 @@
         "HROUTER_WATCHLIST",
         "HROUTER_SEC_USER_AGENT",
         "HROUTER_UPDATE_HOME",
-        "XDG_DATA_HOME"
+        "XDG_DATA_HOME",
+        "HROUTER_FUTU_ENABLED",
+        "HROUTER_FUTU_PYTHON",
+        "HROUTER_FUTU_PORT"
       ],
       "tool_timeout_sec": 120
     }

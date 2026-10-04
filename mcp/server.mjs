@@ -1,3 +1,4 @@
+import { getPaperService } from "./paper.mjs";
 import { acquireRuntimeLease } from "./update-coordination.mjs";
 import { startDashboard } from "./http.mjs";
 import {
@@ -5,9 +6,13 @@ import {
   listDecisions,
   recordDecision,
   reviewDecision,
+  appendThesisReview,
+  queryThesisScorecard,
   syncOfficialEvidence,
   ingestOfficialRecords,
 } from "./workspace.mjs";
+
+import { buildEarningsReview, queryCatalystCalendar } from "./research.mjs";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -126,6 +131,30 @@ const calendarSchema = z.record(
       .optional(),
   }),
 );
+
+// Paper execution is isolated from investment decisions and never exposes REAL.
+// Limits and strategy rules are authorized in the local UI, not editable by MCP.
+const paperAccountSchema = { market: z.enum(["HK", "US"]), accountId: z.string().regex(/^[1-9]\d{0,19}$/) };
+const paperOrderSchema = {
+  symbol: z.string().min(1).max(20), side: z.enum(["BUY", "SELL"]),
+  quantity: z.number().int().positive().max(1000000), limitPrice: z.number().positive().max(1000000),
+  rationale: z.string().min(1).max(2000), idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/),
+  environment: z.literal("SIMULATE").optional(),
+};
+for (const definition of [
+  ["get_paper_trading_status", "Paper trading status", "Read the Futu SIMULATE execution policy, actual order journal and equity observations. Does not connect to a broker or enable execution.", {}, "status", true],
+  ["list_paper_accounts", "List Futu simulation accounts", "Connect to local OpenD and list only HK/US SIMULATE equity accounts; real accounts are never returned.", { market: z.enum(["HK", "US"]) }, "accounts", true],
+  ["refresh_paper_account", "Reconcile actual simulation account", "Read actual Futu simulation funds, positions and current orders; reconcile uncertain requests by broker order ID/remark. Appends equity observations, not fabricated fills.", paperAccountSchema, "refresh", false],
+  ["evaluate_paper_order", "Evaluate paper strategy and limits", "Check the UI-authorized entry/exit strategy, real quote freshness and simulation account limits without placing an order. A preflight does not reserve funds; submission rechecks.", paperOrderSchema, "evaluate", true],
+  ["submit_paper_order", "Submit autonomous SIMULATE limit order", "Agent may submit without per-order human confirmation only after UI authorization. Re-evaluates configured rules, real quotes, cash/position/daily limits. Requires stable idempotencyKey. Acknowledgement is not a fill; UNKNOWN must be reconciled, never retried with a new key. Cannot trade real funds.", paperOrderSchema, "submit", false],
+  ["cancel_paper_order", "Cancel plugin simulation order", "Request cancellation of a recorded plugin-originated SIMULATE order. Allowed while policy is paused. Does not guarantee cancellation; refresh to confirm. Never operates on real accounts.", { orderId: z.string().min(1).max(80), idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/), environment: z.literal("SIMULATE").optional() }, "cancel", false],
+]) {
+  const [name, title, description, inputSchema, method, readOnlyHint] = definition;
+  server.registerTool(name, { title, description, inputSchema, annotations: { readOnlyHint, destructiveHint: false, openWorldHint: method !== "status", idempotentHint: ["status", "accounts", "submit", "cancel"].includes(method) } }, async (input) => {
+    try { const result = await getPaperService()[method](method === "accounts" ? input.market : input); return toolResult(result, `Futu SIMULATE only: ${result.status || result.environment || "result"}. No real-money execution.`); }
+    catch (error) { return toolError(error); }
+  });
+}
 
 server.registerTool(
   "get_foundation_capabilities",
@@ -798,6 +827,52 @@ registerWorkspaceTool(
   },
   ingestOfficialRecords,
 );
+const thesisPillarSchema = z.object({
+  id: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]*$/).max(64),
+  expectation: z.string().min(1).max(2000),
+  invalidationCondition: z.string().min(1).max(2000),
+  reviewBy: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+registerWorkspaceTool(
+  "build_earnings_review",
+  "Compare explicitly selected financial evidence with prior actuals, pre-disclosure consensus, or company guidance. Reject incompatible periods and units; never invent missing estimates.",
+  {
+    symbol: z.string(), asOf: z.string().optional(),
+    metrics: z.array(z.object({
+      actualEvidenceId: evidenceIdSchema,
+      comparisonEvidenceId: evidenceIdSchema.optional(),
+      comparisonType: z.enum(["prior-period", "consensus", "company-guidance"]).optional(),
+    })).min(1).max(40),
+  }, buildEarningsReview,
+);
+registerWorkspaceTool(
+  "query_catalyst_calendar",
+  "Read announced events from ingested evidence with point-in-time revisions, cancellations and explicit coverage warnings. Does not schedule notifications.",
+  {
+    symbols: z.array(z.string()).max(50).optional(), asOf: z.string().optional(),
+    from: z.string().optional(), to: z.string().optional(),
+    includeMacro: z.boolean().optional(), includeCancelled: z.boolean().optional(),
+  }, queryCatalystCalendar,
+);
+registerWorkspaceTool(
+  "append_thesis_review",
+  "Append evidence-backed pillar assessments without rewriting the original decision, changing its state, or authorizing exposure. Define pillars only for a legacy decision without pillars.",
+  {
+    decisionId: z.string(), pillars: z.array(thesisPillarSchema).min(1).max(12).optional(),
+    notes: z.string().max(2000).optional(),
+    updates: z.array(z.object({
+      pillarId: z.string(), status: z.enum(["supported", "weakened", "invalidated", "inconclusive"]),
+      rationale: z.string().min(1).max(2000), evidenceIds: z.array(evidenceIdSchema).min(1).max(100),
+    })).min(1).max(12),
+  }, appendThesisReview,
+);
+registerWorkspaceTool(
+  "query_thesis_scorecard",
+  "Read original thesis pillars and append-only assessments as known at a given time; assessments are research judgments, not probabilities.",
+  { decisionId: z.string(), asOf: z.string().optional() }, queryThesisScorecard,
+);
+
 registerWorkspaceTool(
   "record_decision",
   "Record an immutable decision thesis and its current evidence before reviewing an outcome.",
@@ -807,6 +882,7 @@ registerWorkspaceTool(
       .enum(["watch", "candidate", "hold", "review-exit", "inactive"])
       .optional(),
     thesis: z.string().min(1).max(2000),
+    pillars: z.array(thesisPillarSchema).max(12).optional(),
     entryCondition: z.string().max(2000).optional(),
     invalidationCondition: z.string().max(2000).optional(),
     horizon: z.string().max(160).optional(),

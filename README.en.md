@@ -90,3 +90,19 @@ This workflow uses the model in your Codex environment. HRouter is another part 
 [Explore HRouter](https://hrouter.net/home) · [More projects](https://github.com/honestTai)
 
 If this project helps your workflow, give it a star and share what you build. Feedback and feature ideas are welcome in Issues.
+
+### Fundamental research
+
+Compare sourced financial results, review falsifiable thesis pillars, and query an evidence-backed event calendar with revision and cancellation history. Missing consensus is never invented. Commercial data subscriptions are not included or enabled. See [workflow contracts and limitations](docs/RESEARCH_WORKFLOWS.md).
+
+### React dashboard development
+
+The dashboard uses **React 19, Radix Themes and Lucide React**, retaining Lightweight Charts for financial charts. Five responsive pages cover markets, holdings, evidence/events, paper trading and the research journal, with Chinese/English and light/dark themes. Scripts and styles are bundled locally, without a CDN.
+
+Edit `ui/`, run `npm run build:ui`, then refresh the local dashboard. Run `npm run build` before distribution to update both root and packaged assets. See [React dashboard architecture](docs/REACT_DASHBOARD.md).
+
+### Autonomous agent paper trading
+
+The Paper trading menu connects real market observations to actual Futu OpenD SIMULATE accounts. After explicit UI authorization of strategies, symbols and limits, the agent may independently submit DAY limit orders, cancel plugin orders and reconcile actual holdings through MCP—without per-order confirmation. REAL execution is permanently disabled. Initial execution scope is HK/US stocks, not A-shares, margin or derivatives.
+
+Run `npm run setup:futu` for the optional official SDK in a user-scoped venv. See [setup, safety and measurement boundaries](docs/PAPER_TRADING.md). No invented balances/fills/returns or implicit background trading scheduler.

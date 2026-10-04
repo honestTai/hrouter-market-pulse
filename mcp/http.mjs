@@ -1,3 +1,4 @@
+import { getPaperService } from "./paper.mjs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -22,10 +23,12 @@ import {
 } from "./workspace.mjs";
 import { makeDemoReport, demoPreferences, demoDecisions } from "./demo.mjs";
 import { queryEvidence } from "./foundation.mjs";
+import { buildThesisScorecard, projectCatalystCalendar } from "./research.mjs";
 
 const assets = new Map([
   ["/assets/dashboard.js", ["dashboard.js", "text/javascript; charset=utf-8"]],
   ["/assets/dashboard.css", ["dashboard.css", "text/css; charset=utf-8"]],
+  ["/assets/dashboard.js.LEGAL.txt", ["dashboard.js.LEGAL.txt", "text/plain; charset=utf-8"]],
   [
     "/assets/vendor/lightweight-charts.js",
     ["vendor/lightweight-charts.js", "text/javascript; charset=utf-8"],
@@ -89,19 +92,19 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
         return respond(response, 403, { error: "Cross-origin access denied" });
       const url = new URL(request.url, "http://127.0.0.1");
       if (request.method === "GET") {
-        if (url.pathname === "/api/evidence")
-          return respond(
-            response,
-            200,
-            demo
-              ? { items: demoReport.evidence ?? [] }
-              : await queryEvidence({
-                  symbols: url.searchParams.get("symbol")
-                    ? [url.searchParams.get("symbol")]
-                    : undefined,
-                  limit: 500,
-                }),
-          );
+        if (url.pathname === "/api/paper/status") return respond(response, 200, demo
+          ? { environment: "SIMULATE", demoDisabled: true, bridgeEnabled: false, policy: { enabled: false }, intents: [], samples: [], limitation: "Paper trading requires the real-data dashboard and actual Futu OpenD. No synthetic account, fills or performance are supplied." }
+          : await getPaperService().status());
+        if (url.pathname === "/api/evidence") {
+          const evidence = demo ? { items: demoReport.evidence ?? [] } : await queryEvidence({
+            symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : undefined,
+            limit: 500,
+          });
+          const calendar = demo ? { events: demoReport.events ?? [], warnings: [] } : projectCatalystCalendar(evidence.items);
+          const warnings = [...calendar.warnings];
+          if (evidence.totalMatched > evidence.returned) warnings.push("Evidence scan truncated; calendar may omit events or revisions.");
+          return respond(response, 200, { ...evidence, events: calendar.events, eventWarnings: warnings });
+        }
         if (url.pathname === "/health")
           return respond(response, 200, {
             ok: true,
@@ -128,7 +131,7 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
           return respond(
             response,
             200,
-            demo ? { decisions } : await listDecisions(),
+            demo ? { decisions: decisions.map((record) => ({ ...record, scorecard: buildThesisScorecard(record) })) } : await listDecisions(),
           );
         if (
           url.pathname === "/api/latest" ||
@@ -178,6 +181,13 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
       }
       if (request.method === "POST") {
         const body = await bodyJson(request);
+        if (url.pathname.startsWith("/api/paper/")) {
+          if (demo) return respond(response, 409, { error: "演示模式不连接模拟账户。请启动真实数据面板 / Use the real-data dashboard; no synthetic trading fallback." });
+          const actions = { connect: "accounts", refresh: "refresh", policy: "savePolicy", evaluate: "evaluate", submit: "submit", cancel: "cancel" };
+          const action = actions[url.pathname.slice("/api/paper/".length)];
+          if (!action) return respond(response, 404, { error: "Unknown paper action" });
+          return respond(response, 200, await getPaperService()[action](action === "accounts" ? body.market : body));
+        }
         if (url.pathname === "/api/preferences") {
           if (body.language && !["zh-CN", "en"].includes(body.language))
             throw new Error("Invalid language");
@@ -219,7 +229,7 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
             : "intraday";
           if (demo) {
             demoReport = {
-              ...makeDemoReport(),
+              ...makeDemoReport({ watchlist: preferences.watchlist, positions: preferences.positions }),
               language: preferences.language,
               phase,
               demo: true,

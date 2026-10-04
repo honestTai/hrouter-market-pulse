@@ -1056,10 +1056,10 @@ var require_util = __commonJS({
     var codegen_1 = require_codegen();
     var code_1 = require_code();
     function toHash(arr) {
-      const hash = {};
+      const hash2 = {};
       for (const item of arr)
-        hash[item] = true;
-      return hash;
+        hash2[item] = true;
+      return hash2;
     }
     exports.toHash = toHash;
     function alwaysValidSchema(it, schema) {
@@ -3257,8 +3257,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path6) {
-      let input = path6;
+    function removeDotSegments(path7) {
+      let input = path7;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3667,8 +3667,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path6 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path6 && path6 !== "/" ? path6 : void 0;
+        const path7 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path7 && path7 !== "/" ? path7 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -4619,7 +4619,7 @@ var require_core = __commonJS({
       errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
         if (!errors || errors.length === 0)
           return "No errors";
-        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text, msg) => text + separator + msg);
+        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text2, msg) => text2 + separator + msg);
       }
       $dataMetaSchema(metaSchema, keywordsJsonPointers) {
         const rules = this.RULES.all;
@@ -7193,131 +7193,19 @@ var require_dist = __commonJS({
   }
 });
 
-// mcp/update-coordination.mjs
-import { mkdir, readFile, writeFile, rename, rm, readdir, stat } from "node:fs/promises";
-import { rmSync } from "node:fs";
-import { randomUUID } from "node:crypto";
-import os from "node:os";
-import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
-function updateHome(env = process.env, platform = process.platform, home = os.homedir()) {
-  if (env.HROUTER_UPDATE_HOME) return path.resolve(env.HROUTER_UPDATE_HOME);
-  return platform === "win32" ? path.join(env.LOCALAPPDATA || path.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path.join(env.XDG_DATA_HOME || path.join(home, ".local", "share"), "hrouter-market-pulse-updater");
-}
-async function readJson(file, fallback = null) {
-  try {
-    return JSON.parse(await readFile(file, "utf8"));
-  } catch (error2) {
-    if (error2.code === "ENOENT") return fallback;
-    throw error2;
-  }
-}
-async function atomicJson(file, data) {
-  await mkdir(path.dirname(file), { recursive: true, mode: 448 });
-  const temp = `${file}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
-    await rename(temp, file);
-  } finally {
-    await rm(temp, { force: true });
-  }
-}
-function processAlive(pid) {
-  if (!Number.isSafeInteger(pid) || pid < 1) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error2) {
-    return error2.code !== "ESRCH";
-  }
-}
-async function acquireLock(home, name, { waitMs = 0, alive = processAlive } = {}) {
-  await mkdir(home, { recursive: true, mode: 448 });
-  const dir = path.join(home, `${name}.lock`);
-  const deadline = Date.now() + waitMs;
-  for (; ; ) {
-    try {
-      await mkdir(dir, { mode: 448 });
-      await atomicJson(path.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
-      return async () => {
-        await rm(dir, { recursive: true, force: true });
-      };
-    } catch (error2) {
-      if (error2.code !== "EEXIST") throw error2;
-      const owner = await readJson(path.join(dir, "owner.json"));
-      let stale = owner && !alive(owner.pid);
-      if (!owner) {
-        try {
-          stale = Date.now() - (await stat(dir)).mtimeMs > 6e5;
-        } catch (error3) {
-          if (error3.code === "ENOENT") continue;
-          throw error3;
-        }
-      }
-      if (stale) {
-        const reaping = `${dir}.reaping`;
-        let reaper = false;
-        try {
-          await mkdir(reaping, { mode: 448 });
-          reaper = true;
-          const current = await readJson(path.join(dir, "owner.json"));
-          let removable = current && !alive(current.pid);
-          if (!current) {
-            try {
-              removable = Date.now() - (await stat(dir)).mtimeMs > 6e5;
-            } catch (error3) {
-              if (error3.code !== "ENOENT") throw error3;
-            }
-          }
-          if (removable) await rm(dir, { recursive: true, force: true });
-        } catch (error3) {
-          if (!["EEXIST", "ENOENT"].includes(error3.code)) throw error3;
-        } finally {
-          if (reaper) await rm(reaping, { recursive: true, force: true });
-        }
-        if (reaper) continue;
-        if (Date.now() >= deadline) return null;
-        await delay(100);
-        continue;
-      }
-      if (Date.now() >= deadline) return null;
-      await delay(100);
-    }
-  }
-}
-async function acquireRuntimeLease(home = updateHome()) {
-  if (!await readJson(path.join(home, "state.json"))) return () => {
-  };
-  const unlock = await acquireLock(home, "activation", { waitMs: 12e4 });
-  if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
-  const file = path.join(home, "running", `${process.pid}-${randomUUID()}.json`);
-  try {
-    await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
-  } finally {
-    await unlock();
-  }
-  const release = () => {
-    rmSync(file, { force: true });
-  };
-  process.once("exit", release);
-  return () => {
-    process.removeListener("exit", release);
-    release();
-  };
-}
-
-// mcp/http.mjs
-import { createServer } from "node:http";
-import { readFile as readFile6 } from "node:fs/promises";
+// mcp/paper.mjs
+import { spawn } from "node:child_process";
+import { randomUUID as randomUUID2, createHash as createHash2 } from "node:crypto";
+import { mkdir as mkdir4, readFile as readFile4, open, rename as rename4, rm } from "node:fs/promises";
+import path4 from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomUUID as randomUUID4 } from "node:crypto";
 
 // mcp/core.mjs
 import { execFile } from "node:child_process";
-import { randomUUID as randomUUID2 } from "node:crypto";
-import { mkdir as mkdir3, readFile as readFile3, rename as rename3, writeFile as writeFile3 } from "node:fs/promises";
-import os2 from "node:os";
-import path3 from "node:path";
+import { randomUUID } from "node:crypto";
+import { mkdir as mkdir2, readFile as readFile2, rename as rename2, writeFile as writeFile2 } from "node:fs/promises";
+import os from "node:os";
+import path2 from "node:path";
 import { promisify } from "node:util";
 
 // mcp/market-rules.mjs
@@ -7420,8 +7308,8 @@ function getMarketSession(market, value = (/* @__PURE__ */ new Date()).toISOStri
   const verified = Boolean(datedCoverage);
   const closed = calendar.closedDates?.includes(local.date) || override?.closed === true || !calendar.openDates?.includes(local.date) && ["Sat", "Sun"].includes(local.weekday);
   const sessions = override?.sessions ?? MARKETS[market]?.sessions ?? MARKETS.US.sessions;
-  const [open, close] = [sessions[0][0], sessions.at(-1)[1]];
-  const status = closed ? "closed" : local.minute < open ? "premarket" : local.minute >= close ? "postmarket" : sessions.some(([start, end]) => local.minute >= start && local.minute < end) ? "open" : "break";
+  const [open2, close] = [sessions[0][0], sessions.at(-1)[1]];
+  const status = closed ? "closed" : local.minute < open2 ? "premarket" : local.minute >= close ? "postmarket" : sessions.some(([start, end]) => local.minute >= start && local.minute < end) ? "open" : "break";
   return {
     ...local,
     market,
@@ -7430,7 +7318,7 @@ function getMarketSession(market, value = (/* @__PURE__ */ new Date()).toISOStri
     verified,
     calendarCoverage: verified ? calendar === CALENDARS_2026[market] ? "official-2026" : "dated-override" : "weekday-only",
     source: verified ? calendar.source : null,
-    openAt: marketLocalToIso(local.date, open, market),
+    openAt: marketLocalToIso(local.date, open2, market),
     closeAt: marketLocalToIso(local.date, close, market)
   };
 }
@@ -7498,8 +7386,8 @@ function sameTimeVolumeRatio(history, market, { now = (/* @__PURE__ */ new Date(
 }
 
 // mcp/monitor.mjs
-import { mkdir as mkdir2, readFile as readFile2, rename as rename2, writeFile as writeFile2 } from "node:fs/promises";
-import path2 from "node:path";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import path from "node:path";
 function evaluateAlertTransitions(quotes, previous = {}, { now = (/* @__PURE__ */ new Date()).toISOString(), rules = [], cooldownSeconds = 900, confirmations = 2, hysteresisPct = 0.2 } = {}) {
   const state = structuredClone(previous);
   const events = [];
@@ -7553,18 +7441,18 @@ function evaluateAlertTransitions(quotes, previous = {}, { now = (/* @__PURE__ *
 var writeQueue = Promise.resolve();
 function updateMonitorState(storageDir, quotes, options = {}) {
   const run = writeQueue.then(async () => {
-    await mkdir2(storageDir, { recursive: true });
-    const file = path2.join(storageDir, "monitor-state.json");
+    await mkdir(storageDir, { recursive: true });
+    const file = path.join(storageDir, "monitor-state.json");
     let previous = {};
     try {
-      previous = JSON.parse(await readFile2(file, "utf8")).state ?? {};
+      previous = JSON.parse(await readFile(file, "utf8")).state ?? {};
     } catch (error2) {
       if (error2.code !== "ENOENT") throw error2;
     }
     const result = evaluateAlertTransitions(quotes, previous, options);
     const temporary = `${file}.${process.pid}.tmp`;
-    await writeFile2(temporary, JSON.stringify(result, null, 2), "utf8");
-    await rename2(temporary, file);
+    await writeFile(temporary, JSON.stringify(result, null, 2), "utf8");
+    await rename(temporary, file);
     return result;
   });
   writeQueue = run.catch(() => {
@@ -7582,20 +7470,16 @@ function buildReportHtml(report) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   <meta name="description" content="Hrouter Market Pulse: A-share, Hong Kong and US market research workspace.">
   <title>Hrouter Market Pulse</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/assets/dashboard.css">
-  <script defer src="/assets/vendor/lightweight-charts.js"></script>
-  <script defer src="/assets/vendor/lucide.js"></script>
   <script defer src="/assets/dashboard.js"></script>
 </head>
 <body>
   <script id="report-data" type="application/json">${safeJson(report)}</script>
   <div id="app"><div class="boot"><strong>Hrouter Market Pulse</strong><progress aria-label="Loading"></progress></div></div>
-  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <dialog id="editor-dialog"></dialog>
   <noscript>JavaScript is required / \u8BF7\u542F\u7528 JavaScript</noscript>
 </body>
 </html>`;
@@ -8083,14 +7967,14 @@ function parseTencentHistory(input, rawPayload, adjustedPayload, options = {}) {
   let previousDate = "";
   const history = raw.map((row) => {
     const [date3, o, c, h, l, v] = row;
-    const open = finite(o), close = finite(c), high = finite(h), low = finite(l), volume = finite(v);
+    const open2 = finite(o), close = finite(c), high = finite(h), low = finite(l), volume = finite(v);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date3) || !Number.isFinite(Date.parse(date3)) || new Date(date3).toISOString().slice(0, 10) !== date3 || date3 <= previousDate) throw new Error("Invalid or unordered Tencent session dates");
-    if (![open, close, high, low].every((value) => value > 0) || high < Math.max(open, close) || low > Math.min(open, close) || volume === null || volume < 0) throw new Error(`Invalid Tencent OHLCV at ${date3}`);
+    if (![open2, close, high, low].every((value) => value > 0) || high < Math.max(open2, close) || low > Math.min(open2, close) || volume === null || volume < 0) throw new Error(`Invalid Tencent OHLCV at ${date3}`);
     previousDate = date3;
     const adjustedClose = adjusted ? finite(adjustedByDate.get(date3)?.[2]) : null;
     if (adjusted && !(adjustedClose > 0)) throw new Error(`Tencent adjustment missing at ${date3}`);
     const timestamp = marketLocalToIso(date3, 12 * 60, market);
-    return { timestamp, open, close, high, low, volume, adjustedClose, adjustmentFactor: adjustedClose === null ? null : adjustedClose / close, ...dailyBarMetadata(timestamp, market, options) };
+    return { timestamp, open: open2, close, high, low, volume, adjustedClose, adjustmentFactor: adjustedClose === null ? null : adjustedClose / close, ...dailyBarMetadata(timestamp, market, options) };
   });
   const completed = history.filter((row) => row.complete);
   const anchor = history.at(-1).adjustmentFactor ?? 1;
@@ -8471,18 +8355,18 @@ async function getMarketSnapshot(market = "all") {
   };
 }
 function getStorageDir() {
-  if (process.env.HROUTER_REPORT_DIR) return path3.resolve(process.env.HROUTER_REPORT_DIR);
-  const root = process.env.LOCALAPPDATA || path3.join(os2.homedir(), ".hrouter-market-pulse");
-  return path3.join(root, "HrouterMarketPulse");
+  if (process.env.HROUTER_REPORT_DIR) return path2.resolve(process.env.HROUTER_REPORT_DIR);
+  const root = process.env.LOCALAPPDATA || path2.join(os.homedir(), ".hrouter-market-pulse");
+  return path2.join(root, "HrouterMarketPulse");
 }
 function preferencesPath() {
-  return path3.join(getStorageDir(), "config.json");
+  return path2.join(getStorageDir(), "config.json");
 }
 async function loadPreferences() {
   const envWatchlist = (process.env.HROUTER_WATCHLIST ?? "").split(",").map((value) => value.trim()).filter(Boolean);
   let saved = {};
   try {
-    saved = JSON.parse(await readFile3(preferencesPath(), "utf8"));
+    saved = JSON.parse(await readFile2(preferencesPath(), "utf8"));
   } catch (error2) {
     if (error2.code !== "ENOENT") throw error2;
   }
@@ -8538,6 +8422,13 @@ async function getOnboardingGuide() {
         completed: false,
         title: "\u542F\u7528 Codex \u5B9A\u65F6\u4EFB\u52A1",
         prompt: "\u4E3A\u6211\u7684\u81EA\u9009\u80A1\u914D\u7F6E\u76D8\u524D\u3001\u76D8\u4E2D\u548C\u76D8\u540E\u5B9A\u65F6\u4EFB\u52A1\u3002"
+      },
+      {
+        id: "paper_trading",
+        required: false,
+        completed: false,
+        title: "\u53EF\u9009\uFF1A\u5BCC\u9014\u771F\u5B9E\u6A21\u62DF\u76D8",
+        prompt: "\u4F7F\u7528 $hrouter-paper-trading \u68C0\u67E5 OpenD \u8FDE\u63A5\uFF0C\u5E76\u8BF4\u660E\u5982\u4F55\u6388\u6743\u6211\u7684\u6A21\u62DF\u7B56\u7565\u548C\u9650\u989D\u3002\u4E0D\u8981\u64CD\u4F5C\u5B9E\u76D8\u3002"
       },
       {
         id: "strategy_lab",
@@ -8642,7 +8533,7 @@ function sanitizePreferences(input, current = {}) {
 }
 async function savePreferences(input) {
   const next = sanitizePreferences(input, await loadPreferences());
-  await mkdir3(getStorageDir(), { recursive: true });
+  await mkdir2(getStorageDir(), { recursive: true });
   await atomicWrite(preferencesPath(), JSON.stringify(next, null, 2));
   return loadPreferences();
 }
@@ -8719,7 +8610,7 @@ async function createMarketReport(input = {}) {
   const declines = successful.filter((item) => (item.changePct ?? 0) < 0).length;
   const report = {
     schemaVersion: 2,
-    runId: generatedAt.replace(/[:.]/g, "-") + `-${phase}-${randomUUID2().slice(0, 8)}`,
+    runId: generatedAt.replace(/[:.]/g, "-") + `-${phase}-${randomUUID().slice(0, 8)}`,
     generatedAt,
     phase,
     phaseLabel: PHASE_LABELS[phase],
@@ -8754,37 +8645,32 @@ async function createMarketReport(input = {}) {
   };
 }
 async function atomicWrite(filePath, content) {
-  const temporary = `${filePath}.${process.pid}.${randomUUID2()}.tmp`;
-  await writeFile3(temporary, content, "utf8");
-  await rename3(temporary, filePath);
+  const temporary = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  await writeFile2(temporary, content, "utf8");
+  await rename2(temporary, filePath);
 }
 async function saveReport(report) {
-  const reportDir = path3.join(getStorageDir(), "reports");
-  await mkdir3(reportDir, { recursive: true });
+  const reportDir = path2.join(getStorageDir(), "reports");
+  await mkdir2(reportDir, { recursive: true });
   const json = JSON.stringify(report, null, 2);
   const html = buildReportHtml(report);
   await Promise.all([
-    atomicWrite(path3.join(reportDir, `${report.runId}.json`), json),
-    atomicWrite(path3.join(reportDir, `${report.runId}.html`), html),
-    atomicWrite(path3.join(reportDir, "latest.json"), json),
-    atomicWrite(path3.join(reportDir, "latest.html"), html)
+    atomicWrite(path2.join(reportDir, `${report.runId}.json`), json),
+    atomicWrite(path2.join(reportDir, `${report.runId}.html`), html),
+    atomicWrite(path2.join(reportDir, "latest.json"), json),
+    atomicWrite(path2.join(reportDir, "latest.html"), html)
   ]);
 }
 async function loadReport(runId = "latest", format = "json") {
   const safeRunId = String(runId).replace(/[^A-Za-z0-9_-]/g, "");
   if (!safeRunId) throw new Error("\u65E0\u6548\u7684\u62A5\u544A\u7F16\u53F7");
-  return readFile3(path3.join(getStorageDir(), "reports", `${safeRunId}.${format}`), "utf8");
+  return readFile2(path2.join(getStorageDir(), "reports", `${safeRunId}.${format}`), "utf8");
 }
-
-// mcp/workspace.mjs
-import { randomUUID as randomUUID3, createHash as createHash2 } from "node:crypto";
-import { mkdir as mkdir5, readFile as readFile5, rename as rename5, writeFile as writeFile5 } from "node:fs/promises";
-import path5 from "node:path";
 
 // mcp/foundation.mjs
 import { createHash } from "node:crypto";
-import { mkdir as mkdir4, readFile as readFile4, rename as rename4, writeFile as writeFile4 } from "node:fs/promises";
-import path4 from "node:path";
+import { mkdir as mkdir3, readFile as readFile3, rename as rename3, writeFile as writeFile3 } from "node:fs/promises";
+import path3 from "node:path";
 
 // mcp/research-validation.mjs
 var number = (value) => value === null || value === void 0 || value === "" ? null : Number.isFinite(Number(value)) ? Number(value) : null;
@@ -9101,26 +8987,26 @@ function hashValue(value) {
 }
 async function loadJson(filePath, fallback) {
   try {
-    return JSON.parse(await readFile4(filePath, "utf8"));
+    return JSON.parse(await readFile3(filePath, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function atomicWriteJson(filePath, value) {
-  await mkdir4(path4.dirname(filePath), { recursive: true });
+  await mkdir3(path3.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile4(temporary, JSON.stringify(value, null, 2), "utf8");
-  await rename4(temporary, filePath);
+  await writeFile3(temporary, JSON.stringify(value, null, 2), "utf8");
+  await rename3(temporary, filePath);
 }
 function foundationDirectory() {
-  return path4.join(getStorageDir(), "foundation-v1");
+  return path3.join(getStorageDir(), "foundation-v1");
 }
 function evidencePath() {
-  return path4.join(foundationDirectory(), "evidence.json");
+  return path3.join(foundationDirectory(), "evidence.json");
 }
 function providersPath() {
-  return path4.join(foundationDirectory(), "providers.json");
+  return path3.join(foundationDirectory(), "providers.json");
 }
 function normalizeProviderId(value) {
   const id = String(value ?? "").trim().toLowerCase();
@@ -9189,6 +9075,22 @@ async function getFoundationCapabilities() {
       features: BASELINE_PREDICTION_FEATURES,
       validation: "repeated purged walk-forward folds, baseline comparison, deployment gates, immutable prediction ledger",
       target: "cost-adjusted return from day T+1 open to a later close"
+    },
+    researchWorkflows: {
+      version: "1.0.0",
+      tools: ["build_earnings_review", "query_catalyst_calendar", "append_thesis_review", "query_thesis_scorecard"],
+      financialPayload: ["metric", "value", "unit", "periodStart", "periodEnd", "accountingBasis", "valueType"],
+      eventIdentity: "providerId + entity + eventType + payload.eventKey (or externalId)",
+      boundary: "Evidence-backed research only; no automatic position-state changes, trade authorization, or commercial data subscriptions."
+    },
+    paperExecution: {
+      provider: "futu-opend",
+      environment: "SIMULATE",
+      markets: ["HK", "US"],
+      realTrading: false,
+      authorization: "Explicit UI strategy/allowlist/limits required; autonomous agent paper orders thereafter. No implicit scheduler.",
+      tools: ["get_paper_trading_status", "list_paper_accounts", "refresh_paper_account", "evaluate_paper_order", "submit_paper_order", "cancel_paper_order"],
+      boundary: "Actual broker simulation, not fabricated fills or evidence of real-money strategy qualification."
     },
     extensionFlow: [
       "A companion Skill or MCP fetches source data.",
@@ -9294,12 +9196,14 @@ async function queryEvidence(input = {}) {
   const publishedFrom = input.publishedFrom ? asIso(input.publishedFrom, "publishedFrom") : null;
   const publishedTo = input.publishedTo ? asIso(input.publishedTo, "publishedTo") : null;
   const symbols = new Set((input.symbols ?? []).map(normalizeSymbol));
+  const ids = input.ids ? new Set(input.ids) : null;
   const kinds = new Set((input.kinds ?? []).filter((kind) => EVIDENCE_KINDS.includes(kind)));
   const providerIds = new Set((input.providerIds ?? []).map(normalizeProviderId));
   const sourceTiers = new Set((input.sourceTiers ?? []).filter((tier) => SOURCE_TIERS.includes(tier)));
   const limit = Math.max(1, Math.min(500, Number(input.limit) || 100));
   const items = await loadJson(evidencePath(), []);
   const matched = items.filter((item) => {
+    if (ids && !ids.has(item.id)) return false;
     if (Date.parse(item.availableAt) > Date.parse(asOf)) return false;
     if (publishedFrom && Date.parse(item.publishedAt) < Date.parse(publishedFrom)) return false;
     if (publishedTo && Date.parse(item.publishedAt) > Date.parse(publishedTo)) return false;
@@ -9392,11 +9296,11 @@ function ruleMatches(value, rule) {
   if (rule.operator === "between") return value >= Math.min(rule.value, rule.value2) && value <= Math.max(rule.value, rule.value2);
   return false;
 }
-function normalizeStrategy(strategy = {}) {
-  const name = String(strategy.name ?? "").trim();
-  const version2 = String(strategy.version ?? "").trim();
+function normalizeStrategy(strategy2 = {}) {
+  const name = String(strategy2.name ?? "").trim();
+  const version2 = String(strategy2.version ?? "").trim();
   if (!name || !version2) throw new Error("strategy name \u548C version \u4E0D\u80FD\u4E3A\u7A7A");
-  const rules = (strategy.rules ?? []).map((rule, index) => {
+  const rules = (strategy2.rules ?? []).map((rule, index) => {
     if (!isStrategyFeature(rule.feature)) throw new Error(`\u89C4\u5219 ${index + 1} \u4F7F\u7528\u4E86\u4E0D\u652F\u6301\u7684 feature: ${rule.feature}`);
     if (!STRATEGY_OPERATORS.has(rule.operator)) throw new Error(`\u89C4\u5219 ${index + 1} \u4F7F\u7528\u4E86\u4E0D\u652F\u6301\u7684 operator: ${rule.operator}`);
     const value = finite2(rule.value);
@@ -9417,17 +9321,17 @@ function normalizeStrategy(strategy = {}) {
   return {
     name,
     version: version2,
-    baseScore: finite2(strategy.baseScore) ?? 0,
-    minimumScore: finite2(strategy.minimumScore) ?? 1,
+    baseScore: finite2(strategy2.baseScore) ?? 0,
+    minimumScore: finite2(strategy2.minimumScore) ?? 1,
     rules
   };
 }
 function evaluateDeclarativeStrategy(quote, inputStrategy) {
-  const strategy = normalizeStrategy(inputStrategy);
-  let score = strategy.baseScore;
+  const strategy2 = normalizeStrategy(inputStrategy);
+  let score = strategy2.baseScore;
   const reasons = [];
   const missingFeatures = /* @__PURE__ */ new Set();
-  for (const rule of strategy.rules) {
+  for (const rule of strategy2.rules) {
     const value = quoteFeature(quote, rule.feature);
     if (!Number.isFinite(value)) {
       missingFeatures.add(rule.feature);
@@ -9441,13 +9345,13 @@ function evaluateDeclarativeStrategy(quote, inputStrategy) {
   const marketDataEligible = quote.signalEligible !== void 0 ? quote.signalEligible === true : !quote.freshness || quote.freshness.signalEligible === true;
   return {
     schemaVersion: CONTRACT_VERSION,
-    strategy: { name: strategy.name, version: strategy.version },
+    strategy: { name: strategy2.name, version: strategy2.version },
     symbol: quote.symbol,
     generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     effectiveAt: effectiveTimes.length ? new Date(Math.max(...effectiveTimes)).toISOString() : null,
     score: round3(score),
-    minimumScore: strategy.minimumScore,
-    selected: score >= strategy.minimumScore && marketDataEligible,
+    minimumScore: strategy2.minimumScore,
+    selected: score >= strategy2.minimumScore && marketDataEligible,
     blockedReasons: marketDataEligible ? [] : [quote.freshness?.reason ?? `Market data is not eligible for new signals (${quote.crossCheck?.status ?? "unverified"})`],
     reasons,
     missingFeatures: [...missingFeatures],
@@ -9458,14 +9362,14 @@ function evaluateDeclarativeStrategy(quote, inputStrategy) {
 async function runDeclarativeStrategy(input) {
   const symbols = [...new Set((input.symbols ?? []).map(normalizeSymbol))].slice(0, 20);
   if (!symbols.length) throw new Error("run_strategy \u81F3\u5C11\u9700\u8981\u4E00\u4E2A symbol");
-  const strategy = normalizeStrategy(input.strategy);
+  const strategy2 = normalizeStrategy(input.strategy);
   const externalFeatureRows = await normalizeExternalFeatureRows(input.externalFeatureRows ?? []);
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const outcomes = await Promise.all(symbols.map(async (symbol) => {
     try {
       const quote = await getQuote(symbol);
       const row = externalFeatureRowAt(externalFeatureRows, symbol, now);
-      return evaluateDeclarativeStrategy(attachExternalFeatures(quote, row), strategy);
+      return evaluateDeclarativeStrategy(attachExternalFeatures(quote, row), strategy2);
     } catch (error2) {
       return { symbol, error: error2.message, selected: false, score: null, reasons: [] };
     }
@@ -9475,7 +9379,7 @@ async function runDeclarativeStrategy(input) {
   signals.sort((left, right) => right.score - left.score);
   return {
     schemaVersion: CONTRACT_VERSION,
-    strategy: { name: strategy.name, version: strategy.version },
+    strategy: { name: strategy2.name, version: strategy2.version },
     generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     signals,
     errors,
@@ -9526,7 +9430,7 @@ function summarizeTrades(trades) {
 async function runHistoricalBacktest(input) {
   const symbols = [...new Set((input.symbols ?? []).map(normalizeSymbol))].slice(0, 10);
   if (!symbols.length) throw new Error("run_backtest \u81F3\u5C11\u9700\u8981\u4E00\u4E2A symbol");
-  const strategy = normalizeStrategy(input.strategy);
+  const strategy2 = normalizeStrategy(input.strategy);
   const range = ["1y", "2y", "5y"].includes(input.range) ? input.range : "2y";
   const warmupDays = Math.max(20, Math.min(252, Number(input.warmupDays) || 60));
   const holdingPeriodDays = Math.max(1, Math.min(20, Number(input.holdingPeriodDays) || 1));
@@ -9558,7 +9462,7 @@ async function runHistoricalBacktest(input) {
       while (index < allRows.length - 1) {
         const pointInTimeQuote = historicalQuote(symbol, allRows, index);
         const featureRow = externalFeatureRowAt(externalFeatureRows, symbol, pointInTimeQuote.asOf);
-        const signal = evaluateDeclarativeStrategy(attachExternalFeatures(pointInTimeQuote, featureRow), strategy);
+        const signal = evaluateDeclarativeStrategy(attachExternalFeatures(pointInTimeQuote, featureRow), strategy2);
         const signalTime = Date.parse(pointInTimeQuote.asOf);
         if (startDate !== null && signalTime < startDate || endDate !== null && signalTime > endDate || !signal.selected) {
           index += 1;
@@ -9627,7 +9531,7 @@ async function runHistoricalBacktest(input) {
   return {
     schemaVersion: CONTRACT_VERSION,
     generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    strategy: { name: strategy.name, version: strategy.version },
+    strategy: { name: strategy2.name, version: strategy2.version },
     assumptions: {
       range,
       warmupDays,
@@ -9894,7 +9798,7 @@ async function runBaselinePrediction(input) {
     }
   }
   const assessmentTask = predictionWriteQueue.then(async () => {
-    const target = path4.join(foundationDirectory(), "model-assessments.json");
+    const target = path3.join(foundationDirectory(), "model-assessments.json");
     const assessments = await loadJson(target, {});
     for (const result of results) assessments[result.symbol] = { evaluatedAt: (/* @__PURE__ */ new Date()).toISOString(), status: result.status, predictionId: result.predictionId ?? null };
     await atomicWriteJson(target, assessments);
@@ -9938,7 +9842,7 @@ async function recordPrediction(record2) {
   if (!Number.isFinite(record2.probability) || !(record2.probability >= 0 && record2.probability <= 1)) throw new Error("Prediction probability must be finite and within [0, 1]");
   const id = `prediction_${hashValue({ symbol: record2.symbol, modelVersion: record2.modelVersion, featureAt, horizonDays: record2.horizonDays }).slice(0, 32)}`;
   const task = predictionWriteQueue.then(async () => {
-    const target = path4.join(foundationDirectory(), "predictions.json");
+    const target = path3.join(foundationDirectory(), "predictions.json");
     const current = await loadJson(target, []);
     const existing = current.find((item) => item.id === id);
     if (existing) return existing;
@@ -9955,8 +9859,8 @@ async function recordPrediction(record2) {
 async function queryPredictionLedger(input = {}) {
   const symbol = input.symbol ? normalizeSymbol(input.symbol) : null;
   const limit = Math.max(1, Math.min(1e3, Math.trunc(input.limit ?? 100)));
-  const records = await loadJson(path4.join(foundationDirectory(), "predictions.json"), []);
-  const assessments = await loadJson(path4.join(foundationDirectory(), "model-assessments.json"), {});
+  const records = await loadJson(path3.join(foundationDirectory(), "predictions.json"), []);
+  const assessments = await loadJson(path3.join(foundationDirectory(), "model-assessments.json"), {});
   const matched = records.filter((record2) => (!symbol || record2.symbol === symbol) && (!input.status || record2.status === input.status)).sort((left, right) => Date.parse(right.recordedAt) - Date.parse(left.recordedAt));
   const latestBySymbol = new Map([...records].sort((left, right) => Date.parse(left.recordedAt) - Date.parse(right.recordedAt)).map((record2) => [record2.symbol, record2.id]));
   return {
@@ -9971,7 +9875,7 @@ async function queryPredictionLedger(input = {}) {
 }
 async function resolvePredictionOutcomes(input = {}) {
   const asOf = researchAsOf(input.asOf);
-  const records = await loadJson(path4.join(foundationDirectory(), "predictions.json"), []);
+  const records = await loadJson(path3.join(foundationDirectory(), "predictions.json"), []);
   const pending = records.filter((item) => item.status === "pending" && (!input.ids?.length || input.ids.includes(item.id)));
   const histories = /* @__PURE__ */ new Map();
   const updates = [];
@@ -10015,7 +9919,7 @@ async function resolvePredictionOutcomes(input = {}) {
     }
   }
   const task = predictionWriteQueue.then(async () => {
-    const target = path4.join(foundationDirectory(), "predictions.json");
+    const target = path3.join(foundationDirectory(), "predictions.json");
     const current = await loadJson(target, []);
     const byId = new Map(updates.map((update) => [update.id, update]));
     const next = current.map((record2) => record2.status === "pending" && byId.has(record2.id) ? { ...record2, ...byId.get(record2.id) } : record2);
@@ -10147,32 +10051,876 @@ function monitorFeatureDrift(input) {
   };
 }
 
+// mcp/paper.mjs
+var finite3 = (v) => typeof v === "number" && Number.isFinite(v);
+var hash = (v) => createHash2("sha256").update(JSON.stringify(v)).digest("hex");
+var fail = (message) => {
+  throw new Error(message);
+};
+var uncertainOrder = (o) => !o?.status || ["TIMEOUT", "N/A"].includes(o.status);
+var activeOrder = (o) => !["FILLED_ALL", "CANCELLED_ALL", "CANCELLED_PART", "FAILED", "SUBMIT_FAILED", "DELETED", "DISABLED", "FILL_CANCELLED"].includes(o.status);
+function paperConfig(env = process.env) {
+  const port = Number(env.HROUTER_FUTU_PORT || 11111);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) fail("Invalid HROUTER_FUTU_PORT");
+  return {
+    enabled: env.HROUTER_FUTU_ENABLED === "1",
+    host: "127.0.0.1",
+    port,
+    python: env.HROUTER_FUTU_PYTHON || (process.platform === "win32" ? "python" : "python3"),
+    environment: "SIMULATE"
+  };
+}
+function paperSymbol(symbol) {
+  if (typeof symbol !== "string" || !symbol.trim()) fail("Symbol required");
+  const normalized = normalizeSymbol(symbol);
+  return /^\d{4,5}\.HK$/.test(normalized) ? `${String(Number(normalized.split(".")[0])).padStart(4, "0")}.HK` : normalized;
+}
+function futuCode(symbol, market) {
+  const normalized = paperSymbol(symbol);
+  if (market === "HK" && /^\d{4,5}\.HK$/.test(normalized)) return `HK.${normalized.split(".")[0].padStart(5, "0")}`;
+  if (market === "US" && /^[A-Z][A-Z0-9.\-]{0,14}$/.test(normalized) && !/^US\./.test(normalized) && !/\.(HK|SS|SZ)$/.test(normalized)) return `US.${normalized}`;
+  fail("Only HK/US symbols matching the selected account market are supported / \u4EC5\u652F\u6301\u5BF9\u5E94\u5E02\u573A\u7684\u6E2F\u7F8E\u80A1");
+}
+function account(input) {
+  if (!["HK", "US"].includes(input.market) || typeof input.accountId !== "string" || !/^[1-9]\d{0,19}$/.test(input.accountId || "")) fail("Explicit HK/US simulation account required");
+  return { market: input.market, accountId: input.accountId };
+}
+function strategy(input) {
+  if (!input || !Array.isArray(input.rules) || !input.rules.length || input.rules.length > 20) fail("Each paper strategy requires 1\u201320 rules");
+  if (!input.rules.every((r) => STRATEGY_FEATURES.includes(r.feature) && finite3(r.value) && finite3(r.points) && (r.operator !== "between" || finite3(r.value2)))) fail("Paper rules require finite built-in features; external/model probabilities are not execution inputs");
+  if (typeof input.name !== "string" || input.name.length > 100 || typeof input.version !== "string" || input.version.length > 40) fail("Strategy name/version invalid");
+  if (!finite3(input.minimumScore) || !finite3(input.baseScore)) fail("Explicit finite strategy scores required");
+  evaluateDeclarativeStrategy({ price: 1, signalEligible: false }, input);
+  return JSON.parse(JSON.stringify(input));
+}
+function validatePaperPolicy(input) {
+  if (!input || input.environment !== "SIMULATE" || typeof input.enabled !== "boolean") fail("SIMULATE policy and explicit enabled flag required; REAL is forbidden");
+  if (!input.enabled) return { enabled: false, environment: "SIMULATE" };
+  const selected = account(input);
+  if (!Array.isArray(input.allowedSymbols) || !input.allowedSymbols.length || input.allowedSymbols.length > 20) fail("Allowlist requires 1\u201320 symbols");
+  const allowedSymbols = [...new Set(input.allowedSymbols.map(paperSymbol))];
+  for (const symbol of allowedSymbols) futuCode(symbol, selected.market);
+  const limits = {};
+  for (const [name, max] of Object.entries({ maxOrderValue: 1e9, maxDailyOrderValue: 1e10, maxPositionValue: 1e9, maxOrdersPerDay: 1e3, maxQuoteAgeSeconds: 300, maxLimitDeviationPct: 5 })) {
+    const v = input[name];
+    if (!finite3(v) || v <= 0 || v > max || ["maxOrdersPerDay", "maxQuoteAgeSeconds"].includes(name) && !Number.isInteger(v)) fail(`Explicit valid ${name} required (0 < value <= ${max})`);
+    limits[name] = v;
+  }
+  if (limits.maxOrderValue > limits.maxDailyOrderValue || limits.maxOrderValue > limits.maxPositionValue) fail("Single-order limit must not exceed daily or position limit");
+  const lotSizes = {};
+  for (const symbol of allowedSymbols) {
+    const size = selected.market === "US" ? 1 : input.lotSizes?.[symbol];
+    if (!Number.isInteger(size) || size <= 0 || size > 1e6) fail(`Verified board lot required for ${symbol}`);
+    lotSizes[symbol] = size;
+  }
+  return {
+    ...selected,
+    enabled: true,
+    environment: "SIMULATE",
+    currency: selected.market === "HK" ? "HKD" : "USD",
+    allowedSymbols,
+    lotSizes,
+    ...limits,
+    entryStrategy: strategy(input.entryStrategy),
+    exitStrategy: strategy(input.exitStrategy)
+  };
+}
+function validatePaperOrder(input) {
+  if (!input || input.environment && input.environment !== "SIMULATE") fail("REAL execution is forbidden");
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(input.idempotencyKey || "")) fail("Stable idempotencyKey of 8\u201380 letters/digits/_/- required");
+  if (!["BUY", "SELL"].includes(input.side)) fail("Only BUY and long-position SELL supported");
+  if (!Number.isInteger(input.quantity) || input.quantity <= 0 || input.quantity > 1e6 || !finite3(input.limitPrice) || input.limitPrice <= 0 || input.limitPrice > 1e6) fail("Positive whole-share quantity and finite limit price required");
+  if (typeof input.rationale !== "string" || !input.rationale.trim() || input.rationale.length > 2e3) fail("Record an explicit rationale (1\u20132000 characters)");
+  return {
+    symbol: paperSymbol(input.symbol),
+    side: input.side,
+    quantity: input.quantity,
+    limitPrice: input.limitPrice,
+    rationale: input.rationale.trim(),
+    idempotencyKey: input.idempotencyKey,
+    environment: "SIMULATE"
+  };
+}
+function invokeFutu(request, config2 = paperConfig(), { timeoutMs = 45e3 } = {}) {
+  if (!config2.enabled) return Promise.reject(new Error("Futu is disabled. Set HROUTER_FUTU_ENABLED=1 after configuring local OpenD / \u5C1A\u672A\u542F\u7528\u5BCC\u9014\u8FDE\u63A5"));
+  const payload = { ...request, host: "127.0.0.1", port: config2.port, environment: "SIMULATE" };
+  const script = fileURLToPath(new URL("../bridges/futu/bridge.py", import.meta.url));
+  return new Promise((resolve, reject) => {
+    let output = "", finished = false;
+    const child = spawn(config2.python, ["-B", script], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    const finish = (error2, data) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      error2 ? reject(error2) : resolve(data);
+    };
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(new Error(["submit", "cancel"].includes(request.action) ? "OpenD bridge timed out; if dispatched, outcome is UNKNOWN. Reconcile, never auto-retry." : "OpenD connection timed out. Start/sign in to OpenD and verify its loopback port; no order request was made."));
+    }, timeoutMs);
+    child.on("error", (e) => finish(new Error(`Python bridge unavailable: ${e.message}`)));
+    child.stdout.on("data", (bytes) => {
+      output += bytes.toString();
+      if (output.length > 4e6) {
+        child.kill("SIGKILL");
+        finish(new Error("Bridge output limit exceeded; reconcile any dispatched request"));
+      }
+    });
+    child.stderr.on("data", () => {
+    });
+    child.stdin.on("error", (e) => finish(e));
+    child.on("close", () => {
+      if (finished) return;
+      try {
+        const line = output.split(/\r?\n/).filter((l) => l.startsWith("HROUTER_FUTU_RESULT=")).at(-1);
+        if (!line) fail("No bridge response. Install optional SDK and start OpenD; reconcile any dispatched request.");
+        const result = JSON.parse(line.slice("HROUTER_FUTU_RESULT=".length));
+        if (!result.ok) {
+          const error2 = new Error(result.error || "Futu bridge failed");
+          error2.definitelyNotDispatched = result.dispatched === false;
+          throw error2;
+        }
+        finish(null, result.data);
+      } catch (e) {
+        finish(e);
+      }
+    });
+    child.stdin.end(JSON.stringify(payload));
+  });
+}
+async function readJson(file, fallback) {
+  try {
+    return JSON.parse(await readFile4(file, "utf8"));
+  } catch (e) {
+    if (e.code === "ENOENT") return structuredClone(fallback);
+    throw e;
+  }
+}
+async function writeJson(file, value) {
+  const temp = `${file}.${randomUUID2()}.tmp`;
+  const handle = await open(temp, "wx", 384);
+  try {
+    await handle.writeFile(JSON.stringify(value, null, 2));
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  await rename4(temp, file);
+  if (process.platform !== "win32") {
+    const directory = await open(path4.dirname(file), "r");
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+  }
+}
+function tradingDate(now, market) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: market === "HK" ? "Asia/Hong_Kong" : "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
+}
+var limitation = "Actual Futu SIMULATE orders only, not real-money trades. Broker simulation is not live execution. Equity changes are unadjusted for deposits/resets; order status is not a complete fill/fee ledger. Experimental paper results do not qualify a strategy for real trading.";
+var PaperService = class {
+  constructor({ dir, bridge, quote, config: config2, now } = {}) {
+    this.dir = dir || path4.join(getStorageDir(), "paper-futu");
+    this.config = config2 || paperConfig();
+    this.bridge = bridge || ((r) => invokeFutu(r, this.config));
+    this.quote = quote || ((symbol) => getQuote(symbol));
+    this.now = now || (() => (/* @__PURE__ */ new Date()).toISOString());
+  }
+  async state() {
+    return readJson(path4.join(this.dir, "state.json"), { intents: [], samples: [] });
+  }
+  async policy() {
+    return readJson(path4.join(this.dir, "policy.json"), { enabled: false, environment: "SIMULATE" });
+  }
+  async exclusive(fn) {
+    await mkdir4(this.dir, { recursive: true, mode: 448 });
+    const lock = path4.join(this.dir, "operation.lock");
+    try {
+      await mkdir4(lock);
+    } catch (e) {
+      if (e.code === "EEXIST") fail("Paper operation busy or interrupted. Do not replay orders; inspect broker before recovering operation.lock.");
+      throw e;
+    }
+    try {
+      return await fn();
+    } finally {
+      await rm(lock, { recursive: true });
+    }
+  }
+  async savePolicy(input) {
+    return this.exclusive(async () => {
+      const next = validatePaperPolicy(input);
+      if (next.enabled) {
+        this.requireEnabled();
+        const { accounts } = await this.bridge({ action: "accounts", market: next.market });
+        if (!accounts.some((a) => a.accountId === next.accountId && a.environment === "SIMULATE" && a.market === next.market)) fail("Select a verified SIMULATE account first");
+      }
+      const policy = { ...!next.enabled ? await this.policy() : {}, ...next, revision: randomUUID2(), updatedAt: this.now() };
+      await writeJson(path4.join(this.dir, "policy.json"), policy);
+      return policy;
+    });
+  }
+  requireEnabled() {
+    if (!this.config.enabled) fail("Futu bridge is disabled; set HROUTER_FUTU_ENABLED=1. No synthetic fallback.");
+  }
+  async status() {
+    const policy = await this.policy();
+    const state = await this.state();
+    return {
+      provider: "futu-opend",
+      environment: "SIMULATE",
+      bridgeEnabled: this.config.enabled,
+      gateway: `127.0.0.1:${this.config.port}`,
+      policy,
+      limitation,
+      connected: null,
+      intents: state.intents.slice(-100).reverse(),
+      samples: state.samples.slice(-300),
+      snapshots: state.snapshots || [],
+      setup: [
+        "Install / sign in to official Futu OpenD on this computer (port 11111 by default).",
+        "Create a user-owned Python venv and install bridges/futu/requirements.txt.",
+        "Set HROUTER_FUTU_ENABLED=1 and HROUTER_FUTU_PYTHON to the venv Python; restart plugin.",
+        "Connect here, select SIMULATE account and explicitly configure strategy limits. No real-account unlock required."
+      ],
+      automation: "Agent MCP calls can evaluate, submit and cancel within the UI-authorized policy. No background scheduler is installed automatically."
+    };
+  }
+  async accounts(market) {
+    this.requireEnabled();
+    if (!["HK", "US"].includes(market)) fail("HK or US market required");
+    const data = await this.bridge({ action: "accounts", market });
+    if (!Array.isArray(data.accounts) || data.accounts.some((a) => a.environment !== "SIMULATE" || a.market !== market)) fail("Unsafe account response rejected");
+    return { ...data, observedAt: this.now(), environment: "SIMULATE" };
+  }
+  async snapshot(input) {
+    this.requireEnabled();
+    const selected = account(input);
+    const data = await this.bridge({ action: "snapshot", ...selected });
+    if (data.accountId !== selected.accountId || data.market !== selected.market || data.currency !== (selected.market === "HK" ? "HKD" : "USD") || !Array.isArray(data.orders) || !Array.isArray(data.positions)) fail("Broker snapshot identity mismatch");
+    return { ...data, observedAt: this.now(), environment: "SIMULATE", limitation };
+  }
+  async refresh(input) {
+    return this.exclusive(async () => {
+      const snap = await this.snapshot(input);
+      const state = await this.state();
+      const matches = (r) => r.accountId === snap.accountId && r.market === snap.market;
+      for (const intent of state.intents.filter(matches)) {
+        const order = snap.orders.find((o) => o.orderId === intent.brokerOrderId || intent.kind === "order" && o.remark === `hrouter:${intent.id}`);
+        if (!order) continue;
+        if (hash(intent.broker || {}) !== hash(order)) {
+          (intent.events ||= []).push({ at: snap.observedAt, type: "broker-observed", broker: order });
+        }
+        intent.brokerOrderId = order.orderId;
+        intent.broker = order;
+        intent.reconciledAt = snap.observedAt;
+        if (uncertainOrder(order)) {
+          intent.status = "unknown";
+          intent.error = "Broker still reports an uncertain order status; do not retry.";
+        } else if (intent.kind === "order" || ["CANCELLED_ALL", "CANCELLED_PART", "FILLED_ALL", "FAILED", "SUBMIT_FAILED", "DELETED", "DISABLED", "FILL_CANCELLED"].includes(order.status)) {
+          intent.status = "acknowledged";
+          intent.error = null;
+        }
+      }
+      const policy = await this.policy();
+      state.samples.push({
+        accountId: snap.accountId,
+        market: snap.market,
+        currency: snap.currency,
+        observedAt: snap.observedAt,
+        policyRevision: policy.revision || null,
+        ...snap.funds
+      });
+      state.samples = state.samples.slice(-2e3);
+      state.snapshots = [...(state.snapshots || []).filter((s) => s.accountId !== snap.accountId || s.market !== snap.market), snap].slice(-20);
+      await writeJson(path4.join(this.dir, "state.json"), state);
+      return { snapshot: snap, intents: state.intents.filter(matches).slice(-100).reverse(), samples: state.samples.filter(matches).slice(-300) };
+    });
+  }
+  async assess(input, policy, state) {
+    this.requireEnabled();
+    if (!policy.enabled) fail("Agent execution is paused. Enable a bounded SIMULATE policy in the dashboard first.");
+    if (!policy.allowedSymbols.includes(input.symbol)) fail("Symbol is outside authorized allowlist");
+    const code = futuCode(input.symbol, policy.market);
+    if (input.quantity % policy.lotSizes[input.symbol] !== 0) fail("Quantity does not match authorized board lot");
+    const notional = input.quantity * input.limitPrice;
+    if (!finite3(notional) || notional > policy.maxOrderValue) fail("Single-order notional limit exceeded");
+    const relevant = state.intents.filter((r) => r.accountId === policy.accountId && r.market === policy.market);
+    if (relevant.some((r) => ["dispatching", "unknown"].includes(r.status))) fail("Unresolved broker request exists. Refresh/reconcile before new orders; do not retry with a new key.");
+    const today = relevant.filter((r) => r.kind === "order" && r.dispatchedAt && tradingDate(r.dispatchedAt, policy.market) === tradingDate(this.now(), policy.market));
+    if (today.length >= policy.maxOrdersPerDay || today.reduce((n, r) => n + r.notional, 0) + notional > policy.maxDailyOrderValue) fail("Daily order count/notional budget exceeded (cancellations do not reset budget)");
+    const last = relevant.filter((r) => r.dispatchedAt).at(-1);
+    if (last && Date.parse(this.now()) - Date.parse(last.dispatchedAt) < 3e3) fail("Wait at least 3 seconds between broker writes");
+    const quote = await this.quote(input.symbol);
+    const age = Date.parse(this.now()) - Date.parse(quote.asOf);
+    if (quote.demo || quote.synthetic || quote.symbol !== input.symbol || quote.currency !== policy.currency || !finite3(quote.price) || quote.price <= 0 || !Number.isFinite(age) || age < -5e3 || age > policy.maxQuoteAgeSeconds * 1e3 || quote.signalEligible !== true || quote.freshness?.status !== "fresh" || quote.freshness?.signalEligible !== true || !["matched", "fallback", "unavailable"].includes(quote.crossCheck?.status)) fail("Real quote is missing, stale, market-closed or in conflict; simulation execution paused");
+    if (Math.abs(input.limitPrice / quote.price - 1) * 100 > policy.maxLimitDeviationPct) fail("Limit price deviates too far from current verified quote");
+    const selectedStrategy = input.side === "BUY" ? policy.entryStrategy : policy.exitStrategy;
+    const evaluation = evaluateDeclarativeStrategy(quote, selectedStrategy);
+    if (!evaluation.selected || evaluation.missingFeatures.length) fail(`Configured ${input.side} strategy did not pass, or features are missing: ${JSON.stringify(evaluation)}`);
+    const snapshot = await this.snapshot(policy);
+    const holdings = snapshot.positions.filter((p) => p.code === code);
+    if (holdings.some((p) => p.currency !== policy.currency)) fail("Position currency is missing or mismatched");
+    if (input.side === "SELL") {
+      const available = holdings.reduce((n, p) => n + (finite3(p.canSellQuantity) ? p.canSellQuantity : 0), 0);
+      if (available < input.quantity) fail("Insufficient sellable long position; shorts are disabled");
+    } else {
+      const openBuys = snapshot.orders.filter((o) => o.side === "BUY" && activeOrder(o));
+      if (openBuys.some((o) => !finite3(o.price) || !finite3(o.quantity) || !finite3(o.filledQuantity) || o.quantity < o.filledQuantity || o.price <= 0)) fail("Unverifiable open-order commitments; no new buys");
+      if (holdings.some((p) => !finite3(p.quantity) || p.quantity < 0 || !finite3(p.marketValue) || p.marketValue < 0)) fail("Unverifiable/short position; no new buys");
+      const commitments = openBuys.reduce((n, o) => n + (o.quantity - o.filledQuantity) * o.price, 0);
+      const currentValue = holdings.reduce((n, p) => n + Math.max(p.marketValue, p.quantity * quote.price), 0);
+      const symbolPending = openBuys.filter((o) => o.code === code).reduce((n, o) => n + (o.quantity - o.filledQuantity) * o.price, 0);
+      if (!finite3(snapshot.funds?.cash) || snapshot.funds.cash < commitments + notional) fail("Insufficient verified cash after open buy commitments; margin is not used");
+      if (currentValue + symbolPending + notional > policy.maxPositionValue) fail("Position notional limit including pending buys exceeded");
+    }
+    if (Date.parse(this.now()) - Date.parse(quote.asOf) > policy.maxQuoteAgeSeconds * 1e3) fail("Quote expired while checking broker account");
+    return {
+      code,
+      notional,
+      evaluation,
+      strategy: selectedStrategy,
+      quote: { symbol: quote.symbol, price: quote.price, currency: quote.currency, asOf: quote.asOf, source: quote.source, dataSources: quote.dataSources, freshness: quote.freshness, crossCheck: quote.crossCheck, indicators: quote.indicators },
+      account: { accountId: policy.accountId, market: policy.market, observedAt: snapshot.observedAt, funds: snapshot.funds },
+      checkedAt: this.now()
+    };
+  }
+  async evaluate(input) {
+    const order = validatePaperOrder(input);
+    return this.exclusive(async () => {
+      try {
+        const check2 = await this.assess(order, await this.policy(), await this.state());
+        return { eligible: true, ...check2, environment: "SIMULATE", meaning: "Point-in-time preflight only; submit rechecks all gates and records the order." };
+      } catch (e) {
+        return { eligible: false, reason: e.message, environment: "SIMULATE", checkedAt: this.now() };
+      }
+    });
+  }
+  async submit(input) {
+    const order = validatePaperOrder(input);
+    return this.exclusive(async () => {
+      const state = await this.state();
+      const requestHash = hash(order);
+      const prior = state.intents.find((r) => r.idempotencyKey === order.idempotencyKey);
+      if (prior) {
+        if (prior.requestHash !== requestHash) fail("Idempotency key already used for a different request");
+        return { ...prior, replay: true };
+      }
+      if (state.intents.length >= 1e4) fail("Paper ledger full; archive for a new experiment before proceeding");
+      const policy = await this.policy();
+      const intent = {
+        id: randomUUID2(),
+        kind: "order",
+        ...order,
+        requestHash,
+        accountId: policy.accountId,
+        market: policy.market,
+        currency: policy.currency,
+        policyRevision: policy.revision,
+        authorization: structuredClone(policy),
+        createdAt: this.now(),
+        status: "checking",
+        events: []
+      };
+      try {
+        Object.assign(intent, await this.assess(order, policy, state));
+      } catch (e) {
+        Object.assign(intent, { status: "blocked", error: e.message });
+        intent.events.push({ at: this.now(), type: "blocked", error: e.message });
+        state.intents.push(intent);
+        await writeJson(path4.join(this.dir, "state.json"), state);
+        return intent;
+      }
+      Object.assign(intent, { status: "dispatching", dispatchedAt: this.now() });
+      intent.events.push({ at: intent.dispatchedAt, type: "dispatching" });
+      state.intents.push(intent);
+      await writeJson(path4.join(this.dir, "state.json"), state);
+      try {
+        const result = await this.bridge({
+          action: "submit",
+          ...account(policy),
+          code: intent.code,
+          side: order.side,
+          quantity: order.quantity,
+          limitPrice: order.limitPrice,
+          quoteValidUntil: Date.parse(intent.quote.asOf) + policy.maxQuoteAgeSeconds * 1e3,
+          remark: `hrouter:${intent.id}`
+        });
+        const broker = result.orders?.[0];
+        if (!broker?.orderId || uncertainOrder(broker) || broker.code !== intent.code || broker.side !== intent.side) fail("Missing or mismatched broker order acknowledgement");
+        Object.assign(intent, { status: "acknowledged", brokerOrderId: broker.orderId, broker, acknowledgedAt: this.now() });
+      } catch (e) {
+        Object.assign(intent, { status: e.definitelyNotDispatched ? "blocked" : "unknown", error: e.message });
+      }
+      intent.events.push({ at: this.now(), type: intent.status, broker: intent.broker || null, error: intent.error || null });
+      await writeJson(path4.join(this.dir, "state.json"), state);
+      return intent;
+    });
+  }
+  async cancel(input) {
+    if (input.environment && input.environment !== "SIMULATE" || !/^[A-Za-z0-9_-]{8,80}$/.test(input.idempotencyKey || "") || !/^[A-Za-z0-9_-]{1,80}$/.test(input.orderId || "")) fail("Valid cancel identity and SIMULATE environment required");
+    return this.exclusive(async () => {
+      this.requireEnabled();
+      const policy = await this.policy();
+      const state = await this.state();
+      const requestHash = hash({ kind: "cancel", orderId: input.orderId });
+      const previous = state.intents.find((r) => r.idempotencyKey === input.idempotencyKey);
+      if (previous) {
+        if (previous.requestHash !== requestHash) fail("Idempotency key conflict");
+        return { ...previous, replay: true };
+      }
+      const original = state.intents.find((r) => r.kind === "order" && r.brokerOrderId === input.orderId);
+      if (!original) fail("Only this plugin's acknowledged simulation orders may be cancelled");
+      if (state.intents.length >= 1e4) fail("Paper ledger full");
+      if (state.intents.some((r) => r.brokerOrderId === input.orderId && ["dispatching", "unknown"].includes(r.status))) fail("Unresolved request for this order; reconcile before cancellation");
+      const existingCancel = state.intents.find((r) => r.kind === "cancel" && r.brokerOrderId === input.orderId && r.status === "acknowledged");
+      if (existingCancel) return { ...existingCancel, replay: true, meaning: "Cancellation was already requested; refresh broker state rather than send another request." };
+      const snapshot = await this.snapshot(original);
+      const broker = snapshot.orders.find((o) => o.orderId === input.orderId);
+      if (!broker || !["SUBMITTED", "FILLED_PART"].includes(broker.status)) fail("Order is not currently cancellable");
+      const last = state.intents.filter((r) => r.dispatchedAt).at(-1);
+      if (last && Date.parse(this.now()) - Date.parse(last.dispatchedAt) < 3e3) fail("Wait 3 seconds between broker writes");
+      const intent = {
+        id: randomUUID2(),
+        kind: "cancel",
+        idempotencyKey: input.idempotencyKey,
+        requestHash,
+        ...account(original),
+        environment: "SIMULATE",
+        brokerOrderId: input.orderId,
+        policyRevision: policy.revision,
+        createdAt: this.now(),
+        dispatchedAt: this.now(),
+        status: "dispatching",
+        events: [{ at: this.now(), type: "dispatching" }]
+      };
+      state.intents.push(intent);
+      await writeJson(path4.join(this.dir, "state.json"), state);
+      try {
+        await this.bridge({ action: "cancel", ...account(original), orderId: input.orderId });
+        intent.status = "acknowledged";
+        intent.acknowledgedAt = this.now();
+        intent.meaning = "Cancellation request acknowledged, not confirmation of cancellation; refresh broker state.";
+      } catch (e) {
+        intent.status = e.definitelyNotDispatched ? "blocked" : "unknown";
+        intent.error = e.message;
+      }
+      intent.events.push({ at: this.now(), type: intent.status, error: intent.error || null });
+      await writeJson(path4.join(this.dir, "state.json"), state);
+      return intent;
+    });
+  }
+};
+var service;
+function getPaperService() {
+  return service ||= new PaperService();
+}
+
+// mcp/update-coordination.mjs
+import { mkdir as mkdir5, readFile as readFile5, writeFile as writeFile4, rename as rename5, rm as rm2, readdir, stat } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { randomUUID as randomUUID3 } from "node:crypto";
+import os2 from "node:os";
+import path5 from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+function updateHome(env = process.env, platform = process.platform, home = os2.homedir()) {
+  if (env.HROUTER_UPDATE_HOME) return path5.resolve(env.HROUTER_UPDATE_HOME);
+  return platform === "win32" ? path5.join(env.LOCALAPPDATA || path5.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path5.join(env.XDG_DATA_HOME || path5.join(home, ".local", "share"), "hrouter-market-pulse-updater");
+}
+async function readJson2(file, fallback = null) {
+  try {
+    return JSON.parse(await readFile5(file, "utf8"));
+  } catch (error2) {
+    if (error2.code === "ENOENT") return fallback;
+    throw error2;
+  }
+}
+async function atomicJson(file, data) {
+  await mkdir5(path5.dirname(file), { recursive: true, mode: 448 });
+  const temp = `${file}.${randomUUID3()}.tmp`;
+  try {
+    await writeFile4(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
+    await rename5(temp, file);
+  } finally {
+    await rm2(temp, { force: true });
+  }
+}
+function processAlive(pid) {
+  if (!Number.isSafeInteger(pid) || pid < 1) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error2) {
+    return error2.code !== "ESRCH";
+  }
+}
+async function acquireLock(home, name, { waitMs = 0, alive = processAlive } = {}) {
+  await mkdir5(home, { recursive: true, mode: 448 });
+  const dir = path5.join(home, `${name}.lock`);
+  const deadline = Date.now() + waitMs;
+  for (; ; ) {
+    try {
+      await mkdir5(dir, { mode: 448 });
+      await atomicJson(path5.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
+      return async () => {
+        await rm2(dir, { recursive: true, force: true });
+      };
+    } catch (error2) {
+      if (error2.code !== "EEXIST") throw error2;
+      const owner = await readJson2(path5.join(dir, "owner.json"));
+      let stale = owner && !alive(owner.pid);
+      if (!owner) {
+        try {
+          stale = Date.now() - (await stat(dir)).mtimeMs > 6e5;
+        } catch (error3) {
+          if (error3.code === "ENOENT") continue;
+          throw error3;
+        }
+      }
+      if (stale) {
+        const reaping = `${dir}.reaping`;
+        let reaper = false;
+        try {
+          await mkdir5(reaping, { mode: 448 });
+          reaper = true;
+          const current = await readJson2(path5.join(dir, "owner.json"));
+          let removable = current && !alive(current.pid);
+          if (!current) {
+            try {
+              removable = Date.now() - (await stat(dir)).mtimeMs > 6e5;
+            } catch (error3) {
+              if (error3.code !== "ENOENT") throw error3;
+            }
+          }
+          if (removable) await rm2(dir, { recursive: true, force: true });
+        } catch (error3) {
+          if (!["EEXIST", "ENOENT"].includes(error3.code)) throw error3;
+        } finally {
+          if (reaper) await rm2(reaping, { recursive: true, force: true });
+        }
+        if (reaper) continue;
+        if (Date.now() >= deadline) return null;
+        await delay(100);
+        continue;
+      }
+      if (Date.now() >= deadline) return null;
+      await delay(100);
+    }
+  }
+}
+async function acquireRuntimeLease(home = updateHome()) {
+  if (!await readJson2(path5.join(home, "state.json"))) return () => {
+  };
+  const unlock = await acquireLock(home, "activation", { waitMs: 12e4 });
+  if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
+  const file = path5.join(home, "running", `${process.pid}-${randomUUID3()}.json`);
+  try {
+    await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  } finally {
+    await unlock();
+  }
+  const release = () => {
+    rmSync(file, { force: true });
+  };
+  process.once("exit", release);
+  return () => {
+    process.removeListener("exit", release);
+    release();
+  };
+}
+
+// mcp/http.mjs
+import { createServer } from "node:http";
+import { readFile as readFile7 } from "node:fs/promises";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { randomUUID as randomUUID5 } from "node:crypto";
+
+// mcp/workspace.mjs
+import { randomUUID as randomUUID4, createHash as createHash3 } from "node:crypto";
+import { mkdir as mkdir6, readFile as readFile6, rename as rename6, writeFile as writeFile5 } from "node:fs/promises";
+import path6 from "node:path";
+
+// mcp/research.mjs
+function researchAsOf2(value = (/* @__PURE__ */ new Date()).toISOString()) {
+  if (!validTimestamp(value))
+    throw new Error("asOf must be an ISO timestamp with timezone");
+  if (Date.parse(value) > Date.now()) throw new Error("Research asOf cannot be in the future");
+  return new Date(value).toISOString();
+}
+var text = (value, field, max = 2e3) => {
+  if (typeof value !== "string" || !value.trim() || value.length > max)
+    throw new Error(`${field} must be nonempty text (max ${max})`);
+  return value.trim();
+};
+var citation = (item) => ({
+  evidenceId: item.id,
+  sourceUrl: item.sourceUrl,
+  providerId: item.providerId,
+  sourceTier: item.sourceTier,
+  publishedAt: item.publishedAt,
+  availableAt: item.availableAt,
+  pointInTimeStatus: item.pointInTimeStatus
+});
+var dateOnly = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+var validTimestamp = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && dateOnly(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
+function financialFact(item) {
+  const p = item.payload ?? {};
+  if (item.kind !== "financial" || typeof p.value !== "number" || !Number.isFinite(p.value))
+    throw new Error(`${item.id}: financial evidence requires a finite numeric value`);
+  if (!dateOnly(p.periodEnd) || p.periodStart != null && (!dateOnly(p.periodStart) || p.periodStart > p.periodEnd))
+    throw new Error(`${item.id}: invalid financial period`);
+  if (p.valueType === "actual" && p.periodEnd > item.publishedAt.slice(0, 10))
+    throw new Error(`${item.id}: actual period cannot end after disclosure`);
+  const scale = p.scale ?? 1;
+  if (typeof scale !== "number" || !Number.isFinite(scale) || scale <= 0)
+    throw new Error(`${item.id}: invalid scale`);
+  return {
+    metric: text(p.metric, "metric", 160),
+    value: p.value,
+    unit: text(p.unit, "unit", 80),
+    scale,
+    currency: p.currency ?? null,
+    periodStart: p.periodStart ?? null,
+    periodEnd: p.periodEnd,
+    accountingBasis: p.accountingBasis ?? null,
+    publicationTimePrecision: p.publicationTimePrecision ?? "unspecified",
+    valueType: p.valueType ?? null,
+    ...citation(item)
+  };
+}
+function comparisonIssue(actual, baseline, type) {
+  if (actual.metric !== baseline.metric) return "metric-mismatch";
+  if (actual.unit !== baseline.unit || actual.scale !== baseline.scale || actual.currency !== baseline.currency)
+    return "unit-currency-or-scale-mismatch";
+  if (!actual.accountingBasis || !baseline.accountingBasis || actual.accountingBasis !== baseline.accountingBasis)
+    return "accounting-basis-missing-or-mismatched";
+  if (type === "prior-period") {
+    if (baseline.valueType !== "actual") return "prior-period-must-be-actual";
+    if (baseline.periodEnd >= (actual.periodStart ?? actual.periodEnd)) return "periods-overlap-or-not-earlier";
+    if (actual.periodStart === null !== (baseline.periodStart === null)) return "instant-duration-mismatch";
+    if (actual.periodStart) {
+      const days = (f) => (Date.parse(f.periodEnd) - Date.parse(f.periodStart)) / 864e5;
+      if (Math.abs(days(actual) - days(baseline)) > 7) return "period-duration-mismatch";
+    }
+  } else {
+    if (baseline.valueType !== type) return "comparison-is-not-requested-estimate-type";
+    if (actual.periodStart !== baseline.periodStart || actual.periodEnd !== baseline.periodEnd)
+      return "estimate-period-mismatch";
+    if (Date.parse(baseline.availableAt) >= Date.parse(actual.publishedAt) || Date.parse(baseline.publishedAt) >= Date.parse(actual.publishedAt)) return "estimate-not-available-before-disclosure";
+  }
+  return null;
+}
+async function buildEarningsReview(input) {
+  const symbol = normalizeSymbol(input.symbol);
+  const asOf = researchAsOf2(input.asOf);
+  if (!Array.isArray(input.metrics) || !input.metrics.length || input.metrics.length > 40)
+    throw new Error("Provide 1-40 explicit metric evidence pairs");
+  const ids = [...new Set(input.metrics.flatMap((m) => [m.actualEvidenceId, m.comparisonEvidenceId].filter(Boolean)))];
+  const evidence = await queryEvidence({ symbols: [symbol], ids, asOf, limit: 500 });
+  const byId = new Map(evidence.items.map((item) => [item.id, item]));
+  const get = (id) => {
+    if (!byId.has(id)) throw new Error(`Evidence ${id} is missing, unavailable at asOf, or belongs to another symbol`);
+    return financialFact(byId.get(id));
+  };
+  const metrics = input.metrics.map((pair) => {
+    const actual = get(pair.actualEvidenceId);
+    if (actual.valueType !== "actual") throw new Error("Actual evidence must be a reported actual, not an estimate");
+    const type = pair.comparisonType ?? "prior-period";
+    if (!["prior-period", "consensus", "company-guidance"].includes(type)) throw new Error("Invalid comparisonType");
+    const baseline = pair.comparisonEvidenceId ? get(pair.comparisonEvidenceId) : null;
+    const issue2 = baseline ? comparisonIssue(actual, baseline, type) : "missing-comparison-evidence";
+    const delta = issue2 ? null : actual.value - baseline.value;
+    if (delta !== null && !Number.isFinite(delta)) throw new Error("Financial difference overflow");
+    const percentage = delta !== null && baseline.value > 0 ? delta / baseline.value * 100 : null;
+    return {
+      metric: actual.metric,
+      actual,
+      baseline,
+      comparisonType: type,
+      comparisonStatus: issue2 ? "unavailable" : "comparable",
+      warning: issue2,
+      delta,
+      changePct: Number.isFinite(percentage) ? percentage : null,
+      percentageWarning: !issue2 && baseline.value <= 0 ? "nonpositive-baseline-use-absolute-change" : percentage !== null && !Number.isFinite(percentage) ? "percentage-overflow" : null,
+      // Higher expenses or liabilities are not necessarily good; no beat/miss investment judgment.
+      direction: delta === null ? null : delta > 0 ? "above" : delta < 0 ? "below" : "in-line"
+    };
+  });
+  return {
+    symbol,
+    asOf,
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    researchOnly: true,
+    metrics,
+    limitations: [
+      "Evidence-derived arithmetic, not a forecast or investment recommendation.",
+      "Evidence provenance is retained; provider-declared historical availability is not independently verified.",
+      "Missing consensus is not replaced with guidance. No automatic currency, scale, or accounting-basis conversion."
+    ]
+  };
+}
+function normalizeThesisPillars(pillars = []) {
+  if (!Array.isArray(pillars) || pillars.length > 12) throw new Error("Use at most 12 thesis pillars");
+  const seen = /* @__PURE__ */ new Set();
+  return pillars.map((p) => {
+    const id = text(p.id, "pillar id", 64);
+    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(id) || seen.has(id)) throw new Error("Pillar IDs must be unique safe identifiers");
+    seen.add(id);
+    if (p.reviewBy != null && !dateOnly(p.reviewBy)) throw new Error("reviewBy must be YYYY-MM-DD");
+    return {
+      id,
+      expectation: text(p.expectation, "expectation"),
+      invalidationCondition: text(p.invalidationCondition, "invalidationCondition"),
+      reviewBy: p.reviewBy ?? null
+    };
+  });
+}
+function buildThesisScorecard(record2, asOf = (/* @__PURE__ */ new Date()).toISOString()) {
+  const reviews = (record2.reviews ?? []).filter((r) => Date.parse(r.reviewedAt) <= Date.parse(asOf));
+  const pillars = record2.pillars?.length ? record2.pillars : reviews.find((r) => r.pillars?.length)?.pillars ?? [];
+  return {
+    decisionId: record2.id,
+    symbol: record2.symbol,
+    asOf,
+    researchOnly: true,
+    pillars: pillars.map((pillar) => {
+      const updates = reviews.flatMap((r) => (r.pillarUpdates ?? []).filter((u) => u.pillarId === pillar.id).map((u) => ({ ...u, reviewedAt: r.reviewedAt })));
+      const latest = updates.at(-1);
+      return {
+        ...pillar,
+        status: latest?.status ?? "unreviewed",
+        latestAssessment: latest ?? null,
+        overdue: Boolean(pillar.reviewBy && pillar.reviewBy < asOf.slice(0, 10)),
+        history: updates
+      };
+    }),
+    limitation: "Pillar assessments are attributed research judgments, not calibrated probabilities or position changes."
+  };
+}
+function projectCatalystCalendar(items, { asOf = (/* @__PURE__ */ new Date()).toISOString(), symbols, includeMacro = true } = {}) {
+  const wanted = symbols ? new Set(symbols.map(normalizeSymbol)) : null;
+  const groups = /* @__PURE__ */ new Map();
+  const warnings = [];
+  for (const item of items) {
+    const p = item.payload ?? {};
+    if (!p.eventType || !validTimestamp(item.publishedAt) || !validTimestamp(item.availableAt) || Date.parse(item.availableAt) > Date.parse(asOf) || Date.parse(item.publishedAt) > Date.parse(asOf)) continue;
+    const macro = item.kind === "macro" && !item.entity?.symbol;
+    let affectedSymbols;
+    try {
+      affectedSymbols = [...new Set([item.entity?.symbol, ...Array.isArray(p.affectedSymbols) ? p.affectedSymbols : []].filter((s) => typeof s === "string" && s.trim()).map(normalizeSymbol))];
+    } catch {
+      warnings.push(`${item.id}: invalid affected symbol`);
+      continue;
+    }
+    if (macro ? !includeMacro : wanted && !affectedSymbols.some((s) => wanted.has(s))) continue;
+    const status = p.eventStatus ?? "tentative";
+    if (!["tentative", "confirmed", "cancelled", "completed"].includes(status)) {
+      warnings.push(`${item.id}: invalid eventStatus`);
+      continue;
+    }
+    if (!p.scheduledAt && status !== "cancelled" || p.scheduledAt && !validTimestamp(p.scheduledAt)) {
+      warnings.push(`${item.id}: invalid or timezone-less scheduledAt`);
+      continue;
+    }
+    if (p.timezone) {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: p.timezone });
+      } catch {
+        warnings.push(`${item.id}: invalid timezone`);
+        continue;
+      }
+    }
+    const key = JSON.stringify([item.providerId, item.entity?.symbol ?? item.entity?.name, p.eventType, p.eventKey || item.externalId || item.id]);
+    const entries = groups.get(key) ?? [];
+    if (!entries.some((e) => e.id === item.id)) entries.push({ ...item, affectedSymbols, status });
+    groups.set(key, entries);
+  }
+  const events = [];
+  for (const [eventKey, versions] of groups) {
+    versions.sort((a, b) => Date.parse(a.availableAt) - Date.parse(b.availableAt) || Date.parse(a.publishedAt) - Date.parse(b.publishedAt) || a.id.localeCompare(b.id));
+    const latest = versions.at(-1);
+    const p = latest.payload;
+    const scheduledAt = p.scheduledAt ?? [...versions].reverse().find((e) => e.payload.scheduledAt)?.payload.scheduledAt;
+    if (!scheduledAt) {
+      warnings.push(`${latest.id}: cancelled event has no known schedule`);
+      continue;
+    }
+    const conflict = versions.some((e) => e.id !== latest.id && e.availableAt === latest.availableAt && e.publishedAt === latest.publishedAt && ((e.payload.scheduledAt ? Date.parse(e.payload.scheduledAt) : null) !== (p.scheduledAt ? Date.parse(p.scheduledAt) : null) || e.status !== latest.status));
+    events.push({
+      id: latest.id,
+      eventKey,
+      symbol: latest.entity?.symbol ?? null,
+      affectedSymbols: latest.affectedSymbols,
+      title: latest.title,
+      eventType: p.eventType,
+      scheduledAt,
+      effectiveAt: scheduledAt,
+      timezone: p.timezone ?? null,
+      eventStatus: latest.status,
+      dateConfidence: !conflict && p.dateConfidence === "confirmed" && latest.status === "confirmed" ? "confirmed" : "estimated",
+      conflict,
+      ...citation(latest),
+      evidenceIds: versions.map((e) => e.id),
+      history: versions.map((e) => ({ ...citation(e), scheduledAt: e.payload.scheduledAt ?? null, eventStatus: e.status })),
+      missingStableIdentity: !p.eventKey && !latest.externalId
+    });
+  }
+  events.sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt) || a.id.localeCompare(b.id));
+  return { asOf, events, warnings, researchOnly: true };
+}
+async function queryCatalystCalendar(input = {}) {
+  const asOf = researchAsOf2(input.asOf);
+  const preferences = input.symbols ? null : await loadPreferences();
+  const symbols = input.symbols ?? [.../* @__PURE__ */ new Set([...preferences.watchlist ?? [], ...(preferences.positions ?? []).map((p) => p.symbol)])];
+  const from = input.from ?? asOf;
+  if (!validTimestamp(from)) throw new Error("Calendar from must be a valid timezone-aware timestamp");
+  const to = input.to ?? new Date(Date.parse(from) + 30 * 864e5).toISOString();
+  if (![from, to].every(validTimestamp) || Date.parse(from) > Date.parse(to))
+    throw new Error("Calendar requires a valid timezone-aware from <= to interval");
+  const evidence = await queryEvidence({ asOf, limit: 500 });
+  const calendar = projectCatalystCalendar(evidence.items, { asOf, symbols, includeMacro: input.includeMacro ?? true });
+  calendar.events = calendar.events.filter((e) => Date.parse(e.scheduledAt) >= Date.parse(from) && Date.parse(e.scheduledAt) <= Date.parse(to) && (input.includeCancelled || e.eventStatus !== "cancelled"));
+  return {
+    ...calendar,
+    from,
+    to,
+    symbols,
+    coverage: { scanned: evidence.returned, totalAvailable: evidence.totalMatched, truncated: evidence.totalMatched > evidence.returned },
+    warnings: [...calendar.warnings, ...evidence.totalMatched > evidence.returned ? ["Evidence scan truncated; calendar may omit events or revisions."] : []],
+    limitation: "Calendar of ingested evidence only, not a complete market calendar. Revisions require a stable eventKey per provider/entity/type. No notifications are scheduled by this query."
+  };
+}
+
 // mcp/workspace.mjs
 var journalQueue = Promise.resolve();
 var cache = /* @__PURE__ */ new Map();
 var benchmarkDefaults = { A: "000001.SS", HK: "^HSI", US: "^GSPC" };
 var cleanText = (value, limit = 2e3) => String(value ?? "").trim().slice(0, limit);
-var finite3 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
+var finite4 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
 async function readStore(name, fallback = []) {
   try {
-    return JSON.parse(await readFile5(path5.join(getStorageDir(), name), "utf8"));
+    return JSON.parse(await readFile6(path6.join(getStorageDir(), name), "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function writeStore(name, data) {
-  const target = path5.join(getStorageDir(), name);
-  await mkdir5(path5.dirname(target), { recursive: true });
-  const temp = `${target}.${randomUUID3()}.tmp`;
+  const target = path6.join(getStorageDir(), name);
+  await mkdir6(path6.dirname(target), { recursive: true });
+  const temp = `${target}.${randomUUID4()}.tmp`;
   await writeFile5(temp, JSON.stringify(data, null, 2));
-  await rename5(temp, target);
+  await rename6(temp, target);
 }
 async function listDecisions({ symbol, limit = 200 } = {}) {
   const items = await readStore("decisions.json");
   const normalized = symbol ? normalizeSymbol(symbol) : null;
   return {
-    decisions: items.filter((item) => !normalized || item.symbol === normalized).slice(-Math.min(500, limit)).reverse()
+    decisions: items.filter((item) => !normalized || item.symbol === normalized).slice(-Math.min(500, limit)).reverse().map((item) => {
+      const scorecard = buildThesisScorecard(item);
+      return scorecard.pillars.length ? { ...item, scorecard } : item;
+    })
   };
 }
 async function recordDecision(input) {
@@ -10182,6 +10930,7 @@ async function recordDecision(input) {
     throw new Error("Invalid decision state");
   const thesis = cleanText(input.thesis);
   if (!thesis) throw new Error("A decision thesis is required");
+  const pillars = normalizeThesisPillars(input.pillars);
   const evidenceIds = [...new Set(input.evidenceIds ?? [])];
   const evidence = await queryEvidence({ symbols: [symbol], limit: 500 });
   if (evidenceIds.some((id) => !evidence.items.some((item) => item.id === id)))
@@ -10230,10 +10979,11 @@ async function recordDecision(input) {
       );
   }
   const record2 = {
-    id: `decision_${randomUUID3()}`,
+    id: `decision_${randomUUID4()}`,
     symbol,
     state,
     thesis,
+    ...pillars.length ? { pillars } : {},
     entryCondition: cleanText(input.entryCondition),
     invalidationCondition: cleanText(input.invalidationCondition),
     horizon: cleanText(input.horizon, 160),
@@ -10257,7 +11007,7 @@ async function recordDecision(input) {
     quoteError,
     reviews: []
   };
-  record2.originalHash = createHash2("sha256").update(JSON.stringify(record2)).digest("hex");
+  record2.originalHash = createHash3("sha256").update(JSON.stringify(record2)).digest("hex");
   const task = journalQueue.then(async () => {
     const records = await readStore("decisions.json");
     records.push(record2);
@@ -10289,6 +11039,69 @@ async function reviewDecision(id, input) {
   journalQueue = task.catch(() => {
   });
   return task;
+}
+async function appendThesisReview(input) {
+  if (!Array.isArray(input.updates) || !input.updates.length || input.updates.length > 12)
+    throw new Error("Provide 1-12 pillar updates");
+  const task = journalQueue.then(async () => {
+    const records = await readStore("decisions.json");
+    const record2 = records.find((item) => item.id === input.decisionId);
+    if (!record2) throw new Error("Decision not found");
+    const existing = buildThesisScorecard(record2).pillars;
+    if (existing.length && input.pillars !== void 0)
+      throw new Error("Original pillars cannot be replaced; create a new decision for a changed thesis");
+    const pillars = existing.length ? existing : normalizeThesisPillars(input.pillars);
+    if (!pillars.length) throw new Error("Define pillars on the decision or first thesis review");
+    const reviewedAt = (/* @__PURE__ */ new Date()).toISOString();
+    const evidenceIds = [...new Set(input.updates.flatMap((u) => u.evidenceIds ?? []))];
+    if (evidenceIds.length > 100) throw new Error("Use at most 100 evidence IDs per review");
+    const evidence = await queryEvidence({ ids: evidenceIds, symbols: [record2.symbol], asOf: reviewedAt, limit: 500 });
+    const byId = new Map(evidence.items.map((e) => [e.id, e]));
+    const seen = /* @__PURE__ */ new Set();
+    const updates = input.updates.map((u) => {
+      if (!pillars.some((p) => p.id === u.pillarId) || seen.has(u.pillarId))
+        throw new Error("Unknown or duplicate pillarId");
+      seen.add(u.pillarId);
+      if (!["supported", "weakened", "invalidated", "inconclusive"].includes(u.status))
+        throw new Error("Invalid pillar assessment status");
+      const ids = [...new Set(u.evidenceIds ?? [])];
+      if (!ids.length || ids.some((id) => !byId.has(id)))
+        throw new Error("Every assessment requires existing, available evidence for the decision symbol");
+      if (typeof u.rationale !== "string" || !u.rationale.trim() || u.rationale.length > 2e3)
+        throw new Error("Each assessment requires a rationale of 1-2000 characters");
+      return {
+        pillarId: u.pillarId,
+        status: u.status,
+        rationale: u.rationale.trim(),
+        evidenceIds: ids,
+        evidence: ids.map((id) => {
+          const e = byId.get(id);
+          return { evidenceId: id, sourceUrl: e.sourceUrl, publishedAt: e.publishedAt, availableAt: e.availableAt };
+        })
+      };
+    });
+    const review = {
+      id: `thesis_review_${randomUUID4()}`,
+      reviewedAt,
+      type: "thesis-assessment",
+      source: "research-assessment",
+      notes: cleanText(input.notes),
+      pillarUpdates: updates,
+      ...!existing.length ? { pillars } : {}
+    };
+    record2.reviews.push(review);
+    await writeStore("decisions.json", records);
+    return { review, scorecard: buildThesisScorecard(record2), stateUnchanged: record2.state };
+  });
+  journalQueue = task.catch(() => {
+  });
+  return task;
+}
+async function queryThesisScorecard({ decisionId, asOf: requestedAsOf } = {}) {
+  const asOf = researchAsOf2(requestedAsOf);
+  const record2 = (await readStore("decisions.json")).find((r) => r.id === decisionId);
+  if (!record2 || Date.parse(record2.createdAt) > Date.parse(asOf)) throw new Error("Decision not available at asOf");
+  return buildThesisScorecard(record2, asOf);
 }
 function deriveMarketContext(items, benchmarks = [], sectorMap = {}) {
   const valid = items.filter(
@@ -10387,20 +11200,6 @@ async function getResearchContext(items, preferences = {}) {
   );
   return deriveMarketContext(items, benchmarks, preferences.sectorMap);
 }
-function eventsFromEvidence(items) {
-  return items.filter((item) => item.payload?.eventType && item.payload?.scheduledAt).map((item) => ({
-    id: item.id,
-    symbol: item.entity.symbol,
-    title: item.title,
-    eventType: item.payload.eventType,
-    scheduledAt: item.payload.scheduledAt,
-    effectiveAt: item.payload.scheduledAt,
-    availableAt: item.availableAt,
-    sourceUrl: item.sourceUrl,
-    sourceTier: item.sourceTier,
-    evidenceIds: [item.id]
-  })).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt));
-}
 async function enrichReport(report) {
   const preferences = await loadPreferences();
   if (report.phase !== "intraday")
@@ -10427,7 +11226,11 @@ async function enrichReport(report) {
     evidenceId: item.id
   }));
   report.evidence = evidence.items;
-  report.events = eventsFromEvidence(evidence.items);
+  const calendar = projectCatalystCalendar(evidence.items);
+  report.events = calendar.events;
+  report.eventWarnings = calendar.warnings;
+  if (evidence.totalMatched > evidence.returned)
+    report.eventWarnings.push("Evidence scan truncated; calendar may omit events or revisions.");
   report.decisions = (await listDecisions()).decisions;
   for (const item of report.items) {
     item.evidence = evidence.items.filter(
@@ -10561,7 +11364,7 @@ function secFinancialRecords(symbol, cik, payload) {
     const units = concept?.units ?? {};
     return Object.entries(units).flatMap(([unit, rows]) => {
       const entries = rows.filter(
-        (row2) => finite3(row2.val) !== null && row2.filed && ["10-K", "10-Q"].includes(row2.form)
+        (row2) => finite4(row2.val) !== null && row2.filed && ["10-K", "10-Q"].includes(row2.form)
       ).sort(
         (a, b) => b.filed.localeCompare(a.filed) || b.end.localeCompare(a.end)
       );
@@ -10580,6 +11383,8 @@ function secFinancialRecords(symbol, cik, payload) {
           payload: {
             publicationTimePrecision: "date",
             metric: tag,
+            valueType: "actual",
+            accountingBasis: "us-gaap",
             value: row.val,
             unit,
             periodStart: row.start ?? null,
@@ -10886,16 +11691,16 @@ function bars(price, seed, now, intraday = false) {
     const progress = index / (length - 1);
     const wave = Math.sin(index * 0.32 + seed) * 0.015 + Math.sin(index * 0.11) * 0.025;
     const close = index === length - 1 ? price : price * ((intraday ? 0.978 : 0.795) + progress * (intraday ? 0.022 : 0.205) + wave * (intraday ? 0.22 : 1));
-    const open = previous * (1 + Math.sin(index * 1.7 + seed) * (intraday ? 1e-3 : 45e-4));
+    const open2 = previous * (1 + Math.sin(index * 1.7 + seed) * (intraday ? 1e-3 : 45e-4));
     previous = close;
     return {
       timestamp,
-      open: Math.round(open * 100) / 100,
+      open: Math.round(open2 * 100) / 100,
       high: Math.round(
-        Math.max(open, close) * (1 + 4e-3 + Math.abs(Math.sin(index + seed)) * 6e-3) * 100
+        Math.max(open2, close) * (1 + 4e-3 + Math.abs(Math.sin(index + seed)) * 6e-3) * 100
       ) / 100,
       low: Math.round(
-        Math.min(open, close) * (1 - 4e-3 - Math.abs(Math.cos(index + seed)) * 6e-3) * 100
+        Math.min(open2, close) * (1 - 4e-3 - Math.abs(Math.cos(index + seed)) * 6e-3) * 100
       ) / 100,
       close: Math.round(close * 100) / 100,
       volume: Math.round(
@@ -10907,7 +11712,7 @@ function bars(price, seed, now, intraday = false) {
 function makeDemoReport(options = {}) {
   const now = options.now ? new Date(options.now) : /* @__PURE__ */ new Date();
   const asOf = new Date(now.getTime() - 35e3).toISOString();
-  const items = securities.map(
+  const allItems = securities.map(
     ([
       symbol,
       nameZh,
@@ -10920,7 +11725,7 @@ function makeDemoReport(options = {}) {
       sectorEn
     ], index) => {
       const history = bars(price, index, now);
-      const position = demoPreferences.positions.find(
+      const position = (options.positions ?? demoPreferences.positions).find(
         (item) => item.symbol === symbol
       );
       const sma = (period) => Math.round(
@@ -10989,6 +11794,7 @@ function makeDemoReport(options = {}) {
         },
         indicators: {
           period: "1d",
+          asOf: history.at(-1).timestamp,
           sampleCount: history.length,
           sma5: sma(5),
           sma20: sma(20),
@@ -11016,6 +11822,12 @@ function makeDemoReport(options = {}) {
       };
     }
   );
+  const items = options.watchlist ? options.watchlist.map((symbol) => allItems.find((item) => item.symbol === symbol) ?? {
+    symbol,
+    market: symbol.endsWith(".HK") ? "HK" : /\.(SS|SZ)$/.test(symbol) ? "A" : "US",
+    error: "No synthetic fixture for this symbol; no market data was requested.",
+    history: []
+  }) : allItems;
   const indices = [
     {
       symbol: "000001.SS",
@@ -11048,40 +11860,6 @@ function makeDemoReport(options = {}) {
       asOf
     }
   ];
-  const sectors = [
-    {
-      name: "\u4E92\u8054\u7F51\u670D\u52A1",
-      nameZh: "\u4E92\u8054\u7F51\u670D\u52A1",
-      nameEn: "Internet services",
-      count: 2,
-      changePct: 0.44,
-      relativeChangePct: -0.82
-    },
-    {
-      name: "\u6D88\u8D39\u7535\u5B50",
-      nameZh: "\u6D88\u8D39\u7535\u5B50",
-      nameEn: "Consumer electronics",
-      count: 2,
-      changePct: 1.92,
-      relativeChangePct: 1.05
-    },
-    {
-      name: "\u534A\u5BFC\u4F53",
-      nameZh: "\u534A\u5BFC\u4F53",
-      nameEn: "Semiconductors",
-      count: 1,
-      changePct: 3.26,
-      relativeChangePct: 2.78
-    },
-    {
-      name: "\u98DF\u54C1\u996E\u6599",
-      nameZh: "\u98DF\u54C1\u996E\u6599",
-      nameEn: "Food & beverage",
-      count: 1,
-      changePct: -0.83,
-      relativeChangePct: -1.47
-    }
-  ];
   const events = [
     {
       id: "demo-evidence-1",
@@ -11093,7 +11871,12 @@ function makeDemoReport(options = {}) {
       publisher: "HKEX (demo reference)",
       url: "https://www.hkexnews.hk/",
       publishedAt: new Date(now.getTime() - 72e5).toISOString(),
-      effectiveAt: new Date(now.getTime() + 864e5).toISOString()
+      effectiveAt: new Date(now.getTime() + 864e5).toISOString(),
+      scheduledAt: new Date(now.getTime() + 864e5).toISOString(),
+      eventType: "earnings",
+      eventStatus: "tentative",
+      dateConfidence: "estimated",
+      timezone: "Asia/Hong_Kong"
     },
     {
       id: "demo-evidence-2",
@@ -11140,6 +11923,20 @@ function makeDemoReport(options = {}) {
       }
     ]
   };
+  const visibleSymbols = new Set(items.map((item) => item.symbol));
+  const knownItems = items.filter((item) => !item.error);
+  const sectorGroups = /* @__PURE__ */ new Map();
+  for (const item of knownItems) {
+    const group = sectorGroups.get(item.sectorZh) ?? { name: item.sectorZh, nameZh: item.sectorZh, nameEn: item.sectorEn, count: 0, changePct: 0, relativeChangePct: 0 };
+    group.count++;
+    group.changePct += item.changePct;
+    group.relativeChangePct += item.relativeChangePct;
+    sectorGroups.set(item.sectorZh, group);
+  }
+  const selectedEvents = events.filter((event) => visibleSymbols.has(event.symbol));
+  const selectedMonitor = { ...monitor, events: monitor.events.filter((event) => visibleSymbols.has(event.symbol)) };
+  const advances = knownItems.filter((item) => item.changePct > 0).length;
+  const declines = knownItems.filter((item) => item.changePct < 0).length;
   return {
     schemaVersion: 2,
     demo: true,
@@ -11151,24 +11948,24 @@ function makeDemoReport(options = {}) {
     items,
     context: {
       indices,
-      sectors,
-      breadth: { scope: "watchlist", advances: 5, declines: 3, unchanged: 0 }
+      sectors: [...sectorGroups.values()].map((g) => ({ ...g, changePct: g.changePct / g.count, relativeChangePct: g.relativeChangePct / g.count })),
+      breadth: { scope: "watchlist", advances, declines, unchanged: knownItems.length - advances - declines }
     },
-    events,
-    evidence: events,
-    monitor,
+    events: selectedEvents,
+    evidence: selectedEvents,
+    monitor: selectedMonitor,
     summary: {
-      requested: 8,
-      succeeded: 8,
-      failed: 0,
-      advances: 5,
-      declines: 3,
-      unchanged: 0,
-      alertCount: 3,
-      qualityWarningCount: 1,
-      signalEligibleCount: 7,
-      staleCount: 1,
-      marketCounts: { A: 2, HK: 3, US: 3 }
+      requested: items.length,
+      succeeded: knownItems.length,
+      failed: items.length - knownItems.length,
+      advances,
+      declines,
+      unchanged: knownItems.length - advances - declines,
+      alertCount: selectedMonitor.events.length,
+      qualityWarningCount: items.filter((item) => item.error || item.freshness?.status !== "fresh").length,
+      signalEligibleCount: items.filter((item) => item.signalEligible).length,
+      staleCount: items.filter((item) => item.freshness?.status === "stale").length,
+      marketCounts: Object.fromEntries(["A", "HK", "US"].map((market) => [market, items.filter((item) => item.market === market).length]))
     }
   };
 }
@@ -11177,6 +11974,7 @@ function makeDemoReport(options = {}) {
 var assets = /* @__PURE__ */ new Map([
   ["/assets/dashboard.js", ["dashboard.js", "text/javascript; charset=utf-8"]],
   ["/assets/dashboard.css", ["dashboard.css", "text/css; charset=utf-8"]],
+  ["/assets/dashboard.js.LEGAL.txt", ["dashboard.js.LEGAL.txt", "text/plain; charset=utf-8"]],
   [
     "/assets/vendor/lightweight-charts.js",
     ["vendor/lightweight-charts.js", "text/javascript; charset=utf-8"]
@@ -11236,15 +12034,17 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
         return respond(response, 403, { error: "Cross-origin access denied" });
       const url = new URL(request.url, "http://127.0.0.1");
       if (request.method === "GET") {
-        if (url.pathname === "/api/evidence")
-          return respond(
-            response,
-            200,
-            demo2 ? { items: demoReport.evidence ?? [] } : await queryEvidence({
-              symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : void 0,
-              limit: 500
-            })
-          );
+        if (url.pathname === "/api/paper/status") return respond(response, 200, demo2 ? { environment: "SIMULATE", demoDisabled: true, bridgeEnabled: false, policy: { enabled: false }, intents: [], samples: [], limitation: "Paper trading requires the real-data dashboard and actual Futu OpenD. No synthetic account, fills or performance are supplied." } : await getPaperService().status());
+        if (url.pathname === "/api/evidence") {
+          const evidence = demo2 ? { items: demoReport.evidence ?? [] } : await queryEvidence({
+            symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : void 0,
+            limit: 500
+          });
+          const calendar = demo2 ? { events: demoReport.events ?? [], warnings: [] } : projectCatalystCalendar(evidence.items);
+          const warnings = [...calendar.warnings];
+          if (evidence.totalMatched > evidence.returned) warnings.push("Evidence scan truncated; calendar may omit events or revisions.");
+          return respond(response, 200, { ...evidence, events: calendar.events, eventWarnings: warnings });
+        }
         if (url.pathname === "/health")
           return respond(response, 200, {
             ok: true,
@@ -11257,7 +12057,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
           return respond(
             response,
             200,
-            await readFile6(fileURLToPath(new URL(name, assetRoot))),
+            await readFile7(fileURLToPath2(new URL(name, assetRoot))),
             type
           );
         }
@@ -11271,7 +12071,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
           return respond(
             response,
             200,
-            demo2 ? { decisions } : await listDecisions()
+            demo2 ? { decisions: decisions.map((record2) => ({ ...record2, scorecard: buildThesisScorecard(record2) })) } : await listDecisions()
           );
         if (url.pathname === "/api/latest" || /^\/api\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)) {
           const id = url.pathname === "/api/latest" ? "latest" : url.pathname.split("/").at(-1);
@@ -11308,6 +12108,13 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
       }
       if (request.method === "POST") {
         const body = await bodyJson(request);
+        if (url.pathname.startsWith("/api/paper/")) {
+          if (demo2) return respond(response, 409, { error: "\u6F14\u793A\u6A21\u5F0F\u4E0D\u8FDE\u63A5\u6A21\u62DF\u8D26\u6237\u3002\u8BF7\u542F\u52A8\u771F\u5B9E\u6570\u636E\u9762\u677F / Use the real-data dashboard; no synthetic trading fallback." });
+          const actions = { connect: "accounts", refresh: "refresh", policy: "savePolicy", evaluate: "evaluate", submit: "submit", cancel: "cancel" };
+          const action = actions[url.pathname.slice("/api/paper/".length)];
+          if (!action) return respond(response, 404, { error: "Unknown paper action" });
+          return respond(response, 200, await getPaperService()[action](action === "accounts" ? body.market : body));
+        }
         if (url.pathname === "/api/preferences") {
           if (body.language && !["zh-CN", "en"].includes(body.language))
             throw new Error("Invalid language");
@@ -11342,7 +12149,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
           ].includes(body.phase) ? body.phase : "intraday";
           if (demo2) {
             demoReport = {
-              ...makeDemoReport(),
+              ...makeDemoReport({ watchlist: preferences.watchlist, positions: preferences.positions }),
               language: preferences.language,
               phase,
               demo: true
@@ -11378,7 +12185,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
               throw new Error("Symbol and thesis required");
             const entry = {
               ...body,
-              id: `demo_${randomUUID4()}`,
+              id: `demo_${randomUUID5()}`,
               createdAt: (/* @__PURE__ */ new Date()).toISOString(),
               reviews: [],
               demo: true
@@ -11930,8 +12737,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path6, errorMaps, issueData } = params;
-  const fullPath = [...path6, ...issueData.path || []];
+  const { data, path: path7, errorMaps, issueData } = params;
+  const fullPath = [...path7, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -12047,11 +12854,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path6, key) {
+  constructor(parent, value, path7, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path6;
+    this._path = path7;
     this._key = key;
   }
   get path() {
@@ -15689,10 +16496,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path6) {
-  if (!path6)
+function getElementAtPath(obj, path7) {
+  if (!path7)
     return obj;
-  return path6.reduce((acc, key) => acc?.[key], obj);
+  return path7.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -16012,11 +16819,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path6, issues) {
+function prefixIssues(path7, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path6);
+    iss.path.unshift(path7);
     return iss;
   });
 }
@@ -19429,11 +20236,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path6) {
-  if (path6.length === 0) {
+function getDotPath(path7) {
+  if (path7.length === 0) {
     return "object root";
   }
-  return path6.reduce((acc, seg, index) => {
+  return path7.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -21922,13 +22729,13 @@ var parseCatchDef = (def, refs) => {
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/date.js
 function parseDateDef(def, refs, overrideDateStrategy) {
-  const strategy = overrideDateStrategy ?? refs.dateStrategy;
-  if (Array.isArray(strategy)) {
+  const strategy2 = overrideDateStrategy ?? refs.dateStrategy;
+  if (Array.isArray(strategy2)) {
     return {
-      anyOf: strategy.map((item, i) => parseDateDef(def, refs, item))
+      anyOf: strategy2.map((item, i) => parseDateDef(def, refs, item))
     };
   }
-  switch (strategy) {
+  switch (strategy2) {
     case "string":
     case "format:date-time":
       return {
@@ -25765,6 +26572,34 @@ var calendarSchema = external_exports.record(
     ).optional()
   })
 );
+var paperAccountSchema = { market: external_exports.enum(["HK", "US"]), accountId: external_exports.string().regex(/^[1-9]\d{0,19}$/) };
+var paperOrderSchema = {
+  symbol: external_exports.string().min(1).max(20),
+  side: external_exports.enum(["BUY", "SELL"]),
+  quantity: external_exports.number().int().positive().max(1e6),
+  limitPrice: external_exports.number().positive().max(1e6),
+  rationale: external_exports.string().min(1).max(2e3),
+  idempotencyKey: external_exports.string().regex(/^[A-Za-z0-9_-]{8,80}$/),
+  environment: external_exports.literal("SIMULATE").optional()
+};
+for (const definition of [
+  ["get_paper_trading_status", "Paper trading status", "Read the Futu SIMULATE execution policy, actual order journal and equity observations. Does not connect to a broker or enable execution.", {}, "status", true],
+  ["list_paper_accounts", "List Futu simulation accounts", "Connect to local OpenD and list only HK/US SIMULATE equity accounts; real accounts are never returned.", { market: external_exports.enum(["HK", "US"]) }, "accounts", true],
+  ["refresh_paper_account", "Reconcile actual simulation account", "Read actual Futu simulation funds, positions and current orders; reconcile uncertain requests by broker order ID/remark. Appends equity observations, not fabricated fills.", paperAccountSchema, "refresh", false],
+  ["evaluate_paper_order", "Evaluate paper strategy and limits", "Check the UI-authorized entry/exit strategy, real quote freshness and simulation account limits without placing an order. A preflight does not reserve funds; submission rechecks.", paperOrderSchema, "evaluate", true],
+  ["submit_paper_order", "Submit autonomous SIMULATE limit order", "Agent may submit without per-order human confirmation only after UI authorization. Re-evaluates configured rules, real quotes, cash/position/daily limits. Requires stable idempotencyKey. Acknowledgement is not a fill; UNKNOWN must be reconciled, never retried with a new key. Cannot trade real funds.", paperOrderSchema, "submit", false],
+  ["cancel_paper_order", "Cancel plugin simulation order", "Request cancellation of a recorded plugin-originated SIMULATE order. Allowed while policy is paused. Does not guarantee cancellation; refresh to confirm. Never operates on real accounts.", { orderId: external_exports.string().min(1).max(80), idempotencyKey: external_exports.string().regex(/^[A-Za-z0-9_-]{8,80}$/), environment: external_exports.literal("SIMULATE").optional() }, "cancel", false]
+]) {
+  const [name, title, description, inputSchema, method, readOnlyHint] = definition;
+  server.registerTool(name, { title, description, inputSchema, annotations: { readOnlyHint, destructiveHint: false, openWorldHint: method !== "status", idempotentHint: ["status", "accounts", "submit", "cancel"].includes(method) } }, async (input) => {
+    try {
+      const result = await getPaperService()[method](method === "accounts" ? input.market : input);
+      return toolResult(result, `Futu SIMULATE only: ${result.status || result.environment || "result"}. No real-money execution.`);
+    } catch (error2) {
+      return toolError(error2);
+    }
+  });
+}
 server.registerTool(
   "get_foundation_capabilities",
   {
@@ -26346,6 +27181,61 @@ registerWorkspaceTool(
   },
   ingestOfficialRecords
 );
+var thesisPillarSchema = external_exports.object({
+  id: external_exports.string().regex(/^[A-Za-z][A-Za-z0-9_-]*$/).max(64),
+  expectation: external_exports.string().min(1).max(2e3),
+  invalidationCondition: external_exports.string().min(1).max(2e3),
+  reviewBy: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+});
+registerWorkspaceTool(
+  "build_earnings_review",
+  "Compare explicitly selected financial evidence with prior actuals, pre-disclosure consensus, or company guidance. Reject incompatible periods and units; never invent missing estimates.",
+  {
+    symbol: external_exports.string(),
+    asOf: external_exports.string().optional(),
+    metrics: external_exports.array(external_exports.object({
+      actualEvidenceId: evidenceIdSchema,
+      comparisonEvidenceId: evidenceIdSchema.optional(),
+      comparisonType: external_exports.enum(["prior-period", "consensus", "company-guidance"]).optional()
+    })).min(1).max(40)
+  },
+  buildEarningsReview
+);
+registerWorkspaceTool(
+  "query_catalyst_calendar",
+  "Read announced events from ingested evidence with point-in-time revisions, cancellations and explicit coverage warnings. Does not schedule notifications.",
+  {
+    symbols: external_exports.array(external_exports.string()).max(50).optional(),
+    asOf: external_exports.string().optional(),
+    from: external_exports.string().optional(),
+    to: external_exports.string().optional(),
+    includeMacro: external_exports.boolean().optional(),
+    includeCancelled: external_exports.boolean().optional()
+  },
+  queryCatalystCalendar
+);
+registerWorkspaceTool(
+  "append_thesis_review",
+  "Append evidence-backed pillar assessments without rewriting the original decision, changing its state, or authorizing exposure. Define pillars only for a legacy decision without pillars.",
+  {
+    decisionId: external_exports.string(),
+    pillars: external_exports.array(thesisPillarSchema).min(1).max(12).optional(),
+    notes: external_exports.string().max(2e3).optional(),
+    updates: external_exports.array(external_exports.object({
+      pillarId: external_exports.string(),
+      status: external_exports.enum(["supported", "weakened", "invalidated", "inconclusive"]),
+      rationale: external_exports.string().min(1).max(2e3),
+      evidenceIds: external_exports.array(evidenceIdSchema).min(1).max(100)
+    })).min(1).max(12)
+  },
+  appendThesisReview
+);
+registerWorkspaceTool(
+  "query_thesis_scorecard",
+  "Read original thesis pillars and append-only assessments as known at a given time; assessments are research judgments, not probabilities.",
+  { decisionId: external_exports.string(), asOf: external_exports.string().optional() },
+  queryThesisScorecard
+);
 registerWorkspaceTool(
   "record_decision",
   "Record an immutable decision thesis and its current evidence before reviewing an outcome.",
@@ -26353,6 +27243,7 @@ registerWorkspaceTool(
     symbol: external_exports.string(),
     state: external_exports.enum(["watch", "candidate", "hold", "review-exit", "inactive"]).optional(),
     thesis: external_exports.string().min(1).max(2e3),
+    pillars: external_exports.array(thesisPillarSchema).max(12).optional(),
     entryCondition: external_exports.string().max(2e3).optional(),
     invalidationCondition: external_exports.string().max(2e3).optional(),
     horizon: external_exports.string().max(160).optional(),

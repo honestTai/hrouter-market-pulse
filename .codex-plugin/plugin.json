@@ -2,7 +2,7 @@
   "name": "hrouter-market-pulse",
   "version": "1.2.1+codex.20260910133203",
   "repository": "https://github.com/honestTai/hrouter-market-pulse",
-  "description": "Bilingual A-share, Hong Kong and US market workbench with verified quotes, portfolio risk, evidence and research validation.",
+  "description": "Bilingual market research, evidence and strategy validation with optional UI-authorized autonomous Futu SIMULATE execution. REAL trading disabled.",
   "author": {
     "name": "Hrouter",
     "url": "https://hrouter.net/"
@@ -17,13 +17,15 @@
     "market-research",
     "backtesting",
     "evidence",
-    "scheduled-tasks"
+    "scheduled-tasks",
+    "paper-trading",
+    "futu"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Hrouter Market Pulse",
     "shortDescription": "Bilingual market desk, portfolio risk and auditable research",
-    "longDescription": "Use a Chinese or English workbench for A-share, Hong Kong and US quotes, holdings, financial charts, stateful alerts, sourced announcements and decision journals. Combine dated market calendars, currency-aware portfolio limits, shared-capital backtests, purged walk-forward evaluation and forecast outcome records with the current Codex task model for research interpretation.",
+    "longDescription": "Use a Chinese or English workbench for A-share, Hong Kong and US quotes, holdings, financial charts, stateful alerts, sourced announcements and decision journals. Combine dated market calendars, currency-aware portfolio limits, shared-capital backtests, purged walk-forward evaluation and forecast outcome records with the current Codex task model for research interpretation. Optionally connect actual Futu HK/US SIMULATE accounts for agent-autonomous limit orders within user-authorized strategies and limits. No real-money execution or synthetic performance.",
     "developerName": "Hrouter",
     "category": "Productivity",
     "capabilities": [

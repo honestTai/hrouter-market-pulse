@@ -224,6 +224,19 @@ export async function getFoundationCapabilities() {
       validation: "repeated purged walk-forward folds, baseline comparison, deployment gates, immutable prediction ledger",
       target: "cost-adjusted return from day T+1 open to a later close",
     },
+    researchWorkflows: {
+      version: "1.0.0",
+      tools: ["build_earnings_review", "query_catalyst_calendar", "append_thesis_review", "query_thesis_scorecard"],
+      financialPayload: ["metric", "value", "unit", "periodStart", "periodEnd", "accountingBasis", "valueType"],
+      eventIdentity: "providerId + entity + eventType + payload.eventKey (or externalId)",
+      boundary: "Evidence-backed research only; no automatic position-state changes, trade authorization, or commercial data subscriptions.",
+    },
+    paperExecution: {
+      provider: "futu-opend", environment: "SIMULATE", markets: ["HK", "US"], realTrading: false,
+      authorization: "Explicit UI strategy/allowlist/limits required; autonomous agent paper orders thereafter. No implicit scheduler.",
+      tools: ["get_paper_trading_status", "list_paper_accounts", "refresh_paper_account", "evaluate_paper_order", "submit_paper_order", "cancel_paper_order"],
+      boundary: "Actual broker simulation, not fabricated fills or evidence of real-money strategy qualification.",
+    },
     extensionFlow: [
       "A companion Skill or MCP fetches source data.",
       "It registers provider metadata without credentials or executable code.",
@@ -333,12 +346,14 @@ export async function queryEvidence(input = {}) {
   const publishedFrom = input.publishedFrom ? asIso(input.publishedFrom, "publishedFrom") : null;
   const publishedTo = input.publishedTo ? asIso(input.publishedTo, "publishedTo") : null;
   const symbols = new Set((input.symbols ?? []).map(normalizeSymbol));
+  const ids = input.ids ? new Set(input.ids) : null;
   const kinds = new Set((input.kinds ?? []).filter((kind) => EVIDENCE_KINDS.includes(kind)));
   const providerIds = new Set((input.providerIds ?? []).map(normalizeProviderId));
   const sourceTiers = new Set((input.sourceTiers ?? []).filter((tier) => SOURCE_TIERS.includes(tier)));
   const limit = Math.max(1, Math.min(500, Number(input.limit) || 100));
   const items = await loadJson(evidencePath(), []);
   const matched = items.filter((item) => {
+    if (ids && !ids.has(item.id)) return false;
     if (Date.parse(item.availableAt) > Date.parse(asOf)) return false;
     if (publishedFrom && Date.parse(item.publishedAt) < Date.parse(publishedFrom)) return false;
     if (publishedTo && Date.parse(item.publishedAt) > Date.parse(publishedTo)) return false;

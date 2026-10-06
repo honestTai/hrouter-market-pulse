@@ -1,10 +1,20 @@
 <div align="center">
 
+**English** · [简体中文](README.zh-CN.md)
+
+[HRouter](https://hrouter.net/home) · [All public projects](https://github.com/honestTai) · [Star & Fork trends](#project-activity)
+
+</div>
+
+[![Repository summary](https://raw.githubusercontent.com/honestTai/honestTai/main/assets/badges/hrouter-market-pulse.svg)](#project-activity)
+
+<div align="center">
+
 # HRouter Market Pulse
 
 **Your quotes, filings, and research notes—in one workspace.**
 
-[中文](README.md) · [English](README.en.md) · [Plugin releases](https://github.com/honestTai/hrouter-market-pulse/releases) · [GitHub](https://github.com/honestTai/hrouter-market-pulse) · [HRouter](https://hrouter.net/home)
+[中文](README.zh-CN.md) · [English](README.md) · [Plugin releases](https://github.com/honestTai/hrouter-market-pulse/releases) · [GitHub](https://github.com/honestTai/hrouter-market-pulse) · [HRouter](https://hrouter.net/home)
 
 </div>
 
@@ -90,3 +100,17 @@ This workflow uses the model in your Codex environment. HRouter is another part 
 [Explore HRouter](https://hrouter.net/home) · [More projects](https://github.com/honestTai)
 
 If this project helps your workflow, give it a star and share what you build. Feedback and feature ideas are welcome in Issues.
+
+---
+
+<a id="project-activity"></a>
+
+## Project activity
+
+Star / Fork totals and retained-event history, scheduled to refresh daily.
+
+[![Star and Fork history for hrouter-market-pulse](https://raw.githubusercontent.com/honestTai/honestTai/main/assets/metrics/hrouter-market-pulse.svg)](https://github.com/honestTai/honestTai/blob/main/data/README.md)
+
+[Observed daily totals](https://raw.githubusercontent.com/honestTai/honestTai/main/assets/metrics/hrouter-market-pulse-daily.svg) · [Methodology](https://github.com/honestTai/honestTai/blob/main/data/METHODOLOGY.md) · [All public projects](https://github.com/honestTai)
+
+<sub>Historical curves reconstruct currently retained stars and visible forks, not historical net totals. Separate daily observations start on 2026-10-06; no fabricated backfill.</sub>

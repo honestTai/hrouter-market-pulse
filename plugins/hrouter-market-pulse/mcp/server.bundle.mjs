@@ -17439,7 +17439,7 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
 }
 
 // mcp/scheduler.mjs
-var RUNNER_TYPES = ["claude", "codex", "command", "strategy"];
+var RUNNER_TYPES = ["claude", "codex", "workbuddy", "command", "strategy"];
 var SCHEDULER_DEFAULTS = Object.freeze({ tickMs: 3e4, leaseMs: 12e4, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6e3, runLogLimit: 300, failureThreshold: 3 });
 var TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 var minuteOf = (time3) => {
@@ -17489,6 +17489,10 @@ function onPath(name, envPath = process.env.PATH ?? "") {
 }
 function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
+  if (type === "workbuddy") {
+    const bundled = "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy";
+    return onPath("codebuddy") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codebuddy");
+  }
   if (type === "codex") {
     const bundled = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex";
     return onPath("codex") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codex");
@@ -17498,7 +17502,7 @@ function defaultCommand(type) {
 function agentInvocation({ job, account: account2, prompt, nodePath, bundlePath: bundlePath2, skillText, workDir, identity, dataDir = getStorageDir() }) {
   const runner = job.runner;
   const env = { HROUTER_AGENT_ID: identity, HROUTER_NO_DASHBOARD: "1", HROUTER_REPORT_DIR: dataDir };
-  if (runner.type === "claude") {
+  if (runner.type === "claude" || runner.type === "workbuddy") {
     const mcp = { mcpServers: { hrouter_market_pulse: { command: nodePath, args: [bundlePath2, "--stdio"], env } } };
     const args = [
       "-p",
@@ -17514,10 +17518,10 @@ function agentInvocation({ job, account: account2, prompt, nodePath, bundlePath:
       "text",
       "--no-session-persistence",
       ...runner.model ? ["--model", runner.model] : [],
-      ...runner.maxBudgetUsd ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : [],
+      ...runner.maxBudgetUsd && runner.type === "claude" ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : [],
       ...skillText ? ["--append-system-prompt", skillText] : []
     ];
-    return { command: runner.command || defaultCommand("claude"), args, env, cwd: workDir };
+    return { command: runner.command || defaultCommand(runner.type), args, env, cwd: workDir };
   }
   if (runner.type === "codex") {
     const toml = (value) => JSON.stringify(value);

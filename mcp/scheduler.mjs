@@ -21,7 +21,7 @@ import { roundPrompt } from "./prompts.mjs";
 import { createPaperBroker } from "./brokers.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
-export const RUNNER_TYPES = ["claude", "codex", "command", "strategy"];
+export const RUNNER_TYPES = ["claude", "codex", "workbuddy", "command", "strategy"];
 export const SCHEDULER_DEFAULTS = Object.freeze({ tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3 });
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -73,6 +73,11 @@ export function onPath(name, envPath = process.env.PATH ?? "") {
 
 export function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
+  if (type === "workbuddy") {
+    // WorkBuddy ships the CodeBuddy CLI inside its app bundle; its flags mirror Claude Code's.
+    const bundled = "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy";
+    return onPath("codebuddy") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codebuddy");
+  }
   if (type === "codex") {
     const bundled = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex";
     return onPath("codex") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codex");
@@ -86,17 +91,17 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
   // Pin the data directory: agent CLIs start MCP servers with a minimal environment, and a server
   // that resolved a different directory would not see this arena at all.
   const env = { HROUTER_AGENT_ID: identity, HROUTER_NO_DASHBOARD: "1", HROUTER_REPORT_DIR: dataDir };
-  if (runner.type === "claude") {
+  if (runner.type === "claude" || runner.type === "workbuddy") {
     const mcp = { mcpServers: { hrouter_market_pulse: { command: nodePath, args: [bundlePath, "--stdio"], env } } };
     const args = [
       "-p", prompt, "--mcp-config", JSON.stringify(mcp), "--strict-mcp-config",
       "--allowedTools", "mcp__hrouter_market_pulse", "--permission-mode", "dontAsk",
       "--output-format", "text", "--no-session-persistence",
       ...(runner.model ? ["--model", runner.model] : []),
-      ...(runner.maxBudgetUsd ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : []),
+      ...(runner.maxBudgetUsd && runner.type === "claude" ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : []),
       ...(skillText ? ["--append-system-prompt", skillText] : []),
     ];
-    return { command: runner.command || defaultCommand("claude"), args, env, cwd: workDir };
+    return { command: runner.command || defaultCommand(runner.type), args, env, cwd: workDir };
   }
   if (runner.type === "codex") {
     const toml = (value) => JSON.stringify(value);

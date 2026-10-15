@@ -55,6 +55,9 @@ test("agent invocations attach only this plugin, pin the data dir and pre-approv
   assert.equal(mcp.mcpServers.hrouter_market_pulse.env.HROUTER_REPORT_DIR, "/data");
   assert.ok(claude.args.includes("--strict-mcp-config"));
   assert.equal(claude.args[claude.args.indexOf("--allowedTools") + 1], "mcp__hrouter_market_pulse");
+  const workbuddy = agentInvocation({ job: { runner: { type: "workbuddy", model: "primary-model", maxBudgetUsd: 1, timeoutMinutes: 5 } }, account: { id: "acc_000000000001" }, prompt: "go", nodePath: "/n", bundlePath: "/b.mjs", skillText: null, workDir: "/w", identity: "workbuddy-x", dataDir: "/data" });
+  assert.match(workbuddy.command, /codebuddy/);
+  assert.ok(workbuddy.args.includes("--strict-mcp-config") && !workbuddy.args.includes("--max-budget-usd"));
 });
 
 test("target weights become lot-sized orders, sells before buys", () => {

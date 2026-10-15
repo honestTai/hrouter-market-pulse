@@ -44,7 +44,7 @@ function storageDir(home = os.homedir()) {
 export function serviceEnvironment(env = process.env) {
   const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA"];
   const selected = Object.fromEntries(keep.filter((key) => env[key]).map((key) => [key, env[key]]));
-  selected.HROUTER_REPORT_PORT = env.HROUTER_ARENA_PORT || "8787";
+  selected.HROUTER_REPORT_PORT = env.HROUTER_ARENA_PORT || "8780";
   return selected;
 }
 

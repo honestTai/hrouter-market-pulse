@@ -58,6 +58,8 @@ test("agent invocations attach only this plugin, pin the data dir and pre-approv
   const workbuddy = agentInvocation({ job: { runner: { type: "workbuddy", model: "primary-model", maxBudgetUsd: 1, timeoutMinutes: 5 } }, account: { id: "acc_000000000001" }, prompt: "go", nodePath: "/n", bundlePath: "/b.mjs", skillText: null, workDir: "/w", identity: "workbuddy-x", dataDir: "/data" });
   assert.match(workbuddy.command, /codebuddy/);
   assert.ok(workbuddy.args.includes("--strict-mcp-config") && !workbuddy.args.includes("--max-budget-usd"));
+  assert.equal(workbuddy.env.CODEBUDDY_FORCE_HEADLESS_BUNDLE, "1");
+  assert.match(workbuddy.env.WORKBUDDY_CONFIG_DIR, /\.workbuddy$/);
 });
 
 test("target weights become lot-sized orders, sells before buys", () => {

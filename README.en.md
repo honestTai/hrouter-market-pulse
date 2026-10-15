@@ -34,7 +34,7 @@ npm ci && npm run build
 npm run service:install        # login service: in-session matching, exits, scheduled agent or strategy rounds, daily digest
 ```
 
-Then set each account's Automation (Claude Code / Codex / quant strategy, trading-day run times) and risk policy at <http://127.0.0.1:8787/?view=arena>. See the [Agent Arena guide](docs/AGENT_ARENA.md) and [strategies & execution](docs/STRATEGIES.md). Live trading only has an advice-plus-manual-confirmation hook; no real orders are ever sent automatically.
+Then set each account's Automation (Claude Code / Codex / quant strategy, trading-day run times) and risk policy at <http://127.0.0.1:8780/?view=arena>. See the [Agent Arena guide](docs/AGENT_ARENA.md) and [strategies & execution](docs/STRATEGIES.md). Live trading only has an advice-plus-manual-confirmation hook; no real orders are ever sent automatically.
 
 ## Install in Claude Code / WorkBuddy
 

@@ -71,6 +71,10 @@ export function onPath(name, envPath = process.env.PATH ?? "") {
   return null;
 }
 
+export function workbuddyConfigDir(env = process.env) {
+  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path.join(os.homedir(), ".workbuddy");
+}
+
 export function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
   if (type === "workbuddy") {
@@ -101,7 +105,10 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
       ...(runner.maxBudgetUsd && runner.type === "claude" ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : []),
       ...(skillText ? ["--append-system-prompt", skillText] : []),
     ];
-    return { command: runner.command || defaultCommand(runner.type), args, env, cwd: workDir };
+    // WorkBuddy runs its CLI with the app's config dir and the headless bundle; do the same so a
+    // CLI login and the app share one configuration.
+    const workbuddyEnv = runner.type === "workbuddy" ? { CODEBUDDY_CONFIG_DIR: workbuddyConfigDir(), WORKBUDDY_CONFIG_DIR: workbuddyConfigDir(), CODEBUDDY_FORCE_HEADLESS_BUNDLE: "1" } : {};
+    return { command: runner.command || defaultCommand(runner.type), args, env: { ...env, ...workbuddyEnv }, cwd: workDir };
   }
   if (runner.type === "codex") {
     const toml = (value) => JSON.stringify(value);

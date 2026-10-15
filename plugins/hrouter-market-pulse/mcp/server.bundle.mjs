@@ -7716,6 +7716,10 @@ async function getYahooQuote(input, options = {}) {
   const payload = await fetchJson(url, options.timeoutMs ?? 15e3, false);
   return parseYahooChart(input, payload, options);
 }
+async function getCorporateActions(input, { range = "3mo", timeoutMs = 1e4 } = {}) {
+  const quote = await getYahooQuote(input, { interval: "1d", range, timeoutMs });
+  return quote.corporateActions ?? [];
+}
 function parseYahooChart(input, payload, options = {}) {
   const symbol = normalizeSymbol(input);
   const market2 = marketFromSymbol(symbol);
@@ -7924,7 +7928,12 @@ function parseTencentQuote(payload, input) {
     changePct,
     dayHigh: finite(fields[33]),
     dayLow: finite(fields[34]),
+    open: finite(fields[5]),
     volume: finite(fields[6]),
+    // Tencent reports A-share volume in board lots of 100 shares; HK and US in shares.
+    volumeShares: finite(fields[6]) === null ? null : market2 === "A" ? finite(fields[6]) * 100 : finite(fields[6]),
+    // No opening print and no volume: Tencent's signature of a suspended (or not yet opened) security.
+    noTradesToday: finite(fields[5]) === 0 && finite(fields[6]) === 0,
     asOf: parseTencentTimestamp(fields[30], market2),
     source: "Tencent Finance quote API",
     provider: "Tencent Finance",
@@ -8410,6 +8419,7 @@ async function loadPreferences() {
     calendarOverrides: saved.calendarOverrides ?? {},
     monitorIntervalSeconds: Math.max(60, Math.min(3600, finite(saved.monitorIntervalSeconds) ?? 300)),
     managedAccountId: typeof saved.managedAccountId === "string" ? saved.managedAccountId : null,
+    digestWebhook: saved.digestWebhook && typeof saved.digestWebhook.url === "string" ? saved.digestWebhook : null,
     reportPort: getReportPort(),
     reportDirectory: getStorageDir(),
     officialWebsite: OFFICIAL_WEBSITE,
@@ -8567,10 +8577,30 @@ function sanitizePreferences(input, current = {}) {
     calendarOverrides: input.calendarOverrides ?? current.calendarOverrides ?? {},
     monitorIntervalSeconds: input.monitorIntervalSeconds ?? current.monitorIntervalSeconds ?? 300,
     // Arena account whose agent manages the owner's portfolio (null = follow the most active account).
-    managedAccountId: input.managedAccountId === void 0 ? current.managedAccountId ?? null : input.managedAccountId
+    managedAccountId: input.managedAccountId === void 0 ? current.managedAccountId ?? null : input.managedAccountId,
+    // Optional end-of-day arena digest push: generic JSON POST, or WeChat Work / Feishu bot payloads.
+    digestWebhook: input.digestWebhook === void 0 ? current.digestWebhook ?? null : sanitizeDigestWebhook(input.digestWebhook)
   };
   if (next.managedAccountId !== null && !/^acc_[a-f0-9]{12}$/.test(next.managedAccountId)) throw new Error("managedAccountId must be an arena account id or null.");
   return next;
+}
+function sanitizeDigestWebhook(input) {
+  if (input === null || input === "" || isPlainObject(input) && !String(input.url ?? "").trim()) return null;
+  if (!isPlainObject(input)) throw new Error("digestWebhook must be an object with a url, or null.");
+  const url = String(input.url).trim();
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("digestWebhook.url must be a valid http(s) URL.");
+  }
+  if (!["https:", "http:"].includes(parsed.protocol) || url.length > 2e3) throw new Error("digestWebhook.url must be an http(s) URL up to 2000 characters.");
+  const format = input.format ?? "generic";
+  if (!["generic", "wecom", "feishu"].includes(format)) throw new Error("digestWebhook.format must be generic, wecom or feishu.");
+  return { url, format, enabled: input.enabled !== false };
+}
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 async function savePreferences(input) {
   const next = sanitizePreferences(input, await loadPreferences());
@@ -14602,17 +14632,23 @@ var NEVER = INVALID;
 // mcp/arena.mjs
 import { randomBytes, randomUUID as randomUUID3 } from "node:crypto";
 import { mkdir as mkdir5, readdir, readFile as readFile5, rename as rename5, rm as rm2, stat, writeFile as writeFile4 } from "node:fs/promises";
+import os2 from "node:os";
 import path5 from "node:path";
 var ARENA_MARKETS = {
   A: { currency: "CNY", defaultCash: 1e6, benchmark: "000300.SS", benchmarkName: "\u6CAA\u6DF1300 / CSI 300" },
   HK: { currency: "HKD", defaultCash: 1e6, benchmark: "^HSI", benchmarkName: "\u6052\u751F\u6307\u6570 / Hang Seng" },
   US: { currency: "USD", defaultCash: 1e5, benchmark: "^GSPC", benchmarkName: "\u6807\u666E500 / S&P 500" }
 };
-var LIMITS = { orders: 5e3, trades: 5e3, journal: 2e3, equity: 6e3, strategyHistory: 200, reports: 500 };
+var LIMITS = { orders: 5e3, trades: 5e3, journal: 2e3, equity: 6e3, strategyHistory: 200, reports: 500, events: 2e3, appliedActions: 1e3, digests: 400 };
 var SYNC_THROTTLE_MS = 2e4;
 var QUOTE_CACHE_MS = 1e4;
 var LOCK_STALE_MS = 3e4;
 var LOCK_WAIT_MS = 2e4;
+var SUSPENSION_GRACE_MINUTES = 5;
+var CORPORATE_ACTION_RETRY_MS = 36e5;
+var DEFAULT_MAX_VOLUME_PCT = 5;
+var DEFAULT_RISK_POLICY = Object.freeze({ maxPositionPct: null, maxExposurePct: null, maxDrawdownPct: null, onBreach: "block", reduceToExposurePct: 50 });
+var MATCHER_DEFAULTS = Object.freeze({ intervalMs: 9e4, jitterMs: 15e3, leaseMs: 3e5, digestWindowMs: 18 * 36e5, webhookAttempts: 3 });
 var round4 = (value, digits = 2) => {
   const factor = 10 ** digits;
   return Math.round((value + Number.EPSILON) * factor) / factor;
@@ -14728,43 +14764,161 @@ function executionPrice(account2, order, quote) {
   }
   return { price };
 }
+function dayVolumeShares(quote) {
+  const volume = quote?.volumeShares ?? quote?.volume;
+  return finite4(volume) && volume >= 0 ? volume : null;
+}
+function suspensionStatus(account2, quote, now) {
+  if (!quote || quote.error) return null;
+  if (quote.suspended === true) return "provider-status";
+  const session = getMarketSession(account2.market, now);
+  if (session.status !== "open") return null;
+  const minutesOpen = session.minute - session.sessions[0][0];
+  if (minutesOpen < SUSPENSION_GRACE_MINUTES) return null;
+  if (dayVolumeShares(quote) === 0) return "zero-volume";
+  const quoteDate = localMarketTime(quote.asOf, account2.market)?.date;
+  if (quoteDate && quoteDate < session.date && minutesOpen >= 15) return "no-trade-today";
+  return null;
+}
+var remainingQuantity = (order) => order.quantity - (order.filledQuantity ?? 0);
+function fillQuantity(account2, order, quote, now) {
+  const remaining = remainingQuantity(order);
+  const pct = account2.settings?.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT;
+  const volume = dayVolumeShares(quote);
+  if (volume === null || !finite4(pct) || pct >= 100) return { quantity: remaining, capped: false, volume };
+  const today = localMarketTime(now, account2.market)?.date;
+  const used = account2.trades.filter((trade) => trade.symbol === order.symbol && localMarketTime(trade.at, account2.market)?.date === today).reduce((sum, trade) => sum + trade.quantity, 0);
+  const allowed = Math.max(0, Math.floor(volume * pct / 100) - used);
+  if (allowed >= remaining) return { quantity: remaining, capped: false, volume, allowed };
+  const lot = lotRules(account2, order.symbol, quote).lotSize ?? 1;
+  return { quantity: Math.floor(allowed / lot) * lot, capped: true, volume, allowed };
+}
+function normalizeExits(input = {}, { allowClear = false } = {}) {
+  const exits = {};
+  for (const [key, priceKey, pctKey, maxPct] of [["stopLoss", "stopLossPrice", "stopLossPct", 95], ["takeProfit", "takeProfitPrice", "takeProfitPct", 1e3]]) {
+    const price = input[priceKey];
+    const pct = input[pctKey];
+    if (allowClear && (price === null || pct === null) && (price ?? pct ?? null) === null) {
+      exits[key] = null;
+      continue;
+    }
+    if (price !== void 0 && price !== null && pct !== void 0 && pct !== null) throw new ArenaError(`Give ${priceKey} or ${pctKey}, not both.`);
+    if (price !== void 0 && price !== null) {
+      if (!finite4(price) || price <= 0) throw new ArenaError(`${priceKey} must be a positive price.`);
+      exits[key] = { price };
+    } else if (pct !== void 0 && pct !== null) {
+      if (!finite4(pct) || pct <= 0 || pct > maxPct) throw new ArenaError(`${pctKey} must be between 0 and ${maxPct} (percent of the average cost).`);
+      exits[key] = { pct };
+    }
+  }
+  return Object.keys(exits).length ? exits : null;
+}
+function exitLevels(position) {
+  const exits = position?.exits;
+  if (!exits || !position.quantity) return null;
+  const averageCost = position.costBasis / position.quantity;
+  const resolve = (spec, direction) => !spec ? null : finite4(spec.price) ? spec.price : finite4(spec.pct) ? round4(averageCost * (1 + direction * spec.pct / 100), 4) : null;
+  const levels = { stopLoss: resolve(exits.stopLoss, -1), takeProfit: resolve(exits.takeProfit, 1) };
+  return levels.stopLoss === null && levels.takeProfit === null ? null : levels;
+}
+function sanitizeRiskPolicy(input = {}, current = {}) {
+  const next = { ...DEFAULT_RISK_POLICY, ...current };
+  const pct = (key, low, high) => {
+    if (input[key] === void 0) return;
+    if (input[key] === null || input[key] === "") {
+      next[key] = key === "reduceToExposurePct" ? DEFAULT_RISK_POLICY.reduceToExposurePct : null;
+      return;
+    }
+    const value = Number(input[key]);
+    if (!Number.isFinite(value) || value < low || value > high) throw new ArenaError(`${key} must be between ${low} and ${high}, or empty to disable.`);
+    next[key] = round4(value, 2);
+  };
+  pct("maxPositionPct", 1, 100);
+  pct("maxExposurePct", 1, 100);
+  pct("maxDrawdownPct", 1, 90);
+  pct("reduceToExposurePct", 0, 100);
+  if (input.onBreach !== void 0) {
+    if (!["block", "reduce"].includes(input.onBreach)) throw new ArenaError("onBreach must be block or reduce.");
+    next.onBreach = input.onBreach;
+  }
+  return next;
+}
 function openOrders(account2) {
   return account2.orders.filter((order) => order.status === "open");
 }
 function reservedCash(account2, excludeOrderId) {
   return round4(openOrders(account2).filter((order) => order.side === "BUY" && order.id !== excludeOrderId).reduce((sum, order) => sum + order.reserved, 0));
 }
+function addEvent(account2, at, event, dedupe) {
+  account2.events ??= [];
+  if (dedupe && account2.events.slice(-300).some((entry2) => entry2.dedupe === dedupe)) return null;
+  const entry = { id: shortId("evt"), at, ...event, ...dedupe ? { dedupe } : {} };
+  account2.events.push(entry);
+  if (account2.events.length > LIMITS.events) account2.events = account2.events.slice(-LIMITS.events);
+  return entry;
+}
+var riskPolicyOf = (account2) => ({ ...DEFAULT_RISK_POLICY, ...account2.riskPolicy });
+function drawdownState(account2, equityNow = valuation(account2).equity) {
+  const since = account2.risk?.resetAt ? Date.parse(account2.risk.resetAt) : -Infinity;
+  const points = account2.equity.filter((point) => Date.parse(point.at) >= since).map((point) => point.equity);
+  const peak = Math.max(equityNow, ...points, ...account2.risk?.resetAt ? [account2.risk.resetEquity ?? equityNow] : [account2.initialCash]);
+  return { peakEquity: round4(peak), equity: equityNow, drawdownPct: peak > 0 ? round4((equityNow / peak - 1) * 100, 2) : 0 };
+}
+function riskViolation(account2, symbol, addValue, excludeOrderId) {
+  const policy = riskPolicyOf(account2);
+  if (account2.risk?.breaker) return `Owner risk policy: drawdown circuit breaker tripped at ${account2.risk.breaker.drawdownPct}% on ${account2.risk.breaker.trippedAt}; new buys are blocked until the owner resets it in the dashboard.`;
+  const value = valuation(account2);
+  if (value.equity <= 0) return null;
+  if (finite4(policy.maxDrawdownPct)) {
+    const { drawdownPct } = drawdownState(account2, value.equity);
+    if (drawdownPct <= -policy.maxDrawdownPct) return `Owner risk policy: drawdown ${drawdownPct}% breaches the ${policy.maxDrawdownPct}% circuit breaker; new buys are blocked.`;
+  }
+  const pending = openOrders(account2).filter((order) => order.side === "BUY" && order.id !== excludeOrderId);
+  if (finite4(policy.maxPositionPct)) {
+    const held = value.positions.find((position) => position.symbol === symbol)?.marketValue ?? 0;
+    const resting = pending.filter((order) => order.symbol === symbol).reduce((sum, order) => sum + order.reserved, 0);
+    const pct = (held + resting + addValue) / value.equity * 100;
+    if (pct > policy.maxPositionPct + 1e-9) return `Owner risk policy: ${symbol} would be ${round4(pct, 1)}% of equity, above the ${policy.maxPositionPct}% single-position limit.`;
+  }
+  if (finite4(policy.maxExposurePct)) {
+    const resting = pending.reduce((sum, order) => sum + order.reserved, 0);
+    const pct = (value.marketValue + resting + addValue) / value.equity * 100;
+    if (pct > policy.maxExposurePct + 1e-9) return `Owner risk policy: total exposure would be ${round4(pct, 1)}% of equity, above the ${policy.maxExposurePct}% limit.`;
+  }
+  return null;
+}
 function sellableQuantity(account2, symbol, now = (/* @__PURE__ */ new Date()).toISOString(), excludeOrderId) {
   const position = account2.positions[symbol];
   if (!position) return 0;
   const today = localMarketTime(now, account2.market)?.date;
   const settled = account2.market === "A" ? position.lots.filter((lot) => lot.date < today).reduce((sum, lot) => sum + lot.quantity, 0) : position.quantity;
-  const pending = openOrders(account2).filter((order) => order.side === "SELL" && order.symbol === symbol && order.id !== excludeOrderId).reduce((sum, order) => sum + order.quantity, 0);
+  const pending = openOrders(account2).filter((order) => order.side === "SELL" && order.symbol === symbol && order.id !== excludeOrderId).reduce((sum, order) => sum + remainingQuantity(order), 0);
   return Math.max(0, settled - pending);
 }
-function applyFill(account2, order, price, quote, now) {
-  const fees = computeFees(account2.market, order.side, order.quantity, price);
-  const gross = round4(order.quantity * price);
+function applyFill(account2, order, price, quote, now, quantity = remainingQuantity(order)) {
+  const fees = computeFees(account2.market, order.side, quantity, price);
+  const gross = round4(quantity * price);
   const tradeDate = localMarketTime(now, account2.market).date;
   let position = account2.positions[order.symbol];
   let realizedPnl = null;
   if (order.side === "BUY") {
     position ??= { symbol: order.symbol, name: quote?.name ?? order.name ?? order.symbol, quantity: 0, costBasis: 0, realizedPnl: 0, lots: [], openedAt: now };
     position.costBasis = round4(position.costBasis + gross + fees.total);
-    position.quantity += order.quantity;
+    position.quantity += quantity;
     const lot = position.lots.find((entry) => entry.date === tradeDate);
-    if (lot) lot.quantity += order.quantity;
-    else position.lots.push({ date: tradeDate, quantity: order.quantity });
+    if (lot) lot.quantity += quantity;
+    else position.lots.push({ date: tradeDate, quantity });
+    if (order.exits) position.exits = { ...position.exits, ...order.exits };
     account2.cash = round4(account2.cash - gross - fees.total);
     account2.positions[order.symbol] = position;
   } else {
     const averageCost = position.costBasis / position.quantity;
-    const releasedCost = averageCost * order.quantity;
+    const releasedCost = averageCost * quantity;
     realizedPnl = round4(gross - fees.total - releasedCost);
     position.costBasis = round4(position.costBasis - releasedCost);
-    position.quantity -= order.quantity;
+    position.quantity -= quantity;
     position.realizedPnl = round4(position.realizedPnl + realizedPnl);
-    let remaining = order.quantity;
+    let remaining = quantity;
     for (const lot of position.lots) {
       const used = Math.min(lot.quantity, remaining);
       lot.quantity -= used;
@@ -14782,21 +14936,22 @@ function applyFill(account2, order, price, quote, now) {
     account2.positions[order.symbol].lastPrice = quote?.price ?? price;
     account2.positions[order.symbol].lastPriceAt = quote?.asOf ?? now;
   }
-  Object.assign(order, {
-    status: "filled",
-    filledAt: now,
-    fillPrice: price,
-    fees: fees.total,
-    reserved: 0,
-    fillQuote: quote ? { price: quote.price, asOf: quote.asOf, source: quote.provider ?? quote.source } : null
-  });
+  const remainingBefore = remainingQuantity(order);
+  const filledBefore = order.filledQuantity ?? 0;
+  order.filledQuantity = filledBefore + quantity;
+  order.fillPrice = round4(((order.fillPrice ?? 0) * filledBefore + price * quantity) / order.filledQuantity, 4);
+  order.fees = round4((order.fees ?? 0) + fees.total);
+  order.fills = (order.fills ?? 0) + 1;
+  order.fillQuote = quote ? { price: quote.price, asOf: quote.asOf, source: quote.provider ?? quote.source } : null;
+  if (order.filledQuantity >= order.quantity) Object.assign(order, { status: "filled", filledAt: now, reserved: 0 });
+  else Object.assign(order, { partiallyFilledAt: now, reserved: round4(order.reserved * (remainingBefore - quantity) / remainingBefore) });
   const trade = {
     id: shortId("trd"),
     orderId: order.id,
     symbol: order.symbol,
     name: account2.positions[order.symbol]?.name ?? quote?.name ?? order.symbol,
     side: order.side,
-    quantity: order.quantity,
+    quantity,
     price,
     gross,
     fees: fees.total,
@@ -14805,7 +14960,9 @@ function applyFill(account2, order, price, quote, now) {
     at: now,
     reason: order.reason,
     confidence: order.confidence ?? null,
-    strategyVersion: order.strategyVersion
+    strategyVersion: order.strategyVersion,
+    ...order.trigger ? { trigger: order.trigger } : {},
+    ...order.fills > 1 || order.status === "open" ? { partial: true } : {}
   };
   account2.trades.push(trade);
   if (account2.trades.length > LIMITS.trades) account2.trades = account2.trades.slice(-LIMITS.trades);
@@ -14820,6 +14977,7 @@ function valuation(account2) {
       ...position,
       averageCost: round4(averageCost, 4),
       marketValue: marketValue2,
+      exitLevels: exitLevels(position),
       unrealizedPnl: round4(marketValue2 - position.costBasis),
       unrealizedPnlPct: position.costBasis > 0 ? round4((marketValue2 / position.costBasis - 1) * 100, 2) : null
     };
@@ -14847,10 +15005,10 @@ function recordEquity(account2, now, force = false) {
     account2.equity = [first, ...rest.slice(0, half).filter((_, index) => index % 2 === 0), ...rest.slice(half)];
   }
 }
-function computeMetrics(account2, { benchmarkPrice = null } = {}) {
+function computeMetrics(account2, { benchmarkPrice = null, now = (/* @__PURE__ */ new Date()).toISOString() } = {}) {
   const value = valuation(account2);
   const initial = account2.initialCash;
-  const points = [{ at: account2.createdAt, equity: initial }, ...account2.equity, { at: (/* @__PURE__ */ new Date()).toISOString(), equity: value.equity }];
+  const points = [{ at: account2.createdAt, equity: initial }, ...account2.equity, { at: now, equity: value.equity }];
   let peak = -Infinity;
   let maxDrawdownPct = 0;
   for (const point of points) {
@@ -14877,8 +15035,8 @@ function computeMetrics(account2, { benchmarkPrice = null } = {}) {
   const grossLoss = Math.abs(losses.reduce((sum, trade) => sum + trade.realizedPnl, 0));
   const totalReturnPct = round4((value.equity / initial - 1) * 100, 2);
   const benchmarkReturnPct = finite4(benchmarkPrice) && finite4(account2.benchmark?.startPrice) && account2.benchmark.startPrice > 0 ? round4((benchmarkPrice / account2.benchmark.startPrice - 1) * 100, 2) : null;
-  const days = Math.max(0, (Date.now() - Date.parse(account2.createdAt)) / 864e5);
-  const today = localMarketTime((/* @__PURE__ */ new Date()).toISOString(), account2.market)?.date;
+  const days = Math.max(0, (Date.parse(now) - Date.parse(account2.createdAt)) / 864e5);
+  const today = localMarketTime(now, account2.market)?.date;
   const previousClose = [...daily.entries()].filter(([date3]) => date3 < today).at(-1)?.[1] ?? initial;
   const byVersion = /* @__PURE__ */ new Map();
   for (const trade of account2.trades) {
@@ -14919,6 +15077,7 @@ function computeMetrics(account2, { benchmarkPrice = null } = {}) {
     averageWin: wins.length ? round4(grossWin / wins.length) : null,
     averageLoss: losses.length ? round4(-grossLoss / losses.length) : null,
     feesPaid: round4(account2.trades.reduce((sum, trade) => sum + trade.fees, 0)),
+    dividendIncome: round4(account2.dividendIncome ?? 0),
     turnover: initial > 0 ? round4(account2.trades.reduce((sum, trade) => sum + trade.gross, 0) / initial, 2) : 0,
     ordersPlaced: account2.orders.length,
     ordersRejected: account2.orders.filter((order) => order.status === "rejected").length,
@@ -14931,6 +15090,43 @@ function computeMetrics(account2, { benchmarkPrice = null } = {}) {
     byStrategyVersion: [...byVersion.values()].map((entry) => ({ ...entry, winRatePct: entry.closedTrades ? round4(entry.wins / entry.closedTrades * 100, 1) : null }))
   };
 }
+var addDays = (date3, days) => new Date(Date.parse(`${date3}T12:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
+var sessionOn = (market2, date3) => getMarketSession(market2, marketLocalToIso(date3, 720, market2));
+function lastCompletedSession(market2, at) {
+  const today = localMarketTime(at, market2)?.date;
+  for (let offset = 0; offset <= 14; offset += 1) {
+    const session = sessionOn(market2, addDays(today, -offset));
+    if (session.status !== "closed" && Date.parse(session.closeAt) <= Date.parse(at)) return session;
+  }
+  return null;
+}
+function reportingDate(market2, at) {
+  const today = getMarketSession(market2, at);
+  if (today.status !== "closed" && today.status !== "premarket") return today.date;
+  return lastCompletedSession(market2, at)?.date ?? today.date;
+}
+function lastAgentActivity(account2) {
+  return [account2.journal.at(-1)?.at, account2.reports?.at(-1)?.at, account2.orders.filter((order) => !order.trigger).at(-1)?.createdAt].filter(Boolean).sort().at(-1) ?? null;
+}
+function runHealth(account2, at = (/* @__PURE__ */ new Date()).toISOString()) {
+  const lastRoundAt = account2.lastRoundAt ?? lastAgentActivity(account2);
+  if (account2.status !== "active") return { status: "inactive", lastRoundAt, missedTradingDays: 0, missedDates: [] };
+  const baseline = localMarketTime(lastRoundAt ?? account2.createdAt, account2.market)?.date;
+  const missed = [];
+  const first = !lastRoundAt && baseline && Date.parse(account2.createdAt) < Date.parse(sessionOn(account2.market, baseline).closeAt) ? 0 : 1;
+  for (let offset = first; offset <= 60 && baseline; offset += 1) {
+    const session = sessionOn(account2.market, addDays(baseline, offset));
+    if (Date.parse(session.closeAt) > Date.parse(at)) break;
+    if (session.status !== "closed") missed.push(session.date);
+  }
+  return {
+    status: missed.length ? "missed" : lastRoundAt ? "ok" : "waiting",
+    lastRoundAt,
+    lastRoundKind: account2.lastRoundKind ?? null,
+    missedTradingDays: missed.length,
+    missedDates: missed.slice(-10)
+  };
+}
 function processAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -14939,10 +15135,14 @@ function processAlive(pid) {
     return error2.code === "EPERM";
   }
 }
-function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
+function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
   const accountDir = path5.join(root, "accounts");
+  const digestDir = path5.join(root, "digests");
   const lockDir = path5.join(root, ".lock");
+  const leaseFile = path5.join(root, "matcher-lease.json");
+  const statusFile = path5.join(root, "matcher-status.json");
   const quoteCache = /* @__PURE__ */ new Map();
+  const actionCache = /* @__PURE__ */ new Map();
   const lastSync = /* @__PURE__ */ new Map();
   async function withLock(task) {
     await mkdir5(root, { recursive: true });
@@ -15050,32 +15250,168 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
   function assertActive(account2) {
     if (account2.status !== "active") throw new ArenaError(`Account ${account2.id} is ${account2.status}.`, "inactive", 409);
   }
-  function settle(account2, quoteMap, at) {
+  function entitledQuantity(account2, position, exDate) {
+    let quantity = position.quantity;
+    for (const trade of account2.trades) {
+      if (trade.symbol !== position.symbol || (localMarketTime(trade.at, account2.market)?.date ?? "") < exDate) continue;
+      quantity += trade.side === "BUY" ? -trade.quantity : trade.quantity;
+    }
+    return Math.max(0, quantity);
+  }
+  function applyCorporateActions(account2, actionMap, at, events) {
+    if (!actionMap?.size) return;
+    const today = localMarketTime(at, account2.market)?.date;
+    const opened = localMarketTime(account2.createdAt, account2.market)?.date ?? "";
+    account2.appliedCorporateActions ??= [];
+    for (const [symbol, actions] of actionMap) {
+      for (const action of [...actions ?? []].sort((a, b) => String(a.date).localeCompare(String(b.date)))) {
+        const position = account2.positions[symbol];
+        if (!position || !action?.date || action.date > today || action.date < opened) continue;
+        const key = `${symbol}:${action.type}:${action.date}`;
+        if (account2.appliedCorporateActions.includes(key)) continue;
+        account2.appliedCorporateActions = [...account2.appliedCorporateActions, key].slice(-LIMITS.appliedActions);
+        const entitled = entitledQuantity(account2, position, action.date);
+        if (entitled <= 0) continue;
+        if (action.type === "dividend" && finite4(action.cashPerShare) && action.cashPerShare > 0) {
+          if (action.currency && action.currency !== account2.currency) {
+            addEvent(account2, at, { type: "corporate-action-skipped", symbol, exDate: action.date, message: `${symbol} dividend paid in ${action.currency}, not ${account2.currency}; not credited.` });
+            continue;
+          }
+          const amount = round4(entitled * action.cashPerShare);
+          account2.cash = round4(account2.cash + amount);
+          account2.dividendIncome = round4((account2.dividendIncome ?? 0) + amount);
+          position.dividends = round4((position.dividends ?? 0) + amount);
+          const event = addEvent(account2, at, { type: "dividend", symbol, exDate: action.date, quantity: entitled, cashPerShare: action.cashPerShare, amount, message: `${symbol} dividend ${action.cashPerShare}/share on ${entitled} shares: +${amount} ${account2.currency}.` });
+          events.push({ type: "dividend", symbol, amount, eventId: event.id });
+        } else if (["split", "bonus"].includes(action.type) && finite4(action.ratio) && action.ratio > 0 && Math.abs(action.ratio - 1) > 1e-9) {
+          const before = position.quantity;
+          let extra = Math.floor(entitled * action.ratio) - entitled;
+          if (before + extra <= 0) extra = -before + 1;
+          position.quantity = before + extra;
+          const eligible = position.lots.filter((lot) => lot.date < action.date);
+          let assigned = 0;
+          for (const lot of eligible) {
+            const share = Math.floor(extra * lot.quantity / Math.max(1, eligible.reduce((sum, entry) => sum + entry.quantity, 0)));
+            lot.quantity += share;
+            assigned += share;
+          }
+          if (eligible[0]) eligible[0].quantity += extra - assigned;
+          else position.lots.push({ date: action.date, quantity: extra });
+          position.lots = position.lots.filter((lot) => lot.quantity > 0);
+          if (position.lastPrice && (localMarketTime(position.lastPriceAt, account2.market)?.date ?? "") < action.date) position.lastPrice = round4(position.lastPrice / action.ratio, 4);
+          for (const exit of ["stopLoss", "takeProfit"]) if (finite4(position.exits?.[exit]?.price)) position.exits[exit].price = round4(position.exits[exit].price / action.ratio, 4);
+          for (const order of openOrders(account2).filter((entry) => entry.symbol === symbol))
+            Object.assign(order, { status: "cancelled", closedAt: at, reserved: 0, cancelReason: `${action.type} ${action.ratio}:1 on ${action.date} changed the share basis; re-enter the order.` });
+          const event = addEvent(account2, at, { type: action.type, symbol, exDate: action.date, ratio: action.ratio, quantityBefore: before, quantityAfter: position.quantity, message: `${symbol} ${action.type === "split" ? "split" : "bonus shares"} \xD7${action.ratio}: ${before} \u2192 ${position.quantity} shares; average cost ${round4(position.costBasis / position.quantity, 4)}.` });
+          events.push({ type: action.type, symbol, ratio: action.ratio, eventId: event.id });
+        }
+      }
+    }
+  }
+  function protectiveOrder(account2, { symbol, quantity, trigger, reason, at, extra = {} }) {
+    const session = getMarketSession(account2.market, at);
+    const order = {
+      id: shortId("ord"),
+      clientOrderId: null,
+      symbol,
+      name: account2.positions[symbol]?.name ?? symbol,
+      side: "SELL",
+      type: "market",
+      quantity,
+      limitPrice: null,
+      timeInForce: "day",
+      status: "open",
+      reserved: 0,
+      reason,
+      confidence: null,
+      horizon: null,
+      strategyVersion: account2.strategy.version,
+      createdAt: at,
+      expiresAt: session.closeAt,
+      quoteAtSubmit: null,
+      placedBy: "matcher",
+      trigger,
+      ...extra
+    };
+    account2.orders.push(order);
+    return order;
+  }
+  function evaluateBreaker(account2, quoteMap, at, events) {
+    const policy = riskPolicyOf(account2);
+    if (!finite4(policy.maxDrawdownPct) || account2.risk?.breaker) return;
+    const state = drawdownState(account2);
+    if (state.drawdownPct > -policy.maxDrawdownPct) return;
+    account2.risk = { ...account2.risk, breaker: { trippedAt: at, drawdownPct: state.drawdownPct, peakEquity: state.peakEquity, equity: state.equity, action: policy.onBreach } };
+    addEvent(account2, at, { type: "risk-breaker", drawdownPct: state.drawdownPct, limitPct: policy.maxDrawdownPct, message: `Drawdown ${state.drawdownPct}% breached the owner's ${policy.maxDrawdownPct}% limit; new buys are blocked${policy.onBreach === "reduce" ? ` and exposure is being reduced to ${policy.reduceToExposurePct}%` : ""}.` });
+    events.push({ type: "risk-breaker", drawdownPct: state.drawdownPct });
+    if (policy.onBreach !== "reduce") return;
+    for (const order of openOrders(account2).filter((entry) => entry.side === "BUY"))
+      Object.assign(order, { status: "cancelled", closedAt: at, reserved: 0, cancelReason: "Owner risk policy: drawdown circuit breaker" });
+    const value = valuation(account2);
+    const target = value.equity * policy.reduceToExposurePct / 100;
+    if (value.marketValue <= target) return;
+    const fraction = 1 - target / value.marketValue;
+    for (const position of value.positions) {
+      const sellable = sellableQuantity(account2, position.symbol, at);
+      if (!sellable) continue;
+      const lot = lotRules(account2, position.symbol, quoteMap.get(position.symbol)).lotSize ?? 1;
+      let quantity = Math.ceil(position.quantity * fraction / lot) * lot;
+      if (quantity >= sellable) quantity = sellable;
+      if (quantity <= 0) continue;
+      const order = protectiveOrder(account2, { symbol: position.symbol, quantity, trigger: "risk-reduce", at, reason: `Owner risk policy: drawdown breaker, reducing exposure to ${policy.reduceToExposurePct}%.` });
+      events.push({ type: "risk-reduce", orderId: order.id, symbol: position.symbol, quantity });
+    }
+  }
+  function triggerExits(account2, quoteMap, at, events) {
+    const today = localMarketTime(at, account2.market)?.date;
+    for (const position of Object.values(account2.positions)) {
+      const levels = exitLevels(position);
+      const observed = quoteMap.get(position.symbol);
+      if (!levels || !observed || observed.error || !tradability(account2, observed, at).ok) continue;
+      if (openOrders(account2).some((order2) => order2.symbol === position.symbol && order2.trigger)) continue;
+      const trigger = levels.stopLoss !== null && observed.price <= levels.stopLoss + 1e-9 ? "stop-loss" : levels.takeProfit !== null && observed.price >= levels.takeProfit - 1e-9 ? "take-profit" : null;
+      if (!trigger) continue;
+      const level = trigger === "stop-loss" ? levels.stopLoss : levels.takeProfit;
+      const defer = (why, message) => {
+        const event = addEvent(account2, at, { type: "exit-deferred", symbol: position.symbol, trigger, level, price: observed.price, why, message }, `exit-deferred:${position.symbol}:${why}:${today}`);
+        if (event) events.push({ type: "exit-deferred", symbol: position.symbol, trigger, why });
+      };
+      const suspended = suspensionStatus(account2, observed, at);
+      if (suspended) {
+        defer("suspended", `${trigger} for ${position.symbol} at ${level} waits: trading looks suspended (${suspended}).`);
+        continue;
+      }
+      if (account2.market === "A" && finite4(observed.limitDown) && observed.price <= observed.limitDown + 1e-9) {
+        defer("limit-down", `${trigger} for ${position.symbol} at ${level} waits: the stock is locked limit-down.`);
+        continue;
+      }
+      const competing = openOrders(account2).filter((order2) => order2.symbol === position.symbol && order2.side === "SELL");
+      const sellable = sellableQuantity(account2, position.symbol, at) + competing.reduce((sum, order2) => sum + remainingQuantity(order2), 0);
+      if (!sellable) {
+        defer("t-plus-one", `${trigger} for ${position.symbol} at ${level} waits: shares bought today unlock next session (T+1).`);
+        continue;
+      }
+      for (const order2 of competing) Object.assign(order2, { status: "cancelled", closedAt: at, reserved: 0, cancelReason: `Replaced by ${trigger}` });
+      const order = protectiveOrder(account2, {
+        symbol: position.symbol,
+        quantity: sellable,
+        trigger,
+        at,
+        extra: { triggerLevel: level, triggerPrice: observed.price },
+        reason: `Protective ${trigger}: last ${observed.price} crossed ${level}.`
+      });
+      addEvent(account2, at, { type: trigger, symbol: position.symbol, level, price: observed.price, quantity: sellable, orderId: order.id, message: `${trigger === "stop-loss" ? "Stop-loss" : "Take-profit"} ${position.symbol}: last ${observed.price} crossed ${level}; selling ${sellable} shares at market.` });
+      events.push({ type: trigger, orderId: order.id, symbol: position.symbol, quantity: sellable, level });
+    }
+  }
+  function settle(account2, quoteMap, at, actionMap) {
     const events = [];
+    applyCorporateActions(account2, actionMap, at, events);
     for (const order of openOrders(account2)) {
       if (Date.parse(order.expiresAt) <= Date.parse(at)) {
         Object.assign(order, { status: "expired", closedAt: at, reserved: 0 });
-        events.push({ type: "expired", orderId: order.id, symbol: order.symbol });
+        events.push({ type: "expired", orderId: order.id, symbol: order.symbol, filledQuantity: order.filledQuantity ?? 0 });
       }
-    }
-    for (const order of openOrders(account2)) {
-      const observed = quoteMap.get(order.symbol);
-      if (!observed || observed.error || !tradability(account2, observed, at).ok) continue;
-      const execution = executionPrice(account2, order, observed);
-      if (execution.price === null) continue;
-      if (order.side === "SELL" && (account2.positions[order.symbol]?.quantity ?? 0) < order.quantity) {
-        Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Position no longer covers this sell order." });
-        continue;
-      }
-      if (order.side === "BUY") {
-        const cost = order.quantity * execution.price + computeFees(account2.market, "BUY", order.quantity, execution.price).total;
-        if (cost > account2.cash - reservedCash(account2, order.id) + 1e-6) {
-          Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Insufficient cash at fill time." });
-          continue;
-        }
-      }
-      const trade = applyFill(account2, order, execution.price, observed, at);
-      events.push({ type: "filled", orderId: order.id, tradeId: trade.id, symbol: order.symbol, side: order.side, quantity: order.quantity, price: execution.price });
     }
     for (const position of Object.values(account2.positions)) {
       const observed = quoteMap.get(position.symbol);
@@ -15094,21 +15430,87 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
         account2.benchmark.startAt = at;
       }
     }
+    evaluateBreaker(account2, quoteMap, at, events);
+    triggerExits(account2, quoteMap, at, events);
+    const today = localMarketTime(at, account2.market)?.date;
+    for (const order of openOrders(account2)) {
+      const observed = quoteMap.get(order.symbol);
+      if (!observed || observed.error || !tradability(account2, observed, at).ok) continue;
+      const suspended = suspensionStatus(account2, observed, at);
+      if (suspended) {
+        order.lastBlock = "suspended";
+        const event = addEvent(account2, at, { type: "suspended", symbol: order.symbol, why: suspended, message: `${order.symbol} looks suspended (${suspended}); no fills today.` }, `suspended:${order.symbol}:${today}`);
+        if (event) events.push({ type: "suspended", symbol: order.symbol, why: suspended });
+        continue;
+      }
+      const execution = executionPrice(account2, order, observed);
+      if (execution.price === null) {
+        order.lastBlock = execution.blocked;
+        continue;
+      }
+      if (order.side === "SELL" && (account2.positions[order.symbol]?.quantity ?? 0) < remainingQuantity(order)) {
+        Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Position no longer covers this sell order." });
+        continue;
+      }
+      const liquidity = fillQuantity(account2, order, observed, at);
+      if (!liquidity.quantity) {
+        order.lastBlock = "liquidity";
+        continue;
+      }
+      if (order.side === "BUY") {
+        const cost = liquidity.quantity * execution.price + computeFees(account2.market, "BUY", liquidity.quantity, execution.price).total;
+        if (cost > account2.cash - reservedCash(account2, order.id) + 1e-6) {
+          Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Insufficient cash at fill time." });
+          continue;
+        }
+        const violation = riskViolation(account2, order.symbol, cost, order.id);
+        if (violation) {
+          Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: violation });
+          events.push({ type: "risk-rejected", orderId: order.id, symbol: order.symbol });
+          continue;
+        }
+      }
+      delete order.lastBlock;
+      const trade = applyFill(account2, order, execution.price, observed, at, liquidity.quantity);
+      events.push({ type: order.status === "open" ? "partial" : "filled", orderId: order.id, tradeId: trade.id, symbol: order.symbol, side: order.side, quantity: liquidity.quantity, price: execution.price, ...order.trigger ? { trigger: order.trigger } : {} });
+    }
     if (account2.status === "active") recordEquity(account2, at);
     return events;
+  }
+  async function corporateActionsFor(symbols) {
+    const result = /* @__PURE__ */ new Map();
+    if (!corporateActionProvider) return result;
+    await Promise.all([...new Set(symbols)].map(async (symbol) => {
+      const day = localMarketTime(now(), marketFromSymbol(symbol))?.date;
+      const cached2 = actionCache.get(symbol);
+      if (cached2 && cached2.day === day && (cached2.ok || Date.now() - cached2.fetchedAt < CORPORATE_ACTION_RETRY_MS)) {
+        result.set(symbol, cached2.actions);
+        return;
+      }
+      try {
+        const actions = await corporateActionProvider(symbol);
+        actionCache.set(symbol, { day, actions: Array.isArray(actions) ? actions : [], ok: true, fetchedAt: Date.now() });
+      } catch {
+        actionCache.set(symbol, { day, actions: cached2?.actions ?? [], ok: false, fetchedAt: Date.now() });
+      }
+      result.set(symbol, actionCache.get(symbol).actions);
+    }));
+    return result;
   }
   async function sync(ids, { force = false } = {}) {
     const all = await loadAll();
     const targets = all.filter((account2) => account2.status === "active" && (!ids || ids.includes(account2.id)) && (force || Date.now() - (lastSync.get(account2.id) ?? 0) > SYNC_THROTTLE_MS));
     if (!targets.length) return { synced: 0, events: [] };
     const symbols = targets.flatMap((account2) => [...Object.keys(account2.positions), ...openOrders(account2).map((order) => order.symbol), account2.benchmark?.symbol].filter(Boolean));
-    const quoteMap = await quotes(symbols);
+    const quoteMap = await quotes(symbols, { fresh: force });
+    const actionMap = await corporateActionsFor(targets.flatMap((account2) => Object.keys(account2.positions)));
     const events = [];
     await withLock(async () => {
       for (const target of targets) {
         const account2 = await load(target.id);
+        if (account2.status !== "active") continue;
         const at = now();
-        events.push(...settle(account2, quoteMap, at).map((event) => ({ ...event, accountId: account2.id })));
+        events.push(...settle(account2, quoteMap, at, actionMap).map((event) => ({ ...event, accountId: account2.id })));
         await save(account2);
         lastSync.set(account2.id, Date.now());
       }
@@ -15125,8 +15527,17 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
     return points;
   }
   function publicAccount(account2, { detail = false, limit = 50 } = {}) {
-    const metrics = computeMetrics(account2, { benchmarkPrice: account2.benchmark?.lastPrice ?? null });
+    const at = now();
+    const metrics = computeMetrics(account2, { benchmarkPrice: account2.benchmark?.lastPrice ?? null, now: at });
     const value = valuation(account2);
+    const health = runHealth(account2, at);
+    const risk = { ...drawdownState(account2, value.equity), breaker: account2.risk?.breaker ?? null, resetAt: account2.risk?.resetAt ?? null };
+    const today = localMarketTime(at, account2.market)?.date;
+    const alerts = [
+      ...health.status === "missed" ? [{ type: "missed-run", severity: "warning", message: `Missed ${health.missedTradingDays} trading day(s) since the last round.` }] : [],
+      ...risk.breaker ? [{ type: "risk-breaker", severity: "critical", message: `Drawdown breaker tripped at ${risk.breaker.drawdownPct}%; buys blocked.` }] : [],
+      ...(account2.events ?? []).filter((event) => ["stop-loss", "take-profit", "exit-deferred", "suspended", "corporate-action-skipped"].includes(event.type) && localMarketTime(event.at, account2.market)?.date === today).slice(-5).map((event) => ({ type: event.type, severity: "info", message: event.message, at: event.at }))
+    ];
     const summary = {
       id: account2.id,
       name: account2.name,
@@ -15148,8 +15559,13 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
       curve: returnCurve(account2, metrics.equity),
       lastTradeAt: account2.trades.at(-1)?.at ?? null,
       lastActivityAt: [account2.trades.at(-1)?.at, account2.journal.at(-1)?.at, account2.orders.at(-1)?.createdAt, account2.reports?.at(-1)?.at].filter(Boolean).sort().at(-1) ?? null,
-      latestReport: account2.reports?.length ? (({ id, at, title, summary: summary2, sentiment }) => ({ id, at, title, summary: summary2, sentiment }))(account2.reports.at(-1)) : null,
-      watchlist: account2.watchlist ?? null
+      latestReport: account2.reports?.length ? (({ id, at: at2, title, summary: summary2, sentiment }) => ({ id, at: at2, title, summary: summary2, sentiment }))(account2.reports.at(-1)) : null,
+      watchlist: account2.watchlist ?? null,
+      riskPolicy: riskPolicyOf(account2),
+      risk,
+      health,
+      lastRoundAt: health.lastRoundAt,
+      alerts
     };
     if (!detail) return summary;
     return {
@@ -15163,8 +15579,13 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
       strategyHistory: account2.strategy.history,
       closedPositions: (account2.closedPositions ?? []).slice(-limit).reverse(),
       lotOverrides: account2.lotOverrides ?? {},
-      reports: (account2.reports ?? []).slice(-limit).reverse()
+      reports: (account2.reports ?? []).slice(-limit).reverse(),
+      events: (account2.events ?? []).slice(-limit).reverse().map(({ dedupe, ...event }) => event)
     };
+  }
+  function markRound(account2, kind, at = now()) {
+    account2.lastRoundAt = at;
+    account2.lastRoundKind = kind;
   }
   return {
     root,
@@ -15194,7 +15615,8 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
         initialCash: round4(initialCash),
         cash: round4(initialCash),
         realizedPnl: 0,
-        settings: { slippageBps: clamp2(input.slippageBps ?? 5, 0, 100), maxQuoteAgeSeconds: clamp2(input.maxQuoteAgeSeconds ?? 180, 30, 900), feeModel: `${market2}-retail-v1` },
+        settings: { slippageBps: clamp2(input.slippageBps ?? 5, 0, 100), maxQuoteAgeSeconds: clamp2(input.maxQuoteAgeSeconds ?? 180, 30, 900), maxVolumePct: clamp2(input.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT, 0.1, 100), feeModel: `${market2}-retail-v1` },
+        riskPolicy: { ...DEFAULT_RISK_POLICY },
         benchmark: { symbol: config2.benchmark, name: config2.benchmarkName, startPrice: null, startAt: null },
         positions: {},
         orders: [],
@@ -15261,6 +15683,8 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
       if (type === "limit" && !(finite4(input.limitPrice) && input.limitPrice > 0)) throw new ArenaError("limitPrice is required for limit orders.");
       const reason = String(input.reason ?? "").trim();
       if (reason.length < 10) throw new ArenaError("reason is required (at least 10 characters): explain the thesis so the decision can be reviewed.");
+      const exits = normalizeExits(input);
+      if (exits && side !== "BUY") throw new ArenaError("stopLoss / takeProfit attach to BUY orders; use arena_set_exits for an existing position.");
       if (input.clientOrderId) {
         const existing = account2.orders.find((order2) => order2.clientOrderId === input.clientOrderId);
         if (existing) return { duplicate: true, order: existing, account: publicAccount(account2) };
@@ -15288,7 +15712,8 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
         createdAt: at,
         expiresAt: input.timeInForce === "gtc" ? new Date(Date.parse(at) + 30 * 864e5).toISOString() : session.closeAt,
         quoteAtSubmit: observed ? { price: observed.price, asOf: observed.asOf, source: observed.provider ?? observed.source } : null,
-        placedBy: caller.client ?? "unknown"
+        placedBy: caller.client ?? "unknown",
+        ...exits ? { exits } : {}
       };
       const reject = (message, code = "rejected") => {
         Object.assign(order, { status: "rejected", rejectReason: message, closedAt: at });
@@ -15309,8 +15734,10 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
       if (!failure && type === "market" && !tradable.ok) {
         failure = reject(tradable.reason.startsWith("market-") ? `Market is ${tradable.session.status} now (${account2.market} local ${tradable.session.date}). Market orders need an open session; use a limit order to rest until the session opens.` : `Quote not usable for a fill (${tradable.reason}). Retry when a fresh quote is available.`);
       }
+      const suspended = tradable.ok ? suspensionStatus(account2, observed, at) : null;
+      if (!failure && suspended && type === "market") failure = reject(`${symbol} looks suspended (${suspended}): no trades today, so market orders cannot fill. Limit orders may rest until trading resumes.`);
       let execution = null;
-      if (!failure && tradable.ok) {
+      if (!failure && tradable.ok && !suspended) {
         execution = executionPrice(account2, order, observed);
         if (type === "market" && execution.price === null)
           failure = reject(execution.blocked === "limit-up" ? `${symbol} is at its daily limit-up; buy orders cannot fill.` : `${symbol} is at its daily limit-down; sell orders cannot fill.`);
@@ -15328,6 +15755,15 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
           failure = reject(`Limit price is outside today's A-share price band (${observed.limitDown}\u2013${observed.limitUp}).`);
         else if (deviation > 30) failure = reject(`Limit price is ${round4(deviation, 1)}% away from the last price ${observed.price}; check units and price.`);
       }
+      if (!failure && exits && finite4(observed?.price)) {
+        const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed.price);
+        if (finite4(exits.stopLoss?.price) && exits.stopLoss.price >= reference) failure = reject(`stopLossPrice ${exits.stopLoss.price} must be below the entry price (~${reference}).`);
+        else if (finite4(exits.takeProfit?.price) && exits.takeProfit.price <= reference) failure = reject(`takeProfitPrice ${exits.takeProfit.price} must be above the entry price (~${reference}).`);
+      }
+      if (!failure && side === "BUY") {
+        const violation = riskViolation(account2, symbol, order.reserved);
+        if (violation) failure = reject(violation, "risk");
+      }
       return withLock(async () => {
         const current = await load(account2.id);
         assertActive(current);
@@ -15337,13 +15773,22 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
           if (order.reserved > available + 1e-6) failure = reject(`Insufficient available cash: need about ${order.reserved} ${current.currency}, available ${round4(available)}.`);
         }
         if (!failure && side === "SELL" && quantity > sellableQuantity(current, symbol, at)) failure = reject("Sellable quantity changed while the order was being placed.");
+        if (!failure && side === "BUY") {
+          const violation = riskViolation(current, symbol, order.reserved);
+          if (violation) failure = reject(violation, "risk");
+        }
+        markRound(current, "order", at);
         current.orders.push(order);
         if (current.orders.length > LIMITS.orders) {
           const open2 = current.orders.filter((entry) => entry.status === "open");
           current.orders = [...current.orders.filter((entry) => entry.status !== "open").slice(-(LIMITS.orders - open2.length)), ...open2].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
         }
         let trade = null;
-        if (!failure && execution?.price !== null && execution?.price !== void 0) trade = applyFill(current, order, execution.price, observed, at);
+        let liquidity = null;
+        if (!failure && execution?.price !== null && execution?.price !== void 0) {
+          liquidity = fillQuantity(current, order, observed, at);
+          if (liquidity.quantity > 0) trade = applyFill(current, order, execution.price, observed, at, liquidity.quantity);
+        }
         recordEquity(current, at, Boolean(trade));
         await save(current);
         const result = {
@@ -15354,7 +15799,8 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
           session: tradable.session ? { status: tradable.session.status, date: tradable.session.date, calendarVerified: tradable.session.verified } : null
         };
         if (failure) result.error = failure.message;
-        else if (!trade) result.note = tradable.ok ? "Limit order resting: price not reached yet. It fills when a later sync observes a marketable quote." : `Order resting until the ${account2.market} session opens (expires ${order.expiresAt}).`;
+        else if (order.status === "open" && liquidity?.capped) result.note = `${trade ? `Partially filled ${order.filledQuantity} of ${quantity}` : "Not filled yet"}: one account may take at most ${current.settings?.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT}% of the day's volume (${liquidity.volume} shares so far). The remainder rests and the background matcher fills it as volume builds, until ${order.expiresAt}.`;
+        else if (!trade) result.note = suspended ? `${symbol} looks suspended (${suspended}); the limit order rests until trading resumes.` : tradable.ok ? "Limit order resting: price not reached yet. The background matcher fills it when a later quote is marketable." : `Order resting until the ${account2.market} session opens (expires ${order.expiresAt}).`;
         return result;
       });
     },
@@ -15393,6 +15839,7 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
         };
         account2.journal.push(entry);
         if (account2.journal.length > LIMITS.journal) account2.journal = account2.journal.slice(-LIMITS.journal);
+        markRound(account2, `decision:${entry.kind}`, entry.at);
         await save(account2);
         return { entry };
       });
@@ -15447,6 +15894,7 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
           strategyVersion: account2.strategy.version
         };
         account2.reports = [...account2.reports ?? [], report].slice(-LIMITS.reports);
+        markRound(account2, "report", report.at);
         await save(account2);
         return { report };
       });
@@ -15481,11 +15929,53 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
           }
         }
         if (input.unbindAgent) account2.agent.client = null;
+        if (input.riskPolicy !== void 0) {
+          if (!input.riskPolicy || typeof input.riskPolicy !== "object" || Array.isArray(input.riskPolicy)) throw new ArenaError("riskPolicy must be an object.");
+          account2.riskPolicy = { ...sanitizeRiskPolicy(input.riskPolicy, account2.riskPolicy), updatedAt: now() };
+          addEvent(account2, now(), { type: "risk-policy", message: "Owner updated the risk policy.", policy: account2.riskPolicy });
+        }
+        if (input.resetBreaker) {
+          const equity = valuation(account2).equity;
+          account2.risk = { ...account2.risk, breaker: null, resetAt: now(), resetEquity: equity };
+          addEvent(account2, now(), { type: "risk-reset", message: `Owner reset the drawdown breaker at equity ${equity}.` });
+        }
+        if (input.maxVolumePct !== void 0) {
+          const pct = Number(input.maxVolumePct);
+          if (!Number.isFinite(pct) || pct < 0.1 || pct > 100) throw new ArenaError("maxVolumePct must be between 0.1 and 100.");
+          account2.settings = { ...account2.settings, maxVolumePct: round4(pct, 2) };
+        }
         if (input.lotOverrides && typeof input.lotOverrides === "object") {
           account2.lotOverrides = Object.fromEntries(Object.entries(input.lotOverrides).filter(([, lot]) => Number.isInteger(lot) && lot > 0).map(([symbol, lot]) => [normalizeTradeSymbol(symbol), lot]));
         }
         await save(account2);
         return publicAccount(account2, { detail: true });
+      });
+    },
+    // Protective exits on an existing position; null clears a level.
+    async setExits(input, caller = {}) {
+      const symbol = normalizeTradeSymbol(input.symbol);
+      const exits = normalizeExits(input, { allowClear: true });
+      if (!exits && !input.clear) throw new ArenaError("Give stopLossPrice / stopLossPct and/or takeProfitPrice / takeProfitPct (null clears one), or clear=true.");
+      return withLock(async () => {
+        const account2 = await load(input.accountId);
+        assertActive(account2);
+        assertCaller(account2, caller);
+        const position = account2.positions[symbol];
+        if (!position) throw new ArenaError(`No ${symbol} position in this account.`, "not_found", 404);
+        const next = input.clear ? {} : { ...position.exits, ...exits };
+        for (const key of Object.keys(next)) if (next[key] === null) delete next[key];
+        const candidate = { ...position, exits: next };
+        const levels = exitLevels(candidate);
+        const last = position.lastPrice;
+        if (finite4(last) && levels?.stopLoss !== null && levels?.stopLoss !== void 0 && levels.stopLoss >= last) throw new ArenaError(`Stop-loss ${levels.stopLoss} is at or above the last price ${last}; it would trigger immediately. Sell directly instead.`);
+        if (finite4(last) && levels?.takeProfit !== null && levels?.takeProfit !== void 0 && levels.takeProfit <= last) throw new ArenaError(`Take-profit ${levels.takeProfit} is at or below the last price ${last}; it would trigger immediately. Sell directly instead.`);
+        if (Object.keys(next).length) position.exits = next;
+        else delete position.exits;
+        const at = now();
+        addEvent(account2, at, { type: "exits-set", symbol, exits: position.exits ?? null, levels: exitLevels(position), message: position.exits ? `Exits for ${symbol}: stop ${levels?.stopLoss ?? "\u2014"}, take-profit ${levels?.takeProfit ?? "\u2014"}.` : `Exits for ${symbol} cleared.` });
+        markRound(account2, "exits", at);
+        await save(account2);
+        return { symbol, exits: position.exits ?? null, levels: exitLevels(position), lastPrice: last ?? null };
       });
     },
     async deleteAccount(id) {
@@ -15496,13 +15986,348 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
         return { deleted: id };
       });
     },
-    sync
+    sync,
+    now,
+    // Active account ids grouped by market, for the matcher.
+    async activeByMarket() {
+      const groups = /* @__PURE__ */ new Map();
+      for (const account2 of await loadAll()) {
+        if (account2.status !== "active") continue;
+        const entry = groups.get(account2.market) ?? { ids: [], firstCreatedAt: account2.createdAt };
+        entry.ids.push(account2.id);
+        if (account2.createdAt < entry.firstCreatedAt) entry.firstCreatedAt = account2.createdAt;
+        groups.set(account2.market, entry);
+      }
+      return groups;
+    },
+    // One matcher per arena dir: the lease is taken when absent, expired, held by a dead local process, or already ours.
+    async acquireMatcherLease(ownerId, leaseMs = MATCHER_DEFAULTS.leaseMs) {
+      return withLock(async () => {
+        const at = now();
+        let lease = null;
+        try {
+          lease = JSON.parse(await readFile5(leaseFile, "utf8"));
+        } catch {
+          lease = null;
+        }
+        const free = !lease || lease.ownerId === ownerId || Date.parse(lease.expiresAt) <= Date.parse(at) || lease.host === os2.hostname() && !processAlive(lease.pid);
+        if (!free) return { owner: false, lease };
+        const next = {
+          ownerId,
+          pid: process.pid,
+          host: os2.hostname(),
+          acquiredAt: lease?.ownerId === ownerId ? lease.acquiredAt : at,
+          renewedAt: at,
+          expiresAt: new Date(Date.parse(at) + leaseMs).toISOString()
+        };
+        await writeFile4(leaseFile, JSON.stringify(next, null, 1), "utf8");
+        return { owner: true, lease: next, takeover: Boolean(lease && lease.ownerId !== ownerId) };
+      });
+    },
+    async releaseMatcherLease(ownerId) {
+      return withLock(async () => {
+        try {
+          const lease = JSON.parse(await readFile5(leaseFile, "utf8"));
+          if (lease.ownerId === ownerId) await rm2(leaseFile, { force: true });
+        } catch {
+        }
+      });
+    },
+    async writeMatcherStatus(status) {
+      await mkdir5(root, { recursive: true });
+      const temporary = `${statusFile}.${process.pid}.${randomUUID3()}.tmp`;
+      await writeFile4(temporary, JSON.stringify(status, null, 1), "utf8");
+      await rename5(temporary, statusFile);
+    },
+    // Status visible from any process: who leads, when it last ran and whether the lease is live.
+    async matcherStatus() {
+      const read = async (file) => {
+        try {
+          return JSON.parse(await readFile5(file, "utf8"));
+        } catch {
+          return null;
+        }
+      };
+      const [lease, status] = await Promise.all([read(leaseFile), read(statusFile)]);
+      const at = now();
+      const live = Boolean(lease && Date.parse(lease.expiresAt) > Date.parse(at));
+      return {
+        state: live ? "running" : lease ? "stale" : "stopped",
+        lease,
+        ...status,
+        notes: ["The matcher runs inside any open MCP or dashboard process; only one leader matches at a time.", "It syncs only during regular sessions and writes one digest after each market close."]
+      };
+    },
+    async generateDigest({ market: market2 = null, date: date3, trigger = "manual", language = "zh-CN" } = {}) {
+      const at = now();
+      const accounts = (await loadAll()).filter((account2) => account2.status === "active");
+      const digestDate = date3 ?? (market2 ? reportingDate(market2, at) : localMarketTime(at, "A").date);
+      const zh = language !== "en";
+      const rows = accounts.map((account2) => {
+        const sessionDate = market2 === account2.market ? digestDate : reportingDate(account2.market, at);
+        const onDate = (value) => localMarketTime(value, account2.market)?.date === sessionDate;
+        const metrics = computeMetrics(account2, { benchmarkPrice: account2.benchmark?.lastPrice ?? null, now: at });
+        const health = runHealth(account2, at);
+        const trades = account2.trades.filter((trade) => onDate(trade.at)).map((trade) => ({ side: trade.side, symbol: trade.symbol, name: trade.name, quantity: trade.quantity, price: trade.price, realizedPnl: trade.realizedPnl, trigger: trade.trigger ?? null }));
+        const events = (account2.events ?? []).filter((event) => onDate(event.at) && !["risk-policy", "exits-set"].includes(event.type));
+        const rejected = account2.orders.filter((order) => order.status === "rejected" && onDate(order.closedAt ?? order.createdAt)).length;
+        const latest = account2.reports?.at(-1) ?? null;
+        const warnings = [
+          ...health.status === "missed" ? [zh ? `\u6F0F\u8DD1 ${health.missedTradingDays} \u4E2A\u4EA4\u6613\u65E5\uFF08\u6700\u8FD1\u4E00\u8F6E ${health.lastRoundAt ?? "\u4ECE\u672A"}\uFF09` : `Missed ${health.missedTradingDays} trading day(s) (last round ${health.lastRoundAt ?? "never"})`] : [],
+          ...account2.risk?.breaker ? [zh ? `\u56DE\u64A4\u7194\u65AD\u5DF2\u89E6\u53D1\uFF08${account2.risk.breaker.drawdownPct}%\uFF09\uFF0C\u7981\u6B62\u65B0\u4E70\u5165` : `Drawdown breaker tripped (${account2.risk.breaker.drawdownPct}%); buys blocked`] : [],
+          ...latest && onDate(latest.at) ? [] : [zh ? "\u672C\u4EA4\u6613\u65E5\u6CA1\u6709\u53D1\u5E03\u62A5\u544A" : "No report published this session"],
+          ...rejected ? [zh ? `${rejected} \u7B14\u59D4\u6258\u88AB\u62D2` : `${rejected} order(s) rejected`] : [],
+          ...events.filter((event) => ["stop-loss", "take-profit", "exit-deferred", "suspended", "risk-reduce", "corporate-action-skipped"].includes(event.type)).map((event) => event.message)
+        ];
+        return {
+          id: account2.id,
+          name: account2.name,
+          model: account2.model,
+          agent: account2.agent.label ?? account2.agent.client ?? null,
+          market: account2.market,
+          currency: account2.currency,
+          sessionDate,
+          equity: metrics.equity,
+          dayReturnPct: metrics.todayReturnPct,
+          totalReturnPct: metrics.totalReturnPct,
+          excessReturnPct: metrics.excessReturnPct,
+          maxDrawdownPct: metrics.maxDrawdownPct,
+          exposurePct: metrics.exposurePct,
+          positions: metrics.positions,
+          trades,
+          corporateActions: events.filter((event) => ["dividend", "split", "bonus"].includes(event.type)).map((event) => event.message),
+          latestReport: latest ? { title: latest.title, summary: latest.summary, at: latest.at, sentiment: latest.sentiment, today: onDate(latest.at) } : null,
+          health: { status: health.status, missedTradingDays: health.missedTradingDays, lastRoundAt: health.lastRoundAt },
+          warnings
+        };
+      }).sort((a, b) => a.market.localeCompare(b.market) || b.totalReturnPct - a.totalReturnPct);
+      const marketLabel = market2 ? `${market2} ` : "";
+      const title = zh ? `Agent \u6A21\u62DF\u76D8\u65E5\u62A5 \xB7 ${marketLabel}${digestDate}` : `Agent arena digest \xB7 ${marketLabel}${digestDate}`;
+      const pct = (value) => finite4(value) ? `${value >= 0 ? "+" : ""}${value}%` : "\u2014";
+      const lines = [`**${title}**`, zh ? "\uFF08\u865A\u62DF\u8D44\u91D1\u6A21\u62DF\u76D8\uFF0C\u975E\u771F\u5B9E\u6536\u76CA\uFF09" : "(Virtual-money paper trading, not real returns)", ""];
+      for (const row of rows) {
+        lines.push(`\u2022 ${row.name} [${row.market}\xB7${row.model}] ${zh ? "\u51C0\u503C" : "equity"} ${row.equity} ${row.currency} | ${zh ? "\u5F53\u65E5" : "day"} ${pct(row.dayReturnPct)} | ${zh ? "\u7D2F\u8BA1" : "total"} ${pct(row.totalReturnPct)} | ${zh ? "\u6210\u4EA4" : "fills"} ${row.trades.length}`);
+        for (const trade of row.trades.slice(0, 6)) lines.push(`  - ${trade.side === "BUY" ? zh ? "\u4E70" : "BUY" : zh ? "\u5356" : "SELL"} ${trade.name ?? trade.symbol} ${trade.quantity} @ ${trade.price}${trade.trigger ? ` (${trade.trigger})` : ""}`);
+        if (row.latestReport) lines.push(`  ${zh ? "\u62A5\u544A" : "Report"}: ${row.latestReport.title}${row.latestReport.today ? "" : zh ? "\uFF08\u65E7\uFF09" : " (earlier)"}`);
+        for (const action of row.corporateActions) lines.push(`  ${zh ? "\u516C\u53F8\u884C\u52A8" : "Corporate action"}: ${action}`);
+        for (const warning of row.warnings) lines.push(`  \u26A0 ${warning}`);
+      }
+      if (!rows.length) lines.push(zh ? "\u6CA1\u6709\u6D3B\u8DC3\u8D26\u6237\u3002" : "No active accounts.");
+      const digest = {
+        id: `dig_${digestDate}_${market2 ?? "manual"}`,
+        at,
+        date: digestDate,
+        market: market2,
+        trigger,
+        language,
+        title,
+        headline: rows.length ? `${rows.length} ${zh ? "\u4E2A\u8D26\u6237" : "accounts"} \xB7 ${rows.reduce((sum, row) => sum + row.trades.length, 0)} ${zh ? "\u7B14\u6210\u4EA4" : "fills"} \xB7 ${rows.reduce((sum, row) => sum + row.warnings.length, 0)} ${zh ? "\u6761\u63D0\u9192" : "warnings"}` : zh ? "\u6CA1\u6709\u6D3B\u8DC3\u8D26\u6237" : "No active accounts",
+        totals: { accounts: rows.length, trades: rows.reduce((sum, row) => sum + row.trades.length, 0), warnings: rows.reduce((sum, row) => sum + row.warnings.length, 0) },
+        accounts: rows,
+        text: lines.join("\n"),
+        delivery: null
+      };
+      await withLock(async () => {
+        await mkdir5(digestDir, { recursive: true });
+        await writeFile4(path5.join(digestDir, `${digest.id}.json`), JSON.stringify(digest, null, 1), "utf8");
+        const names = (await readdir(digestDir)).filter((name) => name.endsWith(".json")).sort();
+        for (const name of names.slice(0, Math.max(0, names.length - LIMITS.digests))) await rm2(path5.join(digestDir, name), { force: true });
+      });
+      return digest;
+    },
+    async getDigest(id) {
+      if (!/^dig_\d{4}-\d{2}-\d{2}_[A-Za-z]+$/.test(id ?? "")) throw new ArenaError(`Invalid digest id: ${id}`);
+      try {
+        return JSON.parse(await readFile5(path5.join(digestDir, `${id}.json`), "utf8"));
+      } catch (error2) {
+        if (error2.code === "ENOENT") return null;
+        throw error2;
+      }
+    },
+    async listDigests({ limit = 30 } = {}) {
+      let names = [];
+      try {
+        names = await readdir(digestDir);
+      } catch (error2) {
+        if (error2.code !== "ENOENT") throw error2;
+      }
+      const digests = [];
+      for (const name of names.filter((entry) => /^dig_.+\.json$/.test(entry))) {
+        try {
+          digests.push(JSON.parse(await readFile5(path5.join(digestDir, name), "utf8")));
+        } catch {
+        }
+      }
+      return digests.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, limit);
+    },
+    async recordDigestDelivery(id, delivery) {
+      return withLock(async () => {
+        const file = path5.join(digestDir, `${id}.json`);
+        const digest = JSON.parse(await readFile5(file, "utf8"));
+        digest.delivery = { ...delivery, attempts: (digest.delivery?.attempts ?? 0) + 1 };
+        await writeFile4(file, JSON.stringify(digest, null, 1), "utf8");
+        return digest;
+      });
+    }
   };
 }
 var defaultArena;
 function getArena() {
-  defaultArena ??= createArena();
+  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions });
   return defaultArena;
+}
+function digestPayload(digest, format = "generic") {
+  if (format === "wecom") return { msgtype: "markdown", markdown: { content: digest.text.slice(0, 4e3) } };
+  if (format === "feishu") return { msg_type: "text", content: { text: digest.text.slice(0, 3e4) } };
+  return { type: "hrouter.arena.digest", version: 1, id: digest.id, title: digest.title, headline: digest.headline, text: digest.text, generatedAt: digest.at, paperTradingOnly: true, digest };
+}
+async function deliverDigest(digest, webhook, { fetchImpl = fetch, timeoutMs = 1e4, now = () => (/* @__PURE__ */ new Date()).toISOString() } = {}) {
+  if (!webhook?.url || webhook.enabled === false) return { status: "skipped", at: now() };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(webhook.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8", "User-Agent": "hrouter-market-pulse-digest" },
+      body: JSON.stringify(digestPayload(digest, webhook.format)),
+      signal: controller.signal
+    });
+    return response.ok ? { status: "delivered", httpStatus: response.status, at: now() } : { status: "failed", httpStatus: response.status, error: `HTTP ${response.status}`, at: now() };
+  } catch (error2) {
+    return { status: "failed", error: error2.name === "AbortError" ? "timeout" : error2.message, at: now() };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function createMatcher({
+  arena,
+  intervalMs = MATCHER_DEFAULTS.intervalMs,
+  jitterMs = MATCHER_DEFAULTS.jitterMs,
+  leaseMs = MATCHER_DEFAULTS.leaseMs,
+  getPreferences = loadPreferences,
+  fetchImpl = fetch,
+  digestWindowMs = MATCHER_DEFAULTS.digestWindowMs,
+  onError = () => {
+  }
+} = {}) {
+  const ownerId = `${os2.hostname()}:${process.pid}:${randomBytes(4).toString("hex")}`;
+  let timer = null;
+  let running = null;
+  let role = "idle";
+  let last = null;
+  async function deliver(digest, preferences) {
+    const webhook = preferences?.digestWebhook;
+    if (!webhook?.url || webhook.enabled === false) return digest;
+    const delivery = await deliverDigest(digest, webhook, { fetchImpl, now: arena.now });
+    return arena.recordDigestDelivery(digest.id, delivery);
+  }
+  async function runTick() {
+    const at = arena.now();
+    const lease = await arena.acquireMatcherLease(ownerId, leaseMs);
+    if (!lease.owner) {
+      role = "standby";
+      last = { at, role, leader: lease.lease?.ownerId ?? null };
+      return last;
+    }
+    role = "leader";
+    const result = { at, role, ownerId, synced: 0, fills: 0, exits: 0, events: 0, markets: {}, digests: [], deliveries: [], errors: [] };
+    const groups = await arena.activeByMarket();
+    let preferences = null;
+    const prefs = async () => preferences ??= await getPreferences().catch(() => ({}));
+    for (const [market2, group] of groups) {
+      const session = getMarketSession(market2, at);
+      result.markets[market2] = session.status;
+      try {
+        if (session.status === "open") {
+          const synced = await arena.sync(group.ids, { force: true });
+          result.synced += synced.synced;
+          result.events += synced.events.length;
+          result.fills += synced.events.filter((event) => event.type === "filled" || event.type === "partial").length;
+          result.exits += synced.events.filter((event) => event.type === "stop-loss" || event.type === "take-profit").length;
+          continue;
+        }
+        const closed = lastCompletedSession(market2, at);
+        if (!closed || Date.parse(at) - Date.parse(closed.closeAt) > digestWindowMs || group.firstCreatedAt > closed.closeAt) continue;
+        if (await arena.getDigest(`dig_${closed.date}_${market2}`)) continue;
+        await arena.sync(group.ids, { force: true });
+        const digest = await arena.generateDigest({ market: market2, date: closed.date, trigger: "market-close", language: (await prefs()).language });
+        result.digests.push(digest.id);
+        const delivered = await deliver(digest, await prefs());
+        if (delivered.delivery) result.deliveries.push({ id: digest.id, status: delivered.delivery.status });
+      } catch (error2) {
+        result.errors.push(`${market2}: ${error2.message}`);
+        onError(error2);
+      }
+    }
+    try {
+      const webhook = (await prefs()).digestWebhook;
+      if (webhook?.url && webhook.enabled !== false) {
+        for (const digest of await arena.listDigests({ limit: 10 })) {
+          if (result.digests.includes(digest.id) || digest.trigger === "manual" || Date.parse(at) - Date.parse(digest.at) > 864e5) continue;
+          if (digest.delivery?.status === "delivered" || (digest.delivery?.attempts ?? 0) >= MATCHER_DEFAULTS.webhookAttempts) continue;
+          if (digest.delivery && Date.parse(at) - Date.parse(digest.delivery.at) < 10 * 6e4) continue;
+          const delivered = await deliver(digest, { digestWebhook: webhook });
+          result.deliveries.push({ id: digest.id, status: delivered.delivery?.status, retry: true });
+        }
+      }
+    } catch (error2) {
+      result.errors.push(`webhook: ${error2.message}`);
+    }
+    last = result;
+    const previous = await arena.matcherStatus().catch(() => ({}));
+    const hasWork = result.synced || result.digests.length;
+    await arena.writeMatcherStatus({
+      ownerId,
+      pid: process.pid,
+      host: os2.hostname(),
+      intervalMs,
+      lastTickAt: at,
+      lastRunAt: hasWork ? at : previous.lastRunAt ?? null,
+      lastResult: { ...result, events: result.events },
+      lastError: result.errors.at(-1) ?? null,
+      lastErrorAt: result.errors.length ? at : previous.lastErrorAt ?? null,
+      nextTickAt: new Date(Date.parse(at) + intervalMs).toISOString(),
+      markets: result.markets,
+      totals: { ticks: (previous.totals?.ticks ?? 0) + 1, fills: (previous.totals?.fills ?? 0) + result.fills, exits: (previous.totals?.exits ?? 0) + result.exits, digests: (previous.totals?.digests ?? 0) + result.digests.length }
+    });
+    return result;
+  }
+  async function tick() {
+    if (running) return running;
+    running = runTick().catch((error2) => {
+      onError(error2);
+      last = { at: arena.now(), role, error: error2.message };
+      return last;
+    }).finally(() => {
+      running = null;
+    });
+    return running;
+  }
+  function schedule(delay2) {
+    timer = setTimeout(async () => {
+      await tick();
+      if (timer) schedule(intervalMs + Math.round((Math.random() * 2 - 1) * jitterMs));
+    }, delay2);
+    timer.unref?.();
+  }
+  return {
+    ownerId,
+    tick,
+    start({ initialDelayMs = 5e3 } = {}) {
+      if (!timer) schedule(initialDelayMs);
+      return this;
+    },
+    async stop() {
+      const wasRunning = Boolean(timer);
+      clearTimeout(timer);
+      timer = null;
+      await running;
+      if (wasRunning || role === "leader") await arena.releaseMatcherLease(ownerId).catch(() => {
+      });
+      role = "stopped";
+    },
+    status: () => ({ ownerId, role, last })
+  };
 }
 function callerFromClient(clientInfo) {
   const override = process.env.HROUTER_AGENT_ID?.trim();
@@ -15513,9 +16338,28 @@ function callerFromClient(clientInfo) {
 // mcp/arena-tools.mjs
 var accountId = external_exports.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_\u2026) returned by arena_register_account or arena_my_accounts.");
 var market = external_exports.enum(["A", "HK", "US"]);
+var exitFields = {
+  stopLossPrice: external_exports.number().positive().optional().describe("Protective stop: sell everything sellable at market when a fresh quote trades at or below this price."),
+  stopLossPct: external_exports.number().positive().max(95).optional().describe("Protective stop as % below the average cost (e.g. 8 = cost \xD7 0.92). Use price or pct, not both."),
+  takeProfitPrice: external_exports.number().positive().optional().describe("Take profit: sell at market when a fresh quote trades at or above this price."),
+  takeProfitPct: external_exports.number().positive().max(1e3).optional().describe("Take profit as % above the average cost (e.g. 20 = cost \xD7 1.2).")
+};
 function compactAccount(account2) {
   const { metrics } = account2;
-  return `${account2.name} [${account2.id}] ${account2.market} ${account2.currency} \xB7 model ${account2.model} \xB7 equity ${metrics.equity} (${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct}%) \xB7 cash ${metrics.availableCash} \xB7 ${metrics.positions} positions \xB7 ${metrics.openOrders} open orders`;
+  const flags = [
+    account2.health?.status === "missed" ? `MISSED ${account2.health.missedTradingDays} trading day(s)` : null,
+    account2.risk?.breaker ? `RISK BREAKER TRIPPED (${account2.risk.breaker.drawdownPct}%): buys blocked` : null
+  ].filter(Boolean);
+  return `${account2.name} [${account2.id}] ${account2.market} ${account2.currency} \xB7 model ${account2.model} \xB7 equity ${metrics.equity} (${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct}%) \xB7 cash ${metrics.availableCash} \xB7 ${metrics.positions} positions \xB7 ${metrics.openOrders} open orders${flags.length ? ` \xB7 ${flags.join(" \xB7 ")}` : ""}`;
+}
+function policyText(policy) {
+  if (!policy) return "";
+  const parts = [
+    policy.maxPositionPct ? `max ${policy.maxPositionPct}% per position` : null,
+    policy.maxExposurePct ? `max ${policy.maxExposurePct}% total exposure` : null,
+    policy.maxDrawdownPct ? `drawdown breaker at -${policy.maxDrawdownPct}% (${policy.onBreach === "reduce" ? `then reduce to ${policy.reduceToExposurePct}% exposure` : "then block buys"})` : null
+  ].filter(Boolean);
+  return parts.length ? `Owner risk policy: ${parts.join(", ")}.` : "Owner risk policy: no limits set.";
 }
 function registerArenaTools(server2, { toolResult: toolResult2, toolError: toolError2 }) {
   const caller = () => callerFromClient(server2.server.getClientVersion?.());
@@ -15564,20 +16408,27 @@ ${rows.map(compactAccount).join("\n")}` : `No arena account for ${me.client} yet
   });
   register("arena_get_account", {
     title: "Get arena account",
-    description: "Sync with live quotes (fills resting orders that became marketable, expires day orders, marks positions) and return cash, positions, open orders, recent trades, journal and performance metrics.",
+    description: [
+      "Sync with live quotes (fills resting orders that became marketable, expires day orders, marks positions) and return cash, positions (with stop-loss / take-profit levels), open orders, recent trades, journal, account events (fills by the background matcher, stops, dividends, splits, suspensions) and performance metrics.",
+      "Also returns the owner's riskPolicy (read-only for agents: max position %, max exposure %, drawdown circuit breaker), the current drawdown/breaker state and run health (missed trading days)."
+    ].join(" "),
     inputSchema: { accountId, limit: external_exports.number().int().min(1).max(200).optional().describe("Number of recent orders/trades/journal entries (default 30).") },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
   }, async ({ accountId: id, limit = 30 }) => {
     const account2 = await getArena().getAccount(id, { limit });
     const { equity, ...rest } = account2;
-    return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, compactAccount(account2)];
+    return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, `${compactAccount(account2)}
+${policyText(account2.riskPolicy)}`];
   });
   register("arena_place_order", {
     title: "Place arena paper order",
     description: [
       "Place a long-only paper order in your own arena account. Fills use the live public quote plus slippage and exchange-style fees, during regular sessions only.",
       "Rules enforced: board lots (A-share 100, STAR 200 min; HK per-stock lot; US 1), A-share T+1 and daily price limits, available cash incl. fees and open-order reservations.",
-      "Market orders need an open session. Limit orders rest and fill when a later sync observes a marketable price; 'day' orders expire at the session close, 'gtc' after 30 days.",
+      "Market orders need an open session. Limit orders rest and a background matcher fills them every 1-2 minutes during the session when the price is marketable; 'day' orders expire at the session close, 'gtc' after 30 days.",
+      "One account may take at most a configured share of the day's volume (default 5%); larger orders fill partially and the rest keeps resting. Suspended stocks (no trades today) do not fill.",
+      "BUY orders may carry stopLoss / takeProfit (price or % of average cost); the matcher sells at market when a fresh quote crosses the level, subject to T+1 and limit-down.",
+      "The owner's risk policy (see arena_get_account) can reject buys; agents cannot change it.",
       "Always give the reason (thesis, signal, risk) so the decision can be reviewed later. Rejections are recorded and count against discipline metrics."
     ].join(" "),
     inputSchema: {
@@ -15591,14 +16442,37 @@ ${rows.map(compactAccount).join("\n")}` : `No arena account for ${me.client} yet
       reason: external_exports.string().min(10).max(2e3).describe("Why: thesis, signal, sizing and exit plan."),
       confidence: external_exports.number().min(0).max(1).optional().describe("Your subjective probability the trade works (0\u20131); used for calibration review."),
       horizon: external_exports.string().max(40).optional().describe("Intended holding period, e.g. '3d', '2w'."),
-      clientOrderId: external_exports.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional().describe("Idempotency key: retries with the same id return the original order.")
+      clientOrderId: external_exports.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional().describe("Idempotency key: retries with the same id return the original order."),
+      ...exitFields
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
   }, async (input) => {
     const result = await getArena().placeOrder(input, caller());
     const { order, trade } = result;
     const summary = order.status === "rejected" ? `REJECTED: ${order.rejectReason}` : trade ? `FILLED ${trade.side} ${trade.quantity} ${trade.symbol} @ ${trade.price} (fees ${trade.fees}). ${compactAccount(result.account)}` : `OPEN ${order.type} ${order.side} ${order.quantity} ${order.symbol}${order.limitPrice ? ` @ ${order.limitPrice}` : ""} [${order.id}] \u2014 ${result.note}`;
+    if (trade && order.status === "open") return [result, `PARTIAL ${trade.side} ${trade.quantity}/${order.quantity} ${trade.symbol} @ ${trade.price}. ${result.note}`];
     return [result, summary];
+  });
+  register("arena_set_exits", {
+    title: "Set stop-loss / take-profit",
+    description: [
+      "Attach or change protective exits on one of your existing positions. Levels are a price or a percent of the average cost.",
+      "The background matcher sells all sellable shares at market when a fresh quote crosses a level during a regular session; A-share T+1 and limit-down still apply (the exit waits and is logged as deferred).",
+      "Pass null for a level to clear it, or clear=true to remove both."
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      symbol: external_exports.string().min(1).max(20),
+      stopLossPrice: exitFields.stopLossPrice.unwrap().nullable().optional(),
+      stopLossPct: exitFields.stopLossPct.unwrap().nullable().optional(),
+      takeProfitPrice: exitFields.takeProfitPrice.unwrap().nullable().optional(),
+      takeProfitPct: exitFields.takeProfitPct.unwrap().nullable().optional(),
+      clear: external_exports.boolean().optional()
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().setExits(input, caller());
+    return [result, result.exits ? `Exits for ${result.symbol}: stop ${result.levels?.stopLoss ?? "\u2014"}, take-profit ${result.levels?.takeProfit ?? "\u2014"} (last ${result.lastPrice ?? "?"}).` : `Exits for ${result.symbol} cleared.`];
   });
   register("arena_cancel_order", {
     title: "Cancel arena order",
@@ -15704,10 +16578,10 @@ ${rows.map(compactAccount).join("\n")}` : `No arena account for ${me.client} yet
 import { mkdir as mkdir6, readFile as readFile6, writeFile as writeFile5, rename as rename6, rm as rm3, readdir as readdir2, stat as stat2 } from "node:fs/promises";
 import { rmSync } from "node:fs";
 import { randomUUID as randomUUID4 } from "node:crypto";
-import os2 from "node:os";
+import os3 from "node:os";
 import path6 from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-function updateHome(env = process.env, platform = process.platform, home = os2.homedir()) {
+function updateHome(env = process.env, platform = process.platform, home = os3.homedir()) {
   if (env.HROUTER_UPDATE_HOME) return path6.resolve(env.HROUTER_UPDATE_HOME);
   return platform === "win32" ? path6.join(env.LOCALAPPDATA || path6.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path6.join(env.XDG_DATA_HOME || path6.join(home, ".local", "share"), "hrouter-market-pulse-updater");
 }
@@ -15815,7 +16689,7 @@ async function acquireRuntimeLease(home = updateHome()) {
 
 // mcp/arena-demo.mjs
 import { mkdtemp, mkdir as mkdir7, writeFile as writeFile6 } from "node:fs/promises";
-import os3 from "node:os";
+import os4 from "node:os";
 import path7 from "node:path";
 function generator(seed) {
   let state = seed >>> 0;
@@ -15899,7 +16773,18 @@ function seedAccount(agent, index, start) {
     const price = Math.round(base * (0.97 + random() * 0.06) * 100) / 100;
     const quantity = Math.floor(finalEquity * 0.22 / price / lot) * lot;
     const cost = Math.round(quantity * price * (0.93 + random() * 0.1) * 100) / 100;
-    positions[symbol] = { symbol, name, quantity, costBasis: cost, realizedPnl: 0, lots: [{ date: "2026-01-01", quantity }], openedAt: equity[3].at, lastPrice: price, lastPriceAt: equity.at(-1).at };
+    positions[symbol] = {
+      symbol,
+      name,
+      quantity,
+      costBasis: cost,
+      realizedPnl: 0,
+      lots: [{ date: "2026-01-01", quantity }],
+      openedAt: equity[3].at,
+      lastPrice: price,
+      lastPriceAt: equity.at(-1).at,
+      ...index % 2 === 0 ? { exits: { stopLoss: { pct: 8 }, takeProfit: { pct: 25 } } } : {}
+    };
     marketValue += quantity * price;
   }
   for (const point of equity) Object.assign(point, { marketValue: Math.round(marketValue * 100) / 100, cash: Math.round((point.equity - marketValue) * 100) / 100 });
@@ -15930,17 +16815,25 @@ function seedAccount(agent, index, start) {
     createdAt,
     watchlist: { symbols: universe.map(([symbol]) => symbol), reason: "demo", updatedAt: equity.at(-1).at },
     updatedAt: equity.at(-1).at,
-    createdBy: agent.client
+    createdBy: agent.client,
+    // The event-driven agent "stopped running" three days ago so the missed-run warning is visible.
+    lastRoundAt: agent.client === "workbuddy" ? equity.at(-4).at : reports.at(-1).at,
+    lastRoundKind: "report",
+    riskPolicy: { maxPositionPct: 35, maxExposurePct: 90, maxDrawdownPct: 15, onBreach: "block", reduceToExposurePct: 50 },
+    events: index === 0 ? [
+      { id: "evt_demo0001", at: equity.at(-6).at, type: "dividend", symbol: universe[0][0], amount: 1850, message: `${universe[0][0]} \u6D3E\u606F\u5230\u8D26 +1850 ${config2.currency}` },
+      { id: "evt_demo0002", at: equity.at(-2).at, type: "stop-loss", symbol: universe[2][0], level: 55.1, price: 55.02, message: `\u6B62\u635F ${universe[2][0]}\uFF1A\u73B0\u4EF7 55.02 \u8DCC\u7834 55.1\uFF0C\u5E02\u4EF7\u5356\u51FA` }
+    ] : []
   };
 }
 async function createDemoArena() {
-  const root = await mkdtemp(path7.join(os3.tmpdir(), "hrouter-arena-demo-"));
+  const root = await mkdtemp(path7.join(os4.tmpdir(), "hrouter-arena-demo-"));
   await mkdir7(path7.join(root, "accounts"), { recursive: true });
   const start = Date.now() - 34 * 864e5 - 8 * 36e5;
   const accounts = AGENTS.map((agent, index) => seedAccount(agent, index, start));
   const prices = new Map(accounts.flatMap((account2) => Object.values(account2.positions).map((position) => [position.symbol, position])));
   for (const account2 of accounts) await writeFile6(path7.join(root, "accounts", `${account2.id}.json`), JSON.stringify(account2));
-  return createArena({
+  const arena = createArena({
     root,
     // Synthetic quotes: hold the seeded marks so the demo stays stable while it is open.
     quoteProvider: async (symbol) => {
@@ -15950,6 +16843,8 @@ async function createDemoArena() {
       return { symbol, name: position?.name ?? symbol, market: market2, price: base, asOf: (/* @__PURE__ */ new Date()).toISOString(), provider: "Synthetic demo", lotSize: market2 === "HK" ? 100 : null, limitUp: null, limitDown: null };
     }
   });
+  await arena.generateDigest({ market: "A", trigger: "demo" });
+  return arena;
 }
 
 // mcp/http.mjs
@@ -17339,13 +18234,20 @@ async function bodyJson(request) {
     throw new Error("JSON object required");
   return body;
 }
-function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
+function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: runMatcher = true } = {}) {
   let demoReport = demo2 ? makeDemoReport() : null;
   let preferences = demo2 ? structuredClone(demoPreferences) : null;
   let decisions = demo2 ? structuredClone(demoDecisions) : null;
   let refreshPromise = null;
   const arenaReady = demo2 ? createDemoArena() : Promise.resolve(getArena());
   const dashboardCaller = { client: "dashboard" };
+  const readPreferences = async () => demo2 ? preferences : loadPreferences();
+  const matcherReady = runMatcher ? arenaReady.then((arena) => createMatcher({
+    arena,
+    getPreferences: readPreferences,
+    onError: (error2) => console.error(`Arena matcher: ${error2.message}`)
+  }).start()).catch(() => null) : Promise.resolve(null);
+  const matcherStatus = async (arena) => ({ ...await arena.matcherStatus(), local: (await matcherReady)?.status() ?? null });
   let refreshedAt = 0;
   const server2 = createServer(async (request, response) => {
     try {
@@ -17364,7 +18266,13 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
             market: url.searchParams.get("market") || void 0,
             competition: url.searchParams.get("competition") || void 0,
             includeArchived: url.searchParams.get("archived") === "1"
-          }) });
+          }), matcher: await matcherStatus(arena) });
+        }
+        if (url.pathname === "/api/arena/matcher") return respond(response, 200, await matcherStatus(await arenaReady));
+        if (url.pathname === "/api/arena/digests") {
+          const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+          const webhook = (await readPreferences())?.digestWebhook ?? null;
+          return respond(response, 200, { demo: demo2, digests: await (await arenaReady).listDigests({ limit }), webhook: webhook ? { format: webhook.format, enabled: webhook.enabled, host: new URL(webhook.url).host } : null });
         }
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {
@@ -17451,6 +18359,17 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
             return respond(response, 201, await arena.createAccount({ ...body, agentLabel: body.agentLabel || void 0 }, dashboardCaller));
           if (url.pathname === "/api/arena/sync")
             return respond(response, 200, await arena.sync(Array.isArray(body.accountIds) ? body.accountIds : void 0, { force: true }));
+          if (url.pathname === "/api/arena/digests") {
+            const market2 = ["A", "HK", "US"].includes(body.market) ? body.market : null;
+            const prefs = await readPreferences();
+            let digest = await arena.generateDigest({ market: market2, trigger: "manual", language: prefs?.language });
+            if (body.send) {
+              if (demo2) return respond(response, 409, { error: "\u6F14\u793A\u6A21\u5F0F\u4E0D\u63A8\u9001\u65E5\u62A5 / Demo mode never posts digests." });
+              if (!prefs?.digestWebhook?.url) return respond(response, 409, { error: "No digest webhook configured in preferences." });
+              digest = await arena.recordDigestDelivery(digest.id, await deliverDigest(digest, { ...prefs.digestWebhook, enabled: true }, { now: arena.now }));
+            }
+            return respond(response, 201, digest);
+          }
           const update = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})(\/delete)?$/);
           if (update) return respond(response, 200, update[2] ? await arena.deleteAccount(update[1]) : await arena.updateAccount(update[1], body));
           return respond(response, 404, { error: "Unknown arena action" });
@@ -17476,7 +18395,8 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
             "alertRules",
             "monitorIntervalSeconds",
             "calendarOverrides",
-            "managedAccountId"
+            "managedAccountId",
+            "digestWebhook"
           ];
           const selected = Object.fromEntries(
             fields.filter((key) => body[key] !== void 0).map((key) => [key, body[key]])
@@ -17582,6 +18502,10 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
         { error: error2.code === "ENOENT" ? "No report yet" : error2.message }
       );
     }
+  });
+  server2.on("close", () => {
+    matcherReady.then((matcher) => matcher?.stop()).catch(() => {
+    });
   });
   server2.requestTimeout = 3e4;
   server2.headersTimeout = 1e4;
@@ -17699,7 +18623,7 @@ __export(util_exports, {
   getParsedType: () => getParsedType2,
   getSizableOrigin: () => getSizableOrigin,
   isObject: () => isObject,
-  isPlainObject: () => isPlainObject,
+  isPlainObject: () => isPlainObject2,
   issue: () => issue,
   joinValues: () => joinValues,
   jsonStringifyReplacer: () => jsonStringifyReplacer,
@@ -17847,7 +18771,7 @@ var allowsEval = cached(() => {
     return false;
   }
 });
-function isPlainObject(o) {
+function isPlainObject2(o) {
   if (isObject(o) === false)
     return false;
   const ctor = o.constructor;
@@ -18032,7 +18956,7 @@ function omit(schema, mask) {
   });
 }
 function extend(schema, shape) {
-  if (!isPlainObject(shape)) {
+  if (!isPlainObject2(shape)) {
     throw new Error("Invalid input to extend: expected a plain object");
   }
   const def = {
@@ -19634,7 +20558,7 @@ function mergeValues2(a, b) {
   if (a instanceof Date && b instanceof Date && +a === +b) {
     return { valid: true, data: a };
   }
-  if (isPlainObject(a) && isPlainObject(b)) {
+  if (isPlainObject2(a) && isPlainObject2(b)) {
     const bKeys = Object.keys(b);
     const sharedKeys = Object.keys(a).filter((key) => bKeys.indexOf(key) !== -1);
     const newObj = { ...a, ...b };
@@ -19691,7 +20615,7 @@ var $ZodRecord = /* @__PURE__ */ $constructor("$ZodRecord", (inst, def) => {
   $ZodType.init(inst, def);
   inst._zod.parse = (payload, ctx) => {
     const input = payload.value;
-    if (!isPlainObject(input)) {
+    if (!isPlainObject2(input)) {
       payload.issues.push({
         expected: "record",
         code: "invalid_type",
@@ -26110,7 +27034,7 @@ var Protocol = class {
     };
   }
 };
-function isPlainObject2(value) {
+function isPlainObject3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function mergeCapabilities(base, additional) {
@@ -26121,7 +27045,7 @@ function mergeCapabilities(base, additional) {
     if (addValue === void 0)
       continue;
     const baseValue = result[k];
-    if (isPlainObject2(baseValue) && isPlainObject2(addValue)) {
+    if (isPlainObject3(baseValue) && isPlainObject3(addValue)) {
       result[k] = { ...baseValue, ...addValue };
     } else {
       result[k] = addValue;
@@ -27826,6 +28750,16 @@ ${JSON.stringify(data, null, 2)}` }
     structuredContent: data
   };
 }
+function maskSecrets(preferences) {
+  const webhook = preferences?.digestWebhook;
+  if (!webhook?.url) return preferences;
+  let host = "configured";
+  try {
+    host = new URL(webhook.url).host;
+  } catch {
+  }
+  return { ...preferences, digestWebhook: { format: webhook.format, enabled: webhook.enabled, host } };
+}
 function toolError(error2) {
   return {
     isError: true,
@@ -28419,7 +29353,7 @@ server.registerTool(
     try {
       const preferences = await loadPreferences();
       return toolResult(
-        { ...preferences, dashboardUrl: getReportUrl() },
+        { ...maskSecrets(preferences), dashboardUrl: getReportUrl() },
         "Hrouter Market Pulse \u5F53\u524D\u914D\u7F6E\u3002API Key \u4E0D\u4F1A\u8FD4\u56DE\u3002"
       );
     } catch (error2) {
@@ -28459,7 +29393,7 @@ server.registerTool(
     try {
       const preferences = await savePreferences(input);
       return toolResult(
-        { ...preferences, dashboardUrl: getReportUrl() },
+        { ...maskSecrets(preferences), dashboardUrl: getReportUrl() },
         "\u504F\u597D\u5DF2\u4FDD\u5B58\u3002"
       );
     } catch (error2) {

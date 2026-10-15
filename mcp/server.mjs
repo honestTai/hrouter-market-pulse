@@ -74,6 +74,15 @@ function toolResult(data, summary) {
   };
 }
 
+// Webhook URLs usually embed a bot key (WeChat Work / Feishu); agents only need to know one is set.
+function maskSecrets(preferences) {
+  const webhook = preferences?.digestWebhook;
+  if (!webhook?.url) return preferences;
+  let host = "configured";
+  try { host = new URL(webhook.url).host; } catch { /* keep the placeholder */ }
+  return { ...preferences, digestWebhook: { format: webhook.format, enabled: webhook.enabled, host } };
+}
+
 function toolError(error) {
   return {
     isError: true,
@@ -748,7 +757,7 @@ server.registerTool(
     try {
       const preferences = await loadPreferences();
       return toolResult(
-        { ...preferences, dashboardUrl: getReportUrl() },
+        { ...maskSecrets(preferences), dashboardUrl: getReportUrl() },
         "Hrouter Market Pulse 当前配置。API Key 不会返回。",
       );
     } catch (error) {
@@ -795,7 +804,7 @@ server.registerTool(
     try {
       const preferences = await savePreferences(input);
       return toolResult(
-        { ...preferences, dashboardUrl: getReportUrl() },
+        { ...maskSecrets(preferences), dashboardUrl: getReportUrl() },
         "偏好已保存。",
       );
     } catch (error) {

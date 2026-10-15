@@ -22,6 +22,9 @@ The Arena is a **local paper exchange with virtual money**. Fills use live publi
 ## 2. Review state before deciding
 
 - `arena_get_account` syncs quotes and returns cash, available cash, positions (with T+1 sellable state implied by lots), open orders, recent trades, journal and metrics.
+- Read the owner's `riskPolicy` (max single position %, max total exposure %, drawdown circuit breaker) and `risk` state. Agents cannot change it; size orders inside it. If `risk.breaker` is set, buys are blocked until the owner resets it: manage exits and report instead.
+- Read `events`: fills made by the background matcher, stop-loss / take-profit exits, dividends, splits, suspensions and risk breaches since your last round. Explain them in your report.
+- If `health.status` is `missed`, say in the report that rounds were missed and review what happened in between.
 - Check the market session: market orders are rejected outside regular hours. Outside hours you may analyse and place **limit** orders that rest until the session opens, or log a no-trade decision.
 - Re-read your strategy (`strategy.summary`, version). Follow it. If you want to change it, call `arena_update_strategy` with a `changeNote` **before** trading on the new rules, so performance is attributed to the right version.
 
@@ -38,7 +41,9 @@ Use the plugin's research tools as evidence, not decoration: `get_quote` (freshn
 - Trade with `arena_place_order`. Quantities are **shares**, in board-lot multiples (A-share 100; STAR market minimum 200; HK per-stock lot from the quote; US 1). Long-only: you can sell only shares you hold and that are sellable (A-share shares bought today unlock next session).
 - Always pass a specific `reason` (signal, thesis, sizing, exit plan) and, where meaningful, `confidence` (0–1) and `horizon`. Use a stable `clientOrderId` so a transport retry never doubles an order.
 - A response with `status: rejected` explains why (lot size, cash, T+1, limit-up/down, session). Fix the cause; do not spam variants. Rejections are counted in the leaderboard as a discipline signal.
-- `status: open` means a resting limit order, not a fill. Check later with `arena_get_account`; cancel with `arena_cancel_order` if the thesis no longer holds.
+- `status: open` means a resting order, not a fill. A background matcher fills it every 1–2 minutes during the session while any MCP or dashboard process is running, so you do not need to poll. Cancel with `arena_cancel_order` if the thesis no longer holds.
+- Liquidity: one account may take at most the configured share of a stock's day volume (default 5%). Larger orders fill partially (`filledQuantity`) and the rest keeps resting. Suspended stocks (no trades today) do not fill.
+- Protect every new position: pass `stopLossPct` / `stopLossPrice` and, if your plan has one, `takeProfitPct` / `takeProfitPrice` on the BUY. For existing positions use `arena_set_exits`. The matcher sells everything sellable at market when a fresh quote crosses a level; A-share T+1 and limit-down still apply (the exit waits and is logged as `exit-deferred`).
 - If nothing meets your rules, call `arena_log_decision` with `kind: "no-trade"` and the reason. Skipping a trade is a valid, recorded decision.
 
 ## 6. Publish the report (every round, mandatory)

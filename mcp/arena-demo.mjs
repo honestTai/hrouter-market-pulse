@@ -91,7 +91,8 @@ function seedAccount(agent, index, start) {
     const price = Math.round(base * (0.97 + random() * 0.06) * 100) / 100;
     const quantity = Math.floor(finalEquity * 0.22 / price / lot) * lot;
     const cost = Math.round(quantity * price * (0.93 + random() * 0.1) * 100) / 100;
-    positions[symbol] = { symbol, name, quantity, costBasis: cost, realizedPnl: 0, lots: [{ date: "2026-01-01", quantity }], openedAt: equity[3].at, lastPrice: price, lastPriceAt: equity.at(-1).at };
+    positions[symbol] = { symbol, name, quantity, costBasis: cost, realizedPnl: 0, lots: [{ date: "2026-01-01", quantity }], openedAt: equity[3].at, lastPrice: price, lastPriceAt: equity.at(-1).at,
+      ...(index % 2 === 0 ? { exits: { stopLoss: { pct: 8 }, takeProfit: { pct: 25 } } } : {}) };
     marketValue += quantity * price;
   }
   for (const point of equity) Object.assign(point, { marketValue: Math.round(marketValue * 100) / 100, cash: Math.round((point.equity - marketValue) * 100) / 100 });
@@ -106,6 +107,13 @@ function seedAccount(agent, index, start) {
     benchmark: { symbol: config.benchmark, name: config.benchmarkName, startPrice: 100, startAt: createdAt, lastPrice: agent.market === "A" ? 103.1 : 102.4, lastPriceAt: equity.at(-1).at },
     positions, orders, trades, journal, equity, reports, createdAt,
     watchlist: { symbols: universe.map(([symbol]) => symbol), reason: "demo", updatedAt: equity.at(-1).at }, updatedAt: equity.at(-1).at, createdBy: agent.client,
+    // The event-driven agent "stopped running" three days ago so the missed-run warning is visible.
+    lastRoundAt: agent.client === "workbuddy" ? equity.at(-4).at : reports.at(-1).at, lastRoundKind: "report",
+    riskPolicy: { maxPositionPct: 35, maxExposurePct: 90, maxDrawdownPct: 15, onBreach: "block", reduceToExposurePct: 50 },
+    events: index === 0 ? [
+      { id: "evt_demo0001", at: equity.at(-6).at, type: "dividend", symbol: universe[0][0], amount: 1850, message: `${universe[0][0]} 派息到账 +1850 ${config.currency}` },
+      { id: "evt_demo0002", at: equity.at(-2).at, type: "stop-loss", symbol: universe[2][0], level: 55.1, price: 55.02, message: `止损 ${universe[2][0]}：现价 55.02 跌破 55.1，市价卖出` },
+    ] : [],
   };
 }
 
@@ -117,7 +125,7 @@ export async function createDemoArena() {
   const accounts = AGENTS.map((agent, index) => seedAccount(agent, index, start));
   const prices = new Map(accounts.flatMap((account) => Object.values(account.positions).map((position) => [position.symbol, position])));
   for (const account of accounts) await writeFile(path.join(root, "accounts", `${account.id}.json`), JSON.stringify(account));
-  return createArena({
+  const arena = createArena({
     root,
     // Synthetic quotes: hold the seeded marks so the demo stays stable while it is open.
     quoteProvider: async (symbol) => {
@@ -127,4 +135,6 @@ export async function createDemoArena() {
       return { symbol, name: position?.name ?? symbol, market, price: base, asOf: new Date().toISOString(), provider: "Synthetic demo", lotSize: market === "HK" ? 100 : null, limitUp: null, limitDown: null };
     },
   });
+  await arena.generateDigest({ market: "A", trigger: "demo" });
+  return arena;
 }

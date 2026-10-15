@@ -1,5 +1,5 @@
 import { getPaperService } from "./paper.mjs";
-import { getArena } from "./arena.mjs";
+import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
 import { createDemoArena } from "./arena-demo.mjs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -77,13 +77,20 @@ async function bodyJson(request) {
   return body;
 }
 
-export function startDashboard({ port = getReportPort(), demo = false } = {}) {
+export function startDashboard({ port = getReportPort(), demo = false, matcher: runMatcher = true } = {}) {
   let demoReport = demo ? makeDemoReport() : null;
   let preferences = demo ? structuredClone(demoPreferences) : null;
   let decisions = demo ? structuredClone(demoDecisions) : null;
   let refreshPromise = null;
   const arenaReady = demo ? createDemoArena() : Promise.resolve(getArena());
   const dashboardCaller = { client: "dashboard" };
+  const readPreferences = async () => (demo ? preferences : loadPreferences());
+  // Unattended matching: every dashboard / MCP process runs a matcher; the lease elects one leader.
+  const matcherReady = runMatcher ? arenaReady.then((arena) => createMatcher({
+    arena, getPreferences: readPreferences,
+    onError: (error) => console.error(`Arena matcher: ${error.message}`),
+  }).start()).catch(() => null) : Promise.resolve(null);
+  const matcherStatus = async (arena) => ({ ...(await arena.matcherStatus()), local: (await matcherReady)?.status() ?? null });
   let refreshedAt = 0;
   const server = createServer(async (request, response) => {
     try {
@@ -102,7 +109,13 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
             market: url.searchParams.get("market") || undefined,
             competition: url.searchParams.get("competition") || undefined,
             includeArchived: url.searchParams.get("archived") === "1",
-          })) });
+          })), matcher: await matcherStatus(arena) });
+        }
+        if (url.pathname === "/api/arena/matcher") return respond(response, 200, await matcherStatus(await arenaReady));
+        if (url.pathname === "/api/arena/digests") {
+          const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+          const webhook = (await readPreferences())?.digestWebhook ?? null;
+          return respond(response, 200, { demo, digests: await (await arenaReady).listDigests({ limit }), webhook: webhook ? { format: webhook.format, enabled: webhook.enabled, host: new URL(webhook.url).host } : null });
         }
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {
@@ -204,6 +217,17 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
             return respond(response, 201, await arena.createAccount({ ...body, agentLabel: body.agentLabel || undefined }, dashboardCaller));
           if (url.pathname === "/api/arena/sync")
             return respond(response, 200, await arena.sync(Array.isArray(body.accountIds) ? body.accountIds : undefined, { force: true }));
+          if (url.pathname === "/api/arena/digests") {
+            const market = ["A", "HK", "US"].includes(body.market) ? body.market : null;
+            const prefs = await readPreferences();
+            let digest = await arena.generateDigest({ market, trigger: "manual", language: prefs?.language });
+            if (body.send) {
+              if (demo) return respond(response, 409, { error: "演示模式不推送日报 / Demo mode never posts digests." });
+              if (!prefs?.digestWebhook?.url) return respond(response, 409, { error: "No digest webhook configured in preferences." });
+              digest = await arena.recordDigestDelivery(digest.id, await deliverDigest(digest, { ...prefs.digestWebhook, enabled: true }, { now: arena.now }));
+            }
+            return respond(response, 201, digest);
+          }
           const update = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})(\/delete)?$/);
           if (update) return respond(response, 200, update[2] ? await arena.deleteAccount(update[1]) : await arena.updateAccount(update[1], body));
           return respond(response, 404, { error: "Unknown arena action" });
@@ -233,6 +257,7 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
             "monitorIntervalSeconds",
             "calendarOverrides",
             "managedAccountId",
+            "digestWebhook",
           ];
           const selected = Object.fromEntries(
             fields
@@ -350,6 +375,7 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
       );
     }
   });
+  server.on("close", () => { matcherReady.then((matcher) => matcher?.stop()).catch(() => {}); });
   server.requestTimeout = 30000;
   server.headersTimeout = 10000;
   server.ready = new Promise((resolve, reject) => {

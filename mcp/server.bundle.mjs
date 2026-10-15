@@ -7235,7 +7235,7 @@ function storageDir(home = os7.homedir()) {
 function serviceEnvironment(env = process.env) {
   const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA"];
   const selected = Object.fromEntries(keep.filter((key) => env[key]).map((key) => [key, env[key]]));
-  selected.HROUTER_REPORT_PORT = env.HROUTER_ARENA_PORT || "8787";
+  selected.HROUTER_REPORT_PORT = env.HROUTER_ARENA_PORT || "8780";
   return selected;
 }
 function servicePlan({ platform = process.platform, home = os7.homedir(), node = process.execPath, bundle = bundlePath(), env = serviceEnvironment(), uid = process.getuid?.() } = {}) {
@@ -17487,6 +17487,9 @@ function onPath(name, envPath = process.env.PATH ?? "") {
   for (const dir of envPath.split(path10.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path10.join(dir, candidate))) return path10.join(dir, candidate);
   return null;
 }
+function workbuddyConfigDir(env = process.env) {
+  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path10.join(os6.homedir(), ".workbuddy");
+}
 function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
   if (type === "workbuddy") {
@@ -17521,7 +17524,8 @@ function agentInvocation({ job, account: account2, prompt, nodePath, bundlePath:
       ...runner.maxBudgetUsd && runner.type === "claude" ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : [],
       ...skillText ? ["--append-system-prompt", skillText] : []
     ];
-    return { command: runner.command || defaultCommand(runner.type), args, env, cwd: workDir };
+    const workbuddyEnv = runner.type === "workbuddy" ? { CODEBUDDY_CONFIG_DIR: workbuddyConfigDir(), WORKBUDDY_CONFIG_DIR: workbuddyConfigDir(), CODEBUDDY_FORCE_HEADLESS_BUNDLE: "1" } : {};
+    return { command: runner.command || defaultCommand(runner.type), args, env: { ...env, ...workbuddyEnv }, cwd: workDir };
   }
   if (runner.type === "codex") {
     const toml = (value) => JSON.stringify(value);

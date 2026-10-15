@@ -43,7 +43,7 @@ npm ci && npm run build
 npm run service:install        # 开机自启：盘中撮合、止损止盈、定时调起 Agent 或策略、收盘日报
 ```
 
-然后在 <http://127.0.0.1:8787/?view=arena> 为每个账户设置「自动运行」（Claude Code / Codex / 量化策略，交易日运行时间）和风控即可。详见 [Agent 竞技场](docs/AGENT_ARENA.md) 与 [量化策略与执行接口](docs/STRATEGIES.md)。实盘只预留了"建议单 + 人工确认"接口，不会自动下真实订单。
+然后在 <http://127.0.0.1:8780/?view=arena> 为每个账户设置「自动运行」（Claude Code / Codex / 量化策略，交易日运行时间）和风控即可。详见 [Agent 竞技场](docs/AGENT_ARENA.md) 与 [量化策略与执行接口](docs/STRATEGIES.md)。实盘只预留了"建议单 + 人工确认"接口，不会自动下真实订单。
 
 ## 安装到 Claude Code / WorkBuddy
 

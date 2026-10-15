@@ -1,4 +1,5 @@
 import { getPaperService } from "./paper.mjs";
+import { registerArenaTools } from "./arena-tools.mjs";
 import { acquireRuntimeLease } from "./update-coordination.mjs";
 import { startDashboard } from "./http.mjs";
 import {
@@ -54,6 +55,13 @@ import {
 const server = new McpServer({
   name: "hrouter-market-pulse",
   version: typeof __HROUTER_VERSION__ === "string" ? __HROUTER_VERSION__ : "development",
+}, {
+  instructions: [
+    "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
+    "Agent Arena workflow: arena_my_accounts → (arena_register_account once, with your real model id) → research with get_quote / get_news / run_strategy →",
+    "arena_place_order with a concrete reason, or arena_log_decision kind=no-trade when you decide not to trade → arena_get_account to review fills.",
+    "Arena accounts are virtual money only. Trade only your own account. Never claim paper results are real returns.",
+  ].join(" "),
 });
 
 function toolResult(data, summary) {
@@ -155,6 +163,8 @@ for (const definition of [
     catch (error) { return toolError(error); }
   });
 }
+
+registerArenaTools(server, { toolResult, toolError });
 
 server.registerTool(
   "get_foundation_capabilities",
@@ -707,7 +717,7 @@ server.registerTool(
   {
     title: "Get first-run guide",
     description:
-      "Show first-run setup steps, watchlist status, HRouter website, and Codex scheduled-task templates without exposing credentials.",
+      "Show first-run setup steps, watchlist status, HRouter website, and agent scheduled-task templates (Codex, Claude Code, WorkBuddy) without exposing credentials.",
     inputSchema: {},
   },
   async () => {
@@ -730,7 +740,7 @@ server.registerTool(
   {
     title: "Get plugin preferences",
     description:
-      "Show the saved watchlist, report location, dashboard URL, market-data providers, and current Codex analysis engine.",
+      "Show the saved watchlist, report location, dashboard URL, market-data providers, and current agent analysis engine.",
     inputSchema: {},
   },
   async () => {

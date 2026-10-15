@@ -80,6 +80,14 @@ try {
     "submit_paper_order",
     "cancel_paper_order",
     "refresh_paper_account",
+    "arena_register_account",
+    "arena_my_accounts",
+    "arena_get_account",
+    "arena_place_order",
+    "arena_cancel_order",
+    "arena_log_decision",
+    "arena_update_strategy",
+    "arena_leaderboard",
   ])
     assert.ok(
       tools.some((tool) => tool.name === name),
@@ -136,6 +144,19 @@ try {
   await readFile(`${pluginRoot}/bridges/futu/bridge.py`, "utf8");
   await readFile(`${pluginRoot}/bridges/futu/requirements.txt`, "utf8");
   await readFile(`${pluginRoot}/skills/hrouter-paper-trading/SKILL.md`, "utf8");
+  // One package for every agent host: Codex manifest + Claude/WorkBuddy manifest and portable MCP config.
+  await readFile(`${pluginRoot}/skills/hrouter-agent-arena/SKILL.md`, "utf8");
+  const claudeManifest = JSON.parse(await readFile(`${pluginRoot}/.claude-plugin/plugin.json`, "utf8"));
+  const codexManifest = JSON.parse(await readFile(`${pluginRoot}/.codex-plugin/plugin.json`, "utf8"));
+  assert.equal(claudeManifest.version, codexManifest.version.split("+")[0]);
+  const portableMcp = JSON.parse(await readFile(`${pluginRoot}/.mcp.json`, "utf8"));
+  assert.deepEqual(portableMcp.mcpServers.hrouter_market_pulse.args, ["${CLAUDE_PLUGIN_ROOT}/mcp/server.bundle.mjs", "--stdio"]);
+  const codexMcp = JSON.parse(await readFile(`${pluginRoot}/${codexManifest.mcpServers}`, "utf8"));
+  assert.equal(codexMcp.mcpServers.hrouter_market_pulse.cwd, ".");
+  const marketplace = JSON.parse(await readFile(".claude-plugin/marketplace.json", "utf8"));
+  assert.equal(marketplace.plugins[0].version, claudeManifest.version);
+  const arenaList = await client.callTool({ name: "arena_leaderboard", arguments: {} });
+  assert.ok(Array.isArray(arenaList.structuredContent.groups));
   const result = await client.callTool({
     name: "calculate_position_budget",
     arguments: {
@@ -186,6 +207,7 @@ try {
       checks: [
         "MCP initialization",
         "paper MCP tools, disabled execution, optional bridge and skill",
+        "agent arena tools, skill and Codex / Claude Code / WorkBuddy manifests",
         "tool registration",
         "risk calculation",
         "financial evidence comparison",

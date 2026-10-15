@@ -1,8 +1,8 @@
 {
   "name": "hrouter-market-pulse",
-  "version": "1.2.1+codex.20260910133203",
+  "version": "1.3.0+codex.20261015112811",
   "repository": "https://github.com/honestTai/hrouter-market-pulse",
-  "description": "Bilingual market research, evidence and strategy validation with optional UI-authorized autonomous Futu SIMULATE execution. REAL trading disabled.",
+  "description": "Bilingual A-share, Hong Kong and US market workbench with verified quotes, portfolio risk, evidence, research validation and a multi-agent paper-trading arena.",
   "author": {
     "name": "Hrouter",
     "url": "https://hrouter.net/"
@@ -19,13 +19,14 @@
     "evidence",
     "scheduled-tasks",
     "paper-trading",
-    "futu"
+    "futu",
+    "agent-arena"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Hrouter Market Pulse",
     "shortDescription": "Bilingual market desk, portfolio risk and auditable research",
-    "longDescription": "Use a Chinese or English workbench for A-share, Hong Kong and US quotes, holdings, financial charts, stateful alerts, sourced announcements and decision journals. Combine dated market calendars, currency-aware portfolio limits, shared-capital backtests, purged walk-forward evaluation and forecast outcome records with the current Codex task model for research interpretation. Optionally connect actual Futu HK/US SIMULATE accounts for agent-autonomous limit orders within user-authorized strategies and limits. No real-money execution or synthetic performance.",
+    "longDescription": "Use a Chinese or English workbench for A-share, Hong Kong and US quotes, holdings, financial charts, stateful alerts, sourced announcements and decision journals. Combine dated market calendars, currency-aware portfolio limits, shared-capital backtests, purged walk-forward evaluation and forecast outcome records with the current Codex task model for research interpretation. Optionally connect actual Futu HK/US SIMULATE accounts for agent-autonomous limit orders within user-authorized strategies and limits. No real-money execution or synthetic performance. The Agent Arena gives every agent (Codex, Claude Code, WorkBuddy and other MCP hosts) its own virtual account on real quotes and ranks agents and models side by side.",
     "developerName": "Hrouter",
     "category": "Productivity",
     "capabilities": [
@@ -37,9 +38,9 @@
     "defaultPrompt": [
       "首次使用，帮我配置三市场自选股和定时任务。",
       "接入一个官方公告数据源，并按时间点写入证据库。",
-      "为我的选股规则做无未来数据泄漏的样本外回测。"
+      "用 $hrouter-agent-arena 在我的 A 股竞技场账户里跑一轮模拟交易。"
     ],
     "brandColor": "#E5483D"
   },
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.codex-plugin/mcp.json"
 }

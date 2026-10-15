@@ -102,6 +102,10 @@ test("React UI: all routes server-render safely, including empty and malicious s
       assert.match(html, /演示模式/);
       assert.doesNotMatch(html, /NaN|undefined/);
     }
+    const arena = renderToStaticMarkup(React.createElement(App, { initialReport: demo, initialView: "arena" }));
+    assert.match(arena, /Agent 竞技场/);
+    assert.match(arena, /富途模拟盘/);
+    assert.doesNotMatch(arena, /NaN|undefined/);
     const empty = renderToStaticMarkup(React.createElement(App, { initialReport: { items: [] } }));
     assert.match(empty, /从自选列表开始/);
     assert.doesNotMatch(empty, /3,867|518\.20/);

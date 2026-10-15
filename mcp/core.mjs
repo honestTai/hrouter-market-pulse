@@ -481,6 +481,10 @@ export function parseTencentQuote(payload, input) {
     alerts: [],
     period: "snapshot",
     history: [],
+    // Exchange microstructure published by Tencent: HK board lot (field 60) and A-share daily price limits (47/48).
+    lotSize: market === "HK" && Number.isInteger(finite(fields[60])) && finite(fields[60]) > 0 ? finite(fields[60]) : null,
+    limitUp: market === "A" && finite(fields[47]) > 0 ? finite(fields[47]) : null,
+    limitDown: market === "A" && finite(fields[48]) > 0 ? finite(fields[48]) : null,
   };
 }
 
@@ -497,6 +501,36 @@ async function getTencentQuote(input, timeoutMs = 15000) {
     if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
     const payload = new TextDecoder("gb18030").decode(await response.arrayBuffer());
     return parseTencentQuote(payload, symbol);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Fast execution quote for paper fills: one realtime Tencent snapshot (HK uses the realtime `r_` feed),
+ * falling back to a Yahoo daily snapshot. No history or indicators are fetched.
+ */
+export async function getTradeQuote(input, options = {}) {
+  const symbol = normalizeSymbol(input);
+  const timeoutMs = options.timeoutMs ?? 8000;
+  const code = tencentCodeForSymbol(symbol);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${TENCENT_QUOTE}=${encodeURIComponent(code.startsWith("hk") ? `r_${code}` : code)}`, {
+      headers: { "User-Agent": BROWSER_USER_AGENT },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    const quote = parseTencentQuote(new TextDecoder("gb18030").decode(await response.arrayBuffer()), symbol);
+    return { ...quote, freshness: assessQuoteFreshness(quote, { maxAgeSeconds: options.maxAgeSeconds ?? 300 }) };
+  } catch (tencentError) {
+    try {
+      const quote = await getYahooQuote(symbol, { interval: "1d", range: "5d", timeoutMs });
+      return { ...quote, history: [], freshness: assessQuoteFreshness(quote, { maxAgeSeconds: options.maxAgeSeconds ?? 300 }) };
+    } catch (yahooError) {
+      throw new Error(`${symbol} 行情不可用 / quote unavailable: Tencent ${tencentError.message}; Yahoo ${yahooError.message}`);
+    }
   } finally {
     clearTimeout(timer);
   }
@@ -913,7 +947,10 @@ export async function getMarketSnapshot(market = "all") {
 
 export function getStorageDir() {
   if (process.env.HROUTER_REPORT_DIR) return path.resolve(process.env.HROUTER_REPORT_DIR);
-  const root = process.env.LOCALAPPDATA || path.join(os.homedir(), ".hrouter-market-pulse");
+  // Every agent host must resolve the same directory, or each would see a separate arena.
+  // Some hosts do not forward LOCALAPPDATA to MCP servers, so derive the Windows default from the profile.
+  const root = process.env.LOCALAPPDATA
+    || (process.platform === "win32" ? path.join(os.homedir(), "AppData", "Local") : path.join(os.homedir(), ".hrouter-market-pulse"));
   return path.join(root, "HrouterMarketPulse");
 }
 
@@ -950,7 +987,7 @@ export async function loadPreferences() {
       completed: watchlist.length > 0,
       needsWatchlist: watchlist.length === 0,
     },
-    analysisEngine: "Current Codex task model",
+    analysisEngine: "Current agent task model (Codex, Claude Code, WorkBuddy or other MCP host)",
   };
 }
 
@@ -983,8 +1020,15 @@ export async function getOnboardingGuide() {
         id: "automation",
         required: false,
         completed: false,
-        title: "启用 Codex 定时任务",
+        title: "启用 Agent 定时任务（Codex 自动化 / Claude Code 定时任务 / WorkBuddy 自动化）",
         prompt: "为我的自选股配置盘前、盘中和盘后定时任务。",
+      },
+      {
+        id: "agent_arena",
+        required: false,
+        completed: false,
+        title: "可选：Agent 模拟盘竞技场",
+        prompt: "使用 hrouter-agent-arena 技能：先调用 arena_my_accounts，没有账户就用你真实的模型名注册一个 A 股账户，然后按你的策略完成一轮交易决策。",
       },
       {
         id: "paper_trading",
@@ -1028,7 +1072,8 @@ export async function getOnboardingGuide() {
       },
     ],
     notes: [
-      "Codex 桌面端需要保持运行，涉及本地文件的定时任务还需要电脑保持开机。",
+      "Agent 客户端（Codex / Claude Code / WorkBuddy）需要保持运行，涉及本地文件的定时任务还需要电脑保持开机。",
+      "技能名前缀因客户端而异：Codex 用 $skill，Claude Code 用 /hrouter-market-pulse:skill，WorkBuddy 直接写技能名。",
       "启用高频盘中任务前，应先手动测试一次并确认自选股、时区和通知条件。",
       "美国市场应依据市场状态处理夏令时，不固定写死北京时间开盘时刻。",
     ],

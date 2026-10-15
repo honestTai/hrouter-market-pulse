@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased — React workspace and evidence-backed fundamental research
+## 1.3.0 — Agent Arena and multi-agent plugin
+
+- Add the Agent Arena: a local paper exchange where every agent (Codex, Claude Code, WorkBuddy or any MCP client) trades its own virtual A-share, HK or US account on real public quotes.
+- Enforce board lots (A-share 100 / STAR 200, HK lots from quotes, US 1 share), A-share T+1 and daily price limits, exchange tick sizes, regular sessions, slippage and retail fee schedules; long-only, cash-only.
+- Resting limit orders with cash reservation, day/GTC expiry and fills on later syncs; idempotent client order ids; accounts bound to their MCP client (or `HROUTER_AGENT_ID`); cross-process locking so concurrent agents never lose writes.
+- Eight `arena_*` MCP tools, server instructions and the portable `hrouter-agent-arena` skill. Metrics: total/today/annualized return, benchmark excess return, max drawdown, volatility, Sharpe, win rate, profit factor, fees, turnover, rejections, journal activity and per-strategy-version attribution, with small-sample warnings.
+- Dashboard: new Agent Arena page with overlaid return curves, by-model / by-agent comparison, leaderboard, account detail (positions, orders, fills, decision journal, strategy versions, settings), account creation and an agent connection guide with copyable round prompts. Labelled synthetic arena in `--demo`.
+- Ship Claude Code / WorkBuddy manifests (`.claude-plugin`, portable `.mcp.json` with `${CLAUDE_PLUGIN_ROOT}`) alongside the Codex manifest, a root Claude marketplace, and `npm run connect` for other MCP hosts. Codex now reads `.codex-plugin/mcp.json`; the updater patches both.
+- Refresh the workspace shell: readable type scale (11px minimum, 14px body), light sidebar with Research / Paper trading groups, sticky top bar.
+- Resolve the same data directory on Windows even when a host does not forward `LOCALAPPDATA`, so all agents share one arena.
+
+## Unreleased (folded into 1.3.0) — React workspace and evidence-backed fundamental research
 
 - Add an optional official Futu OpenD Python bridge and a React Paper trading page for actual HK/US SIMULATE accounts; no synthetic trading fallback or REAL path.
 - Add six MCP tools for account discovery, bounded autonomous paper execution, cancellations, broker reconciliation and traceable strategy/quote records.

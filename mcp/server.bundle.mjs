@@ -3257,8 +3257,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path7) {
-      let input = path7;
+    function removeDotSegments(path9) {
+      let input = path9;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3667,8 +3667,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path7 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path7 && path7 !== "/" ? path7 : void 0;
+        const path9 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path9 && path9 !== "/" ? path9 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -7244,34 +7244,34 @@ var CALENDARS_2026 = {
 };
 function getInstrumentRules(input, { asOf = (/* @__PURE__ */ new Date()).toISOString() } = {}) {
   const symbol = String(input).toUpperCase();
-  const market = /\.(SS|SZ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) || ["^HSI", "^HSTECH", "^HSCE"].includes(symbol) ? "HK" : "US";
+  const market2 = /\.(SS|SZ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) || ["^HSI", "^HSTECH", "^HSCE"].includes(symbol) ? "HK" : "US";
   const index = symbol.startsWith("^") || ["000001.SS", "399001.SZ", "399006.SZ"].includes(symbol);
-  const fund = market === "A" && /^[15]\d{5}\./.test(symbol);
-  const ordinary = market === "A" && !index && !fund && /^(60|68|00|30)\d{4}\./.test(symbol);
+  const fund = market2 === "A" && /^[15]\d{5}\./.test(symbol);
+  const ordinary = market2 === "A" && !index && !fund && /^(60|68|00|30)\d{4}\./.test(symbol);
   const board = ordinary ? symbol.startsWith("68") ? "STAR" : symbol.startsWith("30") ? "ChiNext" : "main" : null;
   return {
     symbol,
-    market,
+    market: market2,
     asOf,
-    currency: market === "A" && symbol.startsWith("900") ? "USD" : market === "A" && symbol.startsWith("200") ? "HKD" : MARKETS[market].currency,
-    instrumentType: index ? "index" : fund ? "fund-unclassified" : ordinary || market !== "A" ? "equity" : "unclassified",
+    currency: market2 === "A" && symbol.startsWith("900") ? "USD" : market2 === "A" && symbol.startsWith("200") ? "HKD" : MARKETS[market2].currency,
+    instrumentType: index ? "index" : fund ? "fund-unclassified" : ordinary || market2 !== "A" ? "equity" : "unclassified",
     board,
-    minimumHoldingSessions: ordinary ? 1 : market === "A" && !index ? null : 0,
-    lotSize: ordinary && board !== "STAR" ? 100 : market === "US" && !index ? 1 : null,
+    minimumHoldingSessions: ordinary ? 1 : market2 === "A" && !index ? null : 0,
+    lotSize: ordinary && board !== "STAR" ? 100 : market2 === "US" && !index ? 1 : null,
     minimumOrderUnits: ordinary ? board === "STAR" ? 200 : 100 : null,
     orderIncrement: ordinary ? board === "STAR" ? 1 : 100 : null,
     priceLimitPct: ordinary ? board === "main" || board === "ChiNext" && String(asOf).slice(0, 10) < "2020-08-24" ? 10 : 20 : null,
-    priceLimitRequiresVerification: market === "A",
-    calendar: { timezone: MARKETS[market].timezone, coverage: String(asOf).startsWith("2026-") ? "official-2026" : "weekday-only", holidayCoverage: String(asOf).startsWith("2026-"), ...CALENDARS_2026[market] },
+    priceLimitRequiresVerification: market2 === "A",
+    calendar: { timezone: MARKETS[market2].timezone, coverage: String(asOf).startsWith("2026-") ? "official-2026" : "weekday-only", holidayCoverage: String(asOf).startsWith("2026-"), ...CALENDARS_2026[market2] },
     limitations: ["Board defaults require dated verification for ST, IPO, delisting, funds and exceptional sessions.", "Holiday and half-day schedules must be supplied with dated calendar evidence."]
   };
 }
-function localMarketTime(value, market) {
+function localMarketTime(value, market2) {
   if (value === null || value === void 0 || value === "") return null;
   const date3 = new Date(value);
   if (!Number.isFinite(date3.getTime())) return null;
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
-    timeZone: MARKETS[market]?.timezone ?? MARKETS.US.timezone,
+    timeZone: MARKETS[market2]?.timezone ?? MARKETS.US.timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -7283,43 +7283,43 @@ function localMarketTime(value, market) {
   }).formatToParts(date3).map((part) => [part.type, part.value]));
   return { date: `${parts.year}-${parts.month}-${parts.day}`, minute: Number(parts.hour) * 60 + Number(parts.minute), second: Number(parts.second), weekday: parts.weekday };
 }
-function marketLocalToIso(date3, minute, market) {
+function marketLocalToIso(date3, minute, market2) {
   const [year, month, day] = date3.split("-").map(Number);
   const target = Date.UTC(year, month - 1, day, Math.floor(minute / 60), minute % 60);
   let instant = target;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const local = localMarketTime(instant, market);
+    const local = localMarketTime(instant, market2);
     const [y, m, d] = local.date.split("-").map(Number);
     instant += target - Date.UTC(y, m - 1, d, Math.floor(local.minute / 60), local.minute % 60, local.second);
   }
   return new Date(instant).toISOString();
 }
-function calendarFor(market, overrides) {
-  if (overrides?.[market]) return overrides[market];
+function calendarFor(market2, overrides) {
+  if (overrides?.[market2]) return overrides[market2];
   if (overrides?.coverageStart || overrides?.closedDates || overrides?.sessions) return overrides;
-  return CALENDARS_2026[market] ?? {};
+  return CALENDARS_2026[market2] ?? {};
 }
-function getMarketSession(market, value = (/* @__PURE__ */ new Date()).toISOString(), calendarOverrides = {}) {
-  const local = localMarketTime(value, market);
+function getMarketSession(market2, value = (/* @__PURE__ */ new Date()).toISOString(), calendarOverrides = {}) {
+  const local = localMarketTime(value, market2);
   if (!local) return { status: "unknown", calendarCoverage: "unknown", verified: false };
-  const calendar = calendarFor(market, calendarOverrides);
+  const calendar = calendarFor(market2, calendarOverrides);
   const datedCoverage = calendar.source && calendar.verifiedAt && calendar.coverageStart <= local.date && calendar.coverageEnd >= local.date && Number.isFinite(Date.parse(calendar.verifiedAt)) && Date.parse(calendar.verifiedAt) <= Date.parse(value);
   const override = calendar.sessions?.[local.date];
   const verified = Boolean(datedCoverage);
   const closed = calendar.closedDates?.includes(local.date) || override?.closed === true || !calendar.openDates?.includes(local.date) && ["Sat", "Sun"].includes(local.weekday);
-  const sessions = override?.sessions ?? MARKETS[market]?.sessions ?? MARKETS.US.sessions;
+  const sessions = override?.sessions ?? MARKETS[market2]?.sessions ?? MARKETS.US.sessions;
   const [open2, close] = [sessions[0][0], sessions.at(-1)[1]];
   const status = closed ? "closed" : local.minute < open2 ? "premarket" : local.minute >= close ? "postmarket" : sessions.some(([start, end]) => local.minute >= start && local.minute < end) ? "open" : "break";
   return {
     ...local,
-    market,
+    market: market2,
     status,
     sessions,
     verified,
-    calendarCoverage: verified ? calendar === CALENDARS_2026[market] ? "official-2026" : "dated-override" : "weekday-only",
+    calendarCoverage: verified ? calendar === CALENDARS_2026[market2] ? "official-2026" : "dated-override" : "weekday-only",
     source: verified ? calendar.source : null,
-    openAt: marketLocalToIso(local.date, open2, market),
-    closeAt: marketLocalToIso(local.date, close, market)
+    openAt: marketLocalToIso(local.date, open2, market2),
+    closeAt: marketLocalToIso(local.date, close, market2)
   };
 }
 function assessQuoteFreshness(quote, { now = (/* @__PURE__ */ new Date()).toISOString(), maxAgeSeconds = 1200, maxFutureSeconds = 30, calendarOverrides = {} } = {}) {
@@ -7349,8 +7349,8 @@ function assessQuoteFreshness(quote, { now = (/* @__PURE__ */ new Date()).toISOS
   if (localMarketTime(quote.asOf, quote.market)?.date !== session.date) return { ...base, status: "stale", reason: "Quote belongs to another local session." };
   return { ...base, status: "fresh", signalEligible: true, reason: null };
 }
-function dailyBarMetadata(timestamp, market, { now = (/* @__PURE__ */ new Date()).toISOString(), calendarOverrides = {} } = {}) {
-  const session = getMarketSession(market, timestamp, calendarOverrides);
+function dailyBarMetadata(timestamp, market2, { now = (/* @__PURE__ */ new Date()).toISOString(), calendarOverrides = {} } = {}) {
+  const session = getMarketSession(market2, timestamp, calendarOverrides);
   const close = Date.parse(session.closeAt);
   return {
     sessionDate: session.date,
@@ -7361,20 +7361,20 @@ function dailyBarMetadata(timestamp, market, { now = (/* @__PURE__ */ new Date()
     calendarCoverage: session.calendarCoverage
   };
 }
-function sameTimeVolumeRatio(history, market, { now = (/* @__PURE__ */ new Date()).toISOString(), intervalMinutes = 5, minSessions = 5 } = {}) {
-  const current = localMarketTime(now, market);
+function sameTimeVolumeRatio(history, market2, { now = (/* @__PURE__ */ new Date()).toISOString(), intervalMinutes = 5, minSessions = 5 } = {}) {
+  const current = localMarketTime(now, market2);
   if (!current) return { status: "unavailable", value: null, reason: "Invalid clock.", period: `${intervalMinutes}m` };
   const groups = /* @__PURE__ */ new Map();
   for (const row of history ?? []) {
-    const local = localMarketTime(row.timestamp, market);
+    const local = localMarketTime(row.timestamp, market2);
     if (!local || local.date > current.date || local.minute + intervalMinutes > current.minute || !Number.isFinite(row.volume) || row.volume < 0) continue;
-    const sessions = MARKETS[market]?.sessions ?? MARKETS.US.sessions;
+    const sessions = MARKETS[market2]?.sessions ?? MARKETS.US.sessions;
     if (!sessions.some(([start, end]) => local.minute >= start && local.minute < end)) continue;
     if (!groups.has(local.date)) groups.set(local.date, /* @__PURE__ */ new Map());
     groups.get(local.date).set(local.minute, row.volume);
   }
   const today = groups.get(current.date);
-  const expected = (MARKETS[market]?.sessions ?? MARKETS.US.sessions).flatMap(([start, end]) => Array.from({ length: Math.max(0, Math.floor((Math.min(end, current.minute) - start) / intervalMinutes)) }, (_, index) => start + index * intervalMinutes));
+  const expected = (MARKETS[market2]?.sessions ?? MARKETS.US.sessions).flatMap(([start, end]) => Array.from({ length: Math.max(0, Math.floor((Math.min(end, current.minute) - start) / intervalMinutes)) }, (_, index) => start + index * intervalMinutes));
   const unavailable = (reason, count = 0) => ({ status: "unavailable", value: null, reason, period: `${intervalMinutes}m`, samples: count, cutoffMinute: current.minute });
   if (!expected.length || !today || expected.some((minute) => !today.has(minute))) return unavailable("Current-session intraday bars are incomplete.");
   const comparable = [...groups].filter(([date3, rows]) => date3 < current.date && expected.every((minute) => rows.has(minute))).slice(-20);
@@ -7718,7 +7718,7 @@ async function getYahooQuote(input, options = {}) {
 }
 function parseYahooChart(input, payload, options = {}) {
   const symbol = normalizeSymbol(input);
-  const market = marketFromSymbol(symbol);
+  const market2 = marketFromSymbol(symbol);
   const interval = options.interval ?? "1d";
   const result = payload?.chart?.result?.[0];
   if (!result) throw new Error(payload?.chart?.error?.description ?? `\u672A\u53D6\u5F97 ${symbol} \u884C\u60C5`);
@@ -7732,7 +7732,7 @@ function parseYahooChart(input, payload, options = {}) {
     close: finite(quote.close?.[index]),
     volume: finite(quote.volume?.[index]),
     adjustedClose: finite(result.indicators?.adjclose?.[0]?.adjclose?.[index]),
-    ...interval === "1d" ? dailyBarMetadata(new Date(timestamp * 1e3).toISOString(), market, options) : {}
+    ...interval === "1d" ? dailyBarMetadata(new Date(timestamp * 1e3).toISOString(), market2, options) : {}
   }));
   const invalidPriceRows = rawRows.filter((row) => row.close === null || row.close <= 0).length;
   const rows = rawRows.map((row) => ({
@@ -7745,7 +7745,7 @@ function parseYahooChart(input, payload, options = {}) {
   const currentPrice = finite(meta.regularMarketPrice) ?? lastFinite(closes);
   if (!(currentPrice > 0)) throw new Error(`Yahoo returned an invalid price for ${symbol}`);
   const latestTimestamp = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1e3).toISOString() : null;
-  const quoteDate = latestTimestamp ? localMarketTime(latestTimestamp, market)?.date : null;
+  const quoteDate = latestTimestamp ? localMarketTime(latestTimestamp, market2)?.date : null;
   const priorDailyClose = interval === "1d" && quoteDate ? rows.filter((row) => row.sessionDate < quoteDate).at(-1)?.close : null;
   const reportedChange = finite(meta.regularMarketChange);
   const previousClose = reportedChange !== null && currentPrice !== null ? currentPrice - reportedChange : finite(meta.previousClose) ?? priorDailyClose ?? null;
@@ -7773,8 +7773,8 @@ function parseYahooChart(input, payload, options = {}) {
     qualityWarnings.push("\u5F53\u524D\u6210\u4EA4\u91CF\u4E0E\u5386\u53F2\u53E3\u5F84\u5DEE\u5F02\u8FC7\u5927\uFF0C\u91CF\u6BD4\u5DF2\u505C\u7528");
   }
   const corporateActions = [
-    ...Object.values(result.events?.splits ?? {}).map((event) => ({ type: "split", effectiveAt: new Date(event.date * 1e3).toISOString(), date: localMarketTime(event.date * 1e3, market)?.date, ratio: event.numerator / event.denominator })),
-    ...Object.values(result.events?.dividends ?? {}).map((event) => ({ type: "dividend", effectiveAt: new Date(event.date * 1e3).toISOString(), date: localMarketTime(event.date * 1e3, market)?.date, cashPerShare: event.amount, currency: meta.currency ?? null }))
+    ...Object.values(result.events?.splits ?? {}).map((event) => ({ type: "split", effectiveAt: new Date(event.date * 1e3).toISOString(), date: localMarketTime(event.date * 1e3, market2)?.date, ratio: event.numerator / event.denominator })),
+    ...Object.values(result.events?.dividends ?? {}).map((event) => ({ type: "dividend", effectiveAt: new Date(event.date * 1e3).toISOString(), date: localMarketTime(event.date * 1e3, market2)?.date, cashPerShare: event.amount, currency: meta.currency ?? null }))
   ];
   if (corporateActions.some((event) => event.type === "split" && event.date >= completedRows.at(-21)?.sessionDate)) {
     indicators.volumeRatio20d = null;
@@ -7783,7 +7783,7 @@ function parseYahooChart(input, payload, options = {}) {
   return {
     input: String(input),
     symbol,
-    market,
+    market: market2,
     name,
     currency: meta.currency ?? null,
     exchange: meta.exchangeName ?? meta.fullExchangeName ?? null,
@@ -7866,7 +7866,7 @@ function zonedLocalToIso(parts, timeZone) {
   }
   return new Date(instant).toISOString();
 }
-function parseTencentTimestamp(value, market) {
+function parseTencentTimestamp(value, market2) {
   const digits = String(value ?? "").match(/^(\d{4})[/-]?(\d{2})[/-]?(\d{2})[ T]?(\d{2}):?(\d{2}):?(\d{2})$/);
   if (!digits) return null;
   const [, year, month, day, hour, minute, second] = digits;
@@ -7877,7 +7877,7 @@ function parseTencentTimestamp(value, market) {
     hour: Number(hour),
     minute: Number(minute),
     second: Number(second)
-  }, market === "US" ? "America/New_York" : "Asia/Shanghai");
+  }, market2 === "US" ? "America/New_York" : "Asia/Shanghai");
 }
 function emptyIndicators() {
   return {
@@ -7897,7 +7897,7 @@ function emptyIndicators() {
 }
 function parseTencentQuote(payload, input) {
   const symbol = normalizeSymbol(input);
-  const market = marketFromSymbol(symbol);
+  const market2 = marketFromSymbol(symbol);
   const match = String(payload).match(/^[^=]+="([\s\S]*)";?\s*$/);
   if (!match?.[1]) throw new Error(`\u817E\u8BAF\u8D22\u7ECF\u672A\u53D6\u5F97 ${symbol} \u884C\u60C5`);
   const fields = match[1].split("~");
@@ -7908,13 +7908,13 @@ function parseTencentQuote(payload, input) {
   const changePct = finite(fields[32]) ?? (change !== null && previousClose ? change / previousClose * 100 : null);
   const alerts = [];
   if (Math.abs(changePct ?? 0) >= 3) alerts.push(`\u65E5\u5185\u6DA8\u8DCC\u5E45 ${round(changePct)}%`);
-  const exchangeTimezone = market === "US" ? "America/New_York" : market === "HK" ? "Asia/Hong_Kong" : "Asia/Shanghai";
+  const exchangeTimezone = market2 === "US" ? "America/New_York" : market2 === "HK" ? "Asia/Hong_Kong" : "Asia/Shanghai";
   return {
     input: String(input),
     symbol,
-    market,
+    market: market2,
     name: INDEX_NAMES[symbol] ?? fields[1] ?? symbol,
-    currency: market === "US" ? "USD" : market === "HK" ? "HKD" : "CNY",
+    currency: market2 === "US" ? "USD" : market2 === "HK" ? "HKD" : "CNY",
     exchange: "Tencent Finance",
     exchangeTimezone,
     marketState: null,
@@ -7925,7 +7925,7 @@ function parseTencentQuote(payload, input) {
     dayHigh: finite(fields[33]),
     dayLow: finite(fields[34]),
     volume: finite(fields[6]),
-    asOf: parseTencentTimestamp(fields[30], market),
+    asOf: parseTencentTimestamp(fields[30], market2),
     source: "Tencent Finance quote API",
     provider: "Tencent Finance",
     providerSymbol: fields[2] || null,
@@ -7937,7 +7937,11 @@ function parseTencentQuote(payload, input) {
     indicators: emptyIndicators(),
     alerts: [],
     period: "snapshot",
-    history: []
+    history: [],
+    // Exchange microstructure published by Tencent: HK board lot (field 60) and A-share daily price limits (47/48).
+    lotSize: market2 === "HK" && Number.isInteger(finite(fields[60])) && finite(fields[60]) > 0 ? finite(fields[60]) : null,
+    limitUp: market2 === "A" && finite(fields[47]) > 0 ? finite(fields[47]) : null,
+    limitDown: market2 === "A" && finite(fields[48]) > 0 ? finite(fields[48]) : null
   };
 }
 async function getTencentQuote(input, timeoutMs = 15e3) {
@@ -7957,8 +7961,33 @@ async function getTencentQuote(input, timeoutMs = 15e3) {
     clearTimeout(timer);
   }
 }
+async function getTradeQuote(input, options = {}) {
+  const symbol = normalizeSymbol(input);
+  const timeoutMs = options.timeoutMs ?? 8e3;
+  const code = tencentCodeForSymbol(symbol);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${TENCENT_QUOTE}=${encodeURIComponent(code.startsWith("hk") ? `r_${code}` : code)}`, {
+      headers: { "User-Agent": BROWSER_USER_AGENT },
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    const quote = parseTencentQuote(new TextDecoder("gb18030").decode(await response.arrayBuffer()), symbol);
+    return { ...quote, freshness: assessQuoteFreshness(quote, { maxAgeSeconds: options.maxAgeSeconds ?? 300 }) };
+  } catch (tencentError) {
+    try {
+      const quote = await getYahooQuote(symbol, { interval: "1d", range: "5d", timeoutMs });
+      return { ...quote, history: [], freshness: assessQuoteFreshness(quote, { maxAgeSeconds: options.maxAgeSeconds ?? 300 }) };
+    } catch (yahooError) {
+      throw new Error(`${symbol} \u884C\u60C5\u4E0D\u53EF\u7528 / quote unavailable: Tencent ${tencentError.message}; Yahoo ${yahooError.message}`);
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function parseTencentHistory(input, rawPayload, adjustedPayload, options = {}) {
-  const symbol = normalizeSymbol(input), market = marketFromSymbol(symbol);
+  const symbol = normalizeSymbol(input), market2 = marketFromSymbol(symbol);
   const code = options.tencentCode ?? tencentCodeForSymbol(symbol);
   const raw = rawPayload?.data?.[code]?.day;
   const adjusted = adjustedPayload?.data?.[code]?.qfqday;
@@ -7973,8 +8002,8 @@ function parseTencentHistory(input, rawPayload, adjustedPayload, options = {}) {
     previousDate = date3;
     const adjustedClose = adjusted ? finite(adjustedByDate.get(date3)?.[2]) : null;
     if (adjusted && !(adjustedClose > 0)) throw new Error(`Tencent adjustment missing at ${date3}`);
-    const timestamp = marketLocalToIso(date3, 12 * 60, market);
-    return { timestamp, open: open2, close, high, low, volume, adjustedClose, adjustmentFactor: adjustedClose === null ? null : adjustedClose / close, ...dailyBarMetadata(timestamp, market, options) };
+    const timestamp = marketLocalToIso(date3, 12 * 60, market2);
+    return { timestamp, open: open2, close, high, low, volume, adjustedClose, adjustmentFactor: adjustedClose === null ? null : adjustedClose / close, ...dailyBarMetadata(timestamp, market2, options) };
   });
   const completed = history.filter((row) => row.complete);
   const anchor = history.at(-1).adjustmentFactor ?? 1;
@@ -7988,9 +8017,9 @@ function parseTencentHistory(input, rawPayload, adjustedPayload, options = {}) {
   const latest = history.at(-1), previous = history.at(-2);
   return {
     symbol,
-    market,
+    market: market2,
     name: symbol,
-    currency: market === "A" ? "CNY" : market === "HK" ? "HKD" : "USD",
+    currency: market2 === "A" ? "CNY" : market2 === "HK" ? "HKD" : "USD",
     provider: "Tencent Finance",
     source: "Tencent Finance daily kline API",
     period: "1d",
@@ -8333,11 +8362,11 @@ async function getNews(query, count = 5) {
     url: item.link ?? null
   }));
 }
-async function getMarketSnapshot(market = "all") {
-  const requested = String(market).toUpperCase();
+async function getMarketSnapshot(market2 = "all") {
+  const requested = String(market2).toUpperCase();
   const groups = requested === "ALL" ? Object.keys(MARKET_INDICES) : [requested];
   const invalid = groups.find((group) => !MARKET_INDICES[group]);
-  if (invalid) throw new Error(`\u4E0D\u652F\u6301\u7684\u5E02\u573A: ${market}`);
+  if (invalid) throw new Error(`\u4E0D\u652F\u6301\u7684\u5E02\u573A: ${market2}`);
   const result = {};
   for (const group of groups) {
     result[group] = await Promise.all(MARKET_INDICES[group].map(async (symbol) => {
@@ -8356,7 +8385,7 @@ async function getMarketSnapshot(market = "all") {
 }
 function getStorageDir() {
   if (process.env.HROUTER_REPORT_DIR) return path2.resolve(process.env.HROUTER_REPORT_DIR);
-  const root = process.env.LOCALAPPDATA || path2.join(os.homedir(), ".hrouter-market-pulse");
+  const root = process.env.LOCALAPPDATA || (process.platform === "win32" ? path2.join(os.homedir(), "AppData", "Local") : path2.join(os.homedir(), ".hrouter-market-pulse"));
   return path2.join(root, "HrouterMarketPulse");
 }
 function preferencesPath() {
@@ -8388,7 +8417,7 @@ async function loadPreferences() {
       completed: watchlist.length > 0,
       needsWatchlist: watchlist.length === 0
     },
-    analysisEngine: "Current Codex task model"
+    analysisEngine: "Current agent task model (Codex, Claude Code, WorkBuddy or other MCP host)"
   };
 }
 async function getOnboardingGuide() {
@@ -8420,8 +8449,15 @@ async function getOnboardingGuide() {
         id: "automation",
         required: false,
         completed: false,
-        title: "\u542F\u7528 Codex \u5B9A\u65F6\u4EFB\u52A1",
+        title: "\u542F\u7528 Agent \u5B9A\u65F6\u4EFB\u52A1\uFF08Codex \u81EA\u52A8\u5316 / Claude Code \u5B9A\u65F6\u4EFB\u52A1 / WorkBuddy \u81EA\u52A8\u5316\uFF09",
         prompt: "\u4E3A\u6211\u7684\u81EA\u9009\u80A1\u914D\u7F6E\u76D8\u524D\u3001\u76D8\u4E2D\u548C\u76D8\u540E\u5B9A\u65F6\u4EFB\u52A1\u3002"
+      },
+      {
+        id: "agent_arena",
+        required: false,
+        completed: false,
+        title: "\u53EF\u9009\uFF1AAgent \u6A21\u62DF\u76D8\u7ADE\u6280\u573A",
+        prompt: "\u4F7F\u7528 hrouter-agent-arena \u6280\u80FD\uFF1A\u5148\u8C03\u7528 arena_my_accounts\uFF0C\u6CA1\u6709\u8D26\u6237\u5C31\u7528\u4F60\u771F\u5B9E\u7684\u6A21\u578B\u540D\u6CE8\u518C\u4E00\u4E2A A \u80A1\u8D26\u6237\uFF0C\u7136\u540E\u6309\u4F60\u7684\u7B56\u7565\u5B8C\u6210\u4E00\u8F6E\u4EA4\u6613\u51B3\u7B56\u3002"
       },
       {
         id: "paper_trading",
@@ -8465,7 +8501,8 @@ async function getOnboardingGuide() {
       }
     ],
     notes: [
-      "Codex \u684C\u9762\u7AEF\u9700\u8981\u4FDD\u6301\u8FD0\u884C\uFF0C\u6D89\u53CA\u672C\u5730\u6587\u4EF6\u7684\u5B9A\u65F6\u4EFB\u52A1\u8FD8\u9700\u8981\u7535\u8111\u4FDD\u6301\u5F00\u673A\u3002",
+      "Agent \u5BA2\u6237\u7AEF\uFF08Codex / Claude Code / WorkBuddy\uFF09\u9700\u8981\u4FDD\u6301\u8FD0\u884C\uFF0C\u6D89\u53CA\u672C\u5730\u6587\u4EF6\u7684\u5B9A\u65F6\u4EFB\u52A1\u8FD8\u9700\u8981\u7535\u8111\u4FDD\u6301\u5F00\u673A\u3002",
+      "\u6280\u80FD\u540D\u524D\u7F00\u56E0\u5BA2\u6237\u7AEF\u800C\u5F02\uFF1ACodex \u7528 $skill\uFF0CClaude Code \u7528 /hrouter-market-pulse:skill\uFF0CWorkBuddy \u76F4\u63A5\u5199\u6280\u80FD\u540D\u3002",
       "\u542F\u7528\u9AD8\u9891\u76D8\u4E2D\u4EFB\u52A1\u524D\uFF0C\u5E94\u5148\u624B\u52A8\u6D4B\u8BD5\u4E00\u6B21\u5E76\u786E\u8BA4\u81EA\u9009\u80A1\u3001\u65F6\u533A\u548C\u901A\u77E5\u6761\u4EF6\u3002",
       "\u7F8E\u56FD\u5E02\u573A\u5E94\u4F9D\u636E\u5E02\u573A\u72B6\u6001\u5904\u7406\u590F\u4EE4\u65F6\uFF0C\u4E0D\u56FA\u5B9A\u5199\u6B7B\u5317\u4EAC\u65F6\u95F4\u5F00\u76D8\u65F6\u523B\u3002"
     ]
@@ -8482,16 +8519,16 @@ function sanitizePreferences(input, current = {}) {
   }
   if (input.language !== void 0 && !["zh-CN", "en"].includes(input.language)) throw new Error("Invalid language.");
   if (input.monitorIntervalSeconds !== void 0 && (!Number.isInteger(input.monitorIntervalSeconds) || input.monitorIntervalSeconds < 60 || input.monitorIntervalSeconds > 3600)) throw new Error("monitorIntervalSeconds must be an integer from 60 to 3600.");
-  for (const [market, symbol] of Object.entries(input.benchmarkSymbols ?? {})) {
-    if (!["A", "HK", "US"].includes(market) || marketFromSymbol(symbol) !== market) throw new Error("Benchmark market and symbol must match A, HK or US.");
+  for (const [market2, symbol] of Object.entries(input.benchmarkSymbols ?? {})) {
+    if (!["A", "HK", "US"].includes(market2) || marketFromSymbol(symbol) !== market2) throw new Error("Benchmark market and symbol must match A, HK or US.");
   }
   for (const [symbol, sector] of Object.entries(input.sectorMap ?? {})) {
     normalizeSymbol(symbol);
     if (typeof sector !== "string" || !sector.trim() || sector.length > 160) throw new Error("Sector names must be nonempty text up to 160 characters.");
   }
   const validDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
-  for (const [market, calendar] of Object.entries(input.calendarOverrides ?? {})) {
-    if (!["A", "HK", "US"].includes(market) || !isRecord(calendar) || !validDate(calendar.coverageStart) || !validDate(calendar.coverageEnd) || calendar.coverageStart > calendar.coverageEnd || !Number.isFinite(Date.parse(calendar.verifiedAt)) || typeof calendar.source !== "string" || !/^https?:\/\//.test(calendar.source)) throw new Error("Calendar overrides require market, valid coverage dates, verifiedAt and a source URL.");
+  for (const [market2, calendar] of Object.entries(input.calendarOverrides ?? {})) {
+    if (!["A", "HK", "US"].includes(market2) || !isRecord(calendar) || !validDate(calendar.coverageStart) || !validDate(calendar.coverageEnd) || calendar.coverageStart > calendar.coverageEnd || !Number.isFinite(Date.parse(calendar.verifiedAt)) || typeof calendar.source !== "string" || !/^https?:\/\//.test(calendar.source)) throw new Error("Calendar overrides require market, valid coverage dates, verifiedAt and a source URL.");
     for (const field of ["closedDates", "openDates"]) {
       if (calendar[field] !== void 0 && (!Array.isArray(calendar[field]) || calendar[field].some((value) => !validDate(value) || value < calendar.coverageStart || value > calendar.coverageEnd))) throw new Error(`Invalid calendar ${field}.`);
     }
@@ -8516,7 +8553,7 @@ function sanitizePreferences(input, current = {}) {
       const existing = (current.positions ?? []).find((entry) => normalizeSymbol(entry.symbol) === symbol);
       return { ...existing, ...position, symbol, quantity, averageCost };
     }) : current.positions ?? [],
-    benchmarkSymbols: input.benchmarkSymbols ? Object.fromEntries(Object.entries(input.benchmarkSymbols).map(([market, symbol]) => [market, normalizeSymbol(symbol)])) : current.benchmarkSymbols ?? {},
+    benchmarkSymbols: input.benchmarkSymbols ? Object.fromEntries(Object.entries(input.benchmarkSymbols).map(([market2, symbol]) => [market2, normalizeSymbol(symbol)])) : current.benchmarkSymbols ?? {},
     sectorMap: input.sectorMap ? Object.fromEntries(Object.entries(input.sectorMap).map(([symbol, sector]) => [normalizeSymbol(symbol), sector.trim()])) : current.sectorMap ?? {},
     alertRules: Array.isArray(input.alertRules) ? input.alertRules.map((rule) => {
       if (!Number.isFinite(rule.threshold) || !["above", "below"].includes(rule.direction)) throw new Error("Alert rules require numeric threshold and above/below direction.");
@@ -8757,8 +8794,8 @@ function fillRestriction(symbol, row, previous, side) {
     const reference = number(row.previousClose) ?? previous.close;
     const tolerance = number(rules.tickSize) ?? 0.01;
     const limitPrice = reference * (1 + (side === "buy" ? limit : -limit) / 100);
-    const executionPrice = side === "buy" ? row.open : row.close;
-    if (side === "buy" ? executionPrice >= limitPrice - tolerance / 2 : executionPrice <= limitPrice + tolerance / 2) return side === "buy" ? "limit-up-no-assumed-fill" : "limit-down-no-assumed-fill";
+    const executionPrice2 = side === "buy" ? row.open : row.close;
+    if (side === "buy" ? executionPrice2 >= limitPrice - tolerance / 2 : executionPrice2 <= limitPrice + tolerance / 2) return side === "buy" ? "limit-up-no-assumed-fill" : "limit-down-no-assumed-fill";
   }
   return null;
 }
@@ -10075,10 +10112,10 @@ function paperSymbol(symbol) {
   const normalized = normalizeSymbol(symbol);
   return /^\d{4,5}\.HK$/.test(normalized) ? `${String(Number(normalized.split(".")[0])).padStart(4, "0")}.HK` : normalized;
 }
-function futuCode(symbol, market) {
+function futuCode(symbol, market2) {
   const normalized = paperSymbol(symbol);
-  if (market === "HK" && /^\d{4,5}\.HK$/.test(normalized)) return `HK.${normalized.split(".")[0].padStart(5, "0")}`;
-  if (market === "US" && /^[A-Z][A-Z0-9.\-]{0,14}$/.test(normalized) && !/^US\./.test(normalized) && !/\.(HK|SS|SZ)$/.test(normalized)) return `US.${normalized}`;
+  if (market2 === "HK" && /^\d{4,5}\.HK$/.test(normalized)) return `HK.${normalized.split(".")[0].padStart(5, "0")}`;
+  if (market2 === "US" && /^[A-Z][A-Z0-9.\-]{0,14}$/.test(normalized) && !/^US\./.test(normalized) && !/\.(HK|SS|SZ)$/.test(normalized)) return `US.${normalized}`;
   fail("Only HK/US symbols matching the selected account market are supported / \u4EC5\u652F\u6301\u5BF9\u5E94\u5E02\u573A\u7684\u6E2F\u7F8E\u80A1");
 }
 function account(input) {
@@ -10215,8 +10252,8 @@ async function writeJson(file, value) {
     }
   }
 }
-function tradingDate(now, market) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: market === "HK" ? "Asia/Hong_Kong" : "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
+function tradingDate(now, market2) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: market2 === "HK" ? "Asia/Hong_Kong" : "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
 }
 var limitation = "Actual Futu SIMULATE orders only, not real-money trades. Broker simulation is not live execution. Equity changes are unadjusted for deposits/resets; order status is not a complete fill/fee ledger. Experimental paper results do not qualify a strategy for real trading.";
 var PaperService = class {
@@ -10287,11 +10324,11 @@ var PaperService = class {
       automation: "Agent MCP calls can evaluate, submit and cancel within the UI-authorized policy. No background scheduler is installed automatically."
     };
   }
-  async accounts(market) {
+  async accounts(market2) {
     this.requireEnabled();
-    if (!["HK", "US"].includes(market)) fail("HK or US market required");
-    const data = await this.bridge({ action: "accounts", market });
-    if (!Array.isArray(data.accounts) || data.accounts.some((a) => a.environment !== "SIMULATE" || a.market !== market)) fail("Unsafe account response rejected");
+    if (!["HK", "US"].includes(market2)) fail("HK or US market required");
+    const data = await this.bridge({ action: "accounts", market: market2 });
+    if (!Array.isArray(data.accounts) || data.accounts.some((a) => a.environment !== "SIMULATE" || a.market !== market2)) fail("Unsafe account response rejected");
     return { ...data, observedAt: this.now(), environment: "SIMULATE" };
   }
   async snapshot(input) {
@@ -10515,1748 +10552,6 @@ var PaperService = class {
 var service;
 function getPaperService() {
   return service ||= new PaperService();
-}
-
-// mcp/update-coordination.mjs
-import { mkdir as mkdir5, readFile as readFile5, writeFile as writeFile4, rename as rename5, rm as rm2, readdir, stat } from "node:fs/promises";
-import { rmSync } from "node:fs";
-import { randomUUID as randomUUID3 } from "node:crypto";
-import os2 from "node:os";
-import path5 from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
-function updateHome(env = process.env, platform = process.platform, home = os2.homedir()) {
-  if (env.HROUTER_UPDATE_HOME) return path5.resolve(env.HROUTER_UPDATE_HOME);
-  return platform === "win32" ? path5.join(env.LOCALAPPDATA || path5.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path5.join(env.XDG_DATA_HOME || path5.join(home, ".local", "share"), "hrouter-market-pulse-updater");
-}
-async function readJson2(file, fallback = null) {
-  try {
-    return JSON.parse(await readFile5(file, "utf8"));
-  } catch (error2) {
-    if (error2.code === "ENOENT") return fallback;
-    throw error2;
-  }
-}
-async function atomicJson(file, data) {
-  await mkdir5(path5.dirname(file), { recursive: true, mode: 448 });
-  const temp = `${file}.${randomUUID3()}.tmp`;
-  try {
-    await writeFile4(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
-    await rename5(temp, file);
-  } finally {
-    await rm2(temp, { force: true });
-  }
-}
-function processAlive(pid) {
-  if (!Number.isSafeInteger(pid) || pid < 1) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error2) {
-    return error2.code !== "ESRCH";
-  }
-}
-async function acquireLock(home, name, { waitMs = 0, alive = processAlive } = {}) {
-  await mkdir5(home, { recursive: true, mode: 448 });
-  const dir = path5.join(home, `${name}.lock`);
-  const deadline = Date.now() + waitMs;
-  for (; ; ) {
-    try {
-      await mkdir5(dir, { mode: 448 });
-      await atomicJson(path5.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
-      return async () => {
-        await rm2(dir, { recursive: true, force: true });
-      };
-    } catch (error2) {
-      if (error2.code !== "EEXIST") throw error2;
-      const owner = await readJson2(path5.join(dir, "owner.json"));
-      let stale = owner && !alive(owner.pid);
-      if (!owner) {
-        try {
-          stale = Date.now() - (await stat(dir)).mtimeMs > 6e5;
-        } catch (error3) {
-          if (error3.code === "ENOENT") continue;
-          throw error3;
-        }
-      }
-      if (stale) {
-        const reaping = `${dir}.reaping`;
-        let reaper = false;
-        try {
-          await mkdir5(reaping, { mode: 448 });
-          reaper = true;
-          const current = await readJson2(path5.join(dir, "owner.json"));
-          let removable = current && !alive(current.pid);
-          if (!current) {
-            try {
-              removable = Date.now() - (await stat(dir)).mtimeMs > 6e5;
-            } catch (error3) {
-              if (error3.code !== "ENOENT") throw error3;
-            }
-          }
-          if (removable) await rm2(dir, { recursive: true, force: true });
-        } catch (error3) {
-          if (!["EEXIST", "ENOENT"].includes(error3.code)) throw error3;
-        } finally {
-          if (reaper) await rm2(reaping, { recursive: true, force: true });
-        }
-        if (reaper) continue;
-        if (Date.now() >= deadline) return null;
-        await delay(100);
-        continue;
-      }
-      if (Date.now() >= deadline) return null;
-      await delay(100);
-    }
-  }
-}
-async function acquireRuntimeLease(home = updateHome()) {
-  if (!await readJson2(path5.join(home, "state.json"))) return () => {
-  };
-  const unlock = await acquireLock(home, "activation", { waitMs: 12e4 });
-  if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
-  const file = path5.join(home, "running", `${process.pid}-${randomUUID3()}.json`);
-  try {
-    await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
-  } finally {
-    await unlock();
-  }
-  const release = () => {
-    rmSync(file, { force: true });
-  };
-  process.once("exit", release);
-  return () => {
-    process.removeListener("exit", release);
-    release();
-  };
-}
-
-// mcp/http.mjs
-import { createServer } from "node:http";
-import { readFile as readFile7 } from "node:fs/promises";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { randomUUID as randomUUID5 } from "node:crypto";
-
-// mcp/workspace.mjs
-import { randomUUID as randomUUID4, createHash as createHash3 } from "node:crypto";
-import { mkdir as mkdir6, readFile as readFile6, rename as rename6, writeFile as writeFile5 } from "node:fs/promises";
-import path6 from "node:path";
-
-// mcp/research.mjs
-function researchAsOf2(value = (/* @__PURE__ */ new Date()).toISOString()) {
-  if (!validTimestamp(value))
-    throw new Error("asOf must be an ISO timestamp with timezone");
-  if (Date.parse(value) > Date.now()) throw new Error("Research asOf cannot be in the future");
-  return new Date(value).toISOString();
-}
-var text = (value, field, max = 2e3) => {
-  if (typeof value !== "string" || !value.trim() || value.length > max)
-    throw new Error(`${field} must be nonempty text (max ${max})`);
-  return value.trim();
-};
-var citation = (item) => ({
-  evidenceId: item.id,
-  sourceUrl: item.sourceUrl,
-  providerId: item.providerId,
-  sourceTier: item.sourceTier,
-  publishedAt: item.publishedAt,
-  availableAt: item.availableAt,
-  pointInTimeStatus: item.pointInTimeStatus
-});
-var dateOnly = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
-var validTimestamp = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && dateOnly(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
-function financialFact(item) {
-  const p = item.payload ?? {};
-  if (item.kind !== "financial" || typeof p.value !== "number" || !Number.isFinite(p.value))
-    throw new Error(`${item.id}: financial evidence requires a finite numeric value`);
-  if (!dateOnly(p.periodEnd) || p.periodStart != null && (!dateOnly(p.periodStart) || p.periodStart > p.periodEnd))
-    throw new Error(`${item.id}: invalid financial period`);
-  if (p.valueType === "actual" && p.periodEnd > item.publishedAt.slice(0, 10))
-    throw new Error(`${item.id}: actual period cannot end after disclosure`);
-  const scale = p.scale ?? 1;
-  if (typeof scale !== "number" || !Number.isFinite(scale) || scale <= 0)
-    throw new Error(`${item.id}: invalid scale`);
-  return {
-    metric: text(p.metric, "metric", 160),
-    value: p.value,
-    unit: text(p.unit, "unit", 80),
-    scale,
-    currency: p.currency ?? null,
-    periodStart: p.periodStart ?? null,
-    periodEnd: p.periodEnd,
-    accountingBasis: p.accountingBasis ?? null,
-    publicationTimePrecision: p.publicationTimePrecision ?? "unspecified",
-    valueType: p.valueType ?? null,
-    ...citation(item)
-  };
-}
-function comparisonIssue(actual, baseline, type) {
-  if (actual.metric !== baseline.metric) return "metric-mismatch";
-  if (actual.unit !== baseline.unit || actual.scale !== baseline.scale || actual.currency !== baseline.currency)
-    return "unit-currency-or-scale-mismatch";
-  if (!actual.accountingBasis || !baseline.accountingBasis || actual.accountingBasis !== baseline.accountingBasis)
-    return "accounting-basis-missing-or-mismatched";
-  if (type === "prior-period") {
-    if (baseline.valueType !== "actual") return "prior-period-must-be-actual";
-    if (baseline.periodEnd >= (actual.periodStart ?? actual.periodEnd)) return "periods-overlap-or-not-earlier";
-    if (actual.periodStart === null !== (baseline.periodStart === null)) return "instant-duration-mismatch";
-    if (actual.periodStart) {
-      const days = (f) => (Date.parse(f.periodEnd) - Date.parse(f.periodStart)) / 864e5;
-      if (Math.abs(days(actual) - days(baseline)) > 7) return "period-duration-mismatch";
-    }
-  } else {
-    if (baseline.valueType !== type) return "comparison-is-not-requested-estimate-type";
-    if (actual.periodStart !== baseline.periodStart || actual.periodEnd !== baseline.periodEnd)
-      return "estimate-period-mismatch";
-    if (Date.parse(baseline.availableAt) >= Date.parse(actual.publishedAt) || Date.parse(baseline.publishedAt) >= Date.parse(actual.publishedAt)) return "estimate-not-available-before-disclosure";
-  }
-  return null;
-}
-async function buildEarningsReview(input) {
-  const symbol = normalizeSymbol(input.symbol);
-  const asOf = researchAsOf2(input.asOf);
-  if (!Array.isArray(input.metrics) || !input.metrics.length || input.metrics.length > 40)
-    throw new Error("Provide 1-40 explicit metric evidence pairs");
-  const ids = [...new Set(input.metrics.flatMap((m) => [m.actualEvidenceId, m.comparisonEvidenceId].filter(Boolean)))];
-  const evidence = await queryEvidence({ symbols: [symbol], ids, asOf, limit: 500 });
-  const byId = new Map(evidence.items.map((item) => [item.id, item]));
-  const get = (id) => {
-    if (!byId.has(id)) throw new Error(`Evidence ${id} is missing, unavailable at asOf, or belongs to another symbol`);
-    return financialFact(byId.get(id));
-  };
-  const metrics = input.metrics.map((pair) => {
-    const actual = get(pair.actualEvidenceId);
-    if (actual.valueType !== "actual") throw new Error("Actual evidence must be a reported actual, not an estimate");
-    const type = pair.comparisonType ?? "prior-period";
-    if (!["prior-period", "consensus", "company-guidance"].includes(type)) throw new Error("Invalid comparisonType");
-    const baseline = pair.comparisonEvidenceId ? get(pair.comparisonEvidenceId) : null;
-    const issue2 = baseline ? comparisonIssue(actual, baseline, type) : "missing-comparison-evidence";
-    const delta = issue2 ? null : actual.value - baseline.value;
-    if (delta !== null && !Number.isFinite(delta)) throw new Error("Financial difference overflow");
-    const percentage = delta !== null && baseline.value > 0 ? delta / baseline.value * 100 : null;
-    return {
-      metric: actual.metric,
-      actual,
-      baseline,
-      comparisonType: type,
-      comparisonStatus: issue2 ? "unavailable" : "comparable",
-      warning: issue2,
-      delta,
-      changePct: Number.isFinite(percentage) ? percentage : null,
-      percentageWarning: !issue2 && baseline.value <= 0 ? "nonpositive-baseline-use-absolute-change" : percentage !== null && !Number.isFinite(percentage) ? "percentage-overflow" : null,
-      // Higher expenses or liabilities are not necessarily good; no beat/miss investment judgment.
-      direction: delta === null ? null : delta > 0 ? "above" : delta < 0 ? "below" : "in-line"
-    };
-  });
-  return {
-    symbol,
-    asOf,
-    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    researchOnly: true,
-    metrics,
-    limitations: [
-      "Evidence-derived arithmetic, not a forecast or investment recommendation.",
-      "Evidence provenance is retained; provider-declared historical availability is not independently verified.",
-      "Missing consensus is not replaced with guidance. No automatic currency, scale, or accounting-basis conversion."
-    ]
-  };
-}
-function normalizeThesisPillars(pillars = []) {
-  if (!Array.isArray(pillars) || pillars.length > 12) throw new Error("Use at most 12 thesis pillars");
-  const seen = /* @__PURE__ */ new Set();
-  return pillars.map((p) => {
-    const id = text(p.id, "pillar id", 64);
-    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(id) || seen.has(id)) throw new Error("Pillar IDs must be unique safe identifiers");
-    seen.add(id);
-    if (p.reviewBy != null && !dateOnly(p.reviewBy)) throw new Error("reviewBy must be YYYY-MM-DD");
-    return {
-      id,
-      expectation: text(p.expectation, "expectation"),
-      invalidationCondition: text(p.invalidationCondition, "invalidationCondition"),
-      reviewBy: p.reviewBy ?? null
-    };
-  });
-}
-function buildThesisScorecard(record2, asOf = (/* @__PURE__ */ new Date()).toISOString()) {
-  const reviews = (record2.reviews ?? []).filter((r) => Date.parse(r.reviewedAt) <= Date.parse(asOf));
-  const pillars = record2.pillars?.length ? record2.pillars : reviews.find((r) => r.pillars?.length)?.pillars ?? [];
-  return {
-    decisionId: record2.id,
-    symbol: record2.symbol,
-    asOf,
-    researchOnly: true,
-    pillars: pillars.map((pillar) => {
-      const updates = reviews.flatMap((r) => (r.pillarUpdates ?? []).filter((u) => u.pillarId === pillar.id).map((u) => ({ ...u, reviewedAt: r.reviewedAt })));
-      const latest = updates.at(-1);
-      return {
-        ...pillar,
-        status: latest?.status ?? "unreviewed",
-        latestAssessment: latest ?? null,
-        overdue: Boolean(pillar.reviewBy && pillar.reviewBy < asOf.slice(0, 10)),
-        history: updates
-      };
-    }),
-    limitation: "Pillar assessments are attributed research judgments, not calibrated probabilities or position changes."
-  };
-}
-function projectCatalystCalendar(items, { asOf = (/* @__PURE__ */ new Date()).toISOString(), symbols, includeMacro = true } = {}) {
-  const wanted = symbols ? new Set(symbols.map(normalizeSymbol)) : null;
-  const groups = /* @__PURE__ */ new Map();
-  const warnings = [];
-  for (const item of items) {
-    const p = item.payload ?? {};
-    if (!p.eventType || !validTimestamp(item.publishedAt) || !validTimestamp(item.availableAt) || Date.parse(item.availableAt) > Date.parse(asOf) || Date.parse(item.publishedAt) > Date.parse(asOf)) continue;
-    const macro = item.kind === "macro" && !item.entity?.symbol;
-    let affectedSymbols;
-    try {
-      affectedSymbols = [...new Set([item.entity?.symbol, ...Array.isArray(p.affectedSymbols) ? p.affectedSymbols : []].filter((s) => typeof s === "string" && s.trim()).map(normalizeSymbol))];
-    } catch {
-      warnings.push(`${item.id}: invalid affected symbol`);
-      continue;
-    }
-    if (macro ? !includeMacro : wanted && !affectedSymbols.some((s) => wanted.has(s))) continue;
-    const status = p.eventStatus ?? "tentative";
-    if (!["tentative", "confirmed", "cancelled", "completed"].includes(status)) {
-      warnings.push(`${item.id}: invalid eventStatus`);
-      continue;
-    }
-    if (!p.scheduledAt && status !== "cancelled" || p.scheduledAt && !validTimestamp(p.scheduledAt)) {
-      warnings.push(`${item.id}: invalid or timezone-less scheduledAt`);
-      continue;
-    }
-    if (p.timezone) {
-      try {
-        new Intl.DateTimeFormat("en", { timeZone: p.timezone });
-      } catch {
-        warnings.push(`${item.id}: invalid timezone`);
-        continue;
-      }
-    }
-    const key = JSON.stringify([item.providerId, item.entity?.symbol ?? item.entity?.name, p.eventType, p.eventKey || item.externalId || item.id]);
-    const entries = groups.get(key) ?? [];
-    if (!entries.some((e) => e.id === item.id)) entries.push({ ...item, affectedSymbols, status });
-    groups.set(key, entries);
-  }
-  const events = [];
-  for (const [eventKey, versions] of groups) {
-    versions.sort((a, b) => Date.parse(a.availableAt) - Date.parse(b.availableAt) || Date.parse(a.publishedAt) - Date.parse(b.publishedAt) || a.id.localeCompare(b.id));
-    const latest = versions.at(-1);
-    const p = latest.payload;
-    const scheduledAt = p.scheduledAt ?? [...versions].reverse().find((e) => e.payload.scheduledAt)?.payload.scheduledAt;
-    if (!scheduledAt) {
-      warnings.push(`${latest.id}: cancelled event has no known schedule`);
-      continue;
-    }
-    const conflict = versions.some((e) => e.id !== latest.id && e.availableAt === latest.availableAt && e.publishedAt === latest.publishedAt && ((e.payload.scheduledAt ? Date.parse(e.payload.scheduledAt) : null) !== (p.scheduledAt ? Date.parse(p.scheduledAt) : null) || e.status !== latest.status));
-    events.push({
-      id: latest.id,
-      eventKey,
-      symbol: latest.entity?.symbol ?? null,
-      affectedSymbols: latest.affectedSymbols,
-      title: latest.title,
-      eventType: p.eventType,
-      scheduledAt,
-      effectiveAt: scheduledAt,
-      timezone: p.timezone ?? null,
-      eventStatus: latest.status,
-      dateConfidence: !conflict && p.dateConfidence === "confirmed" && latest.status === "confirmed" ? "confirmed" : "estimated",
-      conflict,
-      ...citation(latest),
-      evidenceIds: versions.map((e) => e.id),
-      history: versions.map((e) => ({ ...citation(e), scheduledAt: e.payload.scheduledAt ?? null, eventStatus: e.status })),
-      missingStableIdentity: !p.eventKey && !latest.externalId
-    });
-  }
-  events.sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt) || a.id.localeCompare(b.id));
-  return { asOf, events, warnings, researchOnly: true };
-}
-async function queryCatalystCalendar(input = {}) {
-  const asOf = researchAsOf2(input.asOf);
-  const preferences = input.symbols ? null : await loadPreferences();
-  const symbols = input.symbols ?? [.../* @__PURE__ */ new Set([...preferences.watchlist ?? [], ...(preferences.positions ?? []).map((p) => p.symbol)])];
-  const from = input.from ?? asOf;
-  if (!validTimestamp(from)) throw new Error("Calendar from must be a valid timezone-aware timestamp");
-  const to = input.to ?? new Date(Date.parse(from) + 30 * 864e5).toISOString();
-  if (![from, to].every(validTimestamp) || Date.parse(from) > Date.parse(to))
-    throw new Error("Calendar requires a valid timezone-aware from <= to interval");
-  const evidence = await queryEvidence({ asOf, limit: 500 });
-  const calendar = projectCatalystCalendar(evidence.items, { asOf, symbols, includeMacro: input.includeMacro ?? true });
-  calendar.events = calendar.events.filter((e) => Date.parse(e.scheduledAt) >= Date.parse(from) && Date.parse(e.scheduledAt) <= Date.parse(to) && (input.includeCancelled || e.eventStatus !== "cancelled"));
-  return {
-    ...calendar,
-    from,
-    to,
-    symbols,
-    coverage: { scanned: evidence.returned, totalAvailable: evidence.totalMatched, truncated: evidence.totalMatched > evidence.returned },
-    warnings: [...calendar.warnings, ...evidence.totalMatched > evidence.returned ? ["Evidence scan truncated; calendar may omit events or revisions."] : []],
-    limitation: "Calendar of ingested evidence only, not a complete market calendar. Revisions require a stable eventKey per provider/entity/type. No notifications are scheduled by this query."
-  };
-}
-
-// mcp/workspace.mjs
-var journalQueue = Promise.resolve();
-var cache = /* @__PURE__ */ new Map();
-var benchmarkDefaults = { A: "000001.SS", HK: "^HSI", US: "^GSPC" };
-var cleanText = (value, limit = 2e3) => String(value ?? "").trim().slice(0, limit);
-var finite4 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
-async function readStore(name, fallback = []) {
-  try {
-    return JSON.parse(await readFile6(path6.join(getStorageDir(), name), "utf8"));
-  } catch (error2) {
-    if (error2.code === "ENOENT") return fallback;
-    throw error2;
-  }
-}
-async function writeStore(name, data) {
-  const target = path6.join(getStorageDir(), name);
-  await mkdir6(path6.dirname(target), { recursive: true });
-  const temp = `${target}.${randomUUID4()}.tmp`;
-  await writeFile5(temp, JSON.stringify(data, null, 2));
-  await rename6(temp, target);
-}
-async function listDecisions({ symbol, limit = 200 } = {}) {
-  const items = await readStore("decisions.json");
-  const normalized = symbol ? normalizeSymbol(symbol) : null;
-  return {
-    decisions: items.filter((item) => !normalized || item.symbol === normalized).slice(-Math.min(500, limit)).reverse().map((item) => {
-      const scorecard = buildThesisScorecard(item);
-      return scorecard.pillars.length ? { ...item, scorecard } : item;
-    })
-  };
-}
-async function recordDecision(input) {
-  const symbol = normalizeSymbol(input.symbol);
-  const state = input.state ?? "watch";
-  if (!["watch", "candidate", "hold", "review-exit", "inactive"].includes(state))
-    throw new Error("Invalid decision state");
-  const thesis = cleanText(input.thesis);
-  if (!thesis) throw new Error("A decision thesis is required");
-  const pillars = normalizeThesisPillars(input.pillars);
-  const evidenceIds = [...new Set(input.evidenceIds ?? [])];
-  const evidence = await queryEvidence({ symbols: [symbol], limit: 500 });
-  if (evidenceIds.some((id) => !evidence.items.some((item) => item.id === id)))
-    throw new Error(
-      "Evidence must already exist for this symbol and be available now"
-    );
-  const preferences = await loadPreferences();
-  const position = preferences.positions?.find(
-    (item) => normalizeSymbol(item.symbol) === symbol && item.quantity > 0
-  );
-  if (["hold", "review-exit"].includes(state) && !position)
-    throw new Error("This state requires an existing saved position");
-  let quote = null;
-  let quoteError = null;
-  let verifiedBudget = null;
-  try {
-    quote = await getQuote(symbol);
-  } catch (error2) {
-    quoteError = error2.message;
-  }
-  if (state === "candidate") {
-    const predictions = await queryPredictionLedger({ symbol, limit: 100 });
-    const rows = Array.isArray(predictions) ? predictions : predictions.predictions ?? predictions.items ?? predictions.records ?? [];
-    const prediction = rows.find(
-      (item) => item.id === input.validationPredictionId
-    );
-    if (!cleanText(input.entryCondition) || !cleanText(input.invalidationCondition) || !cleanText(input.riskBudget) || !evidenceIds.length)
-      throw new Error(
-        "Candidate requires entry, invalidation, risk budget, and evidence"
-      );
-    if (quote?.signalEligible !== true)
-      throw new Error(
-        "Candidate requires current usable market data without a cross-source conflict"
-      );
-    if (!prediction || prediction.qualification?.currentlyEligible !== true)
-      throw new Error(
-        "Candidate requires a current, qualified, unresolved recorded prediction"
-      );
-    if (!input.budgetRequest)
-      throw new Error("Candidate requires a computable position budget");
-    verifiedBudget = calculatePositionBudget(input.budgetRequest);
-    const idea = verifiedBudget.ideas.find((item) => item.symbol === symbol);
-    if (!idea || !(idea.quantityCeiling > 0))
-      throw new Error(
-        "Candidate has no executable allocation within the supplied risk budget"
-      );
-  }
-  const record2 = {
-    id: `decision_${randomUUID4()}`,
-    symbol,
-    state,
-    thesis,
-    ...pillars.length ? { pillars } : {},
-    entryCondition: cleanText(input.entryCondition),
-    invalidationCondition: cleanText(input.invalidationCondition),
-    horizon: cleanText(input.horizon, 160),
-    riskBudget: cleanText(input.riskBudget, 160),
-    evidenceIds,
-    validationPredictionId: input.validationPredictionId ?? null,
-    verifiedBudget,
-    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-    snapshot: quote ? {
-      price: quote.price,
-      currency: quote.currency,
-      asOf: quote.asOf,
-      freshness: quote.freshness,
-      provider: quote.provider,
-      crossCheck: quote.crossCheck,
-      dataSources: quote.dataSources,
-      dataQuality: quote.dataQuality,
-      signalEligible: quote.signalEligible,
-      indicators: quote.indicators
-    } : null,
-    quoteError,
-    reviews: []
-  };
-  record2.originalHash = createHash3("sha256").update(JSON.stringify(record2)).digest("hex");
-  const task = journalQueue.then(async () => {
-    const records = await readStore("decisions.json");
-    records.push(record2);
-    await writeStore("decisions.json", records);
-    return record2;
-  });
-  journalQueue = task.catch(() => {
-  });
-  return task;
-}
-async function reviewDecision(id, input) {
-  if (!["open", "invalidated", "target-reached", "expired", "closed"].includes(
-    input.outcome
-  ))
-    throw new Error("Invalid review outcome");
-  const task = journalQueue.then(async () => {
-    const records = await readStore("decisions.json");
-    const record2 = records.find((item) => item.id === id);
-    if (!record2) throw new Error("Decision not found");
-    record2.reviews.push({
-      reviewedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      outcome: input.outcome,
-      notes: cleanText(input.notes),
-      source: "user-review"
-    });
-    await writeStore("decisions.json", records);
-    return record2;
-  });
-  journalQueue = task.catch(() => {
-  });
-  return task;
-}
-async function appendThesisReview(input) {
-  if (!Array.isArray(input.updates) || !input.updates.length || input.updates.length > 12)
-    throw new Error("Provide 1-12 pillar updates");
-  const task = journalQueue.then(async () => {
-    const records = await readStore("decisions.json");
-    const record2 = records.find((item) => item.id === input.decisionId);
-    if (!record2) throw new Error("Decision not found");
-    const existing = buildThesisScorecard(record2).pillars;
-    if (existing.length && input.pillars !== void 0)
-      throw new Error("Original pillars cannot be replaced; create a new decision for a changed thesis");
-    const pillars = existing.length ? existing : normalizeThesisPillars(input.pillars);
-    if (!pillars.length) throw new Error("Define pillars on the decision or first thesis review");
-    const reviewedAt = (/* @__PURE__ */ new Date()).toISOString();
-    const evidenceIds = [...new Set(input.updates.flatMap((u) => u.evidenceIds ?? []))];
-    if (evidenceIds.length > 100) throw new Error("Use at most 100 evidence IDs per review");
-    const evidence = await queryEvidence({ ids: evidenceIds, symbols: [record2.symbol], asOf: reviewedAt, limit: 500 });
-    const byId = new Map(evidence.items.map((e) => [e.id, e]));
-    const seen = /* @__PURE__ */ new Set();
-    const updates = input.updates.map((u) => {
-      if (!pillars.some((p) => p.id === u.pillarId) || seen.has(u.pillarId))
-        throw new Error("Unknown or duplicate pillarId");
-      seen.add(u.pillarId);
-      if (!["supported", "weakened", "invalidated", "inconclusive"].includes(u.status))
-        throw new Error("Invalid pillar assessment status");
-      const ids = [...new Set(u.evidenceIds ?? [])];
-      if (!ids.length || ids.some((id) => !byId.has(id)))
-        throw new Error("Every assessment requires existing, available evidence for the decision symbol");
-      if (typeof u.rationale !== "string" || !u.rationale.trim() || u.rationale.length > 2e3)
-        throw new Error("Each assessment requires a rationale of 1-2000 characters");
-      return {
-        pillarId: u.pillarId,
-        status: u.status,
-        rationale: u.rationale.trim(),
-        evidenceIds: ids,
-        evidence: ids.map((id) => {
-          const e = byId.get(id);
-          return { evidenceId: id, sourceUrl: e.sourceUrl, publishedAt: e.publishedAt, availableAt: e.availableAt };
-        })
-      };
-    });
-    const review = {
-      id: `thesis_review_${randomUUID4()}`,
-      reviewedAt,
-      type: "thesis-assessment",
-      source: "research-assessment",
-      notes: cleanText(input.notes),
-      pillarUpdates: updates,
-      ...!existing.length ? { pillars } : {}
-    };
-    record2.reviews.push(review);
-    await writeStore("decisions.json", records);
-    return { review, scorecard: buildThesisScorecard(record2), stateUnchanged: record2.state };
-  });
-  journalQueue = task.catch(() => {
-  });
-  return task;
-}
-async function queryThesisScorecard({ decisionId, asOf: requestedAsOf } = {}) {
-  const asOf = researchAsOf2(requestedAsOf);
-  const record2 = (await readStore("decisions.json")).find((r) => r.id === decisionId);
-  if (!record2 || Date.parse(record2.createdAt) > Date.parse(asOf)) throw new Error("Decision not available at asOf");
-  return buildThesisScorecard(record2, asOf);
-}
-function deriveMarketContext(items, benchmarks = [], sectorMap = {}) {
-  const valid = items.filter(
-    (item) => !item.error && Number.isFinite(item.changePct)
-  );
-  const sectors = /* @__PURE__ */ new Map();
-  const relativeStrength = [];
-  for (const item of valid) {
-    const sector = sectorMap[item.symbol] || item.sector || "Unclassified";
-    const key = `${item.market}:${sector}`;
-    const group = sectors.get(key) ?? {
-      name: sector,
-      market: item.market,
-      scope: "watchlist",
-      count: 0,
-      sum: 0,
-      symbols: []
-    };
-    group.count++;
-    group.sum += item.changePct;
-    group.symbols.push(item.symbol);
-    sectors.set(key, group);
-    const benchmark = benchmarks.find((value) => value.market === item.market);
-    const sameSessionDate = benchmark?.asOf && item.asOf && new Date(benchmark.asOf).toISOString().slice(0, 10) === new Date(item.asOf).toISOString().slice(0, 10) && Math.abs(Date.parse(benchmark.asOf) - Date.parse(item.asOf)) <= 12e5;
-    const complete = (row) => row.complete !== false && row.isComplete !== false && (row.closeAt ? Date.parse(row.closeAt) <= Date.now() : row.timestamp?.slice(0, 10) < (/* @__PURE__ */ new Date()).toISOString().slice(0, 10));
-    const byDate = new Map(
-      (benchmark?.history ?? []).filter(complete).map((row) => [
-        row.sessionDate ?? row.timestamp.slice(0, 10),
-        row.close
-      ])
-    );
-    const aligned = [
-      ...new Map(
-        (item.history ?? []).filter(
-          (row) => complete(row) && row.close > 0 && byDate.get(row.sessionDate ?? row.timestamp.slice(0, 10)) > 0
-        ).map((row) => [row.sessionDate ?? row.timestamp.slice(0, 10), row])
-      ).values()
-    ].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-    const first = aligned.at(-21), last = aligned.at(-1);
-    const relative20dPct = aligned.length >= 21 ? (last.close / first.close - 1 - (byDate.get(last.sessionDate ?? last.timestamp.slice(0, 10)) / byDate.get(first.sessionDate ?? first.timestamp.slice(0, 10)) - 1)) * 100 : null;
-    relativeStrength.push({
-      symbol: item.symbol,
-      benchmark: benchmark?.symbol ?? null,
-      relativeDayPct: sameSessionDate && Number.isFinite(benchmark?.changePct) ? item.changePct - benchmark.changePct : null,
-      relative20dPct,
-      alignedSessions: Math.min(aligned.length, 21)
-    });
-  }
-  return {
-    scope: "watchlist",
-    universeSize: items.length,
-    covered: valid.length,
-    breadth: {
-      scope: "watchlist",
-      advancing: valid.filter((item) => item.changePct > 0).length,
-      declining: valid.filter((item) => item.changePct < 0).length,
-      unchanged: valid.filter((item) => item.changePct === 0).length,
-      total: valid.length
-    },
-    indices: benchmarks.map(({ history, ...item }) => item),
-    sectors: [...sectors.values()].map(({ sum, ...group }) => {
-      const relative = relativeStrength.filter(
-        (item) => group.symbols.includes(item.symbol) && Number.isFinite(item.relativeDayPct)
-      );
-      return {
-        ...group,
-        changePct: sum / group.count,
-        relativeChangePct: relative.length === group.count ? relative.reduce(
-          (total, item) => total + item.relativeDayPct,
-          0
-        ) / relative.length : null
-      };
-    }).sort((a, b) => b.changePct - a.changePct),
-    relativeStrength
-  };
-}
-async function getResearchContext(items, preferences = {}) {
-  const markets = [
-    ...new Set(
-      items.map((item) => item.market).filter((market) => benchmarkDefaults[market])
-    )
-  ];
-  const benchmarks = await Promise.all(
-    markets.map(async (market) => {
-      const symbol = preferences.benchmarkSymbols?.[market] || benchmarkDefaults[market];
-      const key = `benchmark:${symbol}`;
-      try {
-        const entry = cache.get(key);
-        const quote = entry && Date.now() - entry.at < 12e4 ? entry.data : await getQuote(symbol);
-        cache.set(key, { at: Date.now(), data: quote });
-        return { ...quote, market };
-      } catch (error2) {
-        return { symbol, market, error: error2.message };
-      }
-    })
-  );
-  return deriveMarketContext(items, benchmarks, preferences.sectorMap);
-}
-async function enrichReport(report) {
-  const preferences = await loadPreferences();
-  if (report.phase !== "intraday")
-    report.officialSync = await syncOfficialEvidence({
-      symbols: report.items.map((item) => item.symbol)
-    });
-  const evidence = await queryEvidence({
-    symbols: report.items.map((item) => item.symbol),
-    limit: 500
-  });
-  report.context = await getResearchContext(report.items, preferences);
-  const industry = await queryEvidence({
-    kinds: ["industry", "macro"],
-    limit: 100
-  });
-  report.context.marketBreadth = industry.items.filter((item) => {
-    const breadth = item.payload?.breadth;
-    return breadth?.scope === "market" && Number.isInteger(breadth.total) && breadth.total > 0 && ["advancing", "declining", "unchanged"].every(
-      (key) => Number.isInteger(breadth[key]) && breadth[key] >= 0
-    ) && breadth.advancing + breadth.declining + breadth.unchanged === breadth.total && Number.isFinite(Date.parse(breadth.asOf)) && Date.now() - Date.parse(breadth.asOf) >= 0 && Date.now() - Date.parse(breadth.asOf) < 36e5;
-  }).map((item) => ({
-    ...item.payload.breadth,
-    sourceUrl: item.sourceUrl,
-    evidenceId: item.id
-  }));
-  report.evidence = evidence.items;
-  const calendar = projectCatalystCalendar(evidence.items);
-  report.events = calendar.events;
-  report.eventWarnings = calendar.warnings;
-  if (evidence.totalMatched > evidence.returned)
-    report.eventWarnings.push("Evidence scan truncated; calendar may omit events or revisions.");
-  report.decisions = (await listDecisions()).decisions;
-  for (const item of report.items) {
-    item.evidence = evidence.items.filter(
-      (record2) => record2.entity.symbol === item.symbol
-    );
-    item.events = report.events.filter((event) => event.symbol === item.symbol);
-    item.financials = item.evidence.filter(
-      (record2) => record2.kind === "financial"
-    );
-    item.relativeStrength = report.context.relativeStrength.find(
-      (record2) => record2.symbol === item.symbol
-    ) ?? null;
-  }
-  return report;
-}
-var OFFICIAL_HOSTS = [
-  "sec.gov",
-  "cninfo.com.cn",
-  "sse.com.cn",
-  "szse.cn",
-  "hkexnews.hk",
-  "hkex.com.hk",
-  "bse.cn"
-];
-function officialUrl(value) {
-  const url = new URL(value);
-  if (url.protocol !== "https:" || url.username || url.password || url.port || !OFFICIAL_HOSTS.some(
-    (host) => url.hostname === host || url.hostname.endsWith(`.${host}`)
-  ))
-    throw new Error(
-      "A public HTTPS regulator or exchange source URL is required"
-    );
-  return url;
-}
-async function publicJson(url, init = {}) {
-  officialUrl(url);
-  const response = await fetch(url, {
-    ...init,
-    redirect: "error",
-    signal: AbortSignal.timeout(15e3),
-    headers: {
-      Accept: "application/json",
-      "User-Agent": process.env.HROUTER_SEC_USER_AGENT || "Hrouter Market Pulse/1.1.0 (https://hrouter.net/)",
-      ...init.headers
-    }
-  });
-  if (!response.ok)
-    throw new Error(`Official provider HTTP ${response.status}`);
-  const body = await response.text();
-  if (body.length > 16e6)
-    throw new Error("Official provider response is too large");
-  return JSON.parse(body);
-}
-async function ingestOfficialRecords(input) {
-  if (!Array.isArray(input.items) || !input.items.length || input.items.length > 100)
-    throw new Error("Provide 1-100 official records");
-  const items = input.items.map((item) => {
-    const sourceUrl = officialUrl(item.sourceUrl).toString();
-    if (item.payload?.scheduledAt && !Number.isFinite(Date.parse(item.payload.scheduledAt)))
-      throw new Error("scheduledAt must be a date");
-    return {
-      ...item,
-      sourceUrl,
-      sourceTier: "official",
-      providerId: "official-source-import",
-      availableAt: void 0
-    };
-  });
-  await registerDataProvider({
-    id: "official-source-import",
-    name: "Official source imports",
-    sourceTier: "official",
-    kinds: [
-      "filing",
-      "financial",
-      "corporate_action",
-      "macro",
-      "industry",
-      "other"
-    ],
-    homepage: "https://hrouter.net/",
-    notes: "Source host allowlisted; supplied record contents require original-document verification. Availability is first ingestion."
-  });
-  return ingestEvidence({ items });
-}
-function secSubmissionRecords(symbol, cik, payload, limit = 8) {
-  const recent = payload.filings?.recent ?? {};
-  const records = [];
-  for (let i = 0; i < (recent.accessionNumber?.length ?? 0) && records.length < limit; i++) {
-    const form = recent.form[i];
-    if (!["10-K", "10-Q", "8-K", "20-F", "6-K", "10-K/A", "10-Q/A"].includes(form))
-      continue;
-    const accession = recent.accessionNumber[i];
-    const primaryDocument = recent.primaryDocument[i];
-    if (!/^\d{10}-\d{2}-\d{6}$/.test(accession) || !/^[A-Za-z0-9_.-]+$/.test(primaryDocument))
-      continue;
-    const acceptance = recent.acceptanceDateTime?.[i];
-    const exactTime = acceptance && /(?:Z|[+-]\d\d:\d\d)$/.test(acceptance);
-    const publishedAt = exactTime ? new Date(acceptance).toISOString() : `${recent.filingDate[i]}T00:00:00Z`;
-    records.push({
-      providerId: "sec-edgar",
-      sourceTier: "official",
-      kind: "filing",
-      externalId: accession,
-      entity: { symbol, name: payload.name, identifiers: { cik: String(cik) } },
-      title: `${payload.name} ${form} (${recent.reportDate?.[i] || recent.filingDate[i]})`,
-      sourceUrl: `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${accession.replaceAll("-", "")}/${primaryDocument}`,
-      publishedAt,
-      payload: {
-        form,
-        accession,
-        publicationTimePrecision: exactTime ? "timestamp" : "date",
-        periodEnd: recent.reportDate?.[i] ?? null,
-        amended: form.endsWith("/A")
-      }
-    });
-  }
-  return records;
-}
-function secFinancialRecords(symbol, cik, payload) {
-  const tags = [
-    "RevenueFromContractWithCustomerExcludingAssessedTax",
-    "Revenues",
-    "NetIncomeLoss",
-    "NetCashProvidedByUsedInOperatingActivities",
-    "Assets",
-    "Liabilities"
-  ];
-  return tags.flatMap((tag) => {
-    const concept = payload.facts?.["us-gaap"]?.[tag];
-    const units = concept?.units ?? {};
-    return Object.entries(units).flatMap(([unit, rows]) => {
-      const entries = rows.filter(
-        (row2) => finite4(row2.val) !== null && row2.filed && ["10-K", "10-Q"].includes(row2.form)
-      ).sort(
-        (a, b) => b.filed.localeCompare(a.filed) || b.end.localeCompare(a.end)
-      );
-      const row = entries[0];
-      if (!row) return [];
-      return [
-        {
-          providerId: "sec-edgar",
-          sourceTier: "official",
-          kind: "financial",
-          entity: { symbol, name: payload.entityName },
-          title: `${tag} | ${row.end} | ${unit}`,
-          summary: concept.description ?? "",
-          sourceUrl: `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(cik).padStart(10, "0")}.json`,
-          publishedAt: `${row.filed}T00:00:00Z`,
-          payload: {
-            publicationTimePrecision: "date",
-            metric: tag,
-            valueType: "actual",
-            accountingBasis: "us-gaap",
-            value: row.val,
-            unit,
-            periodStart: row.start ?? null,
-            periodEnd: row.end,
-            accession: row.accn,
-            form: row.form
-          }
-        }
-      ];
-    });
-  });
-}
-async function syncSec(symbol, limit) {
-  let tickers = cache.get("sec-tickers");
-  if (!tickers || Date.now() - tickers.at > 864e5) {
-    tickers = {
-      at: Date.now(),
-      data: await publicJson("https://www.sec.gov/files/company_tickers.json")
-    };
-    cache.set("sec-tickers", tickers);
-  }
-  const company = Object.values(tickers.data).find(
-    (item) => item.ticker === symbol.replace(".", "-")
-  );
-  if (!company) throw new Error(`SEC CIK not found for ${symbol}`);
-  const cik = String(company.cik_str).padStart(10, "0");
-  const submissions = await publicJson(
-    `https://data.sec.gov/submissions/CIK${cik}.json`
-  );
-  const filings = secSubmissionRecords(symbol, cik, submissions, limit);
-  let financials = [], financialError = null;
-  try {
-    financials = secFinancialRecords(
-      symbol,
-      cik,
-      await publicJson(
-        `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`
-      )
-    );
-  } catch (error2) {
-    financialError = error2.message;
-  }
-  await registerDataProvider({
-    id: "sec-edgar",
-    name: "SEC EDGAR",
-    sourceTier: "official",
-    kinds: ["filing", "financial"],
-    homepage: "https://www.sec.gov/"
-  });
-  const result = filings.length || financials.length ? await ingestEvidence({
-    items: [...filings, ...financials].slice(0, 100)
-  }) : { inserted: 0 };
-  return { ...result, financialError };
-}
-async function syncCninfo(symbol, limit) {
-  const code = symbol.split(".")[0];
-  const body = new URLSearchParams({
-    pageNum: "1",
-    pageSize: String(limit),
-    column: symbol.endsWith(".SS") ? "sse" : "szse",
-    tabName: "fulltext",
-    searchkey: code,
-    secid: "",
-    stock: "",
-    category: "",
-    trade: "",
-    seDate: "",
-    sortName: "time",
-    sortType: "desc",
-    isHLtitle: "false"
-  });
-  const payload = await publicJson(
-    "https://www.cninfo.com.cn/new/hisAnnouncement/query",
-    {
-      method: "POST",
-      body,
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Referer: "https://www.cninfo.com.cn/"
-      }
-    }
-  );
-  const records = (payload.announcements ?? []).filter((item) => item.secCode === code).map((item) => ({
-    providerId: "cninfo-disclosures",
-    sourceTier: "official",
-    kind: "filing",
-    entity: { symbol, name: item.secName },
-    title: cleanText(item.announcementTitle, 1e3),
-    sourceUrl: officialUrl(
-      new URL(item.adjunctUrl, "https://static.cninfo.com.cn/").toString()
-    ).toString(),
-    publishedAt: new Date(item.announcementTime).toISOString(),
-    externalId: String(item.announcementId),
-    payload: { category: item.announcementType ?? null }
-  }));
-  await registerDataProvider({
-    id: "cninfo-disclosures",
-    name: "CNINFO disclosures",
-    sourceTier: "official",
-    kinds: ["filing"],
-    homepage: "https://www.cninfo.com.cn/"
-  });
-  return records.length ? ingestEvidence({ items: records }) : { inserted: 0, warning: "No matching announcements returned" };
-}
-async function syncOfficialEvidence({ symbols, limit = 8 } = {}) {
-  const preferences = await loadPreferences();
-  const list = [
-    ...new Set((symbols ?? preferences.watchlist).map(normalizeSymbol))
-  ].slice(0, 20);
-  const results = [];
-  const deferred = list.slice(5).map((symbol) => ({
-    symbol,
-    status: "deferred",
-    message: "Sync at most five symbols per request; submit this symbol in the next batch."
-  }));
-  for (let offset = 0; offset < Math.min(list.length, 5); offset += 3) {
-    const batch = await Promise.all(
-      list.slice(offset, Math.min(offset + 3, 5)).map(async (symbol) => {
-        const market = marketFromSymbol(symbol);
-        const key = `official-sync:${symbol}`;
-        const cached2 = cache.get(key);
-        if (cached2 && Date.now() - cached2.at < 9e5) {
-          return { symbol, status: "synced", ...cached2.data, cached: true };
-        }
-        try {
-          if (market === "HK") {
-            return {
-              symbol,
-              status: "source-required",
-              sourceUrl: "https://www1.hkexnews.hk/search/titlesearch.xhtml?lang=en",
-              message: "Import original HKEXnews records with ingest_official_records; no unsupported public API is assumed."
-            };
-          }
-          const data = market === "A" ? await syncCninfo(symbol, Math.min(limit, 20)) : await syncSec(symbol, Math.min(limit, 20));
-          cache.set(key, { at: Date.now(), data });
-          return { symbol, status: "synced", ...data };
-        } catch (error2) {
-          return { symbol, status: "unavailable", error: error2.message };
-        }
-      })
-    );
-    results.push(...batch);
-  }
-  return {
-    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    results: [...results, ...deferred]
-  };
-}
-
-// mcp/demo.mjs
-var securities = [
-  [
-    "0700.HK",
-    "\u817E\u8BAF\u63A7\u80A1",
-    "Tencent Holdings",
-    "HK",
-    "HKD",
-    518.2,
-    2.34,
-    "\u4E92\u8054\u7F51\u670D\u52A1",
-    "Internet services"
-  ],
-  [
-    "AAPL",
-    "\u82F9\u679C",
-    "Apple Inc.",
-    "US",
-    "USD",
-    237.49,
-    1.12,
-    "\u6D88\u8D39\u7535\u5B50",
-    "Consumer electronics"
-  ],
-  [
-    "600519.SS",
-    "\u8D35\u5DDE\u8305\u53F0",
-    "Kweichow Moutai",
-    "A",
-    "CNY",
-    1432.8,
-    -0.83,
-    "\u98DF\u54C1\u996E\u6599",
-    "Food & beverage"
-  ],
-  [
-    "NVDA",
-    "\u82F1\u4F1F\u8FBE",
-    "NVIDIA",
-    "US",
-    "USD",
-    142.63,
-    3.26,
-    "\u534A\u5BFC\u4F53",
-    "Semiconductors"
-  ],
-  [
-    "9988.HK",
-    "\u963F\u91CC\u5DF4\u5DF4",
-    "Alibaba Group",
-    "HK",
-    "HKD",
-    134.8,
-    -1.46,
-    "\u4E92\u8054\u7F51\u670D\u52A1",
-    "Internet services"
-  ],
-  [
-    "300750.SZ",
-    "\u5B81\u5FB7\u65F6\u4EE3",
-    "CATL",
-    "A",
-    "CNY",
-    268.42,
-    1.87,
-    "\u7535\u6C60\u4E0E\u65B0\u80FD\u6E90",
-    "Batteries & energy"
-  ],
-  [
-    "MSFT",
-    "\u5FAE\u8F6F",
-    "Microsoft",
-    "US",
-    "USD",
-    428.76,
-    -0.42,
-    "\u8F6F\u4EF6\u670D\u52A1",
-    "Software"
-  ],
-  [
-    "1810.HK",
-    "\u5C0F\u7C73\u96C6\u56E2",
-    "Xiaomi",
-    "HK",
-    "HKD",
-    51.15,
-    2.71,
-    "\u6D88\u8D39\u7535\u5B50",
-    "Consumer electronics"
-  ]
-];
-var demoPreferences = {
-  watchlist: securities.map((item) => item[0]),
-  language: "zh-CN",
-  positions: [
-    {
-      symbol: "0700.HK",
-      quantity: 400,
-      averageCost: 471.6,
-      currency: "HKD",
-      stopPrice: 487
-    },
-    {
-      symbol: "AAPL",
-      quantity: 50,
-      averageCost: 221.4,
-      currency: "USD",
-      stopPrice: 223
-    },
-    {
-      symbol: "600519.SS",
-      quantity: 100,
-      averageCost: 1465,
-      currency: "CNY",
-      stopPrice: 1378
-    },
-    {
-      symbol: "NVDA",
-      quantity: 80,
-      averageCost: 129.5,
-      currency: "USD",
-      stopPrice: 132
-    }
-  ]
-};
-var demoDecisions = [
-  {
-    id: "demo-decision-tencent",
-    symbol: "0700.HK",
-    state: "watch",
-    createdAt: "2026-09-08T02:15:00.000Z",
-    thesis: "\u89C2\u5BDF\u4EF7\u683C\u80FD\u5426\u5728 20 \u65E5\u5747\u7EBF\u4E0A\u65B9\u4FDD\u6301\uFF0C\u540C\u65F6\u6838\u5BF9\u516C\u544A\u4E0E\u677F\u5757\u76F8\u5BF9\u5F3A\u5EA6\u3002\u6B64\u6761\u4E3A\u5408\u6210\u6F14\u793A\u8BB0\u5F55\u3002",
-    thesisZh: "\u89C2\u5BDF\u4EF7\u683C\u80FD\u5426\u5728 20 \u65E5\u5747\u7EBF\u4E0A\u65B9\u4FDD\u6301\uFF0C\u540C\u65F6\u6838\u5BF9\u516C\u544A\u4E0E\u677F\u5757\u76F8\u5BF9\u5F3A\u5EA6\u3002\u6B64\u6761\u4E3A\u5408\u6210\u6F14\u793A\u8BB0\u5F55\u3002",
-    thesisEn: "Observe whether price holds above its 20-day average alongside verified announcements and sector strength. Synthetic demo record.",
-    entryCondition: "Daily close above MA20; fresh quotes from two sources.",
-    invalidationCondition: "Daily close below reference support; pause on stale data.",
-    horizon: "5 trading sessions",
-    riskBudget: "0.5% of portfolio equity",
-    evidenceIds: ["demo-evidence-1"],
-    reviews: []
-  }
-];
-function bars(price, seed, now, intraday = false) {
-  const length = intraday ? 68 : 120;
-  const dates = [];
-  let cursor = new Date(now);
-  cursor.setUTCHours(intraday ? 7 : 8, 0, 0, 0);
-  while (dates.length < length) {
-    if (intraday || ![0, 6].includes(cursor.getUTCDay()))
-      dates.unshift(cursor.toISOString());
-    cursor = new Date(cursor.getTime() - (intraday ? 5 * 6e4 : 864e5));
-  }
-  let previous = price * (intraday ? 0.978 : 0.795);
-  return dates.map((timestamp, index) => {
-    const progress = index / (length - 1);
-    const wave = Math.sin(index * 0.32 + seed) * 0.015 + Math.sin(index * 0.11) * 0.025;
-    const close = index === length - 1 ? price : price * ((intraday ? 0.978 : 0.795) + progress * (intraday ? 0.022 : 0.205) + wave * (intraday ? 0.22 : 1));
-    const open2 = previous * (1 + Math.sin(index * 1.7 + seed) * (intraday ? 1e-3 : 45e-4));
-    previous = close;
-    return {
-      timestamp,
-      open: Math.round(open2 * 100) / 100,
-      high: Math.round(
-        Math.max(open2, close) * (1 + 4e-3 + Math.abs(Math.sin(index + seed)) * 6e-3) * 100
-      ) / 100,
-      low: Math.round(
-        Math.min(open2, close) * (1 - 4e-3 - Math.abs(Math.cos(index + seed)) * 6e-3) * 100
-      ) / 100,
-      close: Math.round(close * 100) / 100,
-      volume: Math.round(
-        (intraday ? 18e4 : 145e5) * (0.6 + Math.abs(Math.sin(index * 1.34 + seed)) * 1.6)
-      )
-    };
-  });
-}
-function makeDemoReport(options = {}) {
-  const now = options.now ? new Date(options.now) : /* @__PURE__ */ new Date();
-  const asOf = new Date(now.getTime() - 35e3).toISOString();
-  const allItems = securities.map(
-    ([
-      symbol,
-      nameZh,
-      nameEn,
-      market,
-      currency,
-      price,
-      changePct,
-      sectorZh,
-      sectorEn
-    ], index) => {
-      const history = bars(price, index, now);
-      const position = (options.positions ?? demoPreferences.positions).find(
-        (item) => item.symbol === symbol
-      );
-      const sma = (period) => Math.round(
-        history.slice(-period).reduce((sum, row) => sum + row.close, 0) / period * 100
-      ) / 100;
-      return {
-        symbol,
-        name: nameZh,
-        nameZh,
-        nameEn,
-        market,
-        currency,
-        price,
-        changePct,
-        change: Math.round((price - price / (1 + changePct / 100)) * 100) / 100,
-        previousClose: Math.round(price / (1 + changePct / 100) * 100) / 100,
-        dayHigh: Math.round(price * 1.009 * 100) / 100,
-        dayLow: Math.round(price * 0.974 * 100) / 100,
-        volume: history.at(-1).volume,
-        asOf,
-        exchangeTimezone: market === "US" ? "America/New_York" : market === "HK" ? "Asia/Hong_Kong" : "Asia/Shanghai",
-        exchange: market === "US" ? "NASDAQ" : market === "HK" ? "HKEX" : symbol.endsWith(".SZ") ? "SZSE" : "SSE",
-        sector: sectorZh,
-        sectorZh,
-        sectorEn,
-        marketState: "REGULAR",
-        period: "1d",
-        history,
-        intraday: {
-          status: "available",
-          period: "5m",
-          history: bars(price, index, now, true),
-          volumeRatioSameTime: {
-            value: 1.38,
-            status: "available",
-            samples: 20
-          }
-        },
-        freshness: {
-          status: index === 6 ? "stale" : "fresh",
-          signalEligible: index !== 6,
-          ageSeconds: index === 6 ? 7200 : 35,
-          asOf,
-          calendarCoverage: "synthetic"
-        },
-        signalEligible: index !== 6,
-        source: "Synthetic demo fixtures",
-        dataSources: [
-          { provider: "Demo source A" },
-          { provider: "Demo source B" }
-        ],
-        crossCheck: {
-          status: "consistent",
-          spreadPct: 0.02,
-          timeDifferenceSeconds: 8
-        },
-        dataQuality: {
-          status: index === 6 ? "stale" : "ok",
-          warnings: index === 6 ? [
-            {
-              code: "stale",
-              messageZh: "\u5408\u6210\u884C\u60C5\u8D85\u8FC7\u65F6\u6548\u9608\u503C\uFF0C\u6761\u4EF6\u89E6\u53D1\u5DF2\u6682\u505C\u3002",
-              messageEn: "Synthetic quote exceeds its freshness threshold; triggers are suspended."
-            }
-          ] : []
-        },
-        indicators: {
-          period: "1d",
-          asOf: history.at(-1).timestamp,
-          sampleCount: history.length,
-          sma5: sma(5),
-          sma20: sma(20),
-          sma60: sma(60),
-          rsi14: 58.42 + index,
-          macd: Math.round(price * 34e-4 * 1e3) / 1e3,
-          macdSignal: Math.round(price * 29e-4 * 1e3) / 1e3,
-          support20d: Math.round(price * 0.918 * 100) / 100,
-          resistance20d: Math.round(price * 1.023 * 100) / 100,
-          annualizedVolatilityPct: 24.68 + index * 2.7,
-          maxDrawdown60dPct: -8.36 - index * 0.8,
-          volumeRatio20d: 1.37,
-          trend: "\u4E0A\u884C"
-        },
-        position: position ? {
-          ...position,
-          marketValue: price * position.quantity,
-          unrealizedPnl: (price - position.averageCost) * position.quantity,
-          unrealizedPnlPct: (price / position.averageCost - 1) * 100
-        } : null,
-        relativeChangePct: changePct - (market === "A" ? 0.64 : market === "HK" ? 1.26 : 0.48),
-        relativeStrength: { relativeChangePct: changePct - 0.64 },
-        alerts: [],
-        news: []
-      };
-    }
-  );
-  const items = options.watchlist ? options.watchlist.map((symbol) => allItems.find((item) => item.symbol === symbol) ?? {
-    symbol,
-    market: symbol.endsWith(".HK") ? "HK" : /\.(SS|SZ)$/.test(symbol) ? "A" : "US",
-    error: "No synthetic fixture for this symbol; no market data was requested.",
-    history: []
-  }) : allItems;
-  const indices = [
-    {
-      symbol: "000001.SS",
-      name: "\u4E0A\u8BC1\u6307\u6570",
-      nameZh: "\u4E0A\u8BC1\u6307\u6570",
-      nameEn: "SSE Composite",
-      market: "A",
-      price: 3867.42,
-      changePct: 0.64,
-      asOf
-    },
-    {
-      symbol: "^HSI",
-      name: "\u6052\u751F\u6307\u6570",
-      nameZh: "\u6052\u751F\u6307\u6570",
-      nameEn: "Hang Seng Index",
-      market: "HK",
-      price: 25187.36,
-      changePct: 1.26,
-      asOf
-    },
-    {
-      symbol: "^GSPC",
-      name: "\u6807\u666E 500",
-      nameZh: "\u6807\u666E 500",
-      nameEn: "S&P 500",
-      market: "US",
-      price: 6482.75,
-      changePct: 0.48,
-      asOf
-    }
-  ];
-  const events = [
-    {
-      id: "demo-evidence-1",
-      symbol: "0700.HK",
-      titleZh: "\u6F14\u793A\u4E8B\u4EF6\uFF1A\u5B63\u5EA6\u4E1A\u7EE9\u8D44\u6599\u5F85\u6838\u5BF9",
-      titleEn: "Demo event: quarterly results pending review",
-      title: "\u6F14\u793A\u4E8B\u4EF6\uFF1A\u5B63\u5EA6\u4E1A\u7EE9\u8D44\u6599\u5F85\u6838\u5BF9",
-      sourceTier: "official",
-      publisher: "HKEX (demo reference)",
-      url: "https://www.hkexnews.hk/",
-      publishedAt: new Date(now.getTime() - 72e5).toISOString(),
-      effectiveAt: new Date(now.getTime() + 864e5).toISOString(),
-      scheduledAt: new Date(now.getTime() + 864e5).toISOString(),
-      eventType: "earnings",
-      eventStatus: "tentative",
-      dateConfidence: "estimated",
-      timezone: "Asia/Hong_Kong"
-    },
-    {
-      id: "demo-evidence-2",
-      symbol: "AAPL",
-      titleZh: "\u6F14\u793A\u4E8B\u4EF6\uFF1A\u5B98\u65B9\u6295\u8D44\u8005\u5173\u7CFB\u8D44\u6599\u66F4\u65B0",
-      titleEn: "Demo event: investor relations material updated",
-      title: "\u6F14\u793A\u4E8B\u4EF6\uFF1A\u5B98\u65B9\u6295\u8D44\u8005\u5173\u7CFB\u8D44\u6599\u66F4\u65B0",
-      sourceTier: "official",
-      publisher: "Apple IR (demo reference)",
-      url: "https://investor.apple.com/",
-      publishedAt: new Date(now.getTime() - 864e5).toISOString()
-    }
-  ];
-  const monitor = {
-    events: [
-      {
-        id: "demo-alert-1",
-        symbol: "NVDA",
-        type: "confirmed",
-        titleZh: "\u6DA8\u5E45\u6761\u4EF6\u6301\u7EED\u786E\u8BA4",
-        titleEn: "Price-change condition confirmed",
-        ruleName: "Change > 3%",
-        value: 3.26,
-        asOf: new Date(now.getTime() - 18e5).toISOString()
-      },
-      {
-        id: "demo-alert-2",
-        symbol: "300750.SZ",
-        type: "recovered",
-        titleZh: "\u4EF7\u683C\u6062\u590D\u81F3\u89C2\u5BDF\u533A\u95F4",
-        titleEn: "Price returned to its watch range",
-        ruleName: "Support recovery",
-        asOf: new Date(now.getTime() - 11e5).toISOString()
-      },
-      {
-        id: "demo-alert-3",
-        symbol: "0700.HK",
-        type: "triggered",
-        titleZh: "\u540C\u523B\u6210\u4EA4\u91CF\u8D85\u8FC7\u89C2\u5BDF\u9608\u503C",
-        titleEn: "Same-time volume crossed watch threshold",
-        ruleName: "Same-time volume > 1.3x",
-        value: 1.38,
-        asOf: new Date(now.getTime() - 3e5).toISOString()
-      }
-    ]
-  };
-  const visibleSymbols = new Set(items.map((item) => item.symbol));
-  const knownItems = items.filter((item) => !item.error);
-  const sectorGroups = /* @__PURE__ */ new Map();
-  for (const item of knownItems) {
-    const group = sectorGroups.get(item.sectorZh) ?? { name: item.sectorZh, nameZh: item.sectorZh, nameEn: item.sectorEn, count: 0, changePct: 0, relativeChangePct: 0 };
-    group.count++;
-    group.changePct += item.changePct;
-    group.relativeChangePct += item.relativeChangePct;
-    sectorGroups.set(item.sectorZh, group);
-  }
-  const selectedEvents = events.filter((event) => visibleSymbols.has(event.symbol));
-  const selectedMonitor = { ...monitor, events: monitor.events.filter((event) => visibleSymbols.has(event.symbol)) };
-  const advances = knownItems.filter((item) => item.changePct > 0).length;
-  const declines = knownItems.filter((item) => item.changePct < 0).length;
-  return {
-    schemaVersion: 2,
-    demo: true,
-    language: "zh-CN",
-    phase: options.phase || "research",
-    generatedAt: now.toISOString(),
-    runId: "synthetic-demo",
-    source: "Synthetic demo fixtures",
-    items,
-    context: {
-      indices,
-      sectors: [...sectorGroups.values()].map((g) => ({ ...g, changePct: g.changePct / g.count, relativeChangePct: g.relativeChangePct / g.count })),
-      breadth: { scope: "watchlist", advances, declines, unchanged: knownItems.length - advances - declines }
-    },
-    events: selectedEvents,
-    evidence: selectedEvents,
-    monitor: selectedMonitor,
-    summary: {
-      requested: items.length,
-      succeeded: knownItems.length,
-      failed: items.length - knownItems.length,
-      advances,
-      declines,
-      unchanged: knownItems.length - advances - declines,
-      alertCount: selectedMonitor.events.length,
-      qualityWarningCount: items.filter((item) => item.error || item.freshness?.status !== "fresh").length,
-      signalEligibleCount: items.filter((item) => item.signalEligible).length,
-      staleCount: items.filter((item) => item.freshness?.status === "stale").length,
-      marketCounts: Object.fromEntries(["A", "HK", "US"].map((market) => [market, items.filter((item) => item.market === market).length]))
-    }
-  };
-}
-
-// mcp/http.mjs
-var assets = /* @__PURE__ */ new Map([
-  ["/assets/dashboard.js", ["dashboard.js", "text/javascript; charset=utf-8"]],
-  ["/assets/dashboard.css", ["dashboard.css", "text/css; charset=utf-8"]],
-  ["/assets/dashboard.js.LEGAL.txt", ["dashboard.js.LEGAL.txt", "text/plain; charset=utf-8"]],
-  [
-    "/assets/vendor/lightweight-charts.js",
-    ["vendor/lightweight-charts.js", "text/javascript; charset=utf-8"]
-  ],
-  [
-    "/assets/vendor/lucide.js",
-    ["vendor/lucide.js", "text/javascript; charset=utf-8"]
-  ]
-]);
-var assetRoot = new URL("../assets/", import.meta.url);
-var jsonType = "application/json; charset=utf-8";
-var csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
-function respond(response, status, data, type = jsonType) {
-  const body = type === jsonType ? JSON.stringify(data) : data;
-  response.writeHead(status, {
-    "Content-Type": type,
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff",
-    "Content-Security-Policy": csp,
-    "Referrer-Policy": "no-referrer",
-    "Content-Length": Buffer.byteLength(body)
-  });
-  response.end(body);
-}
-async function bodyJson(request) {
-  if (!/^application\/json(?:;|$)/i.test(request.headers["content-type"] ?? ""))
-    throw Object.assign(new Error("JSON content type required"), {
-      status: 415
-    });
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += chunk.length;
-    if (size > 1e6)
-      throw Object.assign(new Error("Request body too large"), { status: 413 });
-    chunks.push(chunk);
-  }
-  const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-  if (!body || typeof body !== "object" || Array.isArray(body))
-    throw new Error("JSON object required");
-  return body;
-}
-function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
-  let demoReport = demo2 ? makeDemoReport() : null;
-  let preferences = demo2 ? structuredClone(demoPreferences) : null;
-  let decisions = demo2 ? structuredClone(demoDecisions) : null;
-  let refreshPromise = null;
-  let refreshedAt = 0;
-  const server2 = createServer(async (request, response) => {
-    try {
-      const host = request.headers.host;
-      const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
-      if (!allowedHosts.includes(host))
-        return respond(response, 403, { error: "Invalid local host" });
-      const origin = request.headers.origin;
-      if (origin && !allowedHosts.some((value) => origin === `http://${value}`))
-        return respond(response, 403, { error: "Cross-origin access denied" });
-      const url = new URL(request.url, "http://127.0.0.1");
-      if (request.method === "GET") {
-        if (url.pathname === "/api/paper/status") return respond(response, 200, demo2 ? { environment: "SIMULATE", demoDisabled: true, bridgeEnabled: false, policy: { enabled: false }, intents: [], samples: [], limitation: "Paper trading requires the real-data dashboard and actual Futu OpenD. No synthetic account, fills or performance are supplied." } : await getPaperService().status());
-        if (url.pathname === "/api/evidence") {
-          const evidence = demo2 ? { items: demoReport.evidence ?? [] } : await queryEvidence({
-            symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : void 0,
-            limit: 500
-          });
-          const calendar = demo2 ? { events: demoReport.events ?? [], warnings: [] } : projectCatalystCalendar(evidence.items);
-          const warnings = [...calendar.warnings];
-          if (evidence.totalMatched > evidence.returned) warnings.push("Evidence scan truncated; calendar may omit events or revisions.");
-          return respond(response, 200, { ...evidence, events: calendar.events, eventWarnings: warnings });
-        }
-        if (url.pathname === "/health")
-          return respond(response, 200, {
-            ok: true,
-            service: "hrouter-market-pulse",
-            version: "1.1.1",
-            demo: demo2
-          });
-        if (assets.has(url.pathname)) {
-          const [name, type] = assets.get(url.pathname);
-          return respond(
-            response,
-            200,
-            await readFile7(fileURLToPath2(new URL(name, assetRoot))),
-            type
-          );
-        }
-        if (url.pathname === "/api/preferences")
-          return respond(
-            response,
-            200,
-            demo2 ? preferences : await loadPreferences()
-          );
-        if (url.pathname === "/api/decisions")
-          return respond(
-            response,
-            200,
-            demo2 ? { decisions: decisions.map((record2) => ({ ...record2, scorecard: buildThesisScorecard(record2) })) } : await listDecisions()
-          );
-        if (url.pathname === "/api/latest" || /^\/api\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)) {
-          const id = url.pathname === "/api/latest" ? "latest" : url.pathname.split("/").at(-1);
-          return respond(
-            response,
-            200,
-            demo2 ? demoReport : JSON.parse(await loadReport(id, "json"))
-          );
-        }
-        if (url.pathname === "/" || /^\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)) {
-          try {
-            const report = demo2 ? demoReport : JSON.parse(
-              await loadReport(
-                url.pathname === "/" ? "latest" : url.pathname.split("/").at(-1),
-                "json"
-              )
-            );
-            return respond(
-              response,
-              200,
-              buildReportHtml(report),
-              "text/html; charset=utf-8"
-            );
-          } catch (error2) {
-            if (error2.code !== "ENOENT") throw error2;
-            return respond(
-              response,
-              200,
-              buildEmptyHtml(),
-              "text/html; charset=utf-8"
-            );
-          }
-        }
-      }
-      if (request.method === "POST") {
-        const body = await bodyJson(request);
-        if (url.pathname.startsWith("/api/paper/")) {
-          if (demo2) return respond(response, 409, { error: "\u6F14\u793A\u6A21\u5F0F\u4E0D\u8FDE\u63A5\u6A21\u62DF\u8D26\u6237\u3002\u8BF7\u542F\u52A8\u771F\u5B9E\u6570\u636E\u9762\u677F / Use the real-data dashboard; no synthetic trading fallback." });
-          const actions = { connect: "accounts", refresh: "refresh", policy: "savePolicy", evaluate: "evaluate", submit: "submit", cancel: "cancel" };
-          const action = actions[url.pathname.slice("/api/paper/".length)];
-          if (!action) return respond(response, 404, { error: "Unknown paper action" });
-          return respond(response, 200, await getPaperService()[action](action === "accounts" ? body.market : body));
-        }
-        if (url.pathname === "/api/preferences") {
-          if (body.language && !["zh-CN", "en"].includes(body.language))
-            throw new Error("Invalid language");
-          if (body.watchlist && (!Array.isArray(body.watchlist) || body.watchlist.length > 50))
-            throw new Error("Watchlist must contain at most 50 symbols");
-          const fields = [
-            "language",
-            "watchlist",
-            "positions",
-            "benchmarkSymbols",
-            "sectorMap",
-            "alertRules",
-            "monitorIntervalSeconds",
-            "calendarOverrides"
-          ];
-          const selected = Object.fromEntries(
-            fields.filter((key) => body[key] !== void 0).map((key) => [key, body[key]])
-          );
-          if (demo2) {
-            preferences = sanitizePreferences(selected, preferences);
-            demoReport.language = preferences.language;
-            return respond(response, 200, preferences);
-          }
-          return respond(response, 200, await savePreferences(selected));
-        }
-        if (url.pathname === "/api/refresh") {
-          const phase = [
-            "premarket",
-            "intraday",
-            "postmarket",
-            "research"
-          ].includes(body.phase) ? body.phase : "intraday";
-          if (demo2) {
-            demoReport = {
-              ...makeDemoReport({ watchlist: preferences.watchlist, positions: preferences.positions }),
-              language: preferences.language,
-              phase,
-              demo: true
-            };
-            return respond(response, 200, demoReport);
-          }
-          if (refreshPromise)
-            return respond(response, 200, await refreshPromise);
-          if (Date.now() - refreshedAt < 15e3)
-            return respond(response, 429, {
-              error: "Refresh cooldown: 15 seconds",
-              retryAfter: 15
-            });
-          if (body.symbols && (!Array.isArray(body.symbols) || body.symbols.length > 20))
-            throw new Error("At most 20 symbols per report");
-          refreshPromise = createMarketReport({
-            phase,
-            symbols: body.symbols,
-            includeNews: body.includeNews !== false,
-            enrichReport
-          });
-          try {
-            const report = await refreshPromise;
-            refreshedAt = Date.now();
-            return respond(response, 200, report);
-          } finally {
-            refreshPromise = null;
-          }
-        }
-        if (url.pathname === "/api/decisions") {
-          if (demo2) {
-            if (!body.symbol || !body.thesis)
-              throw new Error("Symbol and thesis required");
-            const entry = {
-              ...body,
-              id: `demo_${randomUUID5()}`,
-              createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-              reviews: [],
-              demo: true
-            };
-            decisions.unshift(entry);
-            demoReport.decisions = decisions;
-            return respond(response, 201, entry);
-          }
-          return respond(response, 201, await recordDecision(body));
-        }
-        const review = url.pathname.match(
-          /^\/api\/decisions\/([A-Za-z0-9_-]+)\/review$/
-        );
-        if (review) {
-          if (demo2) {
-            const entry = decisions.find((item) => item.id === review[1]);
-            if (!entry)
-              return respond(response, 404, { error: "Decision not found" });
-            entry.reviews ??= [];
-            entry.reviews.push({
-              ...body,
-              reviewedAt: (/* @__PURE__ */ new Date()).toISOString()
-            });
-            return respond(response, 200, entry);
-          }
-          return respond(response, 200, await reviewDecision(review[1], body));
-        }
-        if (url.pathname === "/api/official/sync")
-          return respond(
-            response,
-            200,
-            demo2 ? { demo: true, results: [] } : await syncOfficialEvidence(body)
-          );
-        if (url.pathname === "/api/evidence")
-          return respond(
-            response,
-            201,
-            demo2 ? { demo: true, inserted: 0 } : await ingestOfficialRecords(body)
-          );
-      }
-      return respond(response, 404, { error: "Not found" });
-    } catch (error2) {
-      return respond(
-        response,
-        error2.code === "ENOENT" ? 404 : error2.status ?? 400,
-        { error: error2.code === "ENOENT" ? "No report yet" : error2.message }
-      );
-    }
-  });
-  server2.requestTimeout = 3e4;
-  server2.headersTimeout = 1e4;
-  server2.ready = new Promise((resolve, reject) => {
-    let attempts = 0;
-    server2.on("error", (error2) => {
-      if (error2.code === "EADDRINUSE" && attempts++ < 10) {
-        port = port >= 65535 ? 8787 : port + 1;
-        process.env.HROUTER_REPORT_PORT = String(port);
-        server2.listen(port, "127.0.0.1");
-      } else reject(error2);
-    });
-    server2.once("listening", () => {
-      port = server2.address().port;
-      process.env.HROUTER_REPORT_PORT = String(port);
-      console.error(
-        `Hrouter Market Pulse: http://127.0.0.1:${port}/ ${demo2 ? "(demo)" : ""}`
-      );
-      resolve(server2);
-    });
-    server2.listen(port, "127.0.0.1");
-  });
-  return server2;
 }
 
 // node_modules/zod/v3/external.js
@@ -12737,8 +11032,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path7, errorMaps, issueData } = params;
-  const fullPath = [...path7, ...issueData.path || []];
+  const { data, path: path9, errorMaps, issueData } = params;
+  const fullPath = [...path9, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -12854,11 +11149,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path7, key) {
+  constructor(parent, value, path9, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path7;
+    this._path = path9;
     this._key = key;
   }
   get path() {
@@ -16300,6 +14595,2884 @@ var coerce = {
 };
 var NEVER = INVALID;
 
+// mcp/arena.mjs
+import { randomBytes, randomUUID as randomUUID3 } from "node:crypto";
+import { mkdir as mkdir5, readdir, readFile as readFile5, rename as rename5, rm as rm2, stat, writeFile as writeFile4 } from "node:fs/promises";
+import path5 from "node:path";
+var ARENA_MARKETS = {
+  A: { currency: "CNY", defaultCash: 1e6, benchmark: "000300.SS", benchmarkName: "\u6CAA\u6DF1300 / CSI 300" },
+  HK: { currency: "HKD", defaultCash: 1e6, benchmark: "^HSI", benchmarkName: "\u6052\u751F\u6307\u6570 / Hang Seng" },
+  US: { currency: "USD", defaultCash: 1e5, benchmark: "^GSPC", benchmarkName: "\u6807\u666E500 / S&P 500" }
+};
+var LIMITS = { orders: 5e3, trades: 5e3, journal: 2e3, equity: 6e3, strategyHistory: 200 };
+var SYNC_THROTTLE_MS = 2e4;
+var QUOTE_CACHE_MS = 1e4;
+var LOCK_STALE_MS = 3e4;
+var LOCK_WAIT_MS = 2e4;
+var round4 = (value, digits = 2) => {
+  const factor = 10 ** digits;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+};
+var finite4 = (value) => typeof value === "number" && Number.isFinite(value);
+var clamp2 = (value, low, high) => Math.min(high, Math.max(low, value));
+var shortId = (prefix) => `${prefix}_${randomBytes(6).toString("hex")}`;
+function normalizeTradeSymbol(input) {
+  const raw = String(input ?? "").trim().toUpperCase();
+  const hk = raw.match(/^(?:HK)?0*(\d{1,5})(?:\.HK)?$/);
+  if (hk && (raw.endsWith(".HK") || raw.startsWith("HK") || /^\d{1,4}$/.test(raw) || /^0\d{4}$/.test(raw))) return `${hk[1].padStart(4, "0")}.HK`;
+  return normalizeSymbol(raw);
+}
+function isIndexSymbol(symbol) {
+  return symbol.startsWith("^") || /^000\d{3}\.SS$/.test(symbol) || /^399\d{3}\.SZ$/.test(symbol) || getInstrumentRules(symbol).instrumentType === "index";
+}
+var ArenaError = class extends Error {
+  constructor(message, code = "invalid_request", status = 400) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
+};
+function computeFees(market2, side, quantity, price) {
+  const value = quantity * price;
+  const parts = {};
+  if (market2 === "A") {
+    parts.commission = Math.max(5, value * 25e-5);
+    parts.stampDuty = side === "SELL" ? value * 5e-4 : 0;
+    parts.transferFee = value * 1e-5;
+  } else if (market2 === "HK") {
+    parts.commission = Math.max(3, value * 3e-4);
+    parts.stampDuty = Math.ceil(value * 1e-3);
+    parts.tradingFee = value * 565e-7;
+    parts.sfcLevy = value * 27e-6;
+    parts.frcLevy = value * 15e-7;
+    parts.settlement = clamp2(value * 2e-5, 2, 100);
+  } else {
+    parts.commission = clamp2(quantity * 5e-3, 1, value * 0.01);
+    parts.secFee = side === "SELL" ? value * 278e-7 : 0;
+    parts.taf = side === "SELL" ? Math.min(quantity * 166e-6, 8.3) : 0;
+  }
+  const breakdown = Object.fromEntries(Object.entries(parts).filter(([, amount]) => amount > 0).map(([key, amount]) => [key, round4(amount)]));
+  return { total: round4(Object.values(breakdown).reduce((sum, amount) => sum + amount, 0)), breakdown };
+}
+function tickSize(market2, price) {
+  if (market2 === "HK") {
+    const table = [[0.25, 1e-3], [0.5, 5e-3], [10, 0.01], [20, 0.02], [100, 0.05], [200, 0.1], [500, 0.2], [1e3, 0.5], [2e3, 1], [5e3, 2]];
+    return table.find(([ceiling]) => price < ceiling)?.[1] ?? 5;
+  }
+  if (market2 === "US") return price < 1 ? 1e-4 : 0.01;
+  return 0.01;
+}
+function alignToTick(market2, price, direction) {
+  const tick = tickSize(market2, price);
+  const units = price / tick;
+  const aligned = (direction === "up" ? Math.ceil(units - 1e-9) : Math.floor(units + 1e-9)) * tick;
+  return round4(aligned, tick < 0.01 ? 4 : 3);
+}
+function lotRules(account2, symbol, quote) {
+  const rules = getInstrumentRules(symbol);
+  if (account2.market === "A") {
+    const star = rules.board === "STAR";
+    return { lotSize: star ? 1 : 100, minimumBuy: star ? 200 : 100, tPlusOne: true, source: "exchange rule" };
+  }
+  if (account2.market === "HK") {
+    const lot = account2.lotOverrides?.[symbol] ?? quote?.lotSize ?? null;
+    return { lotSize: lot, minimumBuy: lot, tPlusOne: false, source: account2.lotOverrides?.[symbol] ? "account override" : "Tencent board lot" };
+  }
+  return { lotSize: 1, minimumBuy: 1, tPlusOne: false, source: "exchange rule" };
+}
+function eligibleSession(market2, now) {
+  const today = getMarketSession(market2, now);
+  if (["premarket", "open", "break"].includes(today.status)) return today;
+  for (let offset = 1; offset <= 20; offset += 1) {
+    const date3 = new Date(Date.parse(`${today.date}T12:00:00Z`) + offset * 864e5).toISOString().slice(0, 10);
+    const session = getMarketSession(market2, marketLocalToIso(date3, 720, market2));
+    if (session.status !== "closed") return session;
+  }
+  return today;
+}
+function tradability(account2, quote, now = (/* @__PURE__ */ new Date()).toISOString()) {
+  if (!quote) return { ok: false, reason: "no-quote" };
+  const session = getMarketSession(account2.market, now);
+  if (session.status !== "open") return { ok: false, reason: `market-${session.status}`, session };
+  const ageSeconds = (Date.parse(now) - Date.parse(quote.asOf)) / 1e3;
+  const maxAge = account2.settings?.maxQuoteAgeSeconds ?? 180;
+  if (!Number.isFinite(ageSeconds)) return { ok: false, reason: "quote-time-unknown", session };
+  if (ageSeconds > maxAge) return { ok: false, reason: "quote-stale", ageSeconds: round4(ageSeconds, 0), session };
+  if (ageSeconds < -60) return { ok: false, reason: "quote-in-future", session };
+  if (localMarketTime(quote.asOf, account2.market)?.date !== session.date) return { ok: false, reason: "quote-other-session", session };
+  return { ok: true, ageSeconds: round4(Math.max(0, ageSeconds), 0), session, calendarVerified: session.verified };
+}
+function executionPrice(account2, order, quote) {
+  const slip = (account2.settings?.slippageBps ?? 5) / 1e4;
+  const market2 = account2.market;
+  if (order.side === "BUY") {
+    if (market2 === "A" && finite4(quote.limitUp) && quote.price >= quote.limitUp - 1e-9) return { price: null, blocked: "limit-up" };
+    let price2 = alignToTick(market2, quote.price * (1 + slip), "up");
+    if (market2 === "A" && finite4(quote.limitUp)) price2 = Math.min(price2, quote.limitUp);
+    if (order.type === "limit") {
+      if (quote.price > order.limitPrice + 1e-9) return { price: null, blocked: "limit-not-reached" };
+      price2 = Math.min(price2, order.limitPrice);
+    }
+    return { price: price2 };
+  }
+  if (market2 === "A" && finite4(quote.limitDown) && quote.price <= quote.limitDown + 1e-9) return { price: null, blocked: "limit-down" };
+  let price = alignToTick(market2, quote.price * (1 - slip), "down");
+  if (market2 === "A" && finite4(quote.limitDown)) price = Math.max(price, quote.limitDown);
+  if (order.type === "limit") {
+    if (quote.price < order.limitPrice - 1e-9) return { price: null, blocked: "limit-not-reached" };
+    price = Math.max(price, order.limitPrice);
+  }
+  return { price };
+}
+function openOrders(account2) {
+  return account2.orders.filter((order) => order.status === "open");
+}
+function reservedCash(account2, excludeOrderId) {
+  return round4(openOrders(account2).filter((order) => order.side === "BUY" && order.id !== excludeOrderId).reduce((sum, order) => sum + order.reserved, 0));
+}
+function sellableQuantity(account2, symbol, now = (/* @__PURE__ */ new Date()).toISOString(), excludeOrderId) {
+  const position = account2.positions[symbol];
+  if (!position) return 0;
+  const today = localMarketTime(now, account2.market)?.date;
+  const settled = account2.market === "A" ? position.lots.filter((lot) => lot.date < today).reduce((sum, lot) => sum + lot.quantity, 0) : position.quantity;
+  const pending = openOrders(account2).filter((order) => order.side === "SELL" && order.symbol === symbol && order.id !== excludeOrderId).reduce((sum, order) => sum + order.quantity, 0);
+  return Math.max(0, settled - pending);
+}
+function applyFill(account2, order, price, quote, now) {
+  const fees = computeFees(account2.market, order.side, order.quantity, price);
+  const gross = round4(order.quantity * price);
+  const tradeDate = localMarketTime(now, account2.market).date;
+  let position = account2.positions[order.symbol];
+  let realizedPnl = null;
+  if (order.side === "BUY") {
+    position ??= { symbol: order.symbol, name: quote?.name ?? order.name ?? order.symbol, quantity: 0, costBasis: 0, realizedPnl: 0, lots: [], openedAt: now };
+    position.costBasis = round4(position.costBasis + gross + fees.total);
+    position.quantity += order.quantity;
+    const lot = position.lots.find((entry) => entry.date === tradeDate);
+    if (lot) lot.quantity += order.quantity;
+    else position.lots.push({ date: tradeDate, quantity: order.quantity });
+    account2.cash = round4(account2.cash - gross - fees.total);
+    account2.positions[order.symbol] = position;
+  } else {
+    const averageCost = position.costBasis / position.quantity;
+    const releasedCost = averageCost * order.quantity;
+    realizedPnl = round4(gross - fees.total - releasedCost);
+    position.costBasis = round4(position.costBasis - releasedCost);
+    position.quantity -= order.quantity;
+    position.realizedPnl = round4(position.realizedPnl + realizedPnl);
+    let remaining = order.quantity;
+    for (const lot of position.lots) {
+      const used = Math.min(lot.quantity, remaining);
+      lot.quantity -= used;
+      remaining -= used;
+    }
+    position.lots = position.lots.filter((lot) => lot.quantity > 0);
+    account2.cash = round4(account2.cash + gross - fees.total);
+    account2.realizedPnl = round4((account2.realizedPnl ?? 0) + realizedPnl);
+    if (position.quantity <= 0) {
+      account2.closedPositions = [...account2.closedPositions ?? [], { symbol: position.symbol, name: position.name, realizedPnl: position.realizedPnl, openedAt: position.openedAt, closedAt: now }].slice(-500);
+      delete account2.positions[order.symbol];
+    }
+  }
+  if (account2.positions[order.symbol]) {
+    account2.positions[order.symbol].lastPrice = quote?.price ?? price;
+    account2.positions[order.symbol].lastPriceAt = quote?.asOf ?? now;
+  }
+  Object.assign(order, {
+    status: "filled",
+    filledAt: now,
+    fillPrice: price,
+    fees: fees.total,
+    reserved: 0,
+    fillQuote: quote ? { price: quote.price, asOf: quote.asOf, source: quote.provider ?? quote.source } : null
+  });
+  const trade = {
+    id: shortId("trd"),
+    orderId: order.id,
+    symbol: order.symbol,
+    name: account2.positions[order.symbol]?.name ?? quote?.name ?? order.symbol,
+    side: order.side,
+    quantity: order.quantity,
+    price,
+    gross,
+    fees: fees.total,
+    feeBreakdown: fees.breakdown,
+    realizedPnl,
+    at: now,
+    reason: order.reason,
+    confidence: order.confidence ?? null,
+    strategyVersion: order.strategyVersion
+  };
+  account2.trades.push(trade);
+  if (account2.trades.length > LIMITS.trades) account2.trades = account2.trades.slice(-LIMITS.trades);
+  return trade;
+}
+function valuation(account2) {
+  const positions = Object.values(account2.positions).map((position) => {
+    const price = finite4(position.lastPrice) ? position.lastPrice : position.costBasis / position.quantity;
+    const marketValue2 = round4(price * position.quantity);
+    const averageCost = position.quantity ? position.costBasis / position.quantity : 0;
+    return {
+      ...position,
+      averageCost: round4(averageCost, 4),
+      marketValue: marketValue2,
+      unrealizedPnl: round4(marketValue2 - position.costBasis),
+      unrealizedPnlPct: position.costBasis > 0 ? round4((marketValue2 / position.costBasis - 1) * 100, 2) : null
+    };
+  });
+  const marketValue = round4(positions.reduce((sum, position) => sum + position.marketValue, 0));
+  const equity = round4(account2.cash + marketValue);
+  return {
+    equity,
+    cash: account2.cash,
+    marketValue,
+    reservedCash: reservedCash(account2),
+    availableCash: round4(account2.cash - reservedCash(account2)),
+    positions: positions.map((position) => ({ ...position, weightPct: equity > 0 ? round4(position.marketValue / equity * 100, 2) : 0 })).sort((a, b) => b.marketValue - a.marketValue)
+  };
+}
+function recordEquity(account2, now, force = false) {
+  const { equity, cash, marketValue } = valuation(account2);
+  const last = account2.equity.at(-1);
+  const elapsed = last ? Date.parse(now) - Date.parse(last.at) : Infinity;
+  if (!force && last && (elapsed < 6e4 || elapsed < 3e5 && Math.abs(last.equity - equity) < 5e-3)) return;
+  account2.equity.push({ at: now, equity, cash, marketValue });
+  if (account2.equity.length > LIMITS.equity) {
+    const [first, ...rest] = account2.equity;
+    const half = Math.floor(rest.length / 2);
+    account2.equity = [first, ...rest.slice(0, half).filter((_, index) => index % 2 === 0), ...rest.slice(half)];
+  }
+}
+function computeMetrics(account2, { benchmarkPrice = null } = {}) {
+  const value = valuation(account2);
+  const initial = account2.initialCash;
+  const points = [{ at: account2.createdAt, equity: initial }, ...account2.equity, { at: (/* @__PURE__ */ new Date()).toISOString(), equity: value.equity }];
+  let peak = -Infinity;
+  let maxDrawdownPct = 0;
+  for (const point of points) {
+    peak = Math.max(peak, point.equity);
+    if (peak > 0) maxDrawdownPct = Math.min(maxDrawdownPct, (point.equity / peak - 1) * 100);
+  }
+  const daily = /* @__PURE__ */ new Map();
+  for (const point of points) daily.set(localMarketTime(point.at, account2.market)?.date ?? point.at.slice(0, 10), point.equity);
+  const closes = [...daily.values()];
+  const returns = closes.slice(1).map((close, index) => close / closes[index] - 1).filter(Number.isFinite);
+  let volatilityPct = null;
+  let sharpe = null;
+  if (returns.length >= 5) {
+    const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+    const variance = returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / (returns.length - 1);
+    const deviation = Math.sqrt(variance);
+    volatilityPct = round4(deviation * Math.sqrt(252) * 100, 2);
+    sharpe = deviation > 0 ? round4(mean / deviation * Math.sqrt(252), 2) : null;
+  }
+  const sells = account2.trades.filter((trade) => trade.side === "SELL" && finite4(trade.realizedPnl));
+  const wins = sells.filter((trade) => trade.realizedPnl > 0);
+  const losses = sells.filter((trade) => trade.realizedPnl < 0);
+  const grossWin = wins.reduce((sum, trade) => sum + trade.realizedPnl, 0);
+  const grossLoss = Math.abs(losses.reduce((sum, trade) => sum + trade.realizedPnl, 0));
+  const totalReturnPct = round4((value.equity / initial - 1) * 100, 2);
+  const benchmarkReturnPct = finite4(benchmarkPrice) && finite4(account2.benchmark?.startPrice) && account2.benchmark.startPrice > 0 ? round4((benchmarkPrice / account2.benchmark.startPrice - 1) * 100, 2) : null;
+  const days = Math.max(0, (Date.now() - Date.parse(account2.createdAt)) / 864e5);
+  const today = localMarketTime((/* @__PURE__ */ new Date()).toISOString(), account2.market)?.date;
+  const previousClose = [...daily.entries()].filter(([date3]) => date3 < today).at(-1)?.[1] ?? initial;
+  const byVersion = /* @__PURE__ */ new Map();
+  for (const trade of account2.trades) {
+    const key = trade.strategyVersion ?? 1;
+    const entry = byVersion.get(key) ?? { version: key, trades: 0, closedTrades: 0, wins: 0, realizedPnl: 0, fees: 0 };
+    entry.trades += 1;
+    entry.fees = round4(entry.fees + trade.fees);
+    if (finite4(trade.realizedPnl)) {
+      entry.closedTrades += 1;
+      entry.realizedPnl = round4(entry.realizedPnl + trade.realizedPnl);
+      if (trade.realizedPnl > 0) entry.wins += 1;
+    }
+    byVersion.set(key, entry);
+  }
+  return {
+    equity: value.equity,
+    cash: value.cash,
+    marketValue: value.marketValue,
+    availableCash: value.availableCash,
+    totalPnl: round4(value.equity - initial),
+    totalReturnPct,
+    todayReturnPct: previousClose > 0 ? round4((value.equity / previousClose - 1) * 100, 2) : null,
+    annualizedReturnPct: days >= 30 ? round4(((value.equity / initial) ** (365 / days) - 1) * 100, 2) : null,
+    maxDrawdownPct: round4(maxDrawdownPct, 2),
+    volatilityPct,
+    sharpe,
+    benchmarkSymbol: account2.benchmark?.symbol ?? null,
+    benchmarkReturnPct,
+    excessReturnPct: benchmarkReturnPct === null ? null : round4(totalReturnPct - benchmarkReturnPct, 2),
+    realizedPnl: round4(account2.realizedPnl ?? 0),
+    unrealizedPnl: round4(value.positions.reduce((sum, p) => sum + p.unrealizedPnl, 0)),
+    exposurePct: value.equity > 0 ? round4(value.marketValue / value.equity * 100, 2) : 0,
+    positions: value.positions.length,
+    trades: account2.trades.length,
+    closedTrades: sells.length,
+    winRatePct: sells.length ? round4(wins.length / sells.length * 100, 1) : null,
+    profitFactor: grossLoss > 0 ? round4(grossWin / grossLoss, 2) : null,
+    averageWin: wins.length ? round4(grossWin / wins.length) : null,
+    averageLoss: losses.length ? round4(-grossLoss / losses.length) : null,
+    feesPaid: round4(account2.trades.reduce((sum, trade) => sum + trade.fees, 0)),
+    turnover: initial > 0 ? round4(account2.trades.reduce((sum, trade) => sum + trade.gross, 0) / initial, 2) : 0,
+    ordersPlaced: account2.orders.length,
+    ordersRejected: account2.orders.filter((order) => order.status === "rejected").length,
+    openOrders: openOrders(account2).length,
+    decisionsLogged: account2.journal.length,
+    daysActive: round4(days, 1),
+    tradingDays: closes.length - 1,
+    sampleWarning: closes.length < 6 ? "fewer-than-5-trading-days" : sells.length < 10 ? "fewer-than-10-closed-trades" : null,
+    byStrategyVersion: [...byVersion.values()].map((entry) => ({ ...entry, winRatePct: entry.closedTrades ? round4(entry.wins / entry.closedTrades * 100, 1) : null }))
+  };
+}
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error2) {
+    return error2.code === "EPERM";
+  }
+}
+function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
+  const accountDir = path5.join(root, "accounts");
+  const lockDir = path5.join(root, ".lock");
+  const quoteCache = /* @__PURE__ */ new Map();
+  const lastSync = /* @__PURE__ */ new Map();
+  async function withLock(task) {
+    await mkdir5(root, { recursive: true });
+    const started = Date.now();
+    for (; ; ) {
+      try {
+        await mkdir5(lockDir);
+        await writeFile4(path5.join(lockDir, "owner.json"), JSON.stringify({ pid: process.pid, at: Date.now() }));
+        break;
+      } catch (error2) {
+        if (error2.code !== "EEXIST") throw error2;
+        let stale = false;
+        try {
+          const owner = JSON.parse(await readFile5(path5.join(lockDir, "owner.json"), "utf8"));
+          stale = Date.now() - owner.at > LOCK_STALE_MS || !processAlive(owner.pid);
+        } catch {
+          try {
+            stale = Date.now() - (await stat(lockDir)).mtimeMs > LOCK_STALE_MS;
+          } catch {
+            stale = false;
+          }
+        }
+        if (stale) {
+          await rm2(lockDir, { recursive: true, force: true });
+          continue;
+        }
+        if (Date.now() - started > LOCK_WAIT_MS) throw new ArenaError("Arena is busy; another agent is writing. Retry shortly.", "busy", 503);
+        await new Promise((resolve) => setTimeout(resolve, 20 + Math.random() * 40));
+      }
+    }
+    try {
+      return await task();
+    } finally {
+      await rm2(lockDir, { recursive: true, force: true });
+    }
+  }
+  const accountPath = (id) => {
+    if (!/^acc_[a-f0-9]{12}$/.test(id ?? "")) throw new ArenaError(`Invalid account id: ${id}`, "invalid_account");
+    return path5.join(accountDir, `${id}.json`);
+  };
+  async function load(id) {
+    try {
+      return JSON.parse(await readFile5(accountPath(id), "utf8"));
+    } catch (error2) {
+      if (error2.code === "ENOENT") throw new ArenaError(`Account ${id} not found. Call arena_my_accounts or arena_register_account.`, "not_found", 404);
+      throw error2;
+    }
+  }
+  async function save(account2) {
+    await mkdir5(accountDir, { recursive: true });
+    account2.updatedAt = now();
+    const file = accountPath(account2.id);
+    const temporary = `${file}.${process.pid}.${randomUUID3()}.tmp`;
+    await writeFile4(temporary, JSON.stringify(account2, null, 1), "utf8");
+    await rename5(temporary, file);
+  }
+  async function loadAll() {
+    let names = [];
+    try {
+      names = await readdir(accountDir);
+    } catch (error2) {
+      if (error2.code !== "ENOENT") throw error2;
+    }
+    const accounts = [];
+    for (const name of names.filter((entry) => /^acc_[a-f0-9]{12}\.json$/.test(entry))) {
+      try {
+        accounts.push(JSON.parse(await readFile5(path5.join(accountDir, name), "utf8")));
+      } catch {
+      }
+    }
+    return accounts.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+  }
+  async function quote(symbol, { fresh = false } = {}) {
+    const cached2 = quoteCache.get(symbol);
+    if (!fresh && cached2 && Date.now() - cached2.fetchedAt < quoteCacheMs) return cached2.value;
+    const value = await quoteProvider(symbol);
+    quoteCache.set(symbol, { value, fetchedAt: Date.now() });
+    return value;
+  }
+  async function quotes(symbols, options) {
+    const result = /* @__PURE__ */ new Map();
+    const queue = [...new Set(symbols)];
+    await Promise.all(Array.from({ length: Math.min(6, queue.length) }, async () => {
+      while (queue.length) {
+        const symbol = queue.shift();
+        try {
+          result.set(symbol, await quote(symbol, options));
+        } catch (error2) {
+          result.set(symbol, { error: error2.message });
+        }
+      }
+    }));
+    return result;
+  }
+  function assertCaller(account2, caller) {
+    if (!caller?.client || caller.client === "dashboard") return;
+    if (!account2.agent.client || account2.agent.client === "dashboard") {
+      account2.agent.client = caller.client;
+      account2.agent.clientVersion = caller.clientVersion ?? null;
+      return;
+    }
+    if (account2.agent.client !== caller.client)
+      throw new ArenaError(`Account ${account2.id} belongs to agent "${account2.agent.client}", not "${caller.client}". Each agent must trade only its own account.`, "forbidden", 403);
+  }
+  function assertActive(account2) {
+    if (account2.status !== "active") throw new ArenaError(`Account ${account2.id} is ${account2.status}.`, "inactive", 409);
+  }
+  function settle(account2, quoteMap, at) {
+    const events = [];
+    for (const order of openOrders(account2)) {
+      if (Date.parse(order.expiresAt) <= Date.parse(at)) {
+        Object.assign(order, { status: "expired", closedAt: at, reserved: 0 });
+        events.push({ type: "expired", orderId: order.id, symbol: order.symbol });
+      }
+    }
+    for (const order of openOrders(account2)) {
+      const observed = quoteMap.get(order.symbol);
+      if (!observed || observed.error || !tradability(account2, observed, at).ok) continue;
+      const execution = executionPrice(account2, order, observed);
+      if (execution.price === null) continue;
+      if (order.side === "SELL" && (account2.positions[order.symbol]?.quantity ?? 0) < order.quantity) {
+        Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Position no longer covers this sell order." });
+        continue;
+      }
+      if (order.side === "BUY") {
+        const cost = order.quantity * execution.price + computeFees(account2.market, "BUY", order.quantity, execution.price).total;
+        if (cost > account2.cash - reservedCash(account2, order.id) + 1e-6) {
+          Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Insufficient cash at fill time." });
+          continue;
+        }
+      }
+      const trade = applyFill(account2, order, execution.price, observed, at);
+      events.push({ type: "filled", orderId: order.id, tradeId: trade.id, symbol: order.symbol, side: order.side, quantity: order.quantity, price: execution.price });
+    }
+    for (const position of Object.values(account2.positions)) {
+      const observed = quoteMap.get(position.symbol);
+      if (observed && !observed.error && finite4(observed.price)) {
+        position.lastPrice = observed.price;
+        position.lastPriceAt = observed.asOf ?? at;
+        position.name = position.name === position.symbol ? observed.name ?? position.name : position.name;
+      }
+    }
+    const benchmark = quoteMap.get(account2.benchmark?.symbol);
+    if (benchmark && !benchmark.error && finite4(benchmark.price)) {
+      account2.benchmark.lastPrice = benchmark.price;
+      account2.benchmark.lastPriceAt = benchmark.asOf ?? at;
+      if (!finite4(account2.benchmark.startPrice)) {
+        account2.benchmark.startPrice = benchmark.price;
+        account2.benchmark.startAt = at;
+      }
+    }
+    if (account2.status === "active") recordEquity(account2, at);
+    return events;
+  }
+  async function sync(ids, { force = false } = {}) {
+    const all = await loadAll();
+    const targets = all.filter((account2) => account2.status === "active" && (!ids || ids.includes(account2.id)) && (force || Date.now() - (lastSync.get(account2.id) ?? 0) > SYNC_THROTTLE_MS));
+    if (!targets.length) return { synced: 0, events: [] };
+    const symbols = targets.flatMap((account2) => [...Object.keys(account2.positions), ...openOrders(account2).map((order) => order.symbol), account2.benchmark?.symbol].filter(Boolean));
+    const quoteMap = await quotes(symbols);
+    const events = [];
+    await withLock(async () => {
+      for (const target of targets) {
+        const account2 = await load(target.id);
+        const at = now();
+        events.push(...settle(account2, quoteMap, at).map((event) => ({ ...event, accountId: account2.id })));
+        await save(account2);
+        lastSync.set(account2.id, Date.now());
+      }
+    });
+    return { synced: targets.length, events };
+  }
+  function returnCurve(account2, equityNow) {
+    const daily = /* @__PURE__ */ new Map();
+    for (const point of [{ at: account2.createdAt, equity: account2.initialCash }, ...account2.equity]) {
+      daily.set(localMarketTime(point.at, account2.market)?.date ?? point.at.slice(0, 10), point);
+    }
+    const points = [...daily.values()].slice(-180).map((point) => ({ at: point.at, returnPct: round4((point.equity / account2.initialCash - 1) * 100, 3) }));
+    points.push({ at: now(), returnPct: round4((equityNow / account2.initialCash - 1) * 100, 3) });
+    return points;
+  }
+  function publicAccount(account2, { detail = false, limit = 50 } = {}) {
+    const metrics = computeMetrics(account2, { benchmarkPrice: account2.benchmark?.lastPrice ?? null });
+    const value = valuation(account2);
+    const summary = {
+      id: account2.id,
+      name: account2.name,
+      competition: account2.competition,
+      market: account2.market,
+      currency: account2.currency,
+      agent: account2.agent,
+      model: account2.model,
+      strategy: { version: account2.strategy.version, summary: account2.strategy.summary, updatedAt: account2.strategy.updatedAt },
+      status: account2.status,
+      createdAt: account2.createdAt,
+      updatedAt: account2.updatedAt,
+      createdBy: account2.createdBy,
+      initialCash: account2.initialCash,
+      settings: account2.settings,
+      benchmark: account2.benchmark,
+      metrics,
+      demo: account2.demo === true,
+      curve: returnCurve(account2, metrics.equity),
+      lastTradeAt: account2.trades.at(-1)?.at ?? null,
+      lastActivityAt: [account2.trades.at(-1)?.at, account2.journal.at(-1)?.at, account2.orders.at(-1)?.createdAt].filter(Boolean).sort().at(-1) ?? null
+    };
+    if (!detail) return summary;
+    return {
+      ...summary,
+      positions: value.positions,
+      openOrders: openOrders(account2),
+      orders: account2.orders.slice(-limit).reverse(),
+      trades: account2.trades.slice(-limit).reverse(),
+      journal: account2.journal.slice(-limit).reverse(),
+      equity: account2.equity,
+      strategyHistory: account2.strategy.history,
+      closedPositions: (account2.closedPositions ?? []).slice(-limit).reverse(),
+      lotOverrides: account2.lotOverrides ?? {}
+    };
+  }
+  return {
+    root,
+    async createAccount(input, caller = {}) {
+      const market2 = String(input.market ?? "").toUpperCase();
+      const config2 = ARENA_MARKETS[market2];
+      if (!config2) throw new ArenaError("market must be A, HK or US.");
+      const name = String(input.name ?? "").trim();
+      const model = String(input.model ?? "").trim();
+      if (!name || name.length > 60) throw new ArenaError("name is required (at most 60 characters).");
+      if (!model || model.length > 80) throw new ArenaError("model is required (e.g. claude-opus-5-5, gpt-5.5-codex). Report the model you are actually running on.");
+      const initialCash = input.initialCash ?? config2.defaultCash;
+      if (!finite4(initialCash) || initialCash < 1e3 || initialCash > 1e10) throw new ArenaError("initialCash must be between 1,000 and 10,000,000,000.");
+      const competition = String(input.competition ?? "default").trim().slice(0, 40) || "default";
+      const at = now();
+      const account2 = {
+        schemaVersion: 1,
+        id: shortId("acc"),
+        name,
+        competition,
+        market: market2,
+        currency: config2.currency,
+        status: "active",
+        agent: { client: caller.client && caller.client !== "dashboard" ? caller.client : input.agentClient ?? null, clientVersion: caller.clientVersion ?? null, label: String(input.agentLabel ?? input.agentClient ?? caller.client ?? "").slice(0, 60) || null },
+        model,
+        strategy: { version: 1, summary: String(input.strategySummary ?? "").slice(0, 2e3), updatedAt: at, history: [{ version: 1, summary: String(input.strategySummary ?? "").slice(0, 2e3), note: "initial", at }] },
+        initialCash: round4(initialCash),
+        cash: round4(initialCash),
+        realizedPnl: 0,
+        settings: { slippageBps: clamp2(input.slippageBps ?? 5, 0, 100), maxQuoteAgeSeconds: clamp2(input.maxQuoteAgeSeconds ?? 180, 30, 900), feeModel: `${market2}-retail-v1` },
+        benchmark: { symbol: config2.benchmark, name: config2.benchmarkName, startPrice: null, startAt: null },
+        positions: {},
+        orders: [],
+        trades: [],
+        journal: [],
+        equity: [{ at, equity: round4(initialCash), cash: round4(initialCash), marketValue: 0 }],
+        createdAt: at,
+        updatedAt: at,
+        createdBy: caller.client ?? "dashboard"
+      };
+      try {
+        const benchmark = await quote(config2.benchmark);
+        if (finite4(benchmark.price)) Object.assign(account2.benchmark, { startPrice: benchmark.price, startAt: at, lastPrice: benchmark.price, lastPriceAt: benchmark.asOf });
+      } catch {
+      }
+      await withLock(() => save(account2));
+      return publicAccount(account2, { detail: true });
+    },
+    async listAccounts({ market: market2, competition, status = "active", client } = {}) {
+      const accounts = (await loadAll()).filter((account2) => (!market2 || account2.market === market2) && (!competition || account2.competition === competition) && (status === "all" || account2.status === status) && (!client || account2.agent.client === client));
+      return accounts.map((account2) => publicAccount(account2));
+    },
+    async leaderboard({ market: market2, competition, includeArchived = false, sync: shouldSync = true } = {}) {
+      if (shouldSync) await sync().catch(() => {
+      });
+      const accounts = await this.listAccounts({ market: market2, competition, status: includeArchived ? "all" : "active" });
+      const groups = /* @__PURE__ */ new Map();
+      for (const account2 of accounts) {
+        const key = `${account2.market}:${account2.competition}`;
+        const group = groups.get(key) ?? { market: account2.market, competition: account2.competition, currency: account2.currency, accounts: [] };
+        group.accounts.push(account2);
+        groups.set(key, group);
+      }
+      return {
+        generatedAt: now(),
+        groups: [...groups.values()].map((group) => ({
+          ...group,
+          accounts: group.accounts.sort((a, b) => b.metrics.totalReturnPct - a.metrics.totalReturnPct || a.metrics.maxDrawdownPct - b.metrics.maxDrawdownPct).map((account2, index) => ({ ...account2, rank: index + 1 }))
+        })),
+        notes: [
+          "Ranks compare accounts in the same market and competition only; currencies are never mixed.",
+          "Fills use public quotes observed when an agent or the dashboard syncs, plus slippage and fee presets. They approximate, not reproduce, broker execution.",
+          "Short track records are noisy: check tradingDays, closedTrades and sampleWarning before concluding one agent is better."
+        ]
+      };
+    },
+    async getAccount(id, { sync: shouldSync = true, limit = 50 } = {}) {
+      if (shouldSync) await sync([id]).catch(() => {
+      });
+      return publicAccount(await load(id), { detail: true, limit });
+    },
+    async placeOrder(input, caller = {}) {
+      const account2 = await load(input.accountId);
+      assertActive(account2);
+      assertCaller(account2, caller);
+      const symbol = normalizeTradeSymbol(input.symbol);
+      if (marketFromSymbol(symbol) !== account2.market) throw new ArenaError(`${symbol} is not a ${account2.market} security; this account trades ${account2.market} only.`);
+      if (isIndexSymbol(symbol)) throw new ArenaError(`${symbol} is an index and cannot be traded.`);
+      const side = String(input.side ?? "").toUpperCase();
+      if (!["BUY", "SELL"].includes(side)) throw new ArenaError("side must be BUY or SELL (long-only; no short selling).");
+      const type = input.orderType === "limit" ? "limit" : "market";
+      const quantity = Number(input.quantity);
+      if (!Number.isInteger(quantity) || quantity <= 0) throw new ArenaError("quantity must be a positive integer number of shares.");
+      if (type === "limit" && !(finite4(input.limitPrice) && input.limitPrice > 0)) throw new ArenaError("limitPrice is required for limit orders.");
+      const reason = String(input.reason ?? "").trim();
+      if (reason.length < 10) throw new ArenaError("reason is required (at least 10 characters): explain the thesis so the decision can be reviewed.");
+      if (input.clientOrderId) {
+        const existing = account2.orders.find((order2) => order2.clientOrderId === input.clientOrderId);
+        if (existing) return { duplicate: true, order: existing, account: publicAccount(account2) };
+      }
+      const observed = await quote(symbol, { fresh: true });
+      const at = now();
+      const rules = lotRules(account2, symbol, observed);
+      const session = eligibleSession(account2.market, at);
+      const order = {
+        id: shortId("ord"),
+        clientOrderId: input.clientOrderId ?? null,
+        symbol,
+        name: observed?.name ?? symbol,
+        side,
+        type,
+        quantity,
+        limitPrice: type === "limit" ? input.limitPrice : null,
+        timeInForce: input.timeInForce === "gtc" ? "gtc" : "day",
+        status: "open",
+        reserved: 0,
+        reason: reason.slice(0, 2e3),
+        confidence: finite4(input.confidence) ? clamp2(input.confidence, 0, 1) : null,
+        horizon: input.horizon ?? null,
+        strategyVersion: account2.strategy.version,
+        createdAt: at,
+        expiresAt: input.timeInForce === "gtc" ? new Date(Date.parse(at) + 30 * 864e5).toISOString() : session.closeAt,
+        quoteAtSubmit: observed ? { price: observed.price, asOf: observed.asOf, source: observed.provider ?? observed.source } : null,
+        placedBy: caller.client ?? "unknown"
+      };
+      const reject = (message, code = "rejected") => {
+        Object.assign(order, { status: "rejected", rejectReason: message, closedAt: at });
+        return { code, message };
+      };
+      let failure = null;
+      const tradable = tradability(account2, observed, at);
+      if (!rules.lotSize) failure = reject(`Board lot for ${symbol} is unknown; set a lot override in the dashboard before trading it.`);
+      else if (side === "BUY" && quantity < rules.minimumBuy) failure = reject(`Minimum buy for ${symbol} is ${rules.minimumBuy} shares.`);
+      else if (side === "BUY" && quantity % rules.lotSize !== 0) failure = reject(`Buy quantity must be a multiple of the board lot (${rules.lotSize}).`);
+      if (!failure && side === "SELL") {
+        const sellable = sellableQuantity(account2, symbol, at);
+        const held = account2.positions[symbol]?.quantity ?? 0;
+        if (!held) failure = reject(`No ${symbol} position to sell (long-only account).`);
+        else if (quantity > sellable) failure = reject(rules.tPlusOne && sellable < held ? `Only ${sellable} shares are sellable: A-share T+1 locks shares bought today, and open sell orders reserve the rest.` : `Only ${sellable} shares are sellable (open sell orders reserve the rest).`);
+        else if (quantity % rules.lotSize !== 0 && quantity !== sellable) failure = reject(`Sell quantity must be a multiple of ${rules.lotSize}, or the entire sellable odd lot (${sellable}).`);
+      }
+      if (!failure && type === "market" && !tradable.ok) {
+        failure = reject(tradable.reason.startsWith("market-") ? `Market is ${tradable.session.status} now (${account2.market} local ${tradable.session.date}). Market orders need an open session; use a limit order to rest until the session opens.` : `Quote not usable for a fill (${tradable.reason}). Retry when a fresh quote is available.`);
+      }
+      let execution = null;
+      if (!failure && tradable.ok) {
+        execution = executionPrice(account2, order, observed);
+        if (type === "market" && execution.price === null)
+          failure = reject(execution.blocked === "limit-up" ? `${symbol} is at its daily limit-up; buy orders cannot fill.` : `${symbol} is at its daily limit-down; sell orders cannot fill.`);
+      }
+      if (!failure && side === "BUY") {
+        const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed.price);
+        const estimate = quantity * reference + computeFees(account2.market, "BUY", quantity, reference).total;
+        const available = account2.cash - reservedCash(account2);
+        if (estimate > available + 1e-6) failure = reject(`Insufficient available cash: need about ${round4(estimate)} ${account2.currency}, available ${round4(available)}.`);
+        else order.reserved = round4(type === "limit" ? quantity * order.limitPrice + computeFees(account2.market, "BUY", quantity, order.limitPrice).total : estimate);
+      }
+      if (!failure && type === "limit" && finite4(observed?.price)) {
+        const deviation = Math.abs(order.limitPrice / observed.price - 1) * 100;
+        if (account2.market === "A" && (finite4(observed.limitUp) && order.limitPrice > observed.limitUp || finite4(observed.limitDown) && order.limitPrice < observed.limitDown))
+          failure = reject(`Limit price is outside today's A-share price band (${observed.limitDown}\u2013${observed.limitUp}).`);
+        else if (deviation > 30) failure = reject(`Limit price is ${round4(deviation, 1)}% away from the last price ${observed.price}; check units and price.`);
+      }
+      return withLock(async () => {
+        const current = await load(account2.id);
+        assertActive(current);
+        assertCaller(current, caller);
+        if (!failure && side === "BUY") {
+          const available = current.cash - reservedCash(current);
+          if (order.reserved > available + 1e-6) failure = reject(`Insufficient available cash: need about ${order.reserved} ${current.currency}, available ${round4(available)}.`);
+        }
+        if (!failure && side === "SELL" && quantity > sellableQuantity(current, symbol, at)) failure = reject("Sellable quantity changed while the order was being placed.");
+        current.orders.push(order);
+        if (current.orders.length > LIMITS.orders) {
+          const open2 = current.orders.filter((entry) => entry.status === "open");
+          current.orders = [...current.orders.filter((entry) => entry.status !== "open").slice(-(LIMITS.orders - open2.length)), ...open2].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+        }
+        let trade = null;
+        if (!failure && execution?.price !== null && execution?.price !== void 0) trade = applyFill(current, order, execution.price, observed, at);
+        recordEquity(current, at, Boolean(trade));
+        await save(current);
+        const result = {
+          order,
+          trade,
+          account: publicAccount(current),
+          quote: observed ? { symbol, name: observed.name, price: observed.price, asOf: observed.asOf, source: observed.provider ?? observed.source, limitUp: observed.limitUp ?? null, limitDown: observed.limitDown ?? null, lotSize: rules.lotSize } : null,
+          session: tradable.session ? { status: tradable.session.status, date: tradable.session.date, calendarVerified: tradable.session.verified } : null
+        };
+        if (failure) result.error = failure.message;
+        else if (!trade) result.note = tradable.ok ? "Limit order resting: price not reached yet. It fills when a later sync observes a marketable quote." : `Order resting until the ${account2.market} session opens (expires ${order.expiresAt}).`;
+        return result;
+      });
+    },
+    async cancelOrder({ accountId: accountId2, orderId, reason }, caller = {}) {
+      return withLock(async () => {
+        const account2 = await load(accountId2);
+        assertCaller(account2, caller);
+        const order = account2.orders.find((entry) => entry.id === orderId || entry.clientOrderId === orderId);
+        if (!order) throw new ArenaError(`Order ${orderId} not found.`, "not_found", 404);
+        if (order.status !== "open") return { order, note: `Order is already ${order.status}.` };
+        Object.assign(order, { status: "cancelled", closedAt: now(), reserved: 0, cancelReason: String(reason ?? "").slice(0, 500) || null });
+        await save(account2);
+        return { order, account: publicAccount(account2) };
+      });
+    },
+    async logDecision({ accountId: accountId2, kind = "analysis", summary, symbols = [], details }, caller = {}) {
+      if (!String(summary ?? "").trim()) throw new ArenaError("summary is required.");
+      return withLock(async () => {
+        const account2 = await load(accountId2);
+        assertActive(account2);
+        assertCaller(account2, caller);
+        const entry = {
+          id: shortId("dec"),
+          at: now(),
+          kind: ["analysis", "no-trade", "risk", "review", "note"].includes(kind) ? kind : "note",
+          summary: String(summary).slice(0, 2e3),
+          symbols: symbols.slice(0, 20).map((symbol) => {
+            try {
+              return normalizeTradeSymbol(symbol);
+            } catch {
+              return String(symbol);
+            }
+          }),
+          details: details ? String(details).slice(0, 8e3) : null,
+          strategyVersion: account2.strategy.version
+        };
+        account2.journal.push(entry);
+        if (account2.journal.length > LIMITS.journal) account2.journal = account2.journal.slice(-LIMITS.journal);
+        await save(account2);
+        return { entry };
+      });
+    },
+    async updateStrategy({ accountId: accountId2, summary, changeNote }, caller = {}) {
+      if (!String(summary ?? "").trim()) throw new ArenaError("summary is required.");
+      return withLock(async () => {
+        const account2 = await load(accountId2);
+        assertActive(account2);
+        assertCaller(account2, caller);
+        const at = now();
+        account2.strategy.version += 1;
+        account2.strategy.summary = String(summary).slice(0, 2e3);
+        account2.strategy.updatedAt = at;
+        account2.strategy.history.push({ version: account2.strategy.version, summary: account2.strategy.summary, note: String(changeNote ?? "").slice(0, 500) || null, at });
+        account2.strategy.history = account2.strategy.history.slice(-LIMITS.strategyHistory);
+        await save(account2);
+        return { strategy: account2.strategy };
+      });
+    },
+    // Dashboard-only administration. Agents cannot archive, reset or re-fund accounts.
+    async updateAccount(id, input) {
+      return withLock(async () => {
+        const account2 = await load(id);
+        if (input.name !== void 0) account2.name = String(input.name).trim().slice(0, 60) || account2.name;
+        if (input.model !== void 0) account2.model = String(input.model).trim().slice(0, 80) || account2.model;
+        if (input.agentLabel !== void 0) account2.agent.label = String(input.agentLabel).trim().slice(0, 60) || null;
+        if (input.status && ["active", "archived"].includes(input.status)) {
+          account2.status = input.status;
+          if (input.status === "archived") {
+            for (const order of openOrders(account2)) Object.assign(order, { status: "cancelled", closedAt: now(), reserved: 0, cancelReason: "account archived" });
+            account2.archivedAt = now();
+          }
+        }
+        if (input.unbindAgent) account2.agent.client = null;
+        if (input.lotOverrides && typeof input.lotOverrides === "object") {
+          account2.lotOverrides = Object.fromEntries(Object.entries(input.lotOverrides).filter(([, lot]) => Number.isInteger(lot) && lot > 0).map(([symbol, lot]) => [normalizeTradeSymbol(symbol), lot]));
+        }
+        await save(account2);
+        return publicAccount(account2, { detail: true });
+      });
+    },
+    async deleteAccount(id) {
+      return withLock(async () => {
+        const account2 = await load(id);
+        if (account2.status !== "archived") throw new ArenaError("Archive the account before deleting it.", "inactive", 409);
+        await rm2(accountPath(id), { force: true });
+        return { deleted: id };
+      });
+    },
+    sync
+  };
+}
+var defaultArena;
+function getArena() {
+  defaultArena ??= createArena();
+  return defaultArena;
+}
+function callerFromClient(clientInfo) {
+  const override = process.env.HROUTER_AGENT_ID?.trim();
+  const name = override || clientInfo?.name || "unknown-agent";
+  return { client: name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 60), clientVersion: clientInfo?.version ?? null, clientName: clientInfo?.name ?? null };
+}
+
+// mcp/arena-tools.mjs
+var accountId = external_exports.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_\u2026) returned by arena_register_account or arena_my_accounts.");
+var market = external_exports.enum(["A", "HK", "US"]);
+function compactAccount(account2) {
+  const { metrics } = account2;
+  return `${account2.name} [${account2.id}] ${account2.market} ${account2.currency} \xB7 model ${account2.model} \xB7 equity ${metrics.equity} (${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct}%) \xB7 cash ${metrics.availableCash} \xB7 ${metrics.positions} positions \xB7 ${metrics.openOrders} open orders`;
+}
+function registerArenaTools(server2, { toolResult: toolResult2, toolError: toolError2 }) {
+  const caller = () => callerFromClient(server2.server.getClientVersion?.());
+  const register = (name, config2, handler) => server2.registerTool(name, config2, async (input) => {
+    try {
+      const [data, summary] = await handler(input ?? {});
+      return toolResult2(data, summary);
+    } catch (error2) {
+      return toolError2(error2);
+    }
+  });
+  register("arena_register_account", {
+    title: "Register arena paper account",
+    description: [
+      "Create this agent's own paper-trading account in the local Agent Arena, so its performance can be compared with other agents and models.",
+      "Call once per experiment and remember the returned accountId. First call arena_my_accounts: reuse an active account you already own instead of creating duplicates.",
+      `Each account trades one market with virtual cash in its currency (defaults: ${Object.entries(ARENA_MARKETS).map(([key, value]) => `${key} ${value.defaultCash.toLocaleString("en-US")} ${value.currency}`).join(", ")}).`,
+      "Report the model you are actually running on; do not guess another model's name."
+    ].join(" "),
+    inputSchema: {
+      name: external_exports.string().min(1).max(60).describe("Display name, e.g. 'Opus momentum A-share'."),
+      model: external_exports.string().min(1).max(80).describe("Exact model id you are running on, e.g. claude-opus-5-5, gpt-5.5-codex, hunyuan-t1."),
+      market,
+      strategySummary: external_exports.string().min(10).max(2e3).describe("The strategy you will follow: universe, entry/exit rules, sizing, risk limits."),
+      initialCash: external_exports.number().min(1e3).max(1e10).optional().describe("Leave unset to use the competition default so accounts stay comparable."),
+      competition: external_exports.string().min(1).max(40).optional().describe("Group name; only accounts in the same market and competition are ranked together. Default 'default'."),
+      agentLabel: external_exports.string().max(60).optional().describe("Human-friendly agent name, e.g. 'Claude Code', 'Codex', 'WorkBuddy'.")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  }, async (input) => {
+    const account2 = await getArena().createAccount(input, caller());
+    return [account2, `Created arena account ${account2.id}. Save this id and pass it as accountId to every arena tool. ${compactAccount(account2)}`];
+  });
+  register("arena_my_accounts", {
+    title: "List my arena accounts",
+    description: "List active arena accounts registered by this agent client (and, with all=true, every agent's accounts). Use it at the start of each session to recover your accountId.",
+    inputSchema: { all: external_exports.boolean().optional(), market: market.optional() },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async ({ all = false, market: selected }) => {
+    const me = caller();
+    const accounts = await getArena().listAccounts({ market: selected, client: all ? void 0 : me.client });
+    const unowned = all ? [] : (await getArena().listAccounts({ market: selected })).filter((account2) => !account2.agent.client);
+    const rows = [...accounts, ...unowned];
+    return [{ caller: me, accounts: rows }, rows.length ? `${rows.length} account(s) for ${me.client}${unowned.length ? " (unclaimed dashboard accounts are claimed on your first order)" : ""}:
+${rows.map(compactAccount).join("\n")}` : `No arena account for ${me.client} yet. Create one with arena_register_account.`];
+  });
+  register("arena_get_account", {
+    title: "Get arena account",
+    description: "Sync with live quotes (fills resting orders that became marketable, expires day orders, marks positions) and return cash, positions, open orders, recent trades, journal and performance metrics.",
+    inputSchema: { accountId, limit: external_exports.number().int().min(1).max(200).optional().describe("Number of recent orders/trades/journal entries (default 30).") },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, async ({ accountId: id, limit = 30 }) => {
+    const account2 = await getArena().getAccount(id, { limit });
+    const { equity, ...rest } = account2;
+    return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, compactAccount(account2)];
+  });
+  register("arena_place_order", {
+    title: "Place arena paper order",
+    description: [
+      "Place a long-only paper order in your own arena account. Fills use the live public quote plus slippage and exchange-style fees, during regular sessions only.",
+      "Rules enforced: board lots (A-share 100, STAR 200 min; HK per-stock lot; US 1), A-share T+1 and daily price limits, available cash incl. fees and open-order reservations.",
+      "Market orders need an open session. Limit orders rest and fill when a later sync observes a marketable price; 'day' orders expire at the session close, 'gtc' after 30 days.",
+      "Always give the reason (thesis, signal, risk) so the decision can be reviewed later. Rejections are recorded and count against discipline metrics."
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      symbol: external_exports.string().min(1).max(20).describe("600519 / 600519.SS, 0700.HK, AAPL \u2026"),
+      side: external_exports.enum(["BUY", "SELL"]),
+      quantity: external_exports.number().int().positive().max(1e7).describe("Number of shares (not lots)."),
+      orderType: external_exports.enum(["market", "limit"]).default("market"),
+      limitPrice: external_exports.number().positive().optional(),
+      timeInForce: external_exports.enum(["day", "gtc"]).optional(),
+      reason: external_exports.string().min(10).max(2e3).describe("Why: thesis, signal, sizing and exit plan."),
+      confidence: external_exports.number().min(0).max(1).optional().describe("Your subjective probability the trade works (0\u20131); used for calibration review."),
+      horizon: external_exports.string().max(40).optional().describe("Intended holding period, e.g. '3d', '2w'."),
+      clientOrderId: external_exports.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional().describe("Idempotency key: retries with the same id return the original order.")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, async (input) => {
+    const result = await getArena().placeOrder(input, caller());
+    const { order, trade } = result;
+    const summary = order.status === "rejected" ? `REJECTED: ${order.rejectReason}` : trade ? `FILLED ${trade.side} ${trade.quantity} ${trade.symbol} @ ${trade.price} (fees ${trade.fees}). ${compactAccount(result.account)}` : `OPEN ${order.type} ${order.side} ${order.quantity} ${order.symbol}${order.limitPrice ? ` @ ${order.limitPrice}` : ""} [${order.id}] \u2014 ${result.note}`;
+    return [result, summary];
+  });
+  register("arena_cancel_order", {
+    title: "Cancel arena order",
+    description: "Cancel one of your open arena orders by order id or clientOrderId.",
+    inputSchema: { accountId, orderId: external_exports.string().min(1).max(80), reason: external_exports.string().max(500).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().cancelOrder(input, caller());
+    return [result, result.note ?? `Cancelled ${result.order.id}.`];
+  });
+  register("arena_log_decision", {
+    title: "Log arena decision",
+    description: "Record analysis, a deliberate no-trade decision, a risk check or a post-trade review in your account journal. Logging why you did NOT trade is as valuable as logging trades when comparing agents.",
+    inputSchema: {
+      accountId,
+      kind: external_exports.enum(["analysis", "no-trade", "risk", "review", "note"]).default("analysis"),
+      summary: external_exports.string().min(1).max(2e3),
+      symbols: external_exports.array(external_exports.string().max(20)).max(20).optional(),
+      details: external_exports.string().max(8e3).optional()
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().logDecision(input, caller());
+    return [result, `Logged ${result.entry.kind} decision ${result.entry.id}.`];
+  });
+  register("arena_update_strategy", {
+    title: "Update arena strategy",
+    description: "Publish a new version of your strategy description. Later trades are tagged with the new version so performance can be compared per strategy version.",
+    inputSchema: { accountId, summary: external_exports.string().min(10).max(2e3), changeNote: external_exports.string().max(500).optional().describe("What changed and why.") },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().updateStrategy(input, caller());
+    return [result, `Strategy is now version ${result.strategy.version}.`];
+  });
+  register("arena_leaderboard", {
+    title: "Arena leaderboard",
+    description: "Rank all agents' accounts by total return within each market and competition, with drawdown, Sharpe, win rate, fees, turnover, benchmark and excess return.",
+    inputSchema: { market: market.optional(), competition: external_exports.string().max(40).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, async (input) => {
+    const board = await getArena().leaderboard(input);
+    const text2 = board.groups.map((group) => [
+      `${group.market} \xB7 ${group.competition} (${group.currency})`,
+      ...group.accounts.map((account2) => `#${account2.rank} ${account2.name} \u2014 ${account2.model} via ${account2.agent.label ?? account2.agent.client ?? "?"}: ${account2.metrics.totalReturnPct}% (max DD ${account2.metrics.maxDrawdownPct}%, ${account2.metrics.trades} trades)`)
+    ].join("\n")).join("\n\n");
+    return [board, text2 || "No arena accounts yet."];
+  });
+}
+
+// mcp/update-coordination.mjs
+import { mkdir as mkdir6, readFile as readFile6, writeFile as writeFile5, rename as rename6, rm as rm3, readdir as readdir2, stat as stat2 } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { randomUUID as randomUUID4 } from "node:crypto";
+import os2 from "node:os";
+import path6 from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+function updateHome(env = process.env, platform = process.platform, home = os2.homedir()) {
+  if (env.HROUTER_UPDATE_HOME) return path6.resolve(env.HROUTER_UPDATE_HOME);
+  return platform === "win32" ? path6.join(env.LOCALAPPDATA || path6.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path6.join(env.XDG_DATA_HOME || path6.join(home, ".local", "share"), "hrouter-market-pulse-updater");
+}
+async function readJson2(file, fallback = null) {
+  try {
+    return JSON.parse(await readFile6(file, "utf8"));
+  } catch (error2) {
+    if (error2.code === "ENOENT") return fallback;
+    throw error2;
+  }
+}
+async function atomicJson(file, data) {
+  await mkdir6(path6.dirname(file), { recursive: true, mode: 448 });
+  const temp = `${file}.${randomUUID4()}.tmp`;
+  try {
+    await writeFile5(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
+    await rename6(temp, file);
+  } finally {
+    await rm3(temp, { force: true });
+  }
+}
+function processAlive2(pid) {
+  if (!Number.isSafeInteger(pid) || pid < 1) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error2) {
+    return error2.code !== "ESRCH";
+  }
+}
+async function acquireLock(home, name, { waitMs = 0, alive = processAlive2 } = {}) {
+  await mkdir6(home, { recursive: true, mode: 448 });
+  const dir = path6.join(home, `${name}.lock`);
+  const deadline = Date.now() + waitMs;
+  for (; ; ) {
+    try {
+      await mkdir6(dir, { mode: 448 });
+      await atomicJson(path6.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
+      return async () => {
+        await rm3(dir, { recursive: true, force: true });
+      };
+    } catch (error2) {
+      if (error2.code !== "EEXIST") throw error2;
+      const owner = await readJson2(path6.join(dir, "owner.json"));
+      let stale = owner && !alive(owner.pid);
+      if (!owner) {
+        try {
+          stale = Date.now() - (await stat2(dir)).mtimeMs > 6e5;
+        } catch (error3) {
+          if (error3.code === "ENOENT") continue;
+          throw error3;
+        }
+      }
+      if (stale) {
+        const reaping = `${dir}.reaping`;
+        let reaper = false;
+        try {
+          await mkdir6(reaping, { mode: 448 });
+          reaper = true;
+          const current = await readJson2(path6.join(dir, "owner.json"));
+          let removable = current && !alive(current.pid);
+          if (!current) {
+            try {
+              removable = Date.now() - (await stat2(dir)).mtimeMs > 6e5;
+            } catch (error3) {
+              if (error3.code !== "ENOENT") throw error3;
+            }
+          }
+          if (removable) await rm3(dir, { recursive: true, force: true });
+        } catch (error3) {
+          if (!["EEXIST", "ENOENT"].includes(error3.code)) throw error3;
+        } finally {
+          if (reaper) await rm3(reaping, { recursive: true, force: true });
+        }
+        if (reaper) continue;
+        if (Date.now() >= deadline) return null;
+        await delay(100);
+        continue;
+      }
+      if (Date.now() >= deadline) return null;
+      await delay(100);
+    }
+  }
+}
+async function acquireRuntimeLease(home = updateHome()) {
+  if (!await readJson2(path6.join(home, "state.json"))) return () => {
+  };
+  const unlock = await acquireLock(home, "activation", { waitMs: 12e4 });
+  if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
+  const file = path6.join(home, "running", `${process.pid}-${randomUUID4()}.json`);
+  try {
+    await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  } finally {
+    await unlock();
+  }
+  const release = () => {
+    rmSync(file, { force: true });
+  };
+  process.once("exit", release);
+  return () => {
+    process.removeListener("exit", release);
+    release();
+  };
+}
+
+// mcp/arena-demo.mjs
+import { mkdtemp, mkdir as mkdir7, writeFile as writeFile6 } from "node:fs/promises";
+import os3 from "node:os";
+import path7 from "node:path";
+function generator(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = state * 1664525 + 1013904223 >>> 0;
+    return state / 4294967296;
+  };
+}
+var UNIVERSE = {
+  A: [["600519.SS", "\u8D35\u5DDE\u8305\u53F0", 1310], ["300750.SZ", "\u5B81\u5FB7\u65F6\u4EE3", 268], ["601318.SS", "\u4E2D\u56FD\u5E73\u5B89", 58.4], ["000858.SZ", "\u4E94\u7CAE\u6DB2", 142], ["688981.SS", "\u4E2D\u82AF\u56FD\u9645", 96.5], ["600036.SS", "\u62DB\u5546\u94F6\u884C", 41.2]],
+  US: [["AAPL", "Apple", 343], ["NVDA", "NVIDIA", 182], ["MSFT", "Microsoft", 512], ["TSLA", "Tesla", 268], ["AMZN", "Amazon", 231]]
+};
+var AGENTS = [
+  { market: "A", name: "Opus \u52A8\u91CF\u8F6E\u52A8", label: "Claude Code", client: "claude-code", model: "claude-opus-5-5", drift: 19e-4, vol: 0.011, strategy: "\u6CAA\u6DF1300\u6210\u5206\u80A1\uFF0C20 \u65E5\u52A8\u91CF\u524D 3 \u540D\u7B49\u6743\u6301\u6709\uFF0C\u8DCC\u7834 MA20 \u79BB\u573A\uFF0C\u5355\u7968\u4E0D\u8D85\u8FC7 30%\u3002" },
+  { market: "A", name: "Codex \u4EF7\u503C\u9632\u5B88", label: "Codex", client: "codex-mcp-client", model: "gpt-5.5-codex", drift: 9e-4, vol: 6e-3, strategy: "\u4F4E\u4F30\u503C\u9AD8\u80A1\u606F\u84DD\u7B79\uFF0CPE \u5206\u4F4D < 30% \u5EFA\u4ED3\uFF0C\u5206 3 \u6279\u4E70\u5165\uFF0C\u6700\u5927\u56DE\u64A4 8% \u964D\u4ED3\u4E00\u534A\u3002" },
+  { market: "A", name: "WorkBuddy \u4E8B\u4EF6\u9A71\u52A8", label: "WorkBuddy", client: "workbuddy", model: "hunyuan-t1", drift: 4e-4, vol: 0.014, strategy: "\u8DDF\u8E2A\u4E1A\u7EE9\u9884\u544A\u4E0E\u516C\u544A\uFF0C\u8D85\u9884\u671F\u6B21\u65E5\u5F00\u76D8\u4E70\u5165\uFF0C\u6301\u6709 5 \u4E2A\u4EA4\u6613\u65E5\u6216\u6B62\u635F 5%\u3002" },
+  { market: "A", name: "Sonnet \u5747\u503C\u56DE\u5F52", label: "Claude Code", client: "claude-code", model: "claude-sonnet-5-5", drift: -6e-4, vol: 9e-3, strategy: "RSI(14) < 30 \u4E14\u7AD9\u4E0A MA60 \u7684\u6807\u7684\u6284\u5E95\uFF0CRSI > 60 \u6B62\u76C8\uFF0C\u5355\u6B21\u4ED3\u4F4D 20%\u3002" },
+  { market: "US", name: "Opus Mega-cap trend", label: "Claude Code", client: "claude-code", model: "claude-opus-5-5", drift: 12e-4, vol: 0.012, strategy: "Hold the 3 strongest mega caps by 50-day return, rebalance weekly, exit below the 50-day MA." },
+  { market: "US", name: "Codex Earnings drift", label: "Codex", client: "codex-mcp-client", model: "gpt-5.5-codex", drift: 7e-4, vol: 0.01, strategy: "Buy post-earnings beats with positive guidance, hold 10 sessions, 6% stop." }
+];
+function seedAccount(agent, index, start) {
+  const random = generator(9001 + index * 97);
+  const config2 = ARENA_MARKETS[agent.market];
+  const universe = UNIVERSE[agent.market];
+  const days = 34;
+  const equity = [];
+  let value = config2.defaultCash;
+  for (let day = 0; day <= days; day += 1) {
+    const shock = (random() - 0.5) * 2 * agent.vol * 1.7;
+    if (day > 0) value *= 1 + agent.drift + shock;
+    const at = new Date(start + day * 864e5 + 7 * 36e5).toISOString();
+    equity.push({ at, equity: Math.round(value * 100) / 100, cash: 0, marketValue: 0 });
+  }
+  const trades = [];
+  const orders = [];
+  const journal = [];
+  for (let n = 0; n < 9 + Math.floor(random() * 10); n += 1) {
+    const [symbol, name, base] = universe[Math.floor(random() * universe.length)];
+    const day = Math.floor(random() * days);
+    const at = new Date(start + day * 864e5 + 2 * 36e5 + n * 6e4).toISOString();
+    const price = Math.round(base * (0.92 + random() * 0.14) * 100) / 100;
+    const lot = agent.market === "A" ? 100 : 1;
+    const quantity = Math.max(lot, Math.floor(config2.defaultCash * (0.05 + random() * 0.12) / price / lot) * lot);
+    const side = random() > 0.45 ? "SELL" : "BUY";
+    const fees = computeFees(agent.market, side, quantity, price);
+    const realizedPnl = side === "SELL" ? Math.round((random() - 0.42 + agent.drift * 60) * quantity * price * 0.08) : null;
+    const id = `ord_demo${String(index).padStart(2, "0")}${String(n).padStart(4, "0")}`;
+    const reason = side === "BUY" ? agent.market === "A" ? `${name} \u653E\u91CF\u7A81\u7834 20 \u65E5\u9AD8\u70B9\uFF0C\u52A8\u91CF\u6392\u540D\u524D\u5217\uFF0C\u6309\u8BA1\u5212\u5EFA\u4ED3\u3002` : `${name} broke out above its 20-day high on rising volume; sizing per plan.` : agent.market === "A" ? `${name} \u89E6\u53D1\u6B62\u76C8/\u6B62\u635F\u6761\u4EF6\uFF0C\u6309\u7EAA\u5F8B\u51CF\u4ED3\u3002` : `${name} hit the exit rule; trimming per plan.`;
+    orders.push({ id, clientOrderId: null, symbol, name, side, type: "market", quantity, limitPrice: null, timeInForce: "day", status: "filled", reserved: 0, reason, confidence: Math.round((0.45 + random() * 0.4) * 100) / 100, strategyVersion: 1, createdAt: at, expiresAt: at, filledAt: at, fillPrice: price, fees: fees.total, placedBy: agent.client });
+    trades.push({ id: `trd_demo${String(index).padStart(2, "0")}${String(n).padStart(4, "0")}`, orderId: id, symbol, name, side, quantity, price, gross: Math.round(quantity * price * 100) / 100, fees: fees.total, feeBreakdown: fees.breakdown, realizedPnl, at, reason, confidence: null, strategyVersion: 1 });
+  }
+  orders.push({ id: `ord_demo${String(index).padStart(2, "0")}rej1`, symbol: universe[0][0], name: universe[0][1], side: "BUY", type: "market", quantity: agent.market === "A" ? 50 : 10, status: "rejected", rejectReason: agent.market === "A" ? "Buy quantity must be a multiple of the board lot (100)." : "Market is closed now. Market orders need an open session.", reason: "Demo rejection example", strategyVersion: 1, createdAt: equity[12].at, expiresAt: equity[12].at, reserved: 0 });
+  trades.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  orders.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+  for (let n = 0; n < 4; n += 1) {
+    journal.push({ id: `dec_demo${index}${n}`, at: equity[5 + n * 7].at, kind: n % 2 ? "no-trade" : "analysis", summary: agent.market === "A" ? n % 2 ? "\u5927\u76D8\u7F29\u91CF\u9707\u8361\uFF0C\u5019\u9009\u6807\u7684\u672A\u6EE1\u8DB3\u5165\u573A\u6761\u4EF6\uFF0C\u672C\u8F6E\u4E0D\u4EA4\u6613\u3002" : "\u590D\u76D8\u6301\u4ED3\uFF1A\u52A8\u91CF\u4ECD\u5728\uFF0C\u7EF4\u6301\u4ED3\u4F4D\uFF1B\u5173\u6CE8\u4E0B\u5468\u5B8F\u89C2\u6570\u636E\u3002" : n % 2 ? "No setup met the entry rules today; staying flat." : "Reviewed holdings: trend intact, keep exposure.", symbols: [universe[n % universe.length][0]], details: null, strategyVersion: 1 });
+  }
+  const finalEquity = equity.at(-1).equity;
+  const positions = {};
+  let marketValue = 0;
+  for (const [symbol, name, base] of universe.slice(0, 2 + index % 2)) {
+    const lot = agent.market === "A" ? 100 : 1;
+    const price = Math.round(base * (0.97 + random() * 0.06) * 100) / 100;
+    const quantity = Math.floor(finalEquity * 0.22 / price / lot) * lot;
+    const cost = Math.round(quantity * price * (0.93 + random() * 0.1) * 100) / 100;
+    positions[symbol] = { symbol, name, quantity, costBasis: cost, realizedPnl: 0, lots: [{ date: "2026-01-01", quantity }], openedAt: equity[3].at, lastPrice: price, lastPriceAt: equity.at(-1).at };
+    marketValue += quantity * price;
+  }
+  for (const point of equity) Object.assign(point, { marketValue: Math.round(marketValue * 100) / 100, cash: Math.round((point.equity - marketValue) * 100) / 100 });
+  const createdAt = new Date(start - 36e5).toISOString();
+  return {
+    schemaVersion: 1,
+    demo: true,
+    id: `acc_${(244837814042624 + index).toString(16).slice(-12)}`,
+    name: agent.name,
+    competition: "default",
+    market: agent.market,
+    currency: config2.currency,
+    status: "active",
+    agent: { client: agent.client, clientVersion: "demo", label: agent.label },
+    model: agent.model,
+    strategy: { version: index === 0 ? 2 : 1, summary: agent.strategy, updatedAt: createdAt, history: [{ version: 1, summary: agent.strategy, note: "initial", at: createdAt }, ...index === 0 ? [{ version: 2, summary: agent.strategy, note: "\u6536\u7D27\u6B62\u635F\uFF1AMA20 \u2192 MA10", at: equity[20].at }] : []] },
+    initialCash: config2.defaultCash,
+    cash: Math.round((finalEquity - marketValue) * 100) / 100,
+    realizedPnl: trades.reduce((sum, trade) => sum + (trade.realizedPnl ?? 0), 0),
+    settings: { slippageBps: 5, maxQuoteAgeSeconds: 180, feeModel: `${agent.market}-retail-v1` },
+    benchmark: { symbol: config2.benchmark, name: config2.benchmarkName, startPrice: 100, startAt: createdAt, lastPrice: agent.market === "A" ? 103.1 : 102.4, lastPriceAt: equity.at(-1).at },
+    positions,
+    orders,
+    trades,
+    journal,
+    equity,
+    createdAt,
+    updatedAt: equity.at(-1).at,
+    createdBy: agent.client
+  };
+}
+async function createDemoArena() {
+  const root = await mkdtemp(path7.join(os3.tmpdir(), "hrouter-arena-demo-"));
+  await mkdir7(path7.join(root, "accounts"), { recursive: true });
+  const start = Date.now() - 34 * 864e5 - 8 * 36e5;
+  const accounts = AGENTS.map((agent, index) => seedAccount(agent, index, start));
+  const prices = new Map(accounts.flatMap((account2) => Object.values(account2.positions).map((position) => [position.symbol, position])));
+  for (const account2 of accounts) await writeFile6(path7.join(root, "accounts", `${account2.id}.json`), JSON.stringify(account2));
+  return createArena({
+    root,
+    // Synthetic quotes: hold the seeded marks so the demo stays stable while it is open.
+    quoteProvider: async (symbol) => {
+      const position = prices.get(symbol);
+      const market2 = /\.(SS|SZ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) ? "HK" : "US";
+      const base = position?.lastPrice ?? ({ "000300.SS": 103.1, "^GSPC": 102.4, "^HSI": 101.2 }[symbol] ?? 50);
+      return { symbol, name: position?.name ?? symbol, market: market2, price: base, asOf: (/* @__PURE__ */ new Date()).toISOString(), provider: "Synthetic demo", lotSize: market2 === "HK" ? 100 : null, limitUp: null, limitDown: null };
+    }
+  });
+}
+
+// mcp/http.mjs
+import { createServer } from "node:http";
+import { readFile as readFile8 } from "node:fs/promises";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { randomUUID as randomUUID6 } from "node:crypto";
+
+// mcp/workspace.mjs
+import { randomUUID as randomUUID5, createHash as createHash3 } from "node:crypto";
+import { mkdir as mkdir8, readFile as readFile7, rename as rename7, writeFile as writeFile7 } from "node:fs/promises";
+import path8 from "node:path";
+
+// mcp/research.mjs
+function researchAsOf2(value = (/* @__PURE__ */ new Date()).toISOString()) {
+  if (!validTimestamp(value))
+    throw new Error("asOf must be an ISO timestamp with timezone");
+  if (Date.parse(value) > Date.now()) throw new Error("Research asOf cannot be in the future");
+  return new Date(value).toISOString();
+}
+var text = (value, field, max = 2e3) => {
+  if (typeof value !== "string" || !value.trim() || value.length > max)
+    throw new Error(`${field} must be nonempty text (max ${max})`);
+  return value.trim();
+};
+var citation = (item) => ({
+  evidenceId: item.id,
+  sourceUrl: item.sourceUrl,
+  providerId: item.providerId,
+  sourceTier: item.sourceTier,
+  publishedAt: item.publishedAt,
+  availableAt: item.availableAt,
+  pointInTimeStatus: item.pointInTimeStatus
+});
+var dateOnly = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+var validTimestamp = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && dateOnly(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
+function financialFact(item) {
+  const p = item.payload ?? {};
+  if (item.kind !== "financial" || typeof p.value !== "number" || !Number.isFinite(p.value))
+    throw new Error(`${item.id}: financial evidence requires a finite numeric value`);
+  if (!dateOnly(p.periodEnd) || p.periodStart != null && (!dateOnly(p.periodStart) || p.periodStart > p.periodEnd))
+    throw new Error(`${item.id}: invalid financial period`);
+  if (p.valueType === "actual" && p.periodEnd > item.publishedAt.slice(0, 10))
+    throw new Error(`${item.id}: actual period cannot end after disclosure`);
+  const scale = p.scale ?? 1;
+  if (typeof scale !== "number" || !Number.isFinite(scale) || scale <= 0)
+    throw new Error(`${item.id}: invalid scale`);
+  return {
+    metric: text(p.metric, "metric", 160),
+    value: p.value,
+    unit: text(p.unit, "unit", 80),
+    scale,
+    currency: p.currency ?? null,
+    periodStart: p.periodStart ?? null,
+    periodEnd: p.periodEnd,
+    accountingBasis: p.accountingBasis ?? null,
+    publicationTimePrecision: p.publicationTimePrecision ?? "unspecified",
+    valueType: p.valueType ?? null,
+    ...citation(item)
+  };
+}
+function comparisonIssue(actual, baseline, type) {
+  if (actual.metric !== baseline.metric) return "metric-mismatch";
+  if (actual.unit !== baseline.unit || actual.scale !== baseline.scale || actual.currency !== baseline.currency)
+    return "unit-currency-or-scale-mismatch";
+  if (!actual.accountingBasis || !baseline.accountingBasis || actual.accountingBasis !== baseline.accountingBasis)
+    return "accounting-basis-missing-or-mismatched";
+  if (type === "prior-period") {
+    if (baseline.valueType !== "actual") return "prior-period-must-be-actual";
+    if (baseline.periodEnd >= (actual.periodStart ?? actual.periodEnd)) return "periods-overlap-or-not-earlier";
+    if (actual.periodStart === null !== (baseline.periodStart === null)) return "instant-duration-mismatch";
+    if (actual.periodStart) {
+      const days = (f) => (Date.parse(f.periodEnd) - Date.parse(f.periodStart)) / 864e5;
+      if (Math.abs(days(actual) - days(baseline)) > 7) return "period-duration-mismatch";
+    }
+  } else {
+    if (baseline.valueType !== type) return "comparison-is-not-requested-estimate-type";
+    if (actual.periodStart !== baseline.periodStart || actual.periodEnd !== baseline.periodEnd)
+      return "estimate-period-mismatch";
+    if (Date.parse(baseline.availableAt) >= Date.parse(actual.publishedAt) || Date.parse(baseline.publishedAt) >= Date.parse(actual.publishedAt)) return "estimate-not-available-before-disclosure";
+  }
+  return null;
+}
+async function buildEarningsReview(input) {
+  const symbol = normalizeSymbol(input.symbol);
+  const asOf = researchAsOf2(input.asOf);
+  if (!Array.isArray(input.metrics) || !input.metrics.length || input.metrics.length > 40)
+    throw new Error("Provide 1-40 explicit metric evidence pairs");
+  const ids = [...new Set(input.metrics.flatMap((m) => [m.actualEvidenceId, m.comparisonEvidenceId].filter(Boolean)))];
+  const evidence = await queryEvidence({ symbols: [symbol], ids, asOf, limit: 500 });
+  const byId = new Map(evidence.items.map((item) => [item.id, item]));
+  const get = (id) => {
+    if (!byId.has(id)) throw new Error(`Evidence ${id} is missing, unavailable at asOf, or belongs to another symbol`);
+    return financialFact(byId.get(id));
+  };
+  const metrics = input.metrics.map((pair) => {
+    const actual = get(pair.actualEvidenceId);
+    if (actual.valueType !== "actual") throw new Error("Actual evidence must be a reported actual, not an estimate");
+    const type = pair.comparisonType ?? "prior-period";
+    if (!["prior-period", "consensus", "company-guidance"].includes(type)) throw new Error("Invalid comparisonType");
+    const baseline = pair.comparisonEvidenceId ? get(pair.comparisonEvidenceId) : null;
+    const issue2 = baseline ? comparisonIssue(actual, baseline, type) : "missing-comparison-evidence";
+    const delta = issue2 ? null : actual.value - baseline.value;
+    if (delta !== null && !Number.isFinite(delta)) throw new Error("Financial difference overflow");
+    const percentage = delta !== null && baseline.value > 0 ? delta / baseline.value * 100 : null;
+    return {
+      metric: actual.metric,
+      actual,
+      baseline,
+      comparisonType: type,
+      comparisonStatus: issue2 ? "unavailable" : "comparable",
+      warning: issue2,
+      delta,
+      changePct: Number.isFinite(percentage) ? percentage : null,
+      percentageWarning: !issue2 && baseline.value <= 0 ? "nonpositive-baseline-use-absolute-change" : percentage !== null && !Number.isFinite(percentage) ? "percentage-overflow" : null,
+      // Higher expenses or liabilities are not necessarily good; no beat/miss investment judgment.
+      direction: delta === null ? null : delta > 0 ? "above" : delta < 0 ? "below" : "in-line"
+    };
+  });
+  return {
+    symbol,
+    asOf,
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    researchOnly: true,
+    metrics,
+    limitations: [
+      "Evidence-derived arithmetic, not a forecast or investment recommendation.",
+      "Evidence provenance is retained; provider-declared historical availability is not independently verified.",
+      "Missing consensus is not replaced with guidance. No automatic currency, scale, or accounting-basis conversion."
+    ]
+  };
+}
+function normalizeThesisPillars(pillars = []) {
+  if (!Array.isArray(pillars) || pillars.length > 12) throw new Error("Use at most 12 thesis pillars");
+  const seen = /* @__PURE__ */ new Set();
+  return pillars.map((p) => {
+    const id = text(p.id, "pillar id", 64);
+    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(id) || seen.has(id)) throw new Error("Pillar IDs must be unique safe identifiers");
+    seen.add(id);
+    if (p.reviewBy != null && !dateOnly(p.reviewBy)) throw new Error("reviewBy must be YYYY-MM-DD");
+    return {
+      id,
+      expectation: text(p.expectation, "expectation"),
+      invalidationCondition: text(p.invalidationCondition, "invalidationCondition"),
+      reviewBy: p.reviewBy ?? null
+    };
+  });
+}
+function buildThesisScorecard(record2, asOf = (/* @__PURE__ */ new Date()).toISOString()) {
+  const reviews = (record2.reviews ?? []).filter((r) => Date.parse(r.reviewedAt) <= Date.parse(asOf));
+  const pillars = record2.pillars?.length ? record2.pillars : reviews.find((r) => r.pillars?.length)?.pillars ?? [];
+  return {
+    decisionId: record2.id,
+    symbol: record2.symbol,
+    asOf,
+    researchOnly: true,
+    pillars: pillars.map((pillar) => {
+      const updates = reviews.flatMap((r) => (r.pillarUpdates ?? []).filter((u) => u.pillarId === pillar.id).map((u) => ({ ...u, reviewedAt: r.reviewedAt })));
+      const latest = updates.at(-1);
+      return {
+        ...pillar,
+        status: latest?.status ?? "unreviewed",
+        latestAssessment: latest ?? null,
+        overdue: Boolean(pillar.reviewBy && pillar.reviewBy < asOf.slice(0, 10)),
+        history: updates
+      };
+    }),
+    limitation: "Pillar assessments are attributed research judgments, not calibrated probabilities or position changes."
+  };
+}
+function projectCatalystCalendar(items, { asOf = (/* @__PURE__ */ new Date()).toISOString(), symbols, includeMacro = true } = {}) {
+  const wanted = symbols ? new Set(symbols.map(normalizeSymbol)) : null;
+  const groups = /* @__PURE__ */ new Map();
+  const warnings = [];
+  for (const item of items) {
+    const p = item.payload ?? {};
+    if (!p.eventType || !validTimestamp(item.publishedAt) || !validTimestamp(item.availableAt) || Date.parse(item.availableAt) > Date.parse(asOf) || Date.parse(item.publishedAt) > Date.parse(asOf)) continue;
+    const macro = item.kind === "macro" && !item.entity?.symbol;
+    let affectedSymbols;
+    try {
+      affectedSymbols = [...new Set([item.entity?.symbol, ...Array.isArray(p.affectedSymbols) ? p.affectedSymbols : []].filter((s) => typeof s === "string" && s.trim()).map(normalizeSymbol))];
+    } catch {
+      warnings.push(`${item.id}: invalid affected symbol`);
+      continue;
+    }
+    if (macro ? !includeMacro : wanted && !affectedSymbols.some((s) => wanted.has(s))) continue;
+    const status = p.eventStatus ?? "tentative";
+    if (!["tentative", "confirmed", "cancelled", "completed"].includes(status)) {
+      warnings.push(`${item.id}: invalid eventStatus`);
+      continue;
+    }
+    if (!p.scheduledAt && status !== "cancelled" || p.scheduledAt && !validTimestamp(p.scheduledAt)) {
+      warnings.push(`${item.id}: invalid or timezone-less scheduledAt`);
+      continue;
+    }
+    if (p.timezone) {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: p.timezone });
+      } catch {
+        warnings.push(`${item.id}: invalid timezone`);
+        continue;
+      }
+    }
+    const key = JSON.stringify([item.providerId, item.entity?.symbol ?? item.entity?.name, p.eventType, p.eventKey || item.externalId || item.id]);
+    const entries = groups.get(key) ?? [];
+    if (!entries.some((e) => e.id === item.id)) entries.push({ ...item, affectedSymbols, status });
+    groups.set(key, entries);
+  }
+  const events = [];
+  for (const [eventKey, versions] of groups) {
+    versions.sort((a, b) => Date.parse(a.availableAt) - Date.parse(b.availableAt) || Date.parse(a.publishedAt) - Date.parse(b.publishedAt) || a.id.localeCompare(b.id));
+    const latest = versions.at(-1);
+    const p = latest.payload;
+    const scheduledAt = p.scheduledAt ?? [...versions].reverse().find((e) => e.payload.scheduledAt)?.payload.scheduledAt;
+    if (!scheduledAt) {
+      warnings.push(`${latest.id}: cancelled event has no known schedule`);
+      continue;
+    }
+    const conflict = versions.some((e) => e.id !== latest.id && e.availableAt === latest.availableAt && e.publishedAt === latest.publishedAt && ((e.payload.scheduledAt ? Date.parse(e.payload.scheduledAt) : null) !== (p.scheduledAt ? Date.parse(p.scheduledAt) : null) || e.status !== latest.status));
+    events.push({
+      id: latest.id,
+      eventKey,
+      symbol: latest.entity?.symbol ?? null,
+      affectedSymbols: latest.affectedSymbols,
+      title: latest.title,
+      eventType: p.eventType,
+      scheduledAt,
+      effectiveAt: scheduledAt,
+      timezone: p.timezone ?? null,
+      eventStatus: latest.status,
+      dateConfidence: !conflict && p.dateConfidence === "confirmed" && latest.status === "confirmed" ? "confirmed" : "estimated",
+      conflict,
+      ...citation(latest),
+      evidenceIds: versions.map((e) => e.id),
+      history: versions.map((e) => ({ ...citation(e), scheduledAt: e.payload.scheduledAt ?? null, eventStatus: e.status })),
+      missingStableIdentity: !p.eventKey && !latest.externalId
+    });
+  }
+  events.sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt) || a.id.localeCompare(b.id));
+  return { asOf, events, warnings, researchOnly: true };
+}
+async function queryCatalystCalendar(input = {}) {
+  const asOf = researchAsOf2(input.asOf);
+  const preferences = input.symbols ? null : await loadPreferences();
+  const symbols = input.symbols ?? [.../* @__PURE__ */ new Set([...preferences.watchlist ?? [], ...(preferences.positions ?? []).map((p) => p.symbol)])];
+  const from = input.from ?? asOf;
+  if (!validTimestamp(from)) throw new Error("Calendar from must be a valid timezone-aware timestamp");
+  const to = input.to ?? new Date(Date.parse(from) + 30 * 864e5).toISOString();
+  if (![from, to].every(validTimestamp) || Date.parse(from) > Date.parse(to))
+    throw new Error("Calendar requires a valid timezone-aware from <= to interval");
+  const evidence = await queryEvidence({ asOf, limit: 500 });
+  const calendar = projectCatalystCalendar(evidence.items, { asOf, symbols, includeMacro: input.includeMacro ?? true });
+  calendar.events = calendar.events.filter((e) => Date.parse(e.scheduledAt) >= Date.parse(from) && Date.parse(e.scheduledAt) <= Date.parse(to) && (input.includeCancelled || e.eventStatus !== "cancelled"));
+  return {
+    ...calendar,
+    from,
+    to,
+    symbols,
+    coverage: { scanned: evidence.returned, totalAvailable: evidence.totalMatched, truncated: evidence.totalMatched > evidence.returned },
+    warnings: [...calendar.warnings, ...evidence.totalMatched > evidence.returned ? ["Evidence scan truncated; calendar may omit events or revisions."] : []],
+    limitation: "Calendar of ingested evidence only, not a complete market calendar. Revisions require a stable eventKey per provider/entity/type. No notifications are scheduled by this query."
+  };
+}
+
+// mcp/workspace.mjs
+var journalQueue = Promise.resolve();
+var cache = /* @__PURE__ */ new Map();
+var benchmarkDefaults = { A: "000001.SS", HK: "^HSI", US: "^GSPC" };
+var cleanText = (value, limit = 2e3) => String(value ?? "").trim().slice(0, limit);
+var finite5 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
+async function readStore(name, fallback = []) {
+  try {
+    return JSON.parse(await readFile7(path8.join(getStorageDir(), name), "utf8"));
+  } catch (error2) {
+    if (error2.code === "ENOENT") return fallback;
+    throw error2;
+  }
+}
+async function writeStore(name, data) {
+  const target = path8.join(getStorageDir(), name);
+  await mkdir8(path8.dirname(target), { recursive: true });
+  const temp = `${target}.${randomUUID5()}.tmp`;
+  await writeFile7(temp, JSON.stringify(data, null, 2));
+  await rename7(temp, target);
+}
+async function listDecisions({ symbol, limit = 200 } = {}) {
+  const items = await readStore("decisions.json");
+  const normalized = symbol ? normalizeSymbol(symbol) : null;
+  return {
+    decisions: items.filter((item) => !normalized || item.symbol === normalized).slice(-Math.min(500, limit)).reverse().map((item) => {
+      const scorecard = buildThesisScorecard(item);
+      return scorecard.pillars.length ? { ...item, scorecard } : item;
+    })
+  };
+}
+async function recordDecision(input) {
+  const symbol = normalizeSymbol(input.symbol);
+  const state = input.state ?? "watch";
+  if (!["watch", "candidate", "hold", "review-exit", "inactive"].includes(state))
+    throw new Error("Invalid decision state");
+  const thesis = cleanText(input.thesis);
+  if (!thesis) throw new Error("A decision thesis is required");
+  const pillars = normalizeThesisPillars(input.pillars);
+  const evidenceIds = [...new Set(input.evidenceIds ?? [])];
+  const evidence = await queryEvidence({ symbols: [symbol], limit: 500 });
+  if (evidenceIds.some((id) => !evidence.items.some((item) => item.id === id)))
+    throw new Error(
+      "Evidence must already exist for this symbol and be available now"
+    );
+  const preferences = await loadPreferences();
+  const position = preferences.positions?.find(
+    (item) => normalizeSymbol(item.symbol) === symbol && item.quantity > 0
+  );
+  if (["hold", "review-exit"].includes(state) && !position)
+    throw new Error("This state requires an existing saved position");
+  let quote = null;
+  let quoteError = null;
+  let verifiedBudget = null;
+  try {
+    quote = await getQuote(symbol);
+  } catch (error2) {
+    quoteError = error2.message;
+  }
+  if (state === "candidate") {
+    const predictions = await queryPredictionLedger({ symbol, limit: 100 });
+    const rows = Array.isArray(predictions) ? predictions : predictions.predictions ?? predictions.items ?? predictions.records ?? [];
+    const prediction = rows.find(
+      (item) => item.id === input.validationPredictionId
+    );
+    if (!cleanText(input.entryCondition) || !cleanText(input.invalidationCondition) || !cleanText(input.riskBudget) || !evidenceIds.length)
+      throw new Error(
+        "Candidate requires entry, invalidation, risk budget, and evidence"
+      );
+    if (quote?.signalEligible !== true)
+      throw new Error(
+        "Candidate requires current usable market data without a cross-source conflict"
+      );
+    if (!prediction || prediction.qualification?.currentlyEligible !== true)
+      throw new Error(
+        "Candidate requires a current, qualified, unresolved recorded prediction"
+      );
+    if (!input.budgetRequest)
+      throw new Error("Candidate requires a computable position budget");
+    verifiedBudget = calculatePositionBudget(input.budgetRequest);
+    const idea = verifiedBudget.ideas.find((item) => item.symbol === symbol);
+    if (!idea || !(idea.quantityCeiling > 0))
+      throw new Error(
+        "Candidate has no executable allocation within the supplied risk budget"
+      );
+  }
+  const record2 = {
+    id: `decision_${randomUUID5()}`,
+    symbol,
+    state,
+    thesis,
+    ...pillars.length ? { pillars } : {},
+    entryCondition: cleanText(input.entryCondition),
+    invalidationCondition: cleanText(input.invalidationCondition),
+    horizon: cleanText(input.horizon, 160),
+    riskBudget: cleanText(input.riskBudget, 160),
+    evidenceIds,
+    validationPredictionId: input.validationPredictionId ?? null,
+    verifiedBudget,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    snapshot: quote ? {
+      price: quote.price,
+      currency: quote.currency,
+      asOf: quote.asOf,
+      freshness: quote.freshness,
+      provider: quote.provider,
+      crossCheck: quote.crossCheck,
+      dataSources: quote.dataSources,
+      dataQuality: quote.dataQuality,
+      signalEligible: quote.signalEligible,
+      indicators: quote.indicators
+    } : null,
+    quoteError,
+    reviews: []
+  };
+  record2.originalHash = createHash3("sha256").update(JSON.stringify(record2)).digest("hex");
+  const task = journalQueue.then(async () => {
+    const records = await readStore("decisions.json");
+    records.push(record2);
+    await writeStore("decisions.json", records);
+    return record2;
+  });
+  journalQueue = task.catch(() => {
+  });
+  return task;
+}
+async function reviewDecision(id, input) {
+  if (!["open", "invalidated", "target-reached", "expired", "closed"].includes(
+    input.outcome
+  ))
+    throw new Error("Invalid review outcome");
+  const task = journalQueue.then(async () => {
+    const records = await readStore("decisions.json");
+    const record2 = records.find((item) => item.id === id);
+    if (!record2) throw new Error("Decision not found");
+    record2.reviews.push({
+      reviewedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      outcome: input.outcome,
+      notes: cleanText(input.notes),
+      source: "user-review"
+    });
+    await writeStore("decisions.json", records);
+    return record2;
+  });
+  journalQueue = task.catch(() => {
+  });
+  return task;
+}
+async function appendThesisReview(input) {
+  if (!Array.isArray(input.updates) || !input.updates.length || input.updates.length > 12)
+    throw new Error("Provide 1-12 pillar updates");
+  const task = journalQueue.then(async () => {
+    const records = await readStore("decisions.json");
+    const record2 = records.find((item) => item.id === input.decisionId);
+    if (!record2) throw new Error("Decision not found");
+    const existing = buildThesisScorecard(record2).pillars;
+    if (existing.length && input.pillars !== void 0)
+      throw new Error("Original pillars cannot be replaced; create a new decision for a changed thesis");
+    const pillars = existing.length ? existing : normalizeThesisPillars(input.pillars);
+    if (!pillars.length) throw new Error("Define pillars on the decision or first thesis review");
+    const reviewedAt = (/* @__PURE__ */ new Date()).toISOString();
+    const evidenceIds = [...new Set(input.updates.flatMap((u) => u.evidenceIds ?? []))];
+    if (evidenceIds.length > 100) throw new Error("Use at most 100 evidence IDs per review");
+    const evidence = await queryEvidence({ ids: evidenceIds, symbols: [record2.symbol], asOf: reviewedAt, limit: 500 });
+    const byId = new Map(evidence.items.map((e) => [e.id, e]));
+    const seen = /* @__PURE__ */ new Set();
+    const updates = input.updates.map((u) => {
+      if (!pillars.some((p) => p.id === u.pillarId) || seen.has(u.pillarId))
+        throw new Error("Unknown or duplicate pillarId");
+      seen.add(u.pillarId);
+      if (!["supported", "weakened", "invalidated", "inconclusive"].includes(u.status))
+        throw new Error("Invalid pillar assessment status");
+      const ids = [...new Set(u.evidenceIds ?? [])];
+      if (!ids.length || ids.some((id) => !byId.has(id)))
+        throw new Error("Every assessment requires existing, available evidence for the decision symbol");
+      if (typeof u.rationale !== "string" || !u.rationale.trim() || u.rationale.length > 2e3)
+        throw new Error("Each assessment requires a rationale of 1-2000 characters");
+      return {
+        pillarId: u.pillarId,
+        status: u.status,
+        rationale: u.rationale.trim(),
+        evidenceIds: ids,
+        evidence: ids.map((id) => {
+          const e = byId.get(id);
+          return { evidenceId: id, sourceUrl: e.sourceUrl, publishedAt: e.publishedAt, availableAt: e.availableAt };
+        })
+      };
+    });
+    const review = {
+      id: `thesis_review_${randomUUID5()}`,
+      reviewedAt,
+      type: "thesis-assessment",
+      source: "research-assessment",
+      notes: cleanText(input.notes),
+      pillarUpdates: updates,
+      ...!existing.length ? { pillars } : {}
+    };
+    record2.reviews.push(review);
+    await writeStore("decisions.json", records);
+    return { review, scorecard: buildThesisScorecard(record2), stateUnchanged: record2.state };
+  });
+  journalQueue = task.catch(() => {
+  });
+  return task;
+}
+async function queryThesisScorecard({ decisionId, asOf: requestedAsOf } = {}) {
+  const asOf = researchAsOf2(requestedAsOf);
+  const record2 = (await readStore("decisions.json")).find((r) => r.id === decisionId);
+  if (!record2 || Date.parse(record2.createdAt) > Date.parse(asOf)) throw new Error("Decision not available at asOf");
+  return buildThesisScorecard(record2, asOf);
+}
+function deriveMarketContext(items, benchmarks = [], sectorMap = {}) {
+  const valid = items.filter(
+    (item) => !item.error && Number.isFinite(item.changePct)
+  );
+  const sectors = /* @__PURE__ */ new Map();
+  const relativeStrength = [];
+  for (const item of valid) {
+    const sector = sectorMap[item.symbol] || item.sector || "Unclassified";
+    const key = `${item.market}:${sector}`;
+    const group = sectors.get(key) ?? {
+      name: sector,
+      market: item.market,
+      scope: "watchlist",
+      count: 0,
+      sum: 0,
+      symbols: []
+    };
+    group.count++;
+    group.sum += item.changePct;
+    group.symbols.push(item.symbol);
+    sectors.set(key, group);
+    const benchmark = benchmarks.find((value) => value.market === item.market);
+    const sameSessionDate = benchmark?.asOf && item.asOf && new Date(benchmark.asOf).toISOString().slice(0, 10) === new Date(item.asOf).toISOString().slice(0, 10) && Math.abs(Date.parse(benchmark.asOf) - Date.parse(item.asOf)) <= 12e5;
+    const complete = (row) => row.complete !== false && row.isComplete !== false && (row.closeAt ? Date.parse(row.closeAt) <= Date.now() : row.timestamp?.slice(0, 10) < (/* @__PURE__ */ new Date()).toISOString().slice(0, 10));
+    const byDate = new Map(
+      (benchmark?.history ?? []).filter(complete).map((row) => [
+        row.sessionDate ?? row.timestamp.slice(0, 10),
+        row.close
+      ])
+    );
+    const aligned = [
+      ...new Map(
+        (item.history ?? []).filter(
+          (row) => complete(row) && row.close > 0 && byDate.get(row.sessionDate ?? row.timestamp.slice(0, 10)) > 0
+        ).map((row) => [row.sessionDate ?? row.timestamp.slice(0, 10), row])
+      ).values()
+    ].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    const first = aligned.at(-21), last = aligned.at(-1);
+    const relative20dPct = aligned.length >= 21 ? (last.close / first.close - 1 - (byDate.get(last.sessionDate ?? last.timestamp.slice(0, 10)) / byDate.get(first.sessionDate ?? first.timestamp.slice(0, 10)) - 1)) * 100 : null;
+    relativeStrength.push({
+      symbol: item.symbol,
+      benchmark: benchmark?.symbol ?? null,
+      relativeDayPct: sameSessionDate && Number.isFinite(benchmark?.changePct) ? item.changePct - benchmark.changePct : null,
+      relative20dPct,
+      alignedSessions: Math.min(aligned.length, 21)
+    });
+  }
+  return {
+    scope: "watchlist",
+    universeSize: items.length,
+    covered: valid.length,
+    breadth: {
+      scope: "watchlist",
+      advancing: valid.filter((item) => item.changePct > 0).length,
+      declining: valid.filter((item) => item.changePct < 0).length,
+      unchanged: valid.filter((item) => item.changePct === 0).length,
+      total: valid.length
+    },
+    indices: benchmarks.map(({ history, ...item }) => item),
+    sectors: [...sectors.values()].map(({ sum, ...group }) => {
+      const relative = relativeStrength.filter(
+        (item) => group.symbols.includes(item.symbol) && Number.isFinite(item.relativeDayPct)
+      );
+      return {
+        ...group,
+        changePct: sum / group.count,
+        relativeChangePct: relative.length === group.count ? relative.reduce(
+          (total, item) => total + item.relativeDayPct,
+          0
+        ) / relative.length : null
+      };
+    }).sort((a, b) => b.changePct - a.changePct),
+    relativeStrength
+  };
+}
+async function getResearchContext(items, preferences = {}) {
+  const markets = [
+    ...new Set(
+      items.map((item) => item.market).filter((market2) => benchmarkDefaults[market2])
+    )
+  ];
+  const benchmarks = await Promise.all(
+    markets.map(async (market2) => {
+      const symbol = preferences.benchmarkSymbols?.[market2] || benchmarkDefaults[market2];
+      const key = `benchmark:${symbol}`;
+      try {
+        const entry = cache.get(key);
+        const quote = entry && Date.now() - entry.at < 12e4 ? entry.data : await getQuote(symbol);
+        cache.set(key, { at: Date.now(), data: quote });
+        return { ...quote, market: market2 };
+      } catch (error2) {
+        return { symbol, market: market2, error: error2.message };
+      }
+    })
+  );
+  return deriveMarketContext(items, benchmarks, preferences.sectorMap);
+}
+async function enrichReport(report) {
+  const preferences = await loadPreferences();
+  if (report.phase !== "intraday")
+    report.officialSync = await syncOfficialEvidence({
+      symbols: report.items.map((item) => item.symbol)
+    });
+  const evidence = await queryEvidence({
+    symbols: report.items.map((item) => item.symbol),
+    limit: 500
+  });
+  report.context = await getResearchContext(report.items, preferences);
+  const industry = await queryEvidence({
+    kinds: ["industry", "macro"],
+    limit: 100
+  });
+  report.context.marketBreadth = industry.items.filter((item) => {
+    const breadth = item.payload?.breadth;
+    return breadth?.scope === "market" && Number.isInteger(breadth.total) && breadth.total > 0 && ["advancing", "declining", "unchanged"].every(
+      (key) => Number.isInteger(breadth[key]) && breadth[key] >= 0
+    ) && breadth.advancing + breadth.declining + breadth.unchanged === breadth.total && Number.isFinite(Date.parse(breadth.asOf)) && Date.now() - Date.parse(breadth.asOf) >= 0 && Date.now() - Date.parse(breadth.asOf) < 36e5;
+  }).map((item) => ({
+    ...item.payload.breadth,
+    sourceUrl: item.sourceUrl,
+    evidenceId: item.id
+  }));
+  report.evidence = evidence.items;
+  const calendar = projectCatalystCalendar(evidence.items);
+  report.events = calendar.events;
+  report.eventWarnings = calendar.warnings;
+  if (evidence.totalMatched > evidence.returned)
+    report.eventWarnings.push("Evidence scan truncated; calendar may omit events or revisions.");
+  report.decisions = (await listDecisions()).decisions;
+  for (const item of report.items) {
+    item.evidence = evidence.items.filter(
+      (record2) => record2.entity.symbol === item.symbol
+    );
+    item.events = report.events.filter((event) => event.symbol === item.symbol);
+    item.financials = item.evidence.filter(
+      (record2) => record2.kind === "financial"
+    );
+    item.relativeStrength = report.context.relativeStrength.find(
+      (record2) => record2.symbol === item.symbol
+    ) ?? null;
+  }
+  return report;
+}
+var OFFICIAL_HOSTS = [
+  "sec.gov",
+  "cninfo.com.cn",
+  "sse.com.cn",
+  "szse.cn",
+  "hkexnews.hk",
+  "hkex.com.hk",
+  "bse.cn"
+];
+function officialUrl(value) {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.username || url.password || url.port || !OFFICIAL_HOSTS.some(
+    (host) => url.hostname === host || url.hostname.endsWith(`.${host}`)
+  ))
+    throw new Error(
+      "A public HTTPS regulator or exchange source URL is required"
+    );
+  return url;
+}
+async function publicJson(url, init = {}) {
+  officialUrl(url);
+  const response = await fetch(url, {
+    ...init,
+    redirect: "error",
+    signal: AbortSignal.timeout(15e3),
+    headers: {
+      Accept: "application/json",
+      "User-Agent": process.env.HROUTER_SEC_USER_AGENT || "Hrouter Market Pulse/1.1.0 (https://hrouter.net/)",
+      ...init.headers
+    }
+  });
+  if (!response.ok)
+    throw new Error(`Official provider HTTP ${response.status}`);
+  const body = await response.text();
+  if (body.length > 16e6)
+    throw new Error("Official provider response is too large");
+  return JSON.parse(body);
+}
+async function ingestOfficialRecords(input) {
+  if (!Array.isArray(input.items) || !input.items.length || input.items.length > 100)
+    throw new Error("Provide 1-100 official records");
+  const items = input.items.map((item) => {
+    const sourceUrl = officialUrl(item.sourceUrl).toString();
+    if (item.payload?.scheduledAt && !Number.isFinite(Date.parse(item.payload.scheduledAt)))
+      throw new Error("scheduledAt must be a date");
+    return {
+      ...item,
+      sourceUrl,
+      sourceTier: "official",
+      providerId: "official-source-import",
+      availableAt: void 0
+    };
+  });
+  await registerDataProvider({
+    id: "official-source-import",
+    name: "Official source imports",
+    sourceTier: "official",
+    kinds: [
+      "filing",
+      "financial",
+      "corporate_action",
+      "macro",
+      "industry",
+      "other"
+    ],
+    homepage: "https://hrouter.net/",
+    notes: "Source host allowlisted; supplied record contents require original-document verification. Availability is first ingestion."
+  });
+  return ingestEvidence({ items });
+}
+function secSubmissionRecords(symbol, cik, payload, limit = 8) {
+  const recent = payload.filings?.recent ?? {};
+  const records = [];
+  for (let i = 0; i < (recent.accessionNumber?.length ?? 0) && records.length < limit; i++) {
+    const form = recent.form[i];
+    if (!["10-K", "10-Q", "8-K", "20-F", "6-K", "10-K/A", "10-Q/A"].includes(form))
+      continue;
+    const accession = recent.accessionNumber[i];
+    const primaryDocument = recent.primaryDocument[i];
+    if (!/^\d{10}-\d{2}-\d{6}$/.test(accession) || !/^[A-Za-z0-9_.-]+$/.test(primaryDocument))
+      continue;
+    const acceptance = recent.acceptanceDateTime?.[i];
+    const exactTime = acceptance && /(?:Z|[+-]\d\d:\d\d)$/.test(acceptance);
+    const publishedAt = exactTime ? new Date(acceptance).toISOString() : `${recent.filingDate[i]}T00:00:00Z`;
+    records.push({
+      providerId: "sec-edgar",
+      sourceTier: "official",
+      kind: "filing",
+      externalId: accession,
+      entity: { symbol, name: payload.name, identifiers: { cik: String(cik) } },
+      title: `${payload.name} ${form} (${recent.reportDate?.[i] || recent.filingDate[i]})`,
+      sourceUrl: `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${accession.replaceAll("-", "")}/${primaryDocument}`,
+      publishedAt,
+      payload: {
+        form,
+        accession,
+        publicationTimePrecision: exactTime ? "timestamp" : "date",
+        periodEnd: recent.reportDate?.[i] ?? null,
+        amended: form.endsWith("/A")
+      }
+    });
+  }
+  return records;
+}
+function secFinancialRecords(symbol, cik, payload) {
+  const tags = [
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "Revenues",
+    "NetIncomeLoss",
+    "NetCashProvidedByUsedInOperatingActivities",
+    "Assets",
+    "Liabilities"
+  ];
+  return tags.flatMap((tag) => {
+    const concept = payload.facts?.["us-gaap"]?.[tag];
+    const units = concept?.units ?? {};
+    return Object.entries(units).flatMap(([unit, rows]) => {
+      const entries = rows.filter(
+        (row2) => finite5(row2.val) !== null && row2.filed && ["10-K", "10-Q"].includes(row2.form)
+      ).sort(
+        (a, b) => b.filed.localeCompare(a.filed) || b.end.localeCompare(a.end)
+      );
+      const row = entries[0];
+      if (!row) return [];
+      return [
+        {
+          providerId: "sec-edgar",
+          sourceTier: "official",
+          kind: "financial",
+          entity: { symbol, name: payload.entityName },
+          title: `${tag} | ${row.end} | ${unit}`,
+          summary: concept.description ?? "",
+          sourceUrl: `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(cik).padStart(10, "0")}.json`,
+          publishedAt: `${row.filed}T00:00:00Z`,
+          payload: {
+            publicationTimePrecision: "date",
+            metric: tag,
+            valueType: "actual",
+            accountingBasis: "us-gaap",
+            value: row.val,
+            unit,
+            periodStart: row.start ?? null,
+            periodEnd: row.end,
+            accession: row.accn,
+            form: row.form
+          }
+        }
+      ];
+    });
+  });
+}
+async function syncSec(symbol, limit) {
+  let tickers = cache.get("sec-tickers");
+  if (!tickers || Date.now() - tickers.at > 864e5) {
+    tickers = {
+      at: Date.now(),
+      data: await publicJson("https://www.sec.gov/files/company_tickers.json")
+    };
+    cache.set("sec-tickers", tickers);
+  }
+  const company = Object.values(tickers.data).find(
+    (item) => item.ticker === symbol.replace(".", "-")
+  );
+  if (!company) throw new Error(`SEC CIK not found for ${symbol}`);
+  const cik = String(company.cik_str).padStart(10, "0");
+  const submissions = await publicJson(
+    `https://data.sec.gov/submissions/CIK${cik}.json`
+  );
+  const filings = secSubmissionRecords(symbol, cik, submissions, limit);
+  let financials = [], financialError = null;
+  try {
+    financials = secFinancialRecords(
+      symbol,
+      cik,
+      await publicJson(
+        `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`
+      )
+    );
+  } catch (error2) {
+    financialError = error2.message;
+  }
+  await registerDataProvider({
+    id: "sec-edgar",
+    name: "SEC EDGAR",
+    sourceTier: "official",
+    kinds: ["filing", "financial"],
+    homepage: "https://www.sec.gov/"
+  });
+  const result = filings.length || financials.length ? await ingestEvidence({
+    items: [...filings, ...financials].slice(0, 100)
+  }) : { inserted: 0 };
+  return { ...result, financialError };
+}
+async function syncCninfo(symbol, limit) {
+  const code = symbol.split(".")[0];
+  const body = new URLSearchParams({
+    pageNum: "1",
+    pageSize: String(limit),
+    column: symbol.endsWith(".SS") ? "sse" : "szse",
+    tabName: "fulltext",
+    searchkey: code,
+    secid: "",
+    stock: "",
+    category: "",
+    trade: "",
+    seDate: "",
+    sortName: "time",
+    sortType: "desc",
+    isHLtitle: "false"
+  });
+  const payload = await publicJson(
+    "https://www.cninfo.com.cn/new/hisAnnouncement/query",
+    {
+      method: "POST",
+      body,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: "https://www.cninfo.com.cn/"
+      }
+    }
+  );
+  const records = (payload.announcements ?? []).filter((item) => item.secCode === code).map((item) => ({
+    providerId: "cninfo-disclosures",
+    sourceTier: "official",
+    kind: "filing",
+    entity: { symbol, name: item.secName },
+    title: cleanText(item.announcementTitle, 1e3),
+    sourceUrl: officialUrl(
+      new URL(item.adjunctUrl, "https://static.cninfo.com.cn/").toString()
+    ).toString(),
+    publishedAt: new Date(item.announcementTime).toISOString(),
+    externalId: String(item.announcementId),
+    payload: { category: item.announcementType ?? null }
+  }));
+  await registerDataProvider({
+    id: "cninfo-disclosures",
+    name: "CNINFO disclosures",
+    sourceTier: "official",
+    kinds: ["filing"],
+    homepage: "https://www.cninfo.com.cn/"
+  });
+  return records.length ? ingestEvidence({ items: records }) : { inserted: 0, warning: "No matching announcements returned" };
+}
+async function syncOfficialEvidence({ symbols, limit = 8 } = {}) {
+  const preferences = await loadPreferences();
+  const list = [
+    ...new Set((symbols ?? preferences.watchlist).map(normalizeSymbol))
+  ].slice(0, 20);
+  const results = [];
+  const deferred = list.slice(5).map((symbol) => ({
+    symbol,
+    status: "deferred",
+    message: "Sync at most five symbols per request; submit this symbol in the next batch."
+  }));
+  for (let offset = 0; offset < Math.min(list.length, 5); offset += 3) {
+    const batch = await Promise.all(
+      list.slice(offset, Math.min(offset + 3, 5)).map(async (symbol) => {
+        const market2 = marketFromSymbol(symbol);
+        const key = `official-sync:${symbol}`;
+        const cached2 = cache.get(key);
+        if (cached2 && Date.now() - cached2.at < 9e5) {
+          return { symbol, status: "synced", ...cached2.data, cached: true };
+        }
+        try {
+          if (market2 === "HK") {
+            return {
+              symbol,
+              status: "source-required",
+              sourceUrl: "https://www1.hkexnews.hk/search/titlesearch.xhtml?lang=en",
+              message: "Import original HKEXnews records with ingest_official_records; no unsupported public API is assumed."
+            };
+          }
+          const data = market2 === "A" ? await syncCninfo(symbol, Math.min(limit, 20)) : await syncSec(symbol, Math.min(limit, 20));
+          cache.set(key, { at: Date.now(), data });
+          return { symbol, status: "synced", ...data };
+        } catch (error2) {
+          return { symbol, status: "unavailable", error: error2.message };
+        }
+      })
+    );
+    results.push(...batch);
+  }
+  return {
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    results: [...results, ...deferred]
+  };
+}
+
+// mcp/demo.mjs
+var securities = [
+  [
+    "0700.HK",
+    "\u817E\u8BAF\u63A7\u80A1",
+    "Tencent Holdings",
+    "HK",
+    "HKD",
+    518.2,
+    2.34,
+    "\u4E92\u8054\u7F51\u670D\u52A1",
+    "Internet services"
+  ],
+  [
+    "AAPL",
+    "\u82F9\u679C",
+    "Apple Inc.",
+    "US",
+    "USD",
+    237.49,
+    1.12,
+    "\u6D88\u8D39\u7535\u5B50",
+    "Consumer electronics"
+  ],
+  [
+    "600519.SS",
+    "\u8D35\u5DDE\u8305\u53F0",
+    "Kweichow Moutai",
+    "A",
+    "CNY",
+    1432.8,
+    -0.83,
+    "\u98DF\u54C1\u996E\u6599",
+    "Food & beverage"
+  ],
+  [
+    "NVDA",
+    "\u82F1\u4F1F\u8FBE",
+    "NVIDIA",
+    "US",
+    "USD",
+    142.63,
+    3.26,
+    "\u534A\u5BFC\u4F53",
+    "Semiconductors"
+  ],
+  [
+    "9988.HK",
+    "\u963F\u91CC\u5DF4\u5DF4",
+    "Alibaba Group",
+    "HK",
+    "HKD",
+    134.8,
+    -1.46,
+    "\u4E92\u8054\u7F51\u670D\u52A1",
+    "Internet services"
+  ],
+  [
+    "300750.SZ",
+    "\u5B81\u5FB7\u65F6\u4EE3",
+    "CATL",
+    "A",
+    "CNY",
+    268.42,
+    1.87,
+    "\u7535\u6C60\u4E0E\u65B0\u80FD\u6E90",
+    "Batteries & energy"
+  ],
+  [
+    "MSFT",
+    "\u5FAE\u8F6F",
+    "Microsoft",
+    "US",
+    "USD",
+    428.76,
+    -0.42,
+    "\u8F6F\u4EF6\u670D\u52A1",
+    "Software"
+  ],
+  [
+    "1810.HK",
+    "\u5C0F\u7C73\u96C6\u56E2",
+    "Xiaomi",
+    "HK",
+    "HKD",
+    51.15,
+    2.71,
+    "\u6D88\u8D39\u7535\u5B50",
+    "Consumer electronics"
+  ]
+];
+var demoPreferences = {
+  watchlist: securities.map((item) => item[0]),
+  language: "zh-CN",
+  positions: [
+    {
+      symbol: "0700.HK",
+      quantity: 400,
+      averageCost: 471.6,
+      currency: "HKD",
+      stopPrice: 487
+    },
+    {
+      symbol: "AAPL",
+      quantity: 50,
+      averageCost: 221.4,
+      currency: "USD",
+      stopPrice: 223
+    },
+    {
+      symbol: "600519.SS",
+      quantity: 100,
+      averageCost: 1465,
+      currency: "CNY",
+      stopPrice: 1378
+    },
+    {
+      symbol: "NVDA",
+      quantity: 80,
+      averageCost: 129.5,
+      currency: "USD",
+      stopPrice: 132
+    }
+  ]
+};
+var demoDecisions = [
+  {
+    id: "demo-decision-tencent",
+    symbol: "0700.HK",
+    state: "watch",
+    createdAt: "2026-09-08T02:15:00.000Z",
+    thesis: "\u89C2\u5BDF\u4EF7\u683C\u80FD\u5426\u5728 20 \u65E5\u5747\u7EBF\u4E0A\u65B9\u4FDD\u6301\uFF0C\u540C\u65F6\u6838\u5BF9\u516C\u544A\u4E0E\u677F\u5757\u76F8\u5BF9\u5F3A\u5EA6\u3002\u6B64\u6761\u4E3A\u5408\u6210\u6F14\u793A\u8BB0\u5F55\u3002",
+    thesisZh: "\u89C2\u5BDF\u4EF7\u683C\u80FD\u5426\u5728 20 \u65E5\u5747\u7EBF\u4E0A\u65B9\u4FDD\u6301\uFF0C\u540C\u65F6\u6838\u5BF9\u516C\u544A\u4E0E\u677F\u5757\u76F8\u5BF9\u5F3A\u5EA6\u3002\u6B64\u6761\u4E3A\u5408\u6210\u6F14\u793A\u8BB0\u5F55\u3002",
+    thesisEn: "Observe whether price holds above its 20-day average alongside verified announcements and sector strength. Synthetic demo record.",
+    entryCondition: "Daily close above MA20; fresh quotes from two sources.",
+    invalidationCondition: "Daily close below reference support; pause on stale data.",
+    horizon: "5 trading sessions",
+    riskBudget: "0.5% of portfolio equity",
+    evidenceIds: ["demo-evidence-1"],
+    reviews: []
+  }
+];
+function bars(price, seed, now, intraday = false) {
+  const length = intraday ? 68 : 120;
+  const dates = [];
+  let cursor = new Date(now);
+  cursor.setUTCHours(intraday ? 7 : 8, 0, 0, 0);
+  while (dates.length < length) {
+    if (intraday || ![0, 6].includes(cursor.getUTCDay()))
+      dates.unshift(cursor.toISOString());
+    cursor = new Date(cursor.getTime() - (intraday ? 5 * 6e4 : 864e5));
+  }
+  let previous = price * (intraday ? 0.978 : 0.795);
+  return dates.map((timestamp, index) => {
+    const progress = index / (length - 1);
+    const wave = Math.sin(index * 0.32 + seed) * 0.015 + Math.sin(index * 0.11) * 0.025;
+    const close = index === length - 1 ? price : price * ((intraday ? 0.978 : 0.795) + progress * (intraday ? 0.022 : 0.205) + wave * (intraday ? 0.22 : 1));
+    const open2 = previous * (1 + Math.sin(index * 1.7 + seed) * (intraday ? 1e-3 : 45e-4));
+    previous = close;
+    return {
+      timestamp,
+      open: Math.round(open2 * 100) / 100,
+      high: Math.round(
+        Math.max(open2, close) * (1 + 4e-3 + Math.abs(Math.sin(index + seed)) * 6e-3) * 100
+      ) / 100,
+      low: Math.round(
+        Math.min(open2, close) * (1 - 4e-3 - Math.abs(Math.cos(index + seed)) * 6e-3) * 100
+      ) / 100,
+      close: Math.round(close * 100) / 100,
+      volume: Math.round(
+        (intraday ? 18e4 : 145e5) * (0.6 + Math.abs(Math.sin(index * 1.34 + seed)) * 1.6)
+      )
+    };
+  });
+}
+function makeDemoReport(options = {}) {
+  const now = options.now ? new Date(options.now) : /* @__PURE__ */ new Date();
+  const asOf = new Date(now.getTime() - 35e3).toISOString();
+  const allItems = securities.map(
+    ([
+      symbol,
+      nameZh,
+      nameEn,
+      market2,
+      currency,
+      price,
+      changePct,
+      sectorZh,
+      sectorEn
+    ], index) => {
+      const history = bars(price, index, now);
+      const position = (options.positions ?? demoPreferences.positions).find(
+        (item) => item.symbol === symbol
+      );
+      const sma = (period) => Math.round(
+        history.slice(-period).reduce((sum, row) => sum + row.close, 0) / period * 100
+      ) / 100;
+      return {
+        symbol,
+        name: nameZh,
+        nameZh,
+        nameEn,
+        market: market2,
+        currency,
+        price,
+        changePct,
+        change: Math.round((price - price / (1 + changePct / 100)) * 100) / 100,
+        previousClose: Math.round(price / (1 + changePct / 100) * 100) / 100,
+        dayHigh: Math.round(price * 1.009 * 100) / 100,
+        dayLow: Math.round(price * 0.974 * 100) / 100,
+        volume: history.at(-1).volume,
+        asOf,
+        exchangeTimezone: market2 === "US" ? "America/New_York" : market2 === "HK" ? "Asia/Hong_Kong" : "Asia/Shanghai",
+        exchange: market2 === "US" ? "NASDAQ" : market2 === "HK" ? "HKEX" : symbol.endsWith(".SZ") ? "SZSE" : "SSE",
+        sector: sectorZh,
+        sectorZh,
+        sectorEn,
+        marketState: "REGULAR",
+        period: "1d",
+        history,
+        intraday: {
+          status: "available",
+          period: "5m",
+          history: bars(price, index, now, true),
+          volumeRatioSameTime: {
+            value: 1.38,
+            status: "available",
+            samples: 20
+          }
+        },
+        freshness: {
+          status: index === 6 ? "stale" : "fresh",
+          signalEligible: index !== 6,
+          ageSeconds: index === 6 ? 7200 : 35,
+          asOf,
+          calendarCoverage: "synthetic"
+        },
+        signalEligible: index !== 6,
+        source: "Synthetic demo fixtures",
+        dataSources: [
+          { provider: "Demo source A" },
+          { provider: "Demo source B" }
+        ],
+        crossCheck: {
+          status: "consistent",
+          spreadPct: 0.02,
+          timeDifferenceSeconds: 8
+        },
+        dataQuality: {
+          status: index === 6 ? "stale" : "ok",
+          warnings: index === 6 ? [
+            {
+              code: "stale",
+              messageZh: "\u5408\u6210\u884C\u60C5\u8D85\u8FC7\u65F6\u6548\u9608\u503C\uFF0C\u6761\u4EF6\u89E6\u53D1\u5DF2\u6682\u505C\u3002",
+              messageEn: "Synthetic quote exceeds its freshness threshold; triggers are suspended."
+            }
+          ] : []
+        },
+        indicators: {
+          period: "1d",
+          asOf: history.at(-1).timestamp,
+          sampleCount: history.length,
+          sma5: sma(5),
+          sma20: sma(20),
+          sma60: sma(60),
+          rsi14: 58.42 + index,
+          macd: Math.round(price * 34e-4 * 1e3) / 1e3,
+          macdSignal: Math.round(price * 29e-4 * 1e3) / 1e3,
+          support20d: Math.round(price * 0.918 * 100) / 100,
+          resistance20d: Math.round(price * 1.023 * 100) / 100,
+          annualizedVolatilityPct: 24.68 + index * 2.7,
+          maxDrawdown60dPct: -8.36 - index * 0.8,
+          volumeRatio20d: 1.37,
+          trend: "\u4E0A\u884C"
+        },
+        position: position ? {
+          ...position,
+          marketValue: price * position.quantity,
+          unrealizedPnl: (price - position.averageCost) * position.quantity,
+          unrealizedPnlPct: (price / position.averageCost - 1) * 100
+        } : null,
+        relativeChangePct: changePct - (market2 === "A" ? 0.64 : market2 === "HK" ? 1.26 : 0.48),
+        relativeStrength: { relativeChangePct: changePct - 0.64 },
+        alerts: [],
+        news: []
+      };
+    }
+  );
+  const items = options.watchlist ? options.watchlist.map((symbol) => allItems.find((item) => item.symbol === symbol) ?? {
+    symbol,
+    market: symbol.endsWith(".HK") ? "HK" : /\.(SS|SZ)$/.test(symbol) ? "A" : "US",
+    error: "No synthetic fixture for this symbol; no market data was requested.",
+    history: []
+  }) : allItems;
+  const indices = [
+    {
+      symbol: "000001.SS",
+      name: "\u4E0A\u8BC1\u6307\u6570",
+      nameZh: "\u4E0A\u8BC1\u6307\u6570",
+      nameEn: "SSE Composite",
+      market: "A",
+      price: 3867.42,
+      changePct: 0.64,
+      asOf
+    },
+    {
+      symbol: "^HSI",
+      name: "\u6052\u751F\u6307\u6570",
+      nameZh: "\u6052\u751F\u6307\u6570",
+      nameEn: "Hang Seng Index",
+      market: "HK",
+      price: 25187.36,
+      changePct: 1.26,
+      asOf
+    },
+    {
+      symbol: "^GSPC",
+      name: "\u6807\u666E 500",
+      nameZh: "\u6807\u666E 500",
+      nameEn: "S&P 500",
+      market: "US",
+      price: 6482.75,
+      changePct: 0.48,
+      asOf
+    }
+  ];
+  const events = [
+    {
+      id: "demo-evidence-1",
+      symbol: "0700.HK",
+      titleZh: "\u6F14\u793A\u4E8B\u4EF6\uFF1A\u5B63\u5EA6\u4E1A\u7EE9\u8D44\u6599\u5F85\u6838\u5BF9",
+      titleEn: "Demo event: quarterly results pending review",
+      title: "\u6F14\u793A\u4E8B\u4EF6\uFF1A\u5B63\u5EA6\u4E1A\u7EE9\u8D44\u6599\u5F85\u6838\u5BF9",
+      sourceTier: "official",
+      publisher: "HKEX (demo reference)",
+      url: "https://www.hkexnews.hk/",
+      publishedAt: new Date(now.getTime() - 72e5).toISOString(),
+      effectiveAt: new Date(now.getTime() + 864e5).toISOString(),
+      scheduledAt: new Date(now.getTime() + 864e5).toISOString(),
+      eventType: "earnings",
+      eventStatus: "tentative",
+      dateConfidence: "estimated",
+      timezone: "Asia/Hong_Kong"
+    },
+    {
+      id: "demo-evidence-2",
+      symbol: "AAPL",
+      titleZh: "\u6F14\u793A\u4E8B\u4EF6\uFF1A\u5B98\u65B9\u6295\u8D44\u8005\u5173\u7CFB\u8D44\u6599\u66F4\u65B0",
+      titleEn: "Demo event: investor relations material updated",
+      title: "\u6F14\u793A\u4E8B\u4EF6\uFF1A\u5B98\u65B9\u6295\u8D44\u8005\u5173\u7CFB\u8D44\u6599\u66F4\u65B0",
+      sourceTier: "official",
+      publisher: "Apple IR (demo reference)",
+      url: "https://investor.apple.com/",
+      publishedAt: new Date(now.getTime() - 864e5).toISOString()
+    }
+  ];
+  const monitor = {
+    events: [
+      {
+        id: "demo-alert-1",
+        symbol: "NVDA",
+        type: "confirmed",
+        titleZh: "\u6DA8\u5E45\u6761\u4EF6\u6301\u7EED\u786E\u8BA4",
+        titleEn: "Price-change condition confirmed",
+        ruleName: "Change > 3%",
+        value: 3.26,
+        asOf: new Date(now.getTime() - 18e5).toISOString()
+      },
+      {
+        id: "demo-alert-2",
+        symbol: "300750.SZ",
+        type: "recovered",
+        titleZh: "\u4EF7\u683C\u6062\u590D\u81F3\u89C2\u5BDF\u533A\u95F4",
+        titleEn: "Price returned to its watch range",
+        ruleName: "Support recovery",
+        asOf: new Date(now.getTime() - 11e5).toISOString()
+      },
+      {
+        id: "demo-alert-3",
+        symbol: "0700.HK",
+        type: "triggered",
+        titleZh: "\u540C\u523B\u6210\u4EA4\u91CF\u8D85\u8FC7\u89C2\u5BDF\u9608\u503C",
+        titleEn: "Same-time volume crossed watch threshold",
+        ruleName: "Same-time volume > 1.3x",
+        value: 1.38,
+        asOf: new Date(now.getTime() - 3e5).toISOString()
+      }
+    ]
+  };
+  const visibleSymbols = new Set(items.map((item) => item.symbol));
+  const knownItems = items.filter((item) => !item.error);
+  const sectorGroups = /* @__PURE__ */ new Map();
+  for (const item of knownItems) {
+    const group = sectorGroups.get(item.sectorZh) ?? { name: item.sectorZh, nameZh: item.sectorZh, nameEn: item.sectorEn, count: 0, changePct: 0, relativeChangePct: 0 };
+    group.count++;
+    group.changePct += item.changePct;
+    group.relativeChangePct += item.relativeChangePct;
+    sectorGroups.set(item.sectorZh, group);
+  }
+  const selectedEvents = events.filter((event) => visibleSymbols.has(event.symbol));
+  const selectedMonitor = { ...monitor, events: monitor.events.filter((event) => visibleSymbols.has(event.symbol)) };
+  const advances = knownItems.filter((item) => item.changePct > 0).length;
+  const declines = knownItems.filter((item) => item.changePct < 0).length;
+  return {
+    schemaVersion: 2,
+    demo: true,
+    language: "zh-CN",
+    phase: options.phase || "research",
+    generatedAt: now.toISOString(),
+    runId: "synthetic-demo",
+    source: "Synthetic demo fixtures",
+    items,
+    context: {
+      indices,
+      sectors: [...sectorGroups.values()].map((g) => ({ ...g, changePct: g.changePct / g.count, relativeChangePct: g.relativeChangePct / g.count })),
+      breadth: { scope: "watchlist", advances, declines, unchanged: knownItems.length - advances - declines }
+    },
+    events: selectedEvents,
+    evidence: selectedEvents,
+    monitor: selectedMonitor,
+    summary: {
+      requested: items.length,
+      succeeded: knownItems.length,
+      failed: items.length - knownItems.length,
+      advances,
+      declines,
+      unchanged: knownItems.length - advances - declines,
+      alertCount: selectedMonitor.events.length,
+      qualityWarningCount: items.filter((item) => item.error || item.freshness?.status !== "fresh").length,
+      signalEligibleCount: items.filter((item) => item.signalEligible).length,
+      staleCount: items.filter((item) => item.freshness?.status === "stale").length,
+      marketCounts: Object.fromEntries(["A", "HK", "US"].map((market2) => [market2, items.filter((item) => item.market === market2).length]))
+    }
+  };
+}
+
+// mcp/http.mjs
+var assets = /* @__PURE__ */ new Map([
+  ["/assets/dashboard.js", ["dashboard.js", "text/javascript; charset=utf-8"]],
+  ["/assets/dashboard.css", ["dashboard.css", "text/css; charset=utf-8"]],
+  ["/assets/dashboard.js.LEGAL.txt", ["dashboard.js.LEGAL.txt", "text/plain; charset=utf-8"]],
+  [
+    "/assets/vendor/lightweight-charts.js",
+    ["vendor/lightweight-charts.js", "text/javascript; charset=utf-8"]
+  ],
+  [
+    "/assets/vendor/lucide.js",
+    ["vendor/lucide.js", "text/javascript; charset=utf-8"]
+  ]
+]);
+var assetRoot = new URL("../assets/", import.meta.url);
+var jsonType = "application/json; charset=utf-8";
+var csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+function respond(response, status, data, type = jsonType) {
+  const body = type === jsonType ? JSON.stringify(data) : data;
+  response.writeHead(status, {
+    "Content-Type": type,
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": csp,
+    "Referrer-Policy": "no-referrer",
+    "Content-Length": Buffer.byteLength(body)
+  });
+  response.end(body);
+}
+async function bodyJson(request) {
+  if (!/^application\/json(?:;|$)/i.test(request.headers["content-type"] ?? ""))
+    throw Object.assign(new Error("JSON content type required"), {
+      status: 415
+    });
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > 1e6)
+      throw Object.assign(new Error("Request body too large"), { status: 413 });
+    chunks.push(chunk);
+  }
+  const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    throw new Error("JSON object required");
+  return body;
+}
+function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
+  let demoReport = demo2 ? makeDemoReport() : null;
+  let preferences = demo2 ? structuredClone(demoPreferences) : null;
+  let decisions = demo2 ? structuredClone(demoDecisions) : null;
+  let refreshPromise = null;
+  const arenaReady = demo2 ? createDemoArena() : Promise.resolve(getArena());
+  const dashboardCaller = { client: "dashboard" };
+  let refreshedAt = 0;
+  const server2 = createServer(async (request, response) => {
+    try {
+      const host = request.headers.host;
+      const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
+      if (!allowedHosts.includes(host))
+        return respond(response, 403, { error: "Invalid local host" });
+      const origin = request.headers.origin;
+      if (origin && !allowedHosts.some((value) => origin === `http://${value}`))
+        return respond(response, 403, { error: "Cross-origin access denied" });
+      const url = new URL(request.url, "http://127.0.0.1");
+      if (request.method === "GET") {
+        if (url.pathname === "/api/arena/leaderboard") {
+          const arena = await arenaReady;
+          return respond(response, 200, { demo: demo2, ...await arena.leaderboard({
+            market: url.searchParams.get("market") || void 0,
+            competition: url.searchParams.get("competition") || void 0,
+            includeArchived: url.searchParams.get("archived") === "1"
+          }) });
+        }
+        const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
+        if (arenaAccount) {
+          const arena = await arenaReady;
+          return respond(response, 200, { demo: demo2, ...await arena.getAccount(arenaAccount[1], { limit: 200 }) });
+        }
+        if (url.pathname === "/api/paper/status") return respond(response, 200, demo2 ? { environment: "SIMULATE", demoDisabled: true, bridgeEnabled: false, policy: { enabled: false }, intents: [], samples: [], limitation: "Paper trading requires the real-data dashboard and actual Futu OpenD. No synthetic account, fills or performance are supplied." } : await getPaperService().status());
+        if (url.pathname === "/api/evidence") {
+          const evidence = demo2 ? { items: demoReport.evidence ?? [] } : await queryEvidence({
+            symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : void 0,
+            limit: 500
+          });
+          const calendar = demo2 ? { events: demoReport.events ?? [], warnings: [] } : projectCatalystCalendar(evidence.items);
+          const warnings = [...calendar.warnings];
+          if (evidence.totalMatched > evidence.returned) warnings.push("Evidence scan truncated; calendar may omit events or revisions.");
+          return respond(response, 200, { ...evidence, events: calendar.events, eventWarnings: warnings });
+        }
+        if (url.pathname === "/health")
+          return respond(response, 200, {
+            ok: true,
+            service: "hrouter-market-pulse",
+            version: true ? "1.3.0" : "development",
+            demo: demo2
+          });
+        if (assets.has(url.pathname)) {
+          const [name, type] = assets.get(url.pathname);
+          return respond(
+            response,
+            200,
+            await readFile8(fileURLToPath2(new URL(name, assetRoot))),
+            type
+          );
+        }
+        if (url.pathname === "/api/preferences")
+          return respond(
+            response,
+            200,
+            demo2 ? preferences : await loadPreferences()
+          );
+        if (url.pathname === "/api/decisions")
+          return respond(
+            response,
+            200,
+            demo2 ? { decisions: decisions.map((record2) => ({ ...record2, scorecard: buildThesisScorecard(record2) })) } : await listDecisions()
+          );
+        if (url.pathname === "/api/latest" || /^\/api\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)) {
+          const id = url.pathname === "/api/latest" ? "latest" : url.pathname.split("/").at(-1);
+          return respond(
+            response,
+            200,
+            demo2 ? demoReport : JSON.parse(await loadReport(id, "json"))
+          );
+        }
+        if (url.pathname === "/" || /^\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)) {
+          try {
+            const report = demo2 ? demoReport : JSON.parse(
+              await loadReport(
+                url.pathname === "/" ? "latest" : url.pathname.split("/").at(-1),
+                "json"
+              )
+            );
+            return respond(
+              response,
+              200,
+              buildReportHtml(report),
+              "text/html; charset=utf-8"
+            );
+          } catch (error2) {
+            if (error2.code !== "ENOENT") throw error2;
+            return respond(
+              response,
+              200,
+              buildEmptyHtml(),
+              "text/html; charset=utf-8"
+            );
+          }
+        }
+      }
+      if (request.method === "POST") {
+        const body = await bodyJson(request);
+        if (url.pathname.startsWith("/api/arena/")) {
+          const arena = await arenaReady;
+          if (url.pathname === "/api/arena/accounts")
+            return respond(response, 201, await arena.createAccount({ ...body, agentLabel: body.agentLabel || void 0 }, dashboardCaller));
+          if (url.pathname === "/api/arena/sync")
+            return respond(response, 200, await arena.sync(Array.isArray(body.accountIds) ? body.accountIds : void 0, { force: true }));
+          const update = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})(\/delete)?$/);
+          if (update) return respond(response, 200, update[2] ? await arena.deleteAccount(update[1]) : await arena.updateAccount(update[1], body));
+          return respond(response, 404, { error: "Unknown arena action" });
+        }
+        if (url.pathname.startsWith("/api/paper/")) {
+          if (demo2) return respond(response, 409, { error: "\u6F14\u793A\u6A21\u5F0F\u4E0D\u8FDE\u63A5\u6A21\u62DF\u8D26\u6237\u3002\u8BF7\u542F\u52A8\u771F\u5B9E\u6570\u636E\u9762\u677F / Use the real-data dashboard; no synthetic trading fallback." });
+          const actions = { connect: "accounts", refresh: "refresh", policy: "savePolicy", evaluate: "evaluate", submit: "submit", cancel: "cancel" };
+          const action = actions[url.pathname.slice("/api/paper/".length)];
+          if (!action) return respond(response, 404, { error: "Unknown paper action" });
+          return respond(response, 200, await getPaperService()[action](action === "accounts" ? body.market : body));
+        }
+        if (url.pathname === "/api/preferences") {
+          if (body.language && !["zh-CN", "en"].includes(body.language))
+            throw new Error("Invalid language");
+          if (body.watchlist && (!Array.isArray(body.watchlist) || body.watchlist.length > 50))
+            throw new Error("Watchlist must contain at most 50 symbols");
+          const fields = [
+            "language",
+            "watchlist",
+            "positions",
+            "benchmarkSymbols",
+            "sectorMap",
+            "alertRules",
+            "monitorIntervalSeconds",
+            "calendarOverrides"
+          ];
+          const selected = Object.fromEntries(
+            fields.filter((key) => body[key] !== void 0).map((key) => [key, body[key]])
+          );
+          if (demo2) {
+            preferences = sanitizePreferences(selected, preferences);
+            demoReport.language = preferences.language;
+            return respond(response, 200, preferences);
+          }
+          return respond(response, 200, await savePreferences(selected));
+        }
+        if (url.pathname === "/api/refresh") {
+          const phase = [
+            "premarket",
+            "intraday",
+            "postmarket",
+            "research"
+          ].includes(body.phase) ? body.phase : "intraday";
+          if (demo2) {
+            demoReport = {
+              ...makeDemoReport({ watchlist: preferences.watchlist, positions: preferences.positions }),
+              language: preferences.language,
+              phase,
+              demo: true
+            };
+            return respond(response, 200, demoReport);
+          }
+          if (refreshPromise)
+            return respond(response, 200, await refreshPromise);
+          if (Date.now() - refreshedAt < 15e3)
+            return respond(response, 429, {
+              error: "Refresh cooldown: 15 seconds",
+              retryAfter: 15
+            });
+          if (body.symbols && (!Array.isArray(body.symbols) || body.symbols.length > 20))
+            throw new Error("At most 20 symbols per report");
+          refreshPromise = createMarketReport({
+            phase,
+            symbols: body.symbols,
+            includeNews: body.includeNews !== false,
+            enrichReport
+          });
+          try {
+            const report = await refreshPromise;
+            refreshedAt = Date.now();
+            return respond(response, 200, report);
+          } finally {
+            refreshPromise = null;
+          }
+        }
+        if (url.pathname === "/api/decisions") {
+          if (demo2) {
+            if (!body.symbol || !body.thesis)
+              throw new Error("Symbol and thesis required");
+            const entry = {
+              ...body,
+              id: `demo_${randomUUID6()}`,
+              createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+              reviews: [],
+              demo: true
+            };
+            decisions.unshift(entry);
+            demoReport.decisions = decisions;
+            return respond(response, 201, entry);
+          }
+          return respond(response, 201, await recordDecision(body));
+        }
+        const review = url.pathname.match(
+          /^\/api\/decisions\/([A-Za-z0-9_-]+)\/review$/
+        );
+        if (review) {
+          if (demo2) {
+            const entry = decisions.find((item) => item.id === review[1]);
+            if (!entry)
+              return respond(response, 404, { error: "Decision not found" });
+            entry.reviews ??= [];
+            entry.reviews.push({
+              ...body,
+              reviewedAt: (/* @__PURE__ */ new Date()).toISOString()
+            });
+            return respond(response, 200, entry);
+          }
+          return respond(response, 200, await reviewDecision(review[1], body));
+        }
+        if (url.pathname === "/api/official/sync")
+          return respond(
+            response,
+            200,
+            demo2 ? { demo: true, results: [] } : await syncOfficialEvidence(body)
+          );
+        if (url.pathname === "/api/evidence")
+          return respond(
+            response,
+            201,
+            demo2 ? { demo: true, inserted: 0 } : await ingestOfficialRecords(body)
+          );
+      }
+      return respond(response, 404, { error: "Not found" });
+    } catch (error2) {
+      return respond(
+        response,
+        error2.code === "ENOENT" ? 404 : error2.status ?? 400,
+        { error: error2.code === "ENOENT" ? "No report yet" : error2.message }
+      );
+    }
+  });
+  server2.requestTimeout = 3e4;
+  server2.headersTimeout = 1e4;
+  server2.ready = new Promise((resolve, reject) => {
+    let attempts = 0;
+    server2.on("error", (error2) => {
+      if (error2.code === "EADDRINUSE" && attempts++ < 10) {
+        port = port >= 65535 ? 8787 : port + 1;
+        process.env.HROUTER_REPORT_PORT = String(port);
+        server2.listen(port, "127.0.0.1");
+      } else reject(error2);
+    });
+    server2.once("listening", () => {
+      port = server2.address().port;
+      process.env.HROUTER_REPORT_PORT = String(port);
+      console.error(
+        `Hrouter Market Pulse: http://127.0.0.1:${port}/ ${demo2 ? "(demo)" : ""}`
+      );
+      resolve(server2);
+    });
+    server2.listen(port, "127.0.0.1");
+  });
+  return server2;
+}
+
 // node_modules/zod/v4/core/core.js
 var NEVER2 = Object.freeze({
   status: "aborted"
@@ -16496,10 +17669,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path7) {
-  if (!path7)
+function getElementAtPath(obj, path9) {
+  if (!path9)
     return obj;
-  return path7.reduce((acc, key) => acc?.[key], obj);
+  return path9.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -16819,11 +17992,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path7, issues) {
+function prefixIssues(path9, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path7);
+    iss.path.unshift(path9);
     return iss;
   });
 }
@@ -20236,11 +21409,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path7) {
-  if (path7.length === 0) {
+function getDotPath(path9) {
+  if (path9.length === 0) {
     return "object root";
   }
-  return path7.reduce((acc, seg, index) => {
+  return path9.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -26499,7 +27672,14 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: true ? "1.2.1" : "development"
+  version: true ? "1.3.0" : "development"
+}, {
+  instructions: [
+    "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
+    "Agent Arena workflow: arena_my_accounts \u2192 (arena_register_account once, with your real model id) \u2192 research with get_quote / get_news / run_strategy \u2192",
+    "arena_place_order with a concrete reason, or arena_log_decision kind=no-trade when you decide not to trade \u2192 arena_get_account to review fills.",
+    "Arena accounts are virtual money only. Trade only your own account. Never claim paper results are real returns."
+  ].join(" ")
 });
 function toolResult(data, summary) {
   return {
@@ -26600,6 +27780,7 @@ for (const definition of [
     }
   });
 }
+registerArenaTools(server, { toolResult, toolError });
 server.registerTool(
   "get_foundation_capabilities",
   {
@@ -26984,12 +28165,12 @@ server.registerTool(
       market: external_exports.enum(["A", "HK", "US", "all"]).optional().default("all")
     }
   },
-  async ({ market }) => {
+  async ({ market: market2 }) => {
     try {
-      const snapshot = await getMarketSnapshot(market);
+      const snapshot = await getMarketSnapshot(market2);
       return toolResult(
         snapshot,
-        `\u5DF2\u83B7\u53D6 ${market === "all" ? "A\u80A1\u3001\u6E2F\u80A1\u548C\u7F8E\u80A1" : market} \u5E02\u573A\u5FEB\u7167\u3002`
+        `\u5DF2\u83B7\u53D6 ${market2 === "all" ? "A\u80A1\u3001\u6E2F\u80A1\u548C\u7F8E\u80A1" : market2} \u5E02\u573A\u5FEB\u7167\u3002`
       );
     } catch (error2) {
       return toolError(error2);
@@ -27077,7 +28258,7 @@ server.registerTool(
   "get_onboarding",
   {
     title: "Get first-run guide",
-    description: "Show first-run setup steps, watchlist status, HRouter website, and Codex scheduled-task templates without exposing credentials.",
+    description: "Show first-run setup steps, watchlist status, HRouter website, and agent scheduled-task templates (Codex, Claude Code, WorkBuddy) without exposing credentials.",
     inputSchema: {}
   },
   async () => {
@@ -27096,7 +28277,7 @@ server.registerTool(
   "get_preferences",
   {
     title: "Get plugin preferences",
-    description: "Show the saved watchlist, report location, dashboard URL, market-data providers, and current Codex analysis engine.",
+    description: "Show the saved watchlist, report location, dashboard URL, market-data providers, and current agent analysis engine.",
     inputSchema: {}
   },
   async () => {

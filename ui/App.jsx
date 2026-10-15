@@ -1,48 +1,151 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Dialog, DropdownMenu, IconButton, Select, Theme, Tooltip } from "@radix-ui/themes";
-import { ArrowUpRight, Bot, BookOpen, BriefcaseBusiness, CandlestickChart, CheckCircle2, ChevronRight, CircleHelp, Cloud, FileCheck2, FlaskConical, Globe2, Menu, Moon, Plus, RefreshCw, Settings2, ShieldCheck, Sun, TriangleAlert, X } from "lucide-react";
+import { ArrowUpRight, Bot, BookOpen, BriefcaseBusiness, CandlestickChart, CheckCircle2, ChevronRight, Cloud, FileCheck2, FlaskConical, Globe2, Menu, Moon, Plus, RefreshCw, Settings2, ShieldCheck, Sun, Trophy, TriangleAlert, X } from "lucide-react";
 import { WorkspaceContext, useWorkspace } from "./context.jsx";
 import { api, array, collectEvidence, holdingsFor, readStorage, writeStorage } from "./data.mjs";
 import { MarketPage, PortfolioPage } from "./components/MarketBoard.jsx";
 import { EvidencePage, JournalPage } from "./components/ResearchPanels.jsx";
 import { PaperTradingPage } from "./components/PaperTrading.jsx";
+import { ArenaPage } from "./components/Arena.jsx";
 import { Editor } from "./components/Editors.jsx";
 import { ErrorNotice } from "./components/Primitives.jsx";
 
 const views = [
-  { id: "market", icon: CandlestickChart, labels: ["市场工作台", "Market workspace"], short: ["市场", "Market"] },
-  { id: "portfolio", icon: BriefcaseBusiness, labels: ["我的持仓", "My portfolio"], short: ["持仓", "Portfolio"] },
-  { id: "evidence", icon: FileCheck2, labels: ["证据与事件", "Evidence & events"], short: ["证据", "Evidence"] },
-  { id: "paper", icon: Bot, labels: ["模拟交易", "Paper trading"], short: ["模拟", "Paper"] },
-  { id: "journal", icon: BookOpen, labels: ["研究记录", "Research journal"], short: ["记录", "Journal"] },
+  { id: "market", group: "research", icon: CandlestickChart, labels: ["市场工作台", "Market workspace"] },
+  { id: "portfolio", group: "research", icon: BriefcaseBusiness, labels: ["我的持仓", "My portfolio"] },
+  { id: "evidence", group: "research", icon: FileCheck2, labels: ["证据与事件", "Evidence & events"] },
+  { id: "journal", group: "research", icon: BookOpen, labels: ["研究记录", "Research journal"] },
+  { id: "arena", group: "trading", icon: Trophy, labels: ["Agent 竞技场", "Agent arena"] },
+  { id: "paper", group: "trading", icon: Bot, labels: ["富途模拟盘", "Futu paper account"] },
 ];
+const groups = [
+  { id: "research", labels: ["研究", "RESEARCH"] },
+  { id: "trading", labels: ["模拟交易", "PAPER TRADING"] },
+];
+const subtitles = {
+  market: ["把行情、证据与判断放在同一个视野。", "Prices, evidence and the reasoning behind them, in one view."],
+  portfolio: ["按币种查看持仓，关注风险与原始投资逻辑。", "Holdings by currency, with risk and your original thesis in view."],
+  evidence: ["从原始资料出发，区分事实、事件和推断。", "Start from original sources. Separate facts, events and interpretation."],
+  journal: ["保存当时的理由，持续用新证据检验。", "Preserve what you believed then, and keep testing it against new evidence."],
+  arena: ["让 Claude Code、Codex、WorkBuddy 等 Agent 用各自的模型同场模拟交易，横向比较收益、回撤与交易纪律。", "Claude Code, Codex, WorkBuddy and other agents paper-trade side by side; compare return, drawdown and discipline."],
+  paper: ["可选：通过本机富途 OpenD 在真实的富途模拟账户中执行受限额约束的委托。", "Optional: bounded orders in an actual Futu SIMULATE account through local OpenD."],
+};
+
 function Navigation({ afterNavigate }) {
   const { view, setView, report, holdings, decisions, t } = useWorkspace();
-  const counts = { market: report.items.length, portfolio: holdings.length, evidence: collectEvidence(report).length, journal: decisions.length, paper: "SIM" };
-  return <nav className="primary-nav" aria-label={t("工作台导航", "Workspace navigation")}>{views.map(({ id, icon: Icon, labels }) => <button key={id} className={`nav-item ${view === id ? "active" : ""}`} aria-current={view === id ? "page" : undefined} onClick={() => { setView(id); afterNavigate?.(); }}><Icon size={18} strokeWidth={1.7} /><span>{t(...labels)}</span><span className="nav-count">{counts[id]}</span></button>)}</nav>;
+  const counts = { market: report.items.length, portfolio: holdings.length, evidence: collectEvidence(report).length, journal: decisions.length };
+  return <nav className="primary-nav" aria-label={t("工作台导航", "Workspace navigation")}>
+    {groups.map((group) => <div className="nav-group" key={group.id}>
+      <div className="sidebar-section-label">{t(...group.labels)}</div>
+      {views.filter((entry) => entry.group === group.id).map(({ id, icon: Icon, labels }) => (
+        <button key={id} className={`nav-item ${view === id ? "active" : ""}`} aria-current={view === id ? "page" : undefined} onClick={() => { setView(id); afterNavigate?.(); }}>
+          <Icon size={18} strokeWidth={1.8} />
+          <span>{t(...labels)}</span>
+          {counts[id] !== undefined && <span className="nav-count">{counts[id]}</span>}
+          {id === "arena" && <span className="nav-new">NEW</span>}
+        </button>
+      ))}
+    </div>)}
+  </nav>;
 }
-function Brand() { return <a className="brand" href="https://hrouter.net/" target="_blank" rel="noreferrer"><span className="brand-icon">H<span /></span><span><strong>Hrouter<span className="brand-dot">.</span></strong><small>MARKET PULSE</small></span></a>; }
+
+function Brand() {
+  return <a className="brand" href="https://hrouter.net/" target="_blank" rel="noreferrer">
+    <span className="brand-icon">H<span /></span>
+    <span><strong>Hrouter<span className="brand-dot">.</span></strong><small>MARKET PULSE</small></span>
+  </a>;
+}
+
 function Sidebar() {
   const { t, openEditor, report } = useWorkspace();
-  return <aside className="sidebar"><Brand /><div className="sidebar-section-label">{t("研究工作空间", "RESEARCH WORKSPACE")}</div><Navigation /><div className="sidebar-create"><Button variant="outline" color="gray" onClick={() => openEditor({ type: "decision" })}><Plus size={15} />{t("新建研究记录", "New decision")}</Button></div><div className="sidebar-bottom"><div className="local-workspace"><span className="local-orbit"><ShieldCheck size={19} /></span><strong>{t("本地研究工作台", "Local research desk")}</strong><p>{t("来源可核验 · 判断可追溯", "Sourced evidence. Auditable decisions.")}</p><Badge color="jade" variant="soft" size="1">{report.demo ? t("隔离演示数据", "Isolated demo data") : t("记录保存在本机", "Records stored locally")}</Badge></div><button className="sidebar-settings" onClick={() => openEditor({ type: "settings" })}><Settings2 size={17} /><span>{t("自选与持仓设置", "Watchlist & settings")}</span><ChevronRight size={13} /></button><div className="sidebar-version">HROUTER MARKET PULSE <span>RESEARCH</span></div></div></aside>;
+  return <aside className="sidebar">
+    <Brand />
+    <Navigation />
+    <div className="sidebar-create">
+      <Button variant="outline" color="gray" onClick={() => openEditor({ type: "decision" })}><Plus size={15} />{t("新建研究记录", "New decision")}</Button>
+    </div>
+    <div className="sidebar-bottom">
+      <div className="local-workspace">
+        <span className="local-orbit"><ShieldCheck size={18} /></span>
+        <strong>{t("本地优先", "Local-first")}</strong>
+        <p>{t("数据保存在本机，所有 Agent 共享同一份记录。", "Data stays on this machine and is shared by every agent.")}</p>
+        <Badge color="jade" variant="soft" size="1">{report.demo ? t("隔离演示数据", "Isolated demo data") : t("记录保存在本机", "Stored locally")}</Badge>
+      </div>
+      <button className="sidebar-settings" onClick={() => openEditor({ type: "settings" })}><Settings2 size={17} /><span>{t("自选与持仓设置", "Watchlist & settings")}</span><ChevronRight size={13} /></button>
+    </div>
+  </aside>;
 }
+
 function Header() {
   const { t, view, appearance, setAppearance, language, setLanguage, report, openEditor } = useWorkspace();
   const [menu, setMenu] = useState(false);
-  const current = views.find((v) => v.id === view) || views[0];
-  return <header className="topbar"><div className="breadcrumb"><Dialog.Root open={menu} onOpenChange={setMenu}><Dialog.Trigger><IconButton variant="ghost" color="gray" className="mobile-menu" aria-label={t("打开导航", "Open navigation")}><Menu size={20} /></IconButton></Dialog.Trigger><Dialog.Content maxWidth="360px"><Dialog.Title>{t("工作台导航", "Workspace navigation")}</Dialog.Title><Dialog.Description size="2" color="gray">Hrouter Market Pulse</Dialog.Description><Navigation afterNavigate={() => setMenu(false)} /><Dialog.Close><Button variant="soft" color="gray" mt="4">{t("关闭", "Close")}</Button></Dialog.Close></Dialog.Content></Dialog.Root><span className="breadcrumb-root">Workspace</span><ChevronRight size={13} /><strong>{t(...current.labels)}</strong></div><div className="topbar-actions"><span className="public-data-label"><Cloud size={14} />{report.demo ? t("合成演示", "Synthetic demo") : t("公开数据 · 可能延迟", "Public data · may be delayed")}</span><div className="topbar-divider" /><Tooltip content={appearance === "light" ? t("切换深色模式", "Switch to dark mode") : t("切换浅色模式", "Switch to light mode")}><IconButton variant="ghost" color="gray" aria-label={t("切换主题", "Toggle theme")} onClick={() => setAppearance(appearance === "light" ? "dark" : "light")}>{appearance === "light" ? <Moon size={17} /> : <Sun size={17} />}</IconButton></Tooltip><DropdownMenu.Root><DropdownMenu.Trigger><Button variant="ghost" color="gray" size="2"><Globe2 size={15} />{language === "en" ? "EN" : "中文"}</Button></DropdownMenu.Trigger><DropdownMenu.Content><DropdownMenu.RadioGroup value={language} onValueChange={setLanguage}><DropdownMenu.RadioItem value="zh-CN">中文</DropdownMenu.RadioItem><DropdownMenu.RadioItem value="en">English</DropdownMenu.RadioItem></DropdownMenu.RadioGroup></DropdownMenu.Content></DropdownMenu.Root><Tooltip content={t("工作台设置", "Workspace settings")}><IconButton variant="soft" color="gray" aria-label={t("工作台设置", "Workspace settings")} onClick={() => openEditor({ type: "settings" })}><Settings2 size={17} /></IconButton></Tooltip></div></header>;
+  const current = views.find((entry) => entry.id === view) || views[0];
+  const group = groups.find((entry) => entry.id === current.group);
+  return <header className="topbar">
+    <div className="breadcrumb">
+      <Dialog.Root open={menu} onOpenChange={setMenu}>
+        <Dialog.Trigger><IconButton variant="ghost" color="gray" className="mobile-menu" aria-label={t("打开导航", "Open navigation")}><Menu size={20} /></IconButton></Dialog.Trigger>
+        <Dialog.Content maxWidth="360px">
+          <Dialog.Title>Hrouter Market Pulse</Dialog.Title>
+          <Dialog.Description size="2" color="gray">{t("工作台导航", "Workspace navigation")}</Dialog.Description>
+          <Navigation afterNavigate={() => setMenu(false)} />
+          <Dialog.Close><Button variant="soft" color="gray" mt="4">{t("关闭", "Close")}</Button></Dialog.Close>
+        </Dialog.Content>
+      </Dialog.Root>
+      <span className="breadcrumb-root">{t(...group.labels)}</span>
+      <ChevronRight size={13} />
+      <strong>{t(...current.labels)}</strong>
+    </div>
+    <div className="topbar-actions">
+      <span className="public-data-label"><Cloud size={14} />{report.demo ? t("合成演示数据", "Synthetic demo") : t("公开行情 · 可能延迟", "Public quotes · may be delayed")}</span>
+      <div className="topbar-divider" />
+      <Tooltip content={appearance === "light" ? t("切换深色模式", "Switch to dark mode") : t("切换浅色模式", "Switch to light mode")}>
+        <IconButton variant="ghost" color="gray" aria-label={t("切换主题", "Toggle theme")} onClick={() => setAppearance(appearance === "light" ? "dark" : "light")}>{appearance === "light" ? <Moon size={17} /> : <Sun size={17} />}</IconButton>
+      </Tooltip>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger><Button variant="ghost" color="gray" size="2"><Globe2 size={15} />{language === "en" ? "EN" : "中文"}</Button></DropdownMenu.Trigger>
+        <DropdownMenu.Content><DropdownMenu.RadioGroup value={language} onValueChange={setLanguage}><DropdownMenu.RadioItem value="zh-CN">中文</DropdownMenu.RadioItem><DropdownMenu.RadioItem value="en">English</DropdownMenu.RadioItem></DropdownMenu.RadioGroup></DropdownMenu.Content>
+      </DropdownMenu.Root>
+      <Tooltip content={t("工作台设置", "Workspace settings")}>
+        <IconButton variant="soft" color="gray" aria-label={t("工作台设置", "Workspace settings")} onClick={() => openEditor({ type: "settings" })}><Settings2 size={17} /></IconButton>
+      </Tooltip>
+    </div>
+  </header>;
 }
+
 function PageHeading() {
-  const { t, view, report, date, busy, refresh, interval, setIntervalSeconds, openEditor } = useWorkspace();
-  const current = views.find((v) => v.id === view) || views[0];
-  const subtitles = {
-    market: ["把行情、证据与判断，放在同一个视野。", "A clearer view of prices, evidence and the reasoning behind them."],
-    portfolio: ["按币种查看持仓，关注风险与原始投资逻辑。", "Review holdings by currency, with risk and your original thesis in view."],
-    evidence: ["从原始资料出发，区分事实、事件和推断。", "Start with original sources. Separate facts, events and interpretation."],
-    paper: ["真实行情、真实模拟委托，检验 Agent 和策略。", "Real quotes and actual paper orders to test agents and strategies."],
-    journal: ["保存当时的理由，持续检查新的证据。", "Preserve what you believed then. Keep testing it against new evidence."],
-  };
-  return <div className="page-heading"><div><div className="eyebrow">{t("有据可查的市场研究", "EVIDENCE-LED MARKET RESEARCH")}</div><h1>{t(...current.labels)}</h1><p>{t(...subtitles[view])}</p></div><div className="page-heading-actions"><div className="report-timestamp"><span className="timestamp-dot" />{t("报告", "Report")} {date(report.generatedAt)}<span className="timezone-label">{Intl.DateTimeFormat().resolvedOptions().timeZone}</span></div><div className="refresh-controls">{view !== "paper" && <><Tooltip content={t("仅此页面可见时自动更新；不会创建后台定时任务。", "Refreshes while this page is visible; does not create background schedules.")}><span><Select.Root value={String(interval)} onValueChange={(v) => setIntervalSeconds(Number(v))}><Select.Trigger variant="surface" aria-label={t("页面自动更新间隔", "Page auto-refresh interval")} /><Select.Content>{[[0, t("自动更新：关", "Auto refresh: off")], [60, t("每 1 分钟", "Every minute")], [300, t("每 5 分钟", "Every 5 min")], [900, t("每 15 分钟", "Every 15 min")]].map(([value, label]) => <Select.Item value={String(value)} key={value}>{label}</Select.Item>)}</Select.Content></Select.Root></span></Tooltip><Button loading={busy === "refresh"} disabled={busy !== null} onClick={refresh}><RefreshCw size={15} />{t("更新行情", "Refresh quotes")}</Button></>}</div></div></div>;
+  const { t, view, report, date, busy, refresh, interval, setIntervalSeconds } = useWorkspace();
+  const current = views.find((entry) => entry.id === view) || views[0];
+  const research = current.group === "research";
+  return <div className="page-heading">
+    <div>
+      <div className="eyebrow">{research ? t("有据可查的市场研究", "EVIDENCE-LED MARKET RESEARCH") : t("虚拟资金 · 真实行情", "VIRTUAL MONEY · REAL QUOTES")}</div>
+      <h1>{t(...current.labels)}</h1>
+      <p>{t(...subtitles[view])}</p>
+    </div>
+    {research && <div className="page-heading-actions">
+      <div className="report-timestamp"><span className="timestamp-dot" />{t("报告", "Report")} {date(report.generatedAt)}<span className="timezone-label">{Intl.DateTimeFormat().resolvedOptions().timeZone}</span></div>
+      <div className="refresh-controls">
+        <Tooltip content={t("仅此页面可见时自动更新；不会创建后台定时任务。", "Refreshes while this page is visible; does not create background schedules.")}>
+          <span><Select.Root value={String(interval)} onValueChange={(value) => setIntervalSeconds(Number(value))}>
+            <Select.Trigger variant="surface" aria-label={t("页面自动更新间隔", "Page auto-refresh interval")} />
+            <Select.Content>{[[0, t("自动更新：关", "Auto refresh: off")], [60, t("每 1 分钟", "Every minute")], [300, t("每 5 分钟", "Every 5 min")], [900, t("每 15 分钟", "Every 15 min")]].map(([value, label]) => <Select.Item value={String(value)} key={value}>{label}</Select.Item>)}</Select.Content>
+          </Select.Root></span>
+        </Tooltip>
+        <Button loading={busy === "refresh"} disabled={busy !== null} onClick={refresh}><RefreshCw size={15} />{t("更新行情", "Refresh quotes")}</Button>
+      </div>
+    </div>}
+  </div>;
+}
+
+function CurrentPage() {
+  const { view } = useWorkspace();
+  if (view === "portfolio") return <PortfolioPage />;
+  if (view === "evidence") return <EvidencePage />;
+  if (view === "journal") return <JournalPage />;
+  if (view === "arena") return <ArenaPage />;
+  if (view === "paper") return <PaperTradingPage />;
+  return <MarketPage />;
 }
 
 export default function App({ initialReport = {}, initialView = "market" }) {
@@ -136,5 +239,5 @@ export default function App({ initialReport = {}, initialView = "market" }) {
     notify(t("复盘已追加，原始判断保持不变。", "Review appended. The original decision is unchanged."));
   });
   const context = { report, view, setView, language, setLanguage, appearance, setAppearance, colorConvention, preferences, decisions, selected, setSelected, timeframe, setTimeframe, clock, busy, loading, holdings, interval, setIntervalSeconds, refresh, syncSources, savePreferences, saveDecision, saveReview, openEditor: setEditor, reloadWorkspace: () => loadWorkspace(), notify };
-  return <Theme appearance={appearance} accentColor="jade" grayColor="slate" radius="large" scaling="100%" panelBackground="solid" className={`workspace-theme ${colorConvention === "red-up" ? "red-up" : "green-up"}`}><WorkspaceContext.Provider value={context}><div className="workspace-shell"><Sidebar /><div className="workspace-main"><Header /><main className="main-content"><PageHeading />{report.demo && <div className="demo-banner"><FlaskConical size={15} /><span>{t("演示模式", "DEMO MODE")}</span>{t("全部价格、持仓与事件均为合成样本，不用于真实决策。", "All prices, positions and events are synthetic. Not for real investment decisions.")}</div>}<ErrorNotice message={loadError} onRetry={() => loadWorkspace()} />{view === "market" ? <MarketPage /> : view === "portfolio" ? <PortfolioPage /> : view === "evidence" ? <EvidencePage /> : view === "paper" ? <PaperTradingPage /> : <JournalPage />}<footer className="workspace-footer"><span><ShieldCheck size={13} />{t("公开行情可能延迟 · 研究不等于交易建议", "Public quotes may be delayed · Research is not a trade recommendation")}</span><a href="https://hrouter.net/" target="_blank" rel="noreferrer">HRouter <ArrowUpRight size={12} /></a></footer></main></div></div>{editor && <Editor key={`${editor.type}:${editor.record?.id || ""}`} editor={editor} onClose={() => setEditor(null)} />}<div className="toast-region" aria-live="polite">{toast && <div className={`app-toast ${toast.error ? "error" : ""}`} role={toast.error ? "alert" : "status"}>{toast.error ? <TriangleAlert size={18} /> : <CheckCircle2 size={18} />}<span>{toast.message}</span><IconButton variant="ghost" color="gray" size="1" aria-label={t("关闭通知", "Dismiss notification")} onClick={() => setToast(null)}><X size={14} /></IconButton></div>}</div></WorkspaceContext.Provider></Theme>;
+  return <Theme appearance={appearance} accentColor="jade" grayColor="slate" radius="large" scaling="100%" panelBackground="solid" className={`workspace-theme ${colorConvention === "red-up" ? "red-up" : "green-up"}`}><WorkspaceContext.Provider value={context}><div className="workspace-shell"><Sidebar /><div className="workspace-main"><Header /><main className="main-content"><PageHeading />{report.demo && view !== "arena" && <div className="demo-banner"><FlaskConical size={15} /><span>{t("演示模式", "DEMO MODE")}</span>{t("全部价格、持仓与事件均为合成样本，不用于真实决策。", "All prices, positions and events are synthetic. Not for real investment decisions.")}</div>}<ErrorNotice message={loadError} onRetry={() => loadWorkspace()} /><CurrentPage /><footer className="workspace-footer"><span><ShieldCheck size={13} />{t("公开行情可能延迟 · 研究不等于交易建议", "Public quotes may be delayed · Research is not a trade recommendation")}</span><a href="https://hrouter.net/" target="_blank" rel="noreferrer">HRouter <ArrowUpRight size={12} /></a></footer></main></div></div>{editor && <Editor key={`${editor.type}:${editor.record?.id || ""}`} editor={editor} onClose={() => setEditor(null)} />}<div className="toast-region" aria-live="polite">{toast && <div className={`app-toast ${toast.error ? "error" : ""}`} role={toast.error ? "alert" : "status"}>{toast.error ? <TriangleAlert size={18} /> : <CheckCircle2 size={18} />}<span>{toast.message}</span><IconButton variant="ghost" color="gray" size="1" aria-label={t("关闭通知", "Dismiss notification")} onClick={() => setToast(null)}><X size={14} /></IconButton></div>}</div></WorkspaceContext.Provider></Theme>;
 }

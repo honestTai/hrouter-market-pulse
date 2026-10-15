@@ -17,7 +17,7 @@ Go beyond a price table: review holdings, cross-check quotes, follow alerts and 
 希望结合可复核数据与 AI 整理 A 股、港股和美股研究的用户。  
 Researchers who want verifiable data and AI-assisted workflows for mainland China, Hong Kong, and US equities.
 
-插件使用当前 Codex 任务模型，无需另配模型服务。
+插件使用当前 Agent 的模型（**Codex、Claude Code、WorkBuddy** 或任意 MCP 客户端），无需另配模型服务。内置 **Agent 竞技场**：让不同 Agent、不同模型用虚拟资金在真实行情下同场模拟交易，横向对比收益、回撤与交易纪律。
 
 ![HRouter Market Pulse 中文看盘工作台，使用合成演示数据](docs/images/dashboard-zh.png)
 
@@ -34,6 +34,18 @@ Researchers who want verifiable data and AI-assisted workflows for mainland Chin
 | 策略验证 | 按时间推进的共享资金回测、市场持有规则、费用滑点、公司行动，以及滚动样本外评估 |
 | 基本面研究 | 财报证据可比性检查、可证伪的投资逻辑卡、保留改期与取消历史的事件日历；不虚构共识预期 |
 | 决策复盘 | 保存原始判断和当时证据，追加结果回顾；预测先记录，结果后核对 |
+| Agent 竞技场 | 每个 Agent 独立的 A/港/美股虚拟账户；按 T+1、涨跌停、每手股数、交易费用撮合；收益曲线叠加、按模型/按 Agent 对比、排行榜与决策日志。[说明](docs/AGENT_ARENA.md) |
+
+## 安装到 Claude Code / WorkBuddy
+
+同一个插件包同时提供 Claude 格式清单，Claude Code 与 WorkBuddy 都可以直接安装：
+
+```bash
+claude plugin marketplace add honestTai/hrouter-market-pulse
+claude plugin install hrouter-market-pulse@hrouter-market-pulse
+```
+
+WorkBuddy：设置 → 插件 → 添加插件市场 `https://github.com/honestTai/hrouter-market-pulse`，安装并启用 hrouter-market-pulse。其他 MCP 客户端（Cursor、Cline 等）运行 `npm run connect` 打印可粘贴的配置。[多 Agent 接入与竞技场说明](docs/AGENT_ARENA.md)。
 
 ## 安装 Codex 插件（可自动更新）
 
@@ -92,11 +104,12 @@ npm run demo
 mcp/                       服务、行情、风控、研究与 HTTP 接口
 ui/                        React 组件、样式与展示层数据校验
 assets/                    构建产物与本地图表资源（不要手工修改 bundle）
-skills/                    9 个 Codex 工作流技能
+skills/                    10 个工作流技能（Codex / Claude Code / WorkBuddy 通用）
 tests/                     离线回归测试
 docs/                      使用、方法、宣传与截图
 plugins/hrouter-market-pulse/  自动构建的可安装插件
 .agents/plugins/marketplace.json  Codex marketplace 入口
+.claude-plugin/marketplace.json   Claude Code / WorkBuddy marketplace 入口
 ```
 
 代码采用 [MIT](LICENSE) 许可证。图表使用 [TradingView Lightweight Charts](https://www.tradingview.com/lightweight-charts/)，图标使用 [Lucide](https://lucide.dev/)，各自许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
@@ -108,7 +121,7 @@ plugins/hrouter-market-pulse/  自动构建的可安装插件
 我是 **honestTai**，开发工具，也运营 [HRouter](https://hrouter.net/home)。这里持续分享实用代码、AI 应用、Skills 与插件，把工作中的需求变成可复用的项目。  
 I’m **honestTai**, the developer and operator behind HRouter. I share practical code, AI apps, skills, and plugins built around real workflows.
 
-此工作流使用你在 Codex 环境中的模型。HRouter 是我同时运营的模型路由服务，面向 AI 编程与应用开发。  
+此工作流使用你所用 Agent（Codex、Claude Code、WorkBuddy 等）中的模型。HRouter 是我同时运营的模型路由服务，面向 AI 编程与应用开发。  
 This workflow uses the model in your Codex environment. HRouter is another part of my work: a model-routing service for AI coding and applications.
 
 [了解 HRouter · Explore HRouter](https://hrouter.net/home) · [发现更多项目 · More projects](https://github.com/honestTai)
@@ -122,7 +135,7 @@ This workflow uses the model in your Codex environment. HRouter is another part 
 
 ### React 面板开发
 
-面板采用 **React 19 + Radix Themes + Lucide React**，行情图继续使用 Lightweight Charts。包含市场、自选持仓、证据事件、模拟交易和研究记录五个页面，支持中英文、深浅色与窄屏布局；所有脚本、样式和字体回退均可本地运行，不依赖 CDN。
+面板采用 **React 19 + Radix Themes + Lucide React**，行情图继续使用 Lightweight Charts。包含市场、持仓、证据事件、研究记录、Agent 竞技场和富途模拟盘六个页面，支持中英文、深浅色与窄屏布局；所有脚本、样式和字体回退均可本地运行，不依赖 CDN。
 
 修改 `ui/` 后执行 `npm run build:ui`，刷新本地页面；提交或打包前执行 `npm run build`，同步根目录与插件分发目录。完整说明见 [React 面板](docs/REACT_DASHBOARD.md)。
 

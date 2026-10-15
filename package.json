@@ -1,7 +1,7 @@
 {
   "name": "hrouter-market-pulse",
-  "version": "1.2.1",
-  "description": "Bilingual A/HK/US market research workbench and Codex plugin",
+  "version": "1.3.0",
+  "description": "Bilingual A/HK/US market research workbench and multi-agent paper-trading arena for Codex, Claude Code, WorkBuddy and any MCP host",
   "homepage": "https://hrouter.net/",
   "license": "MIT",
   "repository": {
@@ -26,7 +26,8 @@
     "update:check": "node scripts/updater.mjs check",
     "smoke:updater": "node scripts/smoke-updater.mjs",
     "build:ui": "node scripts/build-ui.mjs",
-    "setup:futu": "node scripts/setup-futu.mjs"
+    "setup:futu": "node scripts/setup-futu.mjs",
+    "connect": "node scripts/connect-agent.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

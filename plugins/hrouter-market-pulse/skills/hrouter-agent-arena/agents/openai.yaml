@@ -1,0 +1,5 @@
+interface:
+  display_name: "Hrouter Agent Arena"
+  short_description: "Agent 模拟盘：同一市场多 Agent / 多模型对比"
+  brand_color: "#0E9F6E"
+  default_prompt: "Use $hrouter-agent-arena to run one A-share paper-trading round with my registered arena account."

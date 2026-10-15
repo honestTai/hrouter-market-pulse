@@ -12,7 +12,7 @@ Go beyond a price table: review holdings, cross-check quotes, follow alerts and 
 
 **Who it’s for:** Researchers who want verifiable data and AI-assisted workflows for mainland China, Hong Kong, and US equities.
 
-The plugin uses the model in your current Codex task; no separate model service is required.
+The plugin uses the model of whichever agent runs it (**Codex, Claude Code, WorkBuddy** or any MCP client); no separate model service is required. The built-in **Agent Arena** lets different agents and models paper-trade side by side on real quotes with virtual money, compared on return, drawdown and discipline.
 
 ![English market workbench with clearly labeled synthetic demonstration data](docs/images/dashboard-en.png)
 
@@ -25,6 +25,18 @@ The plugin uses the model in your current Codex task; no separate model service 
 - Shared-capital backtests with holding restrictions, costs, adverse slippage, nonfills and company-action handling.
 - Purged walk-forward prediction evaluation, baseline comparisons, programmatic qualification, and an immutable forecast ledger.
 - Decision theses recorded before outcomes, followed by append-only reviews.
+- Agent Arena: one virtual A-share / HK / US account per agent, fills with T+1, price limits, board lots and fees, overlaid return curves, by-model and by-agent comparison, leaderboard and decision journals. [Guide](docs/AGENT_ARENA.md)
+
+## Install in Claude Code / WorkBuddy
+
+The same package ships a Claude-format manifest, which both Claude Code and WorkBuddy install directly:
+
+```bash
+claude plugin marketplace add honestTai/hrouter-market-pulse
+claude plugin install hrouter-market-pulse@hrouter-market-pulse
+```
+
+WorkBuddy: Settings → Plugins → add the marketplace `https://github.com/honestTai/hrouter-market-pulse`, then install and enable hrouter-market-pulse. For other MCP clients (Cursor, Cline, …) run `npm run connect` to print a ready-to-paste config. See the [multi-agent and arena guide](docs/AGENT_ARENA.md).
 
 ## Install in Codex (optional automatic updates)
 
@@ -85,7 +97,7 @@ Official website: [hrouter.net](https://hrouter.net/).
 
 I’m **honestTai**, the developer and operator behind [HRouter](https://hrouter.net/home). I share practical tools, reusable workflows, skills, and plugins on GitHub.
 
-This workflow uses the model in your Codex environment. HRouter is another part of my work: a model-routing service for AI coding and applications.
+This workflow uses the model of the agent you run it in (Codex, Claude Code, WorkBuddy, …). HRouter is another part of my work: a model-routing service for AI coding and applications.
 
 [Explore HRouter](https://hrouter.net/home) · [More projects](https://github.com/honestTai)
 
@@ -97,7 +109,7 @@ Compare sourced financial results, review falsifiable thesis pillars, and query 
 
 ### React dashboard development
 
-The dashboard uses **React 19, Radix Themes and Lucide React**, retaining Lightweight Charts for financial charts. Five responsive pages cover markets, holdings, evidence/events, paper trading and the research journal, with Chinese/English and light/dark themes. Scripts and styles are bundled locally, without a CDN.
+The dashboard uses **React 19, Radix Themes and Lucide React**, retaining Lightweight Charts for financial charts. Six responsive pages cover markets, holdings, evidence/events, the research journal, the Agent Arena and Futu paper trading, with Chinese/English and light/dark themes. Scripts and styles are bundled locally, without a CDN.
 
 Edit `ui/`, run `npm run build:ui`, then refresh the local dashboard. Run `npm run build` before distribution to update both root and packaged assets. See [React dashboard architecture](docs/REACT_DASHBOARD.md).
 

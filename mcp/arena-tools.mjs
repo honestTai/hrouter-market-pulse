@@ -7,9 +7,30 @@ import { loadPreferences, marketFromSymbol, savePreferences } from "./core.mjs";
 const accountId = z.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_…) returned by arena_register_account or arena_my_accounts.");
 const market = z.enum(["A", "HK", "US"]);
 
+const exitFields = {
+  stopLossPrice: z.number().positive().optional().describe("Protective stop: sell everything sellable at market when a fresh quote trades at or below this price."),
+  stopLossPct: z.number().positive().max(95).optional().describe("Protective stop as % below the average cost (e.g. 8 = cost × 0.92). Use price or pct, not both."),
+  takeProfitPrice: z.number().positive().optional().describe("Take profit: sell at market when a fresh quote trades at or above this price."),
+  takeProfitPct: z.number().positive().max(1000).optional().describe("Take profit as % above the average cost (e.g. 20 = cost × 1.2)."),
+};
+
 function compactAccount(account) {
   const { metrics } = account;
-  return `${account.name} [${account.id}] ${account.market} ${account.currency} · model ${account.model} · equity ${metrics.equity} (${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct}%) · cash ${metrics.availableCash} · ${metrics.positions} positions · ${metrics.openOrders} open orders`;
+  const flags = [
+    account.health?.status === "missed" ? `MISSED ${account.health.missedTradingDays} trading day(s)` : null,
+    account.risk?.breaker ? `RISK BREAKER TRIPPED (${account.risk.breaker.drawdownPct}%): buys blocked` : null,
+  ].filter(Boolean);
+  return `${account.name} [${account.id}] ${account.market} ${account.currency} · model ${account.model} · equity ${metrics.equity} (${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct}%) · cash ${metrics.availableCash} · ${metrics.positions} positions · ${metrics.openOrders} open orders${flags.length ? ` · ${flags.join(" · ")}` : ""}`;
+}
+
+function policyText(policy) {
+  if (!policy) return "";
+  const parts = [
+    policy.maxPositionPct ? `max ${policy.maxPositionPct}% per position` : null,
+    policy.maxExposurePct ? `max ${policy.maxExposurePct}% total exposure` : null,
+    policy.maxDrawdownPct ? `drawdown breaker at -${policy.maxDrawdownPct}% (${policy.onBreach === "reduce" ? `then reduce to ${policy.reduceToExposurePct}% exposure` : "then block buys"})` : null,
+  ].filter(Boolean);
+  return parts.length ? `Owner risk policy: ${parts.join(", ")}.` : "Owner risk policy: no limits set.";
 }
 
 export function registerArenaTools(server, { toolResult, toolError }) {
@@ -63,13 +84,16 @@ export function registerArenaTools(server, { toolResult, toolError }) {
 
   register("arena_get_account", {
     title: "Get arena account",
-    description: "Sync with live quotes (fills resting orders that became marketable, expires day orders, marks positions) and return cash, positions, open orders, recent trades, journal and performance metrics.",
+    description: [
+      "Sync with live quotes (fills resting orders that became marketable, expires day orders, marks positions) and return cash, positions (with stop-loss / take-profit levels), open orders, recent trades, journal, account events (fills by the background matcher, stops, dividends, splits, suspensions) and performance metrics.",
+      "Also returns the owner's riskPolicy (read-only for agents: max position %, max exposure %, drawdown circuit breaker), the current drawdown/breaker state and run health (missed trading days).",
+    ].join(" "),
     inputSchema: { accountId, limit: z.number().int().min(1).max(200).optional().describe("Number of recent orders/trades/journal entries (default 30).") },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, async ({ accountId: id, limit = 30 }) => {
     const account = await getArena().getAccount(id, { limit });
     const { equity, ...rest } = account;
-    return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, compactAccount(account)];
+    return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, `${compactAccount(account)}\n${policyText(account.riskPolicy)}`];
   });
 
   register("arena_place_order", {
@@ -77,7 +101,10 @@ export function registerArenaTools(server, { toolResult, toolError }) {
     description: [
       "Place a long-only paper order in your own arena account. Fills use the live public quote plus slippage and exchange-style fees, during regular sessions only.",
       "Rules enforced: board lots (A-share 100, STAR 200 min; HK per-stock lot; US 1), A-share T+1 and daily price limits, available cash incl. fees and open-order reservations.",
-      "Market orders need an open session. Limit orders rest and fill when a later sync observes a marketable price; 'day' orders expire at the session close, 'gtc' after 30 days.",
+      "Market orders need an open session. Limit orders rest and a background matcher fills them every 1-2 minutes during the session when the price is marketable; 'day' orders expire at the session close, 'gtc' after 30 days.",
+      "One account may take at most a configured share of the day's volume (default 5%); larger orders fill partially and the rest keeps resting. Suspended stocks (no trades today) do not fill.",
+      "BUY orders may carry stopLoss / takeProfit (price or % of average cost); the matcher sells at market when a fresh quote crosses the level, subject to T+1 and limit-down.",
+      "The owner's risk policy (see arena_get_account) can reject buys; agents cannot change it.",
       "Always give the reason (thesis, signal, risk) so the decision can be reviewed later. Rejections are recorded and count against discipline metrics.",
     ].join(" "),
     inputSchema: {
@@ -92,6 +119,7 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       confidence: z.number().min(0).max(1).optional().describe("Your subjective probability the trade works (0–1); used for calibration review."),
       horizon: z.string().max(40).optional().describe("Intended holding period, e.g. '3d', '2w'."),
       clientOrderId: z.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional().describe("Idempotency key: retries with the same id return the original order."),
+      ...exitFields,
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, async (input) => {
@@ -102,7 +130,30 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       : trade
         ? `FILLED ${trade.side} ${trade.quantity} ${trade.symbol} @ ${trade.price} (fees ${trade.fees}). ${compactAccount(result.account)}`
         : `OPEN ${order.type} ${order.side} ${order.quantity} ${order.symbol}${order.limitPrice ? ` @ ${order.limitPrice}` : ""} [${order.id}] — ${result.note}`;
+    if (trade && order.status === "open") return [result, `PARTIAL ${trade.side} ${trade.quantity}/${order.quantity} ${trade.symbol} @ ${trade.price}. ${result.note}`];
     return [result, summary];
+  });
+
+  register("arena_set_exits", {
+    title: "Set stop-loss / take-profit",
+    description: [
+      "Attach or change protective exits on one of your existing positions. Levels are a price or a percent of the average cost.",
+      "The background matcher sells all sellable shares at market when a fresh quote crosses a level during a regular session; A-share T+1 and limit-down still apply (the exit waits and is logged as deferred).",
+      "Pass null for a level to clear it, or clear=true to remove both.",
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      symbol: z.string().min(1).max(20),
+      stopLossPrice: exitFields.stopLossPrice.unwrap().nullable().optional(),
+      stopLossPct: exitFields.stopLossPct.unwrap().nullable().optional(),
+      takeProfitPrice: exitFields.takeProfitPrice.unwrap().nullable().optional(),
+      takeProfitPct: exitFields.takeProfitPct.unwrap().nullable().optional(),
+      clear: z.boolean().optional(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    const result = await getArena().setExits(input, caller());
+    return [result, result.exits ? `Exits for ${result.symbol}: stop ${result.levels?.stopLoss ?? "—"}, take-profit ${result.levels?.takeProfit ?? "—"} (last ${result.lastPrice ?? "?"}).` : `Exits for ${result.symbol} cleared.`];
   });
 
   register("arena_cancel_order", {

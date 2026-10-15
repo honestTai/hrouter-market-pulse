@@ -19,7 +19,7 @@ async function withServer(options, run) {
   try { await run(call); } finally { await new Promise((resolve) => server.close(resolve)); }
 }
 
-test.after(() => rm(dataDir, { recursive: true, force: true }));
+test.after(() => rm(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
 
 test("demo dashboard serves a labelled synthetic arena without touching real data", async () => {
   await withServer({ demo: true }, async (call) => {
@@ -61,5 +61,52 @@ test("real dashboard creates, lists, edits, archives and deletes accounts", asyn
     assert.equal((await call("/api/preferences", { managedAccountId: null })).body.managedAccountId, null);
     const invalid = await call("/api/arena/accounts", { name: "x", model: "", market: "US" });
     assert.equal(invalid.status, 400);
+  });
+});
+
+test("dashboard exposes matcher status, owner-only risk policy, digests and the digest webhook", async () => {
+  await withServer({}, async (call) => {
+    const matcher = await call("/api/arena/matcher");
+    assert.equal(matcher.status, 200);
+    assert.ok(["running", "stopped", "stale"].includes(matcher.body.state));
+    assert.ok("local" in matcher.body);
+    const created = await call("/api/arena/accounts", { name: "Policy", model: "claude-opus-5-5", market: "US" });
+    const id = created.body.id;
+    assert.equal(created.body.riskPolicy.maxPositionPct, null);
+    const policy = await call(`/api/arena/accounts/${id}`, { riskPolicy: { maxPositionPct: 25, maxDrawdownPct: 12, onBreach: "block" }, maxVolumePct: 2 });
+    assert.equal(policy.status, 200);
+    assert.equal(policy.body.riskPolicy.maxPositionPct, 25);
+    assert.equal(policy.body.settings.maxVolumePct, 2);
+    assert.equal((await call(`/api/arena/accounts/${id}`, { riskPolicy: { onBreach: "yolo" } })).status, 400);
+    assert.equal((await call(`/api/arena/accounts/${id}`)).body.health.status, "waiting");
+    const board = await call("/api/arena/leaderboard");
+    assert.ok(board.body.matcher);
+    assert.ok(board.body.groups[0].accounts[0].health);
+    const digest = await call("/api/arena/digests", {});
+    assert.equal(digest.status, 201);
+    assert.equal(digest.body.accounts.length, 1);
+    assert.equal((await call("/api/arena/digests", { send: true })).status, 409);
+    const listed = await call("/api/arena/digests");
+    assert.equal(listed.body.digests[0].id, digest.body.id);
+    assert.equal(listed.body.webhook, null);
+    assert.equal((await call("/api/preferences", { digestWebhook: { url: "ftp://nope" } })).status, 400);
+    assert.equal((await call("/api/preferences", { digestWebhook: { url: "https://hooks.example.test/x", format: "pager" } })).status, 400);
+    const saved = await call("/api/preferences", { digestWebhook: { url: "https://hooks.example.test/x", format: "wecom" } });
+    assert.deepEqual(saved.body.digestWebhook, { url: "https://hooks.example.test/x", format: "wecom", enabled: true });
+    assert.deepEqual((await call("/api/arena/digests")).body.webhook, { format: "wecom", enabled: true, host: "hooks.example.test" });
+    assert.equal((await call("/api/preferences", { digestWebhook: null })).body.digestWebhook, null);
+  });
+});
+
+test("demo dashboard shows run health, risk policy and a seeded digest", async () => {
+  await withServer({ demo: true }, async (call) => {
+    const board = await call("/api/arena/leaderboard");
+    const china = board.body.groups.find((group) => group.market === "A");
+    assert.ok(china.accounts.some((account) => account.health.status === "missed"));
+    assert.ok(china.accounts.every((account) => account.riskPolicy.maxDrawdownPct === 15));
+    const digests = await call("/api/arena/digests");
+    assert.equal(digests.body.demo, true);
+    assert.ok(digests.body.digests.length >= 1);
+    assert.equal((await call("/api/arena/digests", { send: true })).status, 409);
   });
 });

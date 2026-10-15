@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { Badge, Button, Select, Table } from "@radix-ui/themes";
-import { ArrowUpRight, Bot, FileText, ListChecks, Plug, Radar, Sparkles, Wallet } from "lucide-react";
+import { Badge, Button, Callout, Select, Table } from "@radix-ui/themes";
+import { ArrowUpRight, Bell, Bot, CircleAlert, FileText, ListChecks, Plug, Radar, ShieldAlert, Sparkles, Wallet } from "lucide-react";
 import { useWorkspace } from "../context.jsx";
 import { isNumber } from "../data.mjs";
 import { Empty, SectionHeading } from "./Primitives.jsx";
-import { AgentMark, ConnectDialog, EquityChart, ReportCard, Signed, agentKind, relativeTime } from "./Arena.jsx";
+import { AgentMark, ConnectDialog, DigestPanel, EquityChart, HealthBadges, ReportCard, Signed, agentKind, relativeTime } from "./Arena.jsx";
+
+const ACTIVITY = { "stop-loss": ["止损", "Stop-loss"], "take-profit": ["止盈", "Take-profit"], "exit-deferred": ["离场等待", "Exit waiting"], dividend: ["派息", "Dividend"], split: ["拆股", "Split"], bonus: ["送转", "Bonus"], suspended: ["停牌", "Suspended"], "risk-breaker": ["熔断", "Breaker"], "risk-reset": ["复位", "Reset"] };
 import { PortfolioPage as ManualHoldings } from "./MarketBoard.jsx";
 
 // The owner's portfolio as run by an agent: the owner reads conclusions, the agent does everything else.
@@ -44,14 +46,22 @@ export function ManagedPortfolioPage() {
   const reports = account.reports ?? [];
   const [latest, ...older] = reports;
   const pool = account.watchlist?.symbols ?? [];
+  const health = account.health;
+  const policy = account.riskPolicy ?? {};
+  const activity = (account.events ?? []).filter((event) => ACTIVITY[event.type]).slice(0, 6);
+  const policyParts = [
+    policy.maxPositionPct ? t(`单票 ≤ ${policy.maxPositionPct}%`, `≤ ${policy.maxPositionPct}% per stock`) : null,
+    policy.maxExposurePct ? t(`总仓位 ≤ ${policy.maxExposurePct}%`, `≤ ${policy.maxExposurePct}% exposure`) : null,
+    policy.maxDrawdownPct ? t(`回撤 ${policy.maxDrawdownPct}% 熔断`, `breaker at -${policy.maxDrawdownPct}%`) : null,
+  ].filter(Boolean);
   return <div className="page-stack">
     <section className="surface managed-hero">
       <div className="managed-identity">
         <AgentMark account={account} size="lg" />
         <div>
-          <div className="managed-kicker"><Badge color="jade" variant="soft"><Bot size={12} />{t("由 Agent 全权托管", "Fully managed by agent")}</Badge>{account.demo && <Badge color="amber" variant="soft">{t("演示数据", "Demo")}</Badge>}</div>
+          <div className="managed-kicker"><Badge color="jade" variant="soft"><Bot size={12} />{t("由 Agent 全权托管", "Fully managed by agent")}</Badge>{account.demo && <Badge color="amber" variant="soft">{t("演示数据", "Demo")}</Badge>}<HealthBadges account={account} /></div>
           <h2>{account.name}</h2>
-          <p className="muted small">{agentKind(account).label} · <code className="model-chip">{account.model}</code> · {account.market} · {account.currency} · {t("最近动作", "Last action")} {relativeTime(account.lastActivityAt, t)}</p>
+          <p className="muted small">{agentKind(account).label} · <code className="model-chip">{account.model}</code> · {account.market} · {account.currency} · {t("最近一轮", "Last round")} {relativeTime(health?.lastRoundAt ?? account.lastActivityAt, t)}</p>
         </div>
       </div>
       <div className="managed-numbers">
@@ -70,6 +80,9 @@ export function ManagedPortfolioPage() {
       </div>
     </section>
 
+    {health?.status === "missed" && <Callout.Root color="amber" size="2"><Callout.Icon><CircleAlert size={18} /></Callout.Icon><Callout.Text>{t(`Agent 已有 ${health.missedTradingDays} 个交易日没有运行（${health.missedDates.join("、")}），组合无人照看。请检查 Agent 里的定时任务是否仍在运行；挂单和止盈止损仍由后台撮合器执行。`, `The agent has not run for ${health.missedTradingDays} trading day(s) (${health.missedDates.join(", ")}), so nobody is managing the portfolio. Check its scheduled task; resting orders and stops are still executed by the background matcher.`)}</Callout.Text></Callout.Root>}
+    {account.risk?.breaker && <Callout.Root color="red" size="2"><Callout.Icon><ShieldAlert size={18} /></Callout.Icon><Callout.Text>{t(`回撤达到 ${account.risk.breaker.drawdownPct}%，触发你设定的熔断：Agent 的新买入全部被拒。确认后可在“完整账户 → 设置”复位。`, `Drawdown reached ${account.risk.breaker.drawdownPct}% and tripped your breaker: the agent's new buys are rejected. Reset it under Full account → Settings once reviewed.`)}</Callout.Text></Callout.Root>}
+
     <div className="managed-grid">
       <section className="surface">
         <SectionHeading icon={FileText} title={t("最新结论", "Latest conclusion")} caption={latest ? relativeTime(latest.at, t) : null} />
@@ -86,6 +99,7 @@ export function ManagedPortfolioPage() {
           <div><dt>{t("成交", "Fills")}</dt><dd className="tabular">{m.trades}</dd></div>
           <div><dt>{t("手续费", "Fees")}</dt><dd className="tabular">{number(m.feesPaid)}</dd></div>
         </dl>
+        <p className="managed-policy muted small"><ShieldAlert size={13} />{t("你的风控", "Your risk policy")}：{policyParts.length ? policyParts.join(" · ") : t("未设置（可在完整账户 → 设置中添加）", "not set (add it under Full account → Settings)")}</p>
       </section>
     </div>
 
@@ -98,6 +112,7 @@ export function ManagedPortfolioPage() {
           <Table.ColumnHeaderCell align="right">{t("成本 / 现价", "Cost / last")}</Table.ColumnHeaderCell>
           <Table.ColumnHeaderCell align="right">{t("市值 / 权重", "Value / weight")}</Table.ColumnHeaderCell>
           <Table.ColumnHeaderCell align="right">{t("浮动盈亏", "Unrealized")}</Table.ColumnHeaderCell>
+          <Table.ColumnHeaderCell align="right">{t("止损 / 止盈", "Stop / target")}</Table.ColumnHeaderCell>
           <Table.ColumnHeaderCell>{t("买入理由", "Why the agent holds it")}</Table.ColumnHeaderCell>
         </Table.Row></Table.Header>
         <Table.Body>{account.positions.map((position) => {
@@ -108,6 +123,7 @@ export function ManagedPortfolioPage() {
             <Table.Cell align="right" className="tabular">{number(position.averageCost, 3)}<small className="cell-subtitle">{number(position.lastPrice, 3)}</small></Table.Cell>
             <Table.Cell align="right" className="tabular">{number(position.marketValue)}<small className="cell-subtitle">{number(position.weightPct, 1)}%</small></Table.Cell>
             <Table.Cell align="right"><Signed value={position.unrealizedPnl} suffix="" /><small className="cell-subtitle"><Signed value={position.unrealizedPnlPct} /></small></Table.Cell>
+            <Table.Cell align="right" className="tabular">{position.exitLevels ? <><span className="loss">{isNumber(position.exitLevels.stopLoss) ? number(position.exitLevels.stopLoss, 3) : "—"}</span> / <span className="gain">{isNumber(position.exitLevels.takeProfit) ? number(position.exitLevels.takeProfit, 3) : "—"}</span></> : <span className="neutral">—</span>}</Table.Cell>
             <Table.Cell className="reason-cell">{why?.reason ?? "—"}</Table.Cell>
           </Table.Row>;
         })}</Table.Body>
@@ -126,12 +142,18 @@ export function ManagedPortfolioPage() {
       <section className="surface">
         <SectionHeading icon={Radar} title={t("Agent 股票池", "Agent stock pool")} caption={account.watchlist?.updatedAt ? relativeTime(account.watchlist.updatedAt, t) : null} />
         {pool.length ? <div className="pool"><div className="pool-chips">{pool.map((symbol) => <span key={symbol} className={`pool-chip ${account.positions.some((p) => p.symbol === symbol) ? "held" : ""}`}>{symbol}</span>)}</div>{account.watchlist.reason && <p className="muted small">{account.watchlist.reason}</p>}</div> : <Empty compact icon={Radar} title={t("Agent 尚未设置股票池", "No stock pool yet")} description={t("Agent 用 arena_set_watchlist 维护自己的候选股，市场页的自选会跟随它。", "The agent maintains its candidates with arena_set_watchlist; the market watchlist follows it.")} />}
+        {activity.length > 0 && <>
+          <SectionHeading icon={Bell} title={t("自动执行记录", "Automatic activity")} caption={t("止盈止损 · 派息拆股 · 停牌 · 熔断", "Stops · dividends · splits · suspensions · breaker")} />
+          <ul className="report-history">{activity.map((event) => <li key={event.id}><strong>{t(...ACTIVITY[event.type])}</strong><span className="muted small">{date(event.at)}</span><p className="muted small">{event.message}</p></li>)}</ul>
+        </>}
         {older.length > 0 && <>
           <SectionHeading icon={FileText} title={t("历史报告", "Earlier reports")} caption={`${older.length}`} />
           <ul className="report-history">{older.slice(0, 6).map((report) => <li key={report.id}><strong>{report.title}</strong><span className="muted small">{date(report.at)}</span><p className="muted small">{report.summary}</p></li>)}</ul>
         </>}
       </section>
     </div>
+
+    <DigestPanel compact />
 
     {manual.length > 0 && <details className="manual-holdings"><summary>{t(`手动登记的持仓（${manual.length}，不参与 Agent 交易）`, `Manually recorded holdings (${manual.length}, not traded by agents)`)}</summary><ManualHoldings /></details>}
     {connect && <ConnectDialog account={account} market={account.market} onClose={() => setConnect(false)} />}

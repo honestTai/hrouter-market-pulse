@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { callerFromClient, computeFees, computeMetrics, createArena, tickSize } from "../mcp/arena.mjs";
+import { callerFromClient, computeFees, computeMetrics, createArena, createMatcher, deliverDigest, runHealth, tickSize } from "../mcp/arena.mjs";
 
 // Thursday 2026-10-15 10:00 Asia/Shanghai: A-share continuous session.
 const OPEN_A = "2026-10-15T02:00:00.000Z";
@@ -11,25 +11,28 @@ const NEXT_DAY_A = "2026-10-16T02:00:00.000Z";
 const CLOSED_A = "2026-10-15T12:00:00.000Z";
 const OPEN_HK = "2026-10-15T02:00:00.000Z";
 
-function harness(prices = {}) {
+function harness(prices = {}, { actions = {} } = {}) {
   let clock = OPEN_A;
   const quotes = { ...prices };
+  const corporate = { ...actions };
   return {
     setNow: (value) => { clock = value; },
     setQuote: (symbol, quote) => { quotes[symbol] = { ...quotes[symbol], ...quote }; },
-    async make() {
-      const root = await mkdtemp(path.join(os.tmpdir(), "arena-test-"));
+    setActions: (symbol, list) => { corporate[symbol] = list; },
+    async make(root) {
+      root ??= await mkdtemp(path.join(os.tmpdir(), "arena-test-"));
       const arena = createArena({
         root,
         quoteCacheMs: 0,
         now: () => clock,
+        corporateActionProvider: async (symbol) => corporate[symbol] ?? [],
         quoteProvider: async (symbol) => {
           const entry = quotes[symbol];
           if (!entry) throw new Error(`no quote for ${symbol}`);
-          return { symbol, name: entry.name ?? symbol, price: entry.price, asOf: entry.asOf ?? clock, provider: "test", lotSize: entry.lotSize ?? null, limitUp: entry.limitUp ?? null, limitDown: entry.limitDown ?? null };
+          return { symbol, name: entry.name ?? symbol, price: entry.price, asOf: entry.asOf ?? clock, provider: "test", lotSize: entry.lotSize ?? null, limitUp: entry.limitUp ?? null, limitDown: entry.limitDown ?? null, volumeShares: entry.volumeShares ?? null, suspended: entry.suspended };
         },
       });
-      return { arena, root, cleanup: () => rm(root, { recursive: true, force: true }) };
+      return { arena, root, cleanup: () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) };
     },
   };
 }
@@ -266,4 +269,282 @@ test("agents publish round reports and maintain their own stock pool", async () 
     assert.equal(detail.metrics.reportsPublished, 1);
     assert.equal(detail.watchlist.symbols.length, 2);
   } finally { await cleanup(); }
+});
+
+// ---------------------------------------------------------------------------
+// Unattended operation
+// ---------------------------------------------------------------------------
+
+const MONDAY_A = "2026-10-19T02:00:00.000Z";
+const AFTER_CLOSE_A = "2026-10-15T07:30:00.000Z"; // 15:30 Shanghai, after the A-share close
+const noPreferences = async () => ({ language: "en", digestWebhook: null });
+
+test("one matcher leads per arena dir, fills resting orders only during sessions and fails over", async () => {
+  const h = harness({ "601318.SS": { price: 60 }, "000300.SS": { price: 4000 } });
+  const { arena, root, cleanup } = await h.make();
+  const other = (await h.make(root)).arena;
+  try {
+    const { id } = await arena.createAccount({ name: "Matcher", model: "m", market: "A" }, claude);
+    const resting = await arena.placeOrder({ accountId: id, symbol: "601318", side: "BUY", quantity: 1000, orderType: "limit", limitPrice: 58, timeInForce: "gtc", reason }, claude);
+    assert.equal(resting.order.status, "open");
+    const first = createMatcher({ arena, getPreferences: noPreferences, leaseMs: 300000 });
+    const second = createMatcher({ arena: other, getPreferences: noPreferences, leaseMs: 300000 });
+    assert.equal((await first.tick()).role, "leader");
+    assert.equal((await second.tick()).role, "standby");
+    // Price becomes marketable after the close: nothing fills outside the session.
+    h.setNow("2026-10-15T08:00:00.000Z");
+    h.setQuote("601318.SS", { price: 57.5 });
+    await first.tick();
+    assert.equal((await arena.getAccount(id, { sync: false })).trades.length, 0);
+    // Next session: the leader fills it unattended.
+    h.setNow(NEXT_DAY_A);
+    const run = await first.tick();
+    assert.equal(run.fills, 1);
+    assert.equal((await arena.getAccount(id, { sync: false })).positions[0].quantity, 1000);
+    const status = await arena.matcherStatus();
+    assert.equal(status.state, "running");
+    assert.equal(status.ownerId, first.ownerId);
+    assert.ok(status.lastRunAt);
+    // The leader dies without releasing; once the lease expires the standby takes over.
+    h.setNow("2026-10-16T02:06:00.000Z");
+    assert.equal((await second.tick()).role, "leader");
+    assert.equal((await first.tick()).role, "standby");
+    await second.stop();
+    assert.equal((await arena.matcherStatus()).state, "stopped");
+  } finally { await cleanup(); }
+});
+
+test("stop-loss and take-profit execute as market sells, respecting T+1 and limit-down", async () => {
+  const h = harness({ "600036.SS": { price: 40 }, "000300.SS": { price: 4000 } });
+  const { arena, cleanup } = await h.make();
+  try {
+    const { id } = await arena.createAccount({ name: "Exits", model: "m", market: "A" }, claude);
+    const bought = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 1000, stopLossPct: 5, takeProfitPrice: 46, reason }, claude);
+    assert.equal(bought.order.status, "filled");
+    let detail = await arena.getAccount(id, { sync: false });
+    const stop = detail.positions[0].exitLevels.stopLoss;
+    assert.ok(stop > 37.9 && stop < 38.1);
+    assert.equal(detail.positions[0].exitLevels.takeProfit, 46);
+    await assert.rejects(arena.placeOrder({ accountId: id, symbol: "600036", side: "SELL", quantity: 100, stopLossPct: 5, reason }, claude), /attach to BUY/);
+    // Same day: the stop is crossed but T+1 locks the shares, so the exit is deferred and logged once.
+    h.setQuote("600036.SS", { price: 37 });
+    await arena.sync([id], { force: true });
+    await arena.sync([id], { force: true });
+    detail = await arena.getAccount(id, { sync: false });
+    assert.equal(detail.positions[0].quantity, 1000);
+    assert.equal(detail.events.filter((event) => event.type === "exit-deferred" && event.why === "t-plus-one").length, 1);
+    // Next day at limit-down: still no fill.
+    h.setNow(NEXT_DAY_A);
+    h.setQuote("600036.SS", { price: 33.3, limitDown: 33.3, limitUp: 40.7 });
+    await arena.sync([id], { force: true });
+    detail = await arena.getAccount(id, { sync: false });
+    assert.equal(detail.positions[0].quantity, 1000);
+    assert.ok(detail.events.some((event) => event.why === "limit-down"));
+    // Limit opens: the matcher sells everything at market.
+    h.setQuote("600036.SS", { price: 34 });
+    const { events } = await arena.sync([id], { force: true });
+    assert.ok(events.some((event) => event.type === "stop-loss"));
+    assert.ok(events.some((event) => event.type === "filled" && event.trigger === "stop-loss"));
+    detail = await arena.getAccount(id, { sync: false });
+    assert.equal(detail.positions.length, 0);
+    assert.equal(detail.trades[0].trigger, "stop-loss");
+    // Take-profit set later on a new position through arena_set_exits.
+    await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 500, reason }, claude);
+    await assert.rejects(arena.setExits({ accountId: id, symbol: "600036", takeProfitPrice: 30 }, claude), /trigger immediately/);
+    await assert.rejects(arena.setExits({ accountId: id, symbol: "600036", takeProfitPct: 10 }, codex), /belongs to agent/);
+    const set = await arena.setExits({ accountId: id, symbol: "600036", takeProfitPct: 10 }, claude);
+    assert.ok(set.levels.takeProfit > 37);
+    h.setNow(MONDAY_A);
+    h.setQuote("600036.SS", { price: 40, limitDown: null, limitUp: null });
+    await arena.sync([id], { force: true });
+    detail = await arena.getAccount(id, { sync: false });
+    assert.equal(detail.positions.length, 0);
+    assert.equal(detail.trades[0].trigger, "take-profit");
+  } finally { await cleanup(); }
+});
+
+test("dividends, splits and bonus shares adjust held positions once", async () => {
+  const h = harness({ "600519.SS": { price: 1300 }, "000300.SS": { price: 4000 } });
+  const { arena, cleanup } = await h.make();
+  try {
+    const { id } = await arena.createAccount({ name: "Corporate", model: "m", market: "A" }, claude);
+    await arena.placeOrder({ accountId: id, symbol: "600519", side: "BUY", quantity: 200, stopLossPrice: 1200, reason }, claude);
+    const resting = await arena.placeOrder({ accountId: id, symbol: "600519", side: "BUY", quantity: 100, orderType: "limit", limitPrice: 1250, timeInForce: "gtc", reason }, claude);
+    const before = await arena.getAccount(id, { sync: false });
+    h.setActions("600519.SS", [
+      { type: "dividend", date: "2026-10-16", cashPerShare: 25.5, currency: "CNY" },
+      { type: "split", date: "2026-10-19", ratio: 1.5 },
+      { type: "dividend", date: "2026-09-01", cashPerShare: 30 }, // before the account opened: ignored
+    ]);
+    h.setNow(NEXT_DAY_A);
+    await arena.sync([id], { force: true });
+    await arena.sync([id], { force: true });
+    let detail = await arena.getAccount(id, { sync: false });
+    assert.equal(detail.metrics.cash, before.metrics.cash + 5100);
+    assert.equal(detail.metrics.dividendIncome, 5100);
+    assert.equal(detail.events.filter((event) => event.type === "dividend").length, 1);
+    h.setNow(MONDAY_A);
+    h.setQuote("600519.SS", { price: 880 });
+    await arena.sync([id], { force: true });
+    detail = await arena.getAccount(id, { sync: false });
+    const position = detail.positions[0];
+    assert.equal(position.quantity, 300);
+    assert.equal(position.costBasis, before.positions[0].costBasis);
+    assert.ok(Math.abs(position.averageCost - before.positions[0].averageCost / 1.5) < 0.01);
+    assert.equal(position.exitLevels.stopLoss, 800);
+    assert.equal(detail.orders.find((order) => order.id === resting.order.id).status, "cancelled");
+    assert.equal(detail.events.filter((event) => event.type === "split").length, 1);
+  } finally { await cleanup(); }
+});
+
+test("suspended stocks refuse fills and one fill takes at most 5% of the day's volume", async () => {
+  const h = harness({ "601318.SS": { price: 60, volumeShares: 0 }, "600036.SS": { price: 40, volumeShares: 10000 }, "000300.SS": { price: 4000 } });
+  const { arena, cleanup } = await h.make();
+  try {
+    const { id } = await arena.createAccount({ name: "Liquidity", model: "m", market: "A" }, claude);
+    const halted = await arena.placeOrder({ accountId: id, symbol: "601318", side: "BUY", quantity: 100, reason }, claude);
+    assert.match(halted.error, /suspended/);
+    const waiting = await arena.placeOrder({ accountId: id, symbol: "601318", side: "BUY", quantity: 100, orderType: "limit", limitPrice: 61, reason }, claude);
+    assert.equal(waiting.order.status, "open");
+    assert.match(waiting.note, /suspended/);
+    h.setQuote("601318.SS", { suspended: true, volumeShares: 500 });
+    await arena.sync([id], { force: true });
+    let detail = await arena.getAccount(id, { sync: false });
+    assert.equal(detail.trades.length, 0);
+    assert.equal(detail.events.filter((event) => event.type === "suspended").length, 1);
+    // 5% of 10,000 shares = 500: a 1,200-share buy fills 500 now and rests the rest.
+    const big = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 1200, reason }, claude);
+    assert.equal(big.order.status, "open");
+    assert.equal(big.trade.quantity, 500);
+    assert.equal(big.order.filledQuantity, 500);
+    assert.match(big.note, /Partially filled 500 of 1200/);
+    h.setQuote("600036.SS", { volumeShares: 18000 });
+    await arena.sync([id], { force: true });
+    detail = await arena.getAccount(id, { sync: false });
+    assert.equal(detail.positions.find((position) => position.symbol === "600036.SS").quantity, 900);
+    h.setQuote("600036.SS", { volumeShares: 100000 });
+    await arena.sync([id], { force: true });
+    detail = await arena.getAccount(id, { sync: false });
+    const order = detail.orders.find((entry) => entry.id === big.order.id);
+    assert.equal(order.status, "filled");
+    assert.equal(order.filledQuantity, 1200);
+    assert.equal(detail.trades.filter((trade) => trade.orderId === big.order.id).length, 3);
+    assert.equal(detail.metrics.availableCash, detail.metrics.cash - detail.openOrders.reduce((sum, entry) => sum + entry.reserved, 0));
+    // The owner can raise the cap from the dashboard.
+    await arena.updateAccount(id, { maxVolumePct: 50 });
+    assert.equal((await arena.getAccount(id, { sync: false })).settings.maxVolumePct, 50);
+  } finally { await cleanup(); }
+});
+
+test("owner risk policy caps positions and exposure and trips a drawdown breaker", async () => {
+  const h = harness({ "600036.SS": { price: 40 }, "601318.SS": { price: 50 }, "000300.SS": { price: 4000 } });
+  const { arena, cleanup } = await h.make();
+  try {
+    const { id } = await arena.createAccount({ name: "Risk", model: "m", market: "A" }, claude);
+    await assert.rejects(arena.updateAccount(id, { riskPolicy: { maxPositionPct: 0 } }), /between/);
+    await arena.updateAccount(id, { riskPolicy: { maxPositionPct: 30, maxExposurePct: 50, maxDrawdownPct: 10, onBreach: "reduce", reduceToExposurePct: 20 } });
+    const tooBig = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 10000, reason }, claude);
+    assert.match(tooBig.error, /single-position limit/);
+    assert.equal((await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 7000, reason }, claude)).order.status, "filled");
+    const exposure = await arena.placeOrder({ accountId: id, symbol: "601318", side: "BUY", quantity: 5000, reason }, claude);
+    assert.match(exposure.error, /total exposure/);
+    assert.equal((await arena.placeOrder({ accountId: id, symbol: "601318", side: "BUY", quantity: 4000, reason }, claude)).order.status, "filled");
+    const visible = await arena.getAccount(id, { sync: false });
+    assert.equal(visible.riskPolicy.maxPositionPct, 30);
+    // A 25% slide in both names is a >10% portfolio drawdown: the breaker trips and sells down.
+    h.setNow(NEXT_DAY_A);
+    h.setQuote("600036.SS", { price: 30 });
+    h.setQuote("601318.SS", { price: 37.5 });
+    const { events } = await arena.sync([id], { force: true });
+    assert.ok(events.some((event) => event.type === "risk-breaker"));
+    assert.ok(events.filter((event) => event.type === "filled" && event.trigger === "risk-reduce").length >= 2);
+    const detail = await arena.getAccount(id, { sync: false });
+    assert.ok(detail.risk.breaker);
+    assert.ok(detail.metrics.exposurePct <= 21);
+    assert.equal(detail.alerts[0].type, "risk-breaker");
+    const blocked = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 100, reason }, claude);
+    assert.match(blocked.error, /circuit breaker/);
+    await arena.updateAccount(id, { resetBreaker: true });
+    const after = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 100, reason }, claude);
+    assert.equal(after.order.status, "filled");
+  } finally { await cleanup(); }
+});
+
+test("run health flags accounts that missed a trading day", () => {
+  const account = { status: "active", market: "A", createdAt: "2026-10-12T01:00:00.000Z", journal: [], reports: [], orders: [], lastRoundAt: "2026-10-13T06:00:00.000Z" };
+  assert.equal(runHealth(account, "2026-10-14T05:00:00.000Z").status, "ok"); // Wednesday before the close
+  const missed = runHealth(account, "2026-10-15T08:00:00.000Z"); // Thursday after the close
+  assert.equal(missed.status, "missed");
+  assert.deepEqual(missed.missedDates, ["2026-10-14", "2026-10-15"]);
+  // The weekend is not a trading day; National Day holidays are skipped too.
+  assert.equal(runHealth({ ...account, lastRoundAt: "2026-10-16T06:00:00.000Z" }, "2026-10-18T12:00:00.000Z").status, "ok");
+  assert.equal(runHealth({ ...account, lastRoundAt: "2026-09-30T06:00:00.000Z" }, "2026-10-08T05:00:00.000Z").missedTradingDays, 0);
+  const fresh = { ...account, lastRoundAt: undefined, createdAt: "2026-10-15T01:00:00.000Z" };
+  assert.equal(runHealth(fresh, "2026-10-15T05:00:00.000Z").status, "waiting");
+  assert.deepEqual(runHealth(fresh, "2026-10-15T08:00:00.000Z").missedDates, ["2026-10-15"]);
+  assert.equal(runHealth({ ...fresh, createdAt: "2026-10-15T08:00:00.000Z" }, "2026-10-15T09:00:00.000Z").status, "waiting");
+});
+
+test("after each close the leader writes one digest and posts it to the owner's webhook", async () => {
+  const h = harness({ "600036.SS": { price: 40 }, "000300.SS": { price: 4000 } });
+  const { arena, cleanup } = await h.make();
+  const posts = [];
+  let fail = true;
+  const fetchImpl = async (url, init) => {
+    posts.push({ url, body: JSON.parse(init.body) });
+    return { ok: !fail, status: fail ? 502 : 200 };
+  };
+  const preferences = async () => ({ language: "zh-CN", digestWebhook: { url: "https://hooks.example.test/digest", format: "generic", enabled: true } });
+  try {
+    const { id } = await arena.createAccount({ name: "Digest", model: "claude-opus-5-5", market: "A" }, claude);
+    const stale = await arena.createAccount({ name: "Quiet", model: "m", market: "A", initialCash: 100000 }, codex);
+    await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 1000, reason }, claude);
+    await arena.publishReport({ accountId: id, title: "建仓招行", summary: "估值修复，先建一成仓位。" }, claude);
+    const matcher = createMatcher({ arena, getPreferences: preferences, fetchImpl });
+    assert.equal((await matcher.tick()).digests.length, 0); // Market open: no digest yet.
+    h.setNow(AFTER_CLOSE_A);
+    const run = await matcher.tick();
+    assert.deepEqual(run.digests, ["dig_2026-10-15_A"]);
+    assert.equal((await matcher.tick()).digests.length, 0); // Once per close.
+    const [digest] = await arena.listDigests();
+    assert.equal(digest.accounts.length, 2);
+    const row = digest.accounts.find((entry) => entry.id === id);
+    assert.equal(row.trades.length, 1);
+    assert.equal(row.latestReport.title, "建仓招行");
+    const quiet = digest.accounts.find((entry) => entry.id === stale.id);
+    assert.ok(quiet.warnings.some((warning) => /没有发布报告/.test(warning)));
+    assert.match(digest.text, /非真实收益/);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].body.type, "hrouter.arena.digest");
+    assert.equal(posts[0].body.paperTradingOnly, true);
+    assert.equal(digest.delivery.status, "failed");
+    // A failed delivery is retried on a later tick, at most three attempts in total.
+    fail = false;
+    h.setNow("2026-10-15T07:45:00.000Z");
+    await matcher.tick();
+    assert.equal(posts.length, 2);
+    assert.equal((await arena.getDigest("dig_2026-10-15_A")).delivery.status, "delivered");
+    h.setNow("2026-10-15T08:30:00.000Z");
+    await matcher.tick();
+    assert.equal(posts.length, 2);
+    // Next morning the quiet account is flagged as having missed a trading day.
+    h.setNow(NEXT_DAY_A);
+    const board = await arena.leaderboard({ sync: false });
+    const flagged = board.groups[0].accounts.find((account) => account.id === stale.id);
+    assert.equal(flagged.health.status, "missed");
+    assert.equal(flagged.alerts[0].type, "missed-run");
+  } finally { await cleanup(); }
+});
+
+test("digest webhooks support WeChat Work and Feishu bot payloads", async () => {
+  const digest = { id: "dig_2026-10-15_A", title: "t", headline: "h", text: "**日报**", at: OPEN_A };
+  const seen = [];
+  const fetchImpl = async (url, init) => { seen.push(JSON.parse(init.body)); return { ok: true, status: 200 }; };
+  assert.equal((await deliverDigest(digest, { url: "https://qyapi.example.test", format: "wecom" }, { fetchImpl })).status, "delivered");
+  assert.deepEqual(seen[0], { msgtype: "markdown", markdown: { content: "**日报**" } });
+  await deliverDigest(digest, { url: "https://open.feishu.example.test", format: "feishu" }, { fetchImpl });
+  assert.deepEqual(seen[1], { msg_type: "text", content: { text: "**日报**" } });
+  assert.equal((await deliverDigest(digest, { url: "https://x.test", enabled: false }, { fetchImpl })).status, "skipped");
+  const timeout = await deliverDigest(digest, { url: "https://x.test" }, { fetchImpl: () => Promise.reject(Object.assign(new Error("aborted"), { name: "AbortError" })) });
+  assert.equal(timeout.error, "timeout");
 });

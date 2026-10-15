@@ -640,3 +640,31 @@ h2,h3,p { overflow-wrap:break-word; }
 .managed-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) auto; }
 .managed-numbers { grid-template-columns: minmax(150px, 1.5fr) repeat(3, minmax(84px, 1fr)); }
 .managed-numbers strong { font-size: 20px; white-space: nowrap; }
+
+/* Unattended arena: run health, matcher status, digest, risk policy */
+.health-badges { display: inline-flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+.health-badges:empty { display: none; }
+.health-badge { gap: 3px; }
+.matcher-chip { gap: 5px; white-space: nowrap; }
+.digest-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.digest-body { padding: 4px 22px 18px; }
+.digest-headline { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.digest-accounts { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.digest-accounts>li { border: 1px solid var(--gray-a4); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; }
+.digest-accounts p { margin: 0; }
+.digest-row-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.digest-row-head .spacer { flex: 1; }
+.digest-warnings { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 3px; color: var(--amber-11); font-size: 12.5px; }
+.digest-warnings li { display: flex; gap: 6px; align-items: flex-start; }
+.digest-warnings svg { flex-shrink: 0; margin-top: 3px; }
+.risk-policy { margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--gray-a4); }
+.risk-policy h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: 14px; }
+.risk-policy .rt-CalloutRoot { margin: 10px 0; }
+.event-kind { flex-shrink: 0; align-self: flex-start; }
+.managed-policy { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; }
+@media (max-width: 600px) { .digest-body { padding: 4px 14px 14px; } .digest-actions { width: 100%; } }
+
+/* Automation tab */
+.automation { padding: 18px 22px; display: grid; gap: 14px; }
+.automation-heading { margin: 8px 0 0; font-size: 14px; }
+.run-output { white-space: pre-wrap; max-height: 260px; overflow: auto; font-size: 12px; background: var(--hover); padding: 8px; border-radius: 8px; }

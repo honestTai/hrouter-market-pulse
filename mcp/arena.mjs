@@ -7,10 +7,16 @@
 // State lives under <storage>/arena and is shared by every MCP process (Codex, Claude Code,
 // WorkBuddy, ...) through a cross-process lock, so one dashboard shows every agent.
 
+//
+// Unattended operation: a background matcher (one leader per arena dir, elected through a lease
+// file) syncs resting orders and protective exits during regular sessions, applies corporate
+// actions, enforces the owner's risk policy and writes an end-of-day digest after every close.
+
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { getStorageDir, getTradeQuote, marketFromSymbol, normalizeSymbol } from "./core.mjs";
+import { getCorporateActions, getStorageDir, getTradeQuote, loadPreferences, marketFromSymbol, normalizeSymbol } from "./core.mjs";
 import { getInstrumentRules, getMarketSession, localMarketTime, marketLocalToIso } from "./market-rules.mjs";
 
 export const ARENA_MARKETS = {
@@ -18,11 +24,17 @@ export const ARENA_MARKETS = {
   HK: { currency: "HKD", defaultCash: 1000000, benchmark: "^HSI", benchmarkName: "恒生指数 / Hang Seng" },
   US: { currency: "USD", defaultCash: 100000, benchmark: "^GSPC", benchmarkName: "标普500 / S&P 500" },
 };
-const LIMITS = { orders: 5000, trades: 5000, journal: 2000, equity: 6000, strategyHistory: 200, reports: 500 };
+const LIMITS = { orders: 5000, trades: 5000, journal: 2000, equity: 6000, strategyHistory: 200, reports: 500, events: 2000, appliedActions: 1000, digests: 400 };
 const SYNC_THROTTLE_MS = 20000;
 const QUOTE_CACHE_MS = 10000;
 const LOCK_STALE_MS = 30000;
 const LOCK_WAIT_MS = 20000;
+// Quiet minutes after the open before zero volume is read as a suspension rather than a slow start.
+const SUSPENSION_GRACE_MINUTES = 5;
+const CORPORATE_ACTION_RETRY_MS = 3600000;
+export const DEFAULT_MAX_VOLUME_PCT = 5;
+export const DEFAULT_RISK_POLICY = Object.freeze({ maxPositionPct: null, maxExposurePct: null, maxDrawdownPct: null, onBreach: "block", reduceToExposurePct: 50 });
+export const MATCHER_DEFAULTS = Object.freeze({ intervalMs: 90000, jitterMs: 15000, leaseMs: 300000, digestWindowMs: 18 * 3600000, webhookAttempts: 3 });
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -158,6 +170,93 @@ export function executionPrice(account, order, quote) {
   return { price };
 }
 
+// The day's traded volume in shares. Tencent reports A-share volume in board lots of 100.
+export function dayVolumeShares(quote) {
+  const volume = quote?.volumeShares ?? quote?.volume;
+  return finite(volume) && volume >= 0 ? volume : null;
+}
+
+// A security counts as suspended when the provider says so, or when the regular session has
+// been open for a few minutes without a single trade today (zero volume / no print today).
+export function suspensionStatus(account, quote, now) {
+  if (!quote || quote.error) return null;
+  if (quote.suspended === true) return "provider-status";
+  const session = getMarketSession(account.market, now);
+  if (session.status !== "open") return null;
+  const minutesOpen = session.minute - session.sessions[0][0];
+  if (minutesOpen < SUSPENSION_GRACE_MINUTES) return null;
+  if (dayVolumeShares(quote) === 0) return "zero-volume";
+  const quoteDate = localMarketTime(quote.asOf, account.market)?.date;
+  if (quoteDate && quoteDate < session.date && minutesOpen >= 15) return "no-trade-today";
+  return null;
+}
+
+const remainingQuantity = (order) => order.quantity - (order.filledQuantity ?? 0);
+
+// Shares an order may fill now: the account's participation in one security may not exceed
+// maxVolumePct of the day's volume. Larger orders fill partially (whole board lots) or rest.
+export function fillQuantity(account, order, quote, now) {
+  const remaining = remainingQuantity(order);
+  const pct = account.settings?.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT;
+  const volume = dayVolumeShares(quote);
+  if (volume === null || !finite(pct) || pct >= 100) return { quantity: remaining, capped: false, volume };
+  const today = localMarketTime(now, account.market)?.date;
+  const used = account.trades.filter((trade) => trade.symbol === order.symbol && localMarketTime(trade.at, account.market)?.date === today)
+    .reduce((sum, trade) => sum + trade.quantity, 0);
+  const allowed = Math.max(0, Math.floor(volume * pct / 100) - used);
+  if (allowed >= remaining) return { quantity: remaining, capped: false, volume, allowed };
+  const lot = lotRules(account, order.symbol, quote).lotSize ?? 1;
+  return { quantity: Math.floor(allowed / lot) * lot, capped: true, volume, allowed };
+}
+
+// Protective exits: { stopLoss, takeProfit }, each { price } or { pct } of the average cost.
+export function normalizeExits(input = {}, { allowClear = false } = {}) {
+  const exits = {};
+  for (const [key, priceKey, pctKey, maxPct] of [["stopLoss", "stopLossPrice", "stopLossPct", 95], ["takeProfit", "takeProfitPrice", "takeProfitPct", 1000]]) {
+    const price = input[priceKey];
+    const pct = input[pctKey];
+    if (allowClear && (price === null || pct === null) && (price ?? pct ?? null) === null) { exits[key] = null; continue; }
+    if (price !== undefined && price !== null && pct !== undefined && pct !== null) throw new ArenaError(`Give ${priceKey} or ${pctKey}, not both.`);
+    if (price !== undefined && price !== null) {
+      if (!finite(price) || price <= 0) throw new ArenaError(`${priceKey} must be a positive price.`);
+      exits[key] = { price };
+    } else if (pct !== undefined && pct !== null) {
+      if (!finite(pct) || pct <= 0 || pct > maxPct) throw new ArenaError(`${pctKey} must be between 0 and ${maxPct} (percent of the average cost).`);
+      exits[key] = { pct };
+    }
+  }
+  return Object.keys(exits).length ? exits : null;
+}
+
+export function exitLevels(position) {
+  const exits = position?.exits;
+  if (!exits || !position.quantity) return null;
+  const averageCost = position.costBasis / position.quantity;
+  const resolve = (spec, direction) => !spec ? null : finite(spec.price) ? spec.price : finite(spec.pct) ? round(averageCost * (1 + direction * spec.pct / 100), 4) : null;
+  const levels = { stopLoss: resolve(exits.stopLoss, -1), takeProfit: resolve(exits.takeProfit, 1) };
+  return levels.stopLoss === null && levels.takeProfit === null ? null : levels;
+}
+
+export function sanitizeRiskPolicy(input = {}, current = {}) {
+  const next = { ...DEFAULT_RISK_POLICY, ...current };
+  const pct = (key, low, high) => {
+    if (input[key] === undefined) return;
+    if (input[key] === null || input[key] === "") { next[key] = key === "reduceToExposurePct" ? DEFAULT_RISK_POLICY.reduceToExposurePct : null; return; }
+    const value = Number(input[key]);
+    if (!Number.isFinite(value) || value < low || value > high) throw new ArenaError(`${key} must be between ${low} and ${high}, or empty to disable.`);
+    next[key] = round(value, 2);
+  };
+  pct("maxPositionPct", 1, 100);
+  pct("maxExposurePct", 1, 100);
+  pct("maxDrawdownPct", 1, 90);
+  pct("reduceToExposurePct", 0, 100);
+  if (input.onBreach !== undefined) {
+    if (!["block", "reduce"].includes(input.onBreach)) throw new ArenaError("onBreach must be block or reduce.");
+    next.onBreach = input.onBreach;
+  }
+  return next;
+}
+
 // ---------------------------------------------------------------------------
 // Portfolio accounting
 // ---------------------------------------------------------------------------
@@ -171,6 +270,50 @@ export function reservedCash(account, excludeOrderId) {
     .reduce((sum, order) => sum + order.reserved, 0));
 }
 
+function addEvent(account, at, event, dedupe) {
+  account.events ??= [];
+  if (dedupe && account.events.slice(-300).some((entry) => entry.dedupe === dedupe)) return null;
+  const entry = { id: shortId("evt"), at, ...event, ...(dedupe ? { dedupe } : {}) };
+  account.events.push(entry);
+  if (account.events.length > LIMITS.events) account.events = account.events.slice(-LIMITS.events);
+  return entry;
+}
+
+const riskPolicyOf = (account) => ({ ...DEFAULT_RISK_POLICY, ...account.riskPolicy });
+
+// Drawdown from the peak equity since the account opened or the owner last reset the breaker.
+export function drawdownState(account, equityNow = valuation(account).equity) {
+  const since = account.risk?.resetAt ? Date.parse(account.risk.resetAt) : -Infinity;
+  const points = account.equity.filter((point) => Date.parse(point.at) >= since).map((point) => point.equity);
+  const peak = Math.max(equityNow, ...points, ...(account.risk?.resetAt ? [account.risk.resetEquity ?? equityNow] : [account.initialCash]));
+  return { peakEquity: round(peak), equity: equityNow, drawdownPct: peak > 0 ? round((equityNow / peak - 1) * 100, 2) : 0 };
+}
+
+// Why a buy adding `addValue` of exposure in `symbol` breaches the owner's policy, or null.
+export function riskViolation(account, symbol, addValue, excludeOrderId) {
+  const policy = riskPolicyOf(account);
+  if (account.risk?.breaker) return `Owner risk policy: drawdown circuit breaker tripped at ${account.risk.breaker.drawdownPct}% on ${account.risk.breaker.trippedAt}; new buys are blocked until the owner resets it in the dashboard.`;
+  const value = valuation(account);
+  if (value.equity <= 0) return null;
+  if (finite(policy.maxDrawdownPct)) {
+    const { drawdownPct } = drawdownState(account, value.equity);
+    if (drawdownPct <= -policy.maxDrawdownPct) return `Owner risk policy: drawdown ${drawdownPct}% breaches the ${policy.maxDrawdownPct}% circuit breaker; new buys are blocked.`;
+  }
+  const pending = openOrders(account).filter((order) => order.side === "BUY" && order.id !== excludeOrderId);
+  if (finite(policy.maxPositionPct)) {
+    const held = value.positions.find((position) => position.symbol === symbol)?.marketValue ?? 0;
+    const resting = pending.filter((order) => order.symbol === symbol).reduce((sum, order) => sum + order.reserved, 0);
+    const pct = (held + resting + addValue) / value.equity * 100;
+    if (pct > policy.maxPositionPct + 1e-9) return `Owner risk policy: ${symbol} would be ${round(pct, 1)}% of equity, above the ${policy.maxPositionPct}% single-position limit.`;
+  }
+  if (finite(policy.maxExposurePct)) {
+    const resting = pending.reduce((sum, order) => sum + order.reserved, 0);
+    const pct = (value.marketValue + resting + addValue) / value.equity * 100;
+    if (pct > policy.maxExposurePct + 1e-9) return `Owner risk policy: total exposure would be ${round(pct, 1)}% of equity, above the ${policy.maxExposurePct}% limit.`;
+  }
+  return null;
+}
+
 export function sellableQuantity(account, symbol, now = new Date().toISOString(), excludeOrderId) {
   const position = account.positions[symbol];
   if (!position) return 0;
@@ -179,33 +322,35 @@ export function sellableQuantity(account, symbol, now = new Date().toISOString()
     ? position.lots.filter((lot) => lot.date < today).reduce((sum, lot) => sum + lot.quantity, 0)
     : position.quantity;
   const pending = openOrders(account).filter((order) => order.side === "SELL" && order.symbol === symbol && order.id !== excludeOrderId)
-    .reduce((sum, order) => sum + order.quantity, 0);
+    .reduce((sum, order) => sum + remainingQuantity(order), 0);
   return Math.max(0, settled - pending);
 }
 
-function applyFill(account, order, price, quote, now) {
-  const fees = computeFees(account.market, order.side, order.quantity, price);
-  const gross = round(order.quantity * price);
+// Fill `quantity` shares of an order (all that remains by default); partial fills keep it open.
+function applyFill(account, order, price, quote, now, quantity = remainingQuantity(order)) {
+  const fees = computeFees(account.market, order.side, quantity, price);
+  const gross = round(quantity * price);
   const tradeDate = localMarketTime(now, account.market).date;
   let position = account.positions[order.symbol];
   let realizedPnl = null;
   if (order.side === "BUY") {
     position ??= { symbol: order.symbol, name: quote?.name ?? order.name ?? order.symbol, quantity: 0, costBasis: 0, realizedPnl: 0, lots: [], openedAt: now };
     position.costBasis = round(position.costBasis + gross + fees.total);
-    position.quantity += order.quantity;
+    position.quantity += quantity;
     const lot = position.lots.find((entry) => entry.date === tradeDate);
-    if (lot) lot.quantity += order.quantity;
-    else position.lots.push({ date: tradeDate, quantity: order.quantity });
+    if (lot) lot.quantity += quantity;
+    else position.lots.push({ date: tradeDate, quantity });
+    if (order.exits) position.exits = { ...position.exits, ...order.exits };
     account.cash = round(account.cash - gross - fees.total);
     account.positions[order.symbol] = position;
   } else {
     const averageCost = position.costBasis / position.quantity;
-    const releasedCost = averageCost * order.quantity;
+    const releasedCost = averageCost * quantity;
     realizedPnl = round(gross - fees.total - releasedCost);
     position.costBasis = round(position.costBasis - releasedCost);
-    position.quantity -= order.quantity;
+    position.quantity -= quantity;
     position.realizedPnl = round(position.realizedPnl + realizedPnl);
-    let remaining = order.quantity;
+    let remaining = quantity;
     for (const lot of position.lots) {
       const used = Math.min(lot.quantity, remaining);
       lot.quantity -= used;
@@ -223,14 +368,20 @@ function applyFill(account, order, price, quote, now) {
     account.positions[order.symbol].lastPrice = quote?.price ?? price;
     account.positions[order.symbol].lastPriceAt = quote?.asOf ?? now;
   }
-  Object.assign(order, {
-    status: "filled", filledAt: now, fillPrice: price, fees: fees.total, reserved: 0,
-    fillQuote: quote ? { price: quote.price, asOf: quote.asOf, source: quote.provider ?? quote.source } : null,
-  });
+  const remainingBefore = remainingQuantity(order);
+  const filledBefore = order.filledQuantity ?? 0;
+  order.filledQuantity = filledBefore + quantity;
+  order.fillPrice = round(((order.fillPrice ?? 0) * filledBefore + price * quantity) / order.filledQuantity, 4);
+  order.fees = round((order.fees ?? 0) + fees.total);
+  order.fills = (order.fills ?? 0) + 1;
+  order.fillQuote = quote ? { price: quote.price, asOf: quote.asOf, source: quote.provider ?? quote.source } : null;
+  if (order.filledQuantity >= order.quantity) Object.assign(order, { status: "filled", filledAt: now, reserved: 0 });
+  else Object.assign(order, { partiallyFilledAt: now, reserved: round(order.reserved * (remainingBefore - quantity) / remainingBefore) });
   const trade = {
     id: shortId("trd"), orderId: order.id, symbol: order.symbol, name: account.positions[order.symbol]?.name ?? quote?.name ?? order.symbol,
-    side: order.side, quantity: order.quantity, price, gross, fees: fees.total, feeBreakdown: fees.breakdown,
+    side: order.side, quantity, price, gross, fees: fees.total, feeBreakdown: fees.breakdown,
     realizedPnl, at: now, reason: order.reason, confidence: order.confidence ?? null, strategyVersion: order.strategyVersion,
+    ...(order.trigger ? { trigger: order.trigger } : {}), ...(order.fills > 1 || order.status === "open" ? { partial: true } : {}),
   };
   account.trades.push(trade);
   if (account.trades.length > LIMITS.trades) account.trades = account.trades.slice(-LIMITS.trades);
@@ -243,7 +394,7 @@ export function valuation(account) {
     const marketValue = round(price * position.quantity);
     const averageCost = position.quantity ? position.costBasis / position.quantity : 0;
     return {
-      ...position, averageCost: round(averageCost, 4), marketValue,
+      ...position, averageCost: round(averageCost, 4), marketValue, exitLevels: exitLevels(position),
       unrealizedPnl: round(marketValue - position.costBasis),
       unrealizedPnlPct: position.costBasis > 0 ? round((marketValue / position.costBasis - 1) * 100, 2) : null,
     };
@@ -276,10 +427,10 @@ function recordEquity(account, now, force = false) {
 // Performance metrics
 // ---------------------------------------------------------------------------
 
-export function computeMetrics(account, { benchmarkPrice = null } = {}) {
+export function computeMetrics(account, { benchmarkPrice = null, now = new Date().toISOString() } = {}) {
   const value = valuation(account);
   const initial = account.initialCash;
-  const points = [{ at: account.createdAt, equity: initial }, ...account.equity, { at: new Date().toISOString(), equity: value.equity }];
+  const points = [{ at: account.createdAt, equity: initial }, ...account.equity, { at: now, equity: value.equity }];
   let peak = -Infinity;
   let maxDrawdownPct = 0;
   for (const point of points) {
@@ -307,8 +458,8 @@ export function computeMetrics(account, { benchmarkPrice = null } = {}) {
   const totalReturnPct = round((value.equity / initial - 1) * 100, 2);
   const benchmarkReturnPct = finite(benchmarkPrice) && finite(account.benchmark?.startPrice) && account.benchmark.startPrice > 0
     ? round((benchmarkPrice / account.benchmark.startPrice - 1) * 100, 2) : null;
-  const days = Math.max(0, (Date.now() - Date.parse(account.createdAt)) / 86400000);
-  const today = localMarketTime(new Date().toISOString(), account.market)?.date;
+  const days = Math.max(0, (Date.parse(now) - Date.parse(account.createdAt)) / 86400000);
+  const today = localMarketTime(now, account.market)?.date;
   const previousClose = [...daily.entries()].filter(([date]) => date < today).at(-1)?.[1] ?? initial;
   const byVersion = new Map();
   for (const trade of account.trades) {
@@ -340,6 +491,7 @@ export function computeMetrics(account, { benchmarkPrice = null } = {}) {
     averageWin: wins.length ? round(grossWin / wins.length) : null,
     averageLoss: losses.length ? round(-grossLoss / losses.length) : null,
     feesPaid: round(account.trades.reduce((sum, trade) => sum + trade.fees, 0)),
+    dividendIncome: round(account.dividendIncome ?? 0),
     turnover: initial > 0 ? round(account.trades.reduce((sum, trade) => sum + trade.gross, 0) / initial, 2) : 0,
     ordersPlaced: account.orders.length,
     ordersRejected: account.orders.filter((order) => order.status === "rejected").length,
@@ -353,6 +505,53 @@ export function computeMetrics(account, { benchmarkPrice = null } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Run health and session dates
+// ---------------------------------------------------------------------------
+
+const addDays = (date, days) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+const sessionOn = (market, date) => getMarketSession(market, marketLocalToIso(date, 720, market));
+
+// The most recent regular session of `market` whose close is at or before `at`.
+export function lastCompletedSession(market, at) {
+  const today = localMarketTime(at, market)?.date;
+  for (let offset = 0; offset <= 14; offset += 1) {
+    const session = sessionOn(market, addDays(today, -offset));
+    if (session.status !== "closed" && Date.parse(session.closeAt) <= Date.parse(at)) return session;
+  }
+  return null;
+}
+
+// Trading date an end-of-day view of `market` refers to: today once the session has opened, else the previous session.
+function reportingDate(market, at) {
+  const today = getMarketSession(market, at);
+  if (today.status !== "closed" && today.status !== "premarket") return today.date;
+  return lastCompletedSession(market, at)?.date ?? today.date;
+}
+
+function lastAgentActivity(account) {
+  return [account.journal.at(-1)?.at, account.reports?.at(-1)?.at, account.orders.filter((order) => !order.trigger).at(-1)?.createdAt].filter(Boolean).sort().at(-1) ?? null;
+}
+
+// Whether the account's agent ran a round on every completed trading day since its last round.
+export function runHealth(account, at = new Date().toISOString()) {
+  const lastRoundAt = account.lastRoundAt ?? lastAgentActivity(account);
+  if (account.status !== "active") return { status: "inactive", lastRoundAt, missedTradingDays: 0, missedDates: [] };
+  const baseline = localMarketTime(lastRoundAt ?? account.createdAt, account.market)?.date;
+  const missed = [];
+  // A never-run account also misses the day it was opened, if it existed before that day's close.
+  const first = !lastRoundAt && baseline && Date.parse(account.createdAt) < Date.parse(sessionOn(account.market, baseline).closeAt) ? 0 : 1;
+  for (let offset = first; offset <= 60 && baseline; offset += 1) {
+    const session = sessionOn(account.market, addDays(baseline, offset));
+    if (Date.parse(session.closeAt) > Date.parse(at)) break;
+    if (session.status !== "closed") missed.push(session.date);
+  }
+  return {
+    status: missed.length ? "missed" : lastRoundAt ? "ok" : "waiting", lastRoundAt, lastRoundKind: account.lastRoundKind ?? null,
+    missedTradingDays: missed.length, missedDates: missed.slice(-10),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Storage
 // ---------------------------------------------------------------------------
 
@@ -360,10 +559,14 @@ function processAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; }
 }
 
-export function createArena({ root = path.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, now = () => new Date().toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
+export function createArena({ root = path.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, now = () => new Date().toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
   const accountDir = path.join(root, "accounts");
+  const digestDir = path.join(root, "digests");
   const lockDir = path.join(root, ".lock");
+  const leaseFile = path.join(root, "matcher-lease.json");
+  const statusFile = path.join(root, "matcher-status.json");
   const quoteCache = new Map();
+  const actionCache = new Map();
   const lastSync = new Map();
 
   async function withLock(task) {
@@ -459,33 +662,150 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
     if (account.status !== "active") throw new ArenaError(`Account ${account.id} is ${account.status}.`, "inactive", 409);
   }
 
-  // Apply observed quotes: expire day orders, fill marketable open orders, mark positions.
-  function settle(account, quoteMap, at) {
+  // Shares held at the close before an ex-date, reconstructed from today's quantity and later trades.
+  function entitledQuantity(account, position, exDate) {
+    let quantity = position.quantity;
+    for (const trade of account.trades) {
+      if (trade.symbol !== position.symbol || (localMarketTime(trade.at, account.market)?.date ?? "") < exDate) continue;
+      quantity += trade.side === "BUY" ? -trade.quantity : trade.quantity;
+    }
+    return Math.max(0, quantity);
+  }
+
+  // Dividends credit cash on the ex-date (gross, before any withholding); splits and bonus shares
+  // scale the share count while the total cost stays, so the average cost adjusts.
+  function applyCorporateActions(account, actionMap, at, events) {
+    if (!actionMap?.size) return;
+    const today = localMarketTime(at, account.market)?.date;
+    const opened = localMarketTime(account.createdAt, account.market)?.date ?? "";
+    account.appliedCorporateActions ??= [];
+    for (const [symbol, actions] of actionMap) {
+      for (const action of [...(actions ?? [])].sort((a, b) => String(a.date).localeCompare(String(b.date)))) {
+        const position = account.positions[symbol];
+        if (!position || !action?.date || action.date > today || action.date < opened) continue;
+        const key = `${symbol}:${action.type}:${action.date}`;
+        if (account.appliedCorporateActions.includes(key)) continue;
+        account.appliedCorporateActions = [...account.appliedCorporateActions, key].slice(-LIMITS.appliedActions);
+        const entitled = entitledQuantity(account, position, action.date);
+        if (entitled <= 0) continue;
+        if (action.type === "dividend" && finite(action.cashPerShare) && action.cashPerShare > 0) {
+          if (action.currency && action.currency !== account.currency) {
+            addEvent(account, at, { type: "corporate-action-skipped", symbol, exDate: action.date, message: `${symbol} dividend paid in ${action.currency}, not ${account.currency}; not credited.` });
+            continue;
+          }
+          const amount = round(entitled * action.cashPerShare);
+          account.cash = round(account.cash + amount);
+          account.dividendIncome = round((account.dividendIncome ?? 0) + amount);
+          position.dividends = round((position.dividends ?? 0) + amount);
+          const event = addEvent(account, at, { type: "dividend", symbol, exDate: action.date, quantity: entitled, cashPerShare: action.cashPerShare, amount, message: `${symbol} dividend ${action.cashPerShare}/share on ${entitled} shares: +${amount} ${account.currency}.` });
+          events.push({ type: "dividend", symbol, amount, eventId: event.id });
+        } else if (["split", "bonus"].includes(action.type) && finite(action.ratio) && action.ratio > 0 && Math.abs(action.ratio - 1) > 1e-9) {
+          const before = position.quantity;
+          let extra = Math.floor(entitled * action.ratio) - entitled;
+          if (before + extra <= 0) extra = -before + 1;
+          position.quantity = before + extra;
+          // Scale the lots held before the ex-date; rounding goes to the oldest lot.
+          const eligible = position.lots.filter((lot) => lot.date < action.date);
+          let assigned = 0;
+          for (const lot of eligible) {
+            const share = Math.floor(extra * lot.quantity / Math.max(1, eligible.reduce((sum, entry) => sum + entry.quantity, 0)));
+            lot.quantity += share;
+            assigned += share;
+          }
+          if (eligible[0]) eligible[0].quantity += extra - assigned;
+          else position.lots.push({ date: action.date, quantity: extra });
+          position.lots = position.lots.filter((lot) => lot.quantity > 0);
+          if (position.lastPrice && (localMarketTime(position.lastPriceAt, account.market)?.date ?? "") < action.date) position.lastPrice = round(position.lastPrice / action.ratio, 4);
+          for (const exit of ["stopLoss", "takeProfit"]) if (finite(position.exits?.[exit]?.price)) position.exits[exit].price = round(position.exits[exit].price / action.ratio, 4);
+          for (const order of openOrders(account).filter((entry) => entry.symbol === symbol))
+            Object.assign(order, { status: "cancelled", closedAt: at, reserved: 0, cancelReason: `${action.type} ${action.ratio}:1 on ${action.date} changed the share basis; re-enter the order.` });
+          const event = addEvent(account, at, { type: action.type, symbol, exDate: action.date, ratio: action.ratio, quantityBefore: before, quantityAfter: position.quantity, message: `${symbol} ${action.type === "split" ? "split" : "bonus shares"} ×${action.ratio}: ${before} → ${position.quantity} shares; average cost ${round(position.costBasis / position.quantity, 4)}.` });
+          events.push({ type: action.type, symbol, ratio: action.ratio, eventId: event.id });
+        }
+      }
+    }
+  }
+
+  function protectiveOrder(account, { symbol, quantity, trigger, reason, at, extra = {} }) {
+    const session = getMarketSession(account.market, at);
+    const order = {
+      id: shortId("ord"), clientOrderId: null, symbol, name: account.positions[symbol]?.name ?? symbol, side: "SELL", type: "market", quantity,
+      limitPrice: null, timeInForce: "day", status: "open", reserved: 0, reason, confidence: null, horizon: null,
+      strategyVersion: account.strategy.version, createdAt: at, expiresAt: session.closeAt, quoteAtSubmit: null, placedBy: "matcher", trigger, ...extra,
+    };
+    account.orders.push(order);
+    return order;
+  }
+
+  // Trip the drawdown circuit breaker; with onBreach=reduce, cancel buys and sell down to the target exposure.
+  function evaluateBreaker(account, quoteMap, at, events) {
+    const policy = riskPolicyOf(account);
+    if (!finite(policy.maxDrawdownPct) || account.risk?.breaker) return;
+    const state = drawdownState(account);
+    if (state.drawdownPct > -policy.maxDrawdownPct) return;
+    account.risk = { ...account.risk, breaker: { trippedAt: at, drawdownPct: state.drawdownPct, peakEquity: state.peakEquity, equity: state.equity, action: policy.onBreach } };
+    addEvent(account, at, { type: "risk-breaker", drawdownPct: state.drawdownPct, limitPct: policy.maxDrawdownPct, message: `Drawdown ${state.drawdownPct}% breached the owner's ${policy.maxDrawdownPct}% limit; new buys are blocked${policy.onBreach === "reduce" ? ` and exposure is being reduced to ${policy.reduceToExposurePct}%` : ""}.` });
+    events.push({ type: "risk-breaker", drawdownPct: state.drawdownPct });
+    if (policy.onBreach !== "reduce") return;
+    for (const order of openOrders(account).filter((entry) => entry.side === "BUY"))
+      Object.assign(order, { status: "cancelled", closedAt: at, reserved: 0, cancelReason: "Owner risk policy: drawdown circuit breaker" });
+    const value = valuation(account);
+    const target = value.equity * policy.reduceToExposurePct / 100;
+    if (value.marketValue <= target) return;
+    const fraction = 1 - target / value.marketValue;
+    for (const position of value.positions) {
+      const sellable = sellableQuantity(account, position.symbol, at);
+      if (!sellable) continue;
+      const lot = lotRules(account, position.symbol, quoteMap.get(position.symbol)).lotSize ?? 1;
+      let quantity = Math.ceil(position.quantity * fraction / lot) * lot;
+      if (quantity >= sellable) quantity = sellable;
+      if (quantity <= 0) continue;
+      const order = protectiveOrder(account, { symbol: position.symbol, quantity, trigger: "risk-reduce", at, reason: `Owner risk policy: drawdown breaker, reducing exposure to ${policy.reduceToExposurePct}%.` });
+      events.push({ type: "risk-reduce", orderId: order.id, symbol: position.symbol, quantity });
+    }
+  }
+
+  // Stop-loss / take-profit: when a fresh quote crosses a level, sell the sellable shares at market.
+  function triggerExits(account, quoteMap, at, events) {
+    const today = localMarketTime(at, account.market)?.date;
+    for (const position of Object.values(account.positions)) {
+      const levels = exitLevels(position);
+      const observed = quoteMap.get(position.symbol);
+      if (!levels || !observed || observed.error || !tradability(account, observed, at).ok) continue;
+      if (openOrders(account).some((order) => order.symbol === position.symbol && order.trigger)) continue;
+      const trigger = levels.stopLoss !== null && observed.price <= levels.stopLoss + 1e-9 ? "stop-loss"
+        : levels.takeProfit !== null && observed.price >= levels.takeProfit - 1e-9 ? "take-profit" : null;
+      if (!trigger) continue;
+      const level = trigger === "stop-loss" ? levels.stopLoss : levels.takeProfit;
+      const defer = (why, message) => {
+        const event = addEvent(account, at, { type: "exit-deferred", symbol: position.symbol, trigger, level, price: observed.price, why, message }, `exit-deferred:${position.symbol}:${why}:${today}`);
+        if (event) events.push({ type: "exit-deferred", symbol: position.symbol, trigger, why });
+      };
+      const suspended = suspensionStatus(account, observed, at);
+      if (suspended) { defer("suspended", `${trigger} for ${position.symbol} at ${level} waits: trading looks suspended (${suspended}).`); continue; }
+      if (account.market === "A" && finite(observed.limitDown) && observed.price <= observed.limitDown + 1e-9) { defer("limit-down", `${trigger} for ${position.symbol} at ${level} waits: the stock is locked limit-down.`); continue; }
+      const competing = openOrders(account).filter((order) => order.symbol === position.symbol && order.side === "SELL");
+      const sellable = sellableQuantity(account, position.symbol, at) + competing.reduce((sum, order) => sum + remainingQuantity(order), 0);
+      if (!sellable) { defer("t-plus-one", `${trigger} for ${position.symbol} at ${level} waits: shares bought today unlock next session (T+1).`); continue; }
+      for (const order of competing) Object.assign(order, { status: "cancelled", closedAt: at, reserved: 0, cancelReason: `Replaced by ${trigger}` });
+      const order = protectiveOrder(account, {
+        symbol: position.symbol, quantity: sellable, trigger, at, extra: { triggerLevel: level, triggerPrice: observed.price },
+        reason: `Protective ${trigger}: last ${observed.price} crossed ${level}.`,
+      });
+      addEvent(account, at, { type: trigger, symbol: position.symbol, level, price: observed.price, quantity: sellable, orderId: order.id, message: `${trigger === "stop-loss" ? "Stop-loss" : "Take-profit"} ${position.symbol}: last ${observed.price} crossed ${level}; selling ${sellable} shares at market.` });
+      events.push({ type: trigger, orderId: order.id, symbol: position.symbol, quantity: sellable, level });
+    }
+  }
+
+  // Apply observed quotes: corporate actions, expiries, marks, risk, protective exits, then fills.
+  function settle(account, quoteMap, at, actionMap) {
     const events = [];
+    applyCorporateActions(account, actionMap, at, events);
     for (const order of openOrders(account)) {
       if (Date.parse(order.expiresAt) <= Date.parse(at)) {
         Object.assign(order, { status: "expired", closedAt: at, reserved: 0 });
-        events.push({ type: "expired", orderId: order.id, symbol: order.symbol });
+        events.push({ type: "expired", orderId: order.id, symbol: order.symbol, filledQuantity: order.filledQuantity ?? 0 });
       }
-    }
-    for (const order of openOrders(account)) {
-      const observed = quoteMap.get(order.symbol);
-      if (!observed || observed.error || !tradability(account, observed, at).ok) continue;
-      const execution = executionPrice(account, order, observed);
-      if (execution.price === null) continue;
-      if (order.side === "SELL" && (account.positions[order.symbol]?.quantity ?? 0) < order.quantity) {
-        Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Position no longer covers this sell order." });
-        continue;
-      }
-      if (order.side === "BUY") {
-        const cost = order.quantity * execution.price + computeFees(account.market, "BUY", order.quantity, execution.price).total;
-        if (cost > account.cash - reservedCash(account, order.id) + 1e-6) {
-          Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Insufficient cash at fill time." });
-          continue;
-        }
-      }
-      const trade = applyFill(account, order, execution.price, observed, at);
-      events.push({ type: "filled", orderId: order.id, tradeId: trade.id, symbol: order.symbol, side: order.side, quantity: order.quantity, price: execution.price });
     }
     for (const position of Object.values(account.positions)) {
       const observed = quoteMap.get(position.symbol);
@@ -501,8 +821,64 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       account.benchmark.lastPriceAt = benchmark.asOf ?? at;
       if (!finite(account.benchmark.startPrice)) { account.benchmark.startPrice = benchmark.price; account.benchmark.startAt = at; }
     }
+    evaluateBreaker(account, quoteMap, at, events);
+    triggerExits(account, quoteMap, at, events);
+    const today = localMarketTime(at, account.market)?.date;
+    for (const order of openOrders(account)) {
+      const observed = quoteMap.get(order.symbol);
+      if (!observed || observed.error || !tradability(account, observed, at).ok) continue;
+      const suspended = suspensionStatus(account, observed, at);
+      if (suspended) {
+        order.lastBlock = "suspended";
+        const event = addEvent(account, at, { type: "suspended", symbol: order.symbol, why: suspended, message: `${order.symbol} looks suspended (${suspended}); no fills today.` }, `suspended:${order.symbol}:${today}`);
+        if (event) events.push({ type: "suspended", symbol: order.symbol, why: suspended });
+        continue;
+      }
+      const execution = executionPrice(account, order, observed);
+      if (execution.price === null) { order.lastBlock = execution.blocked; continue; }
+      if (order.side === "SELL" && (account.positions[order.symbol]?.quantity ?? 0) < remainingQuantity(order)) {
+        Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Position no longer covers this sell order." });
+        continue;
+      }
+      const liquidity = fillQuantity(account, order, observed, at);
+      if (!liquidity.quantity) { order.lastBlock = "liquidity"; continue; }
+      if (order.side === "BUY") {
+        const cost = liquidity.quantity * execution.price + computeFees(account.market, "BUY", liquidity.quantity, execution.price).total;
+        if (cost > account.cash - reservedCash(account, order.id) + 1e-6) {
+          Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Insufficient cash at fill time." });
+          continue;
+        }
+        const violation = riskViolation(account, order.symbol, cost, order.id);
+        if (violation) {
+          Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: violation });
+          events.push({ type: "risk-rejected", orderId: order.id, symbol: order.symbol });
+          continue;
+        }
+      }
+      delete order.lastBlock;
+      const trade = applyFill(account, order, execution.price, observed, at, liquidity.quantity);
+      events.push({ type: order.status === "open" ? "partial" : "filled", orderId: order.id, tradeId: trade.id, symbol: order.symbol, side: order.side, quantity: liquidity.quantity, price: execution.price, ...(order.trigger ? { trigger: order.trigger } : {}) });
+    }
     if (account.status === "active") recordEquity(account, at);
     return events;
+  }
+
+  async function corporateActionsFor(symbols) {
+    const result = new Map();
+    if (!corporateActionProvider) return result;
+    await Promise.all([...new Set(symbols)].map(async (symbol) => {
+      const day = localMarketTime(now(), marketFromSymbol(symbol))?.date;
+      const cached = actionCache.get(symbol);
+      if (cached && cached.day === day && (cached.ok || Date.now() - cached.fetchedAt < CORPORATE_ACTION_RETRY_MS)) { result.set(symbol, cached.actions); return; }
+      try {
+        const actions = await corporateActionProvider(symbol);
+        actionCache.set(symbol, { day, actions: Array.isArray(actions) ? actions : [], ok: true, fetchedAt: Date.now() });
+      } catch {
+        actionCache.set(symbol, { day, actions: cached?.actions ?? [], ok: false, fetchedAt: Date.now() });
+      }
+      result.set(symbol, actionCache.get(symbol).actions);
+    }));
+    return result;
   }
 
   async function sync(ids, { force = false } = {}) {
@@ -511,13 +887,15 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       && (force || Date.now() - (lastSync.get(account.id) ?? 0) > SYNC_THROTTLE_MS));
     if (!targets.length) return { synced: 0, events: [] };
     const symbols = targets.flatMap((account) => [...Object.keys(account.positions), ...openOrders(account).map((order) => order.symbol), account.benchmark?.symbol].filter(Boolean));
-    const quoteMap = await quotes(symbols);
+    const quoteMap = await quotes(symbols, { fresh: force });
+    const actionMap = await corporateActionsFor(targets.flatMap((account) => Object.keys(account.positions)));
     const events = [];
     await withLock(async () => {
       for (const target of targets) {
         const account = await load(target.id);
+        if (account.status !== "active") continue;
         const at = now();
-        events.push(...settle(account, quoteMap, at).map((event) => ({ ...event, accountId: account.id })));
+        events.push(...settle(account, quoteMap, at, actionMap).map((event) => ({ ...event, accountId: account.id })));
         await save(account);
         lastSync.set(account.id, Date.now());
       }
@@ -537,8 +915,18 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
   }
 
   function publicAccount(account, { detail = false, limit = 50 } = {}) {
-    const metrics = computeMetrics(account, { benchmarkPrice: account.benchmark?.lastPrice ?? null });
+    const at = now();
+    const metrics = computeMetrics(account, { benchmarkPrice: account.benchmark?.lastPrice ?? null, now: at });
     const value = valuation(account);
+    const health = runHealth(account, at);
+    const risk = { ...drawdownState(account, value.equity), breaker: account.risk?.breaker ?? null, resetAt: account.risk?.resetAt ?? null };
+    const today = localMarketTime(at, account.market)?.date;
+    const alerts = [
+      ...(health.status === "missed" ? [{ type: "missed-run", severity: "warning", message: `Missed ${health.missedTradingDays} trading day(s) since the last round.` }] : []),
+      ...(risk.breaker ? [{ type: "risk-breaker", severity: "critical", message: `Drawdown breaker tripped at ${risk.breaker.drawdownPct}%; buys blocked.` }] : []),
+      ...(account.events ?? []).filter((event) => ["stop-loss", "take-profit", "exit-deferred", "suspended", "corporate-action-skipped"].includes(event.type)
+        && localMarketTime(event.at, account.market)?.date === today).slice(-5).map((event) => ({ type: event.type, severity: "info", message: event.message, at: event.at })),
+    ];
     const summary = {
       id: account.id, name: account.name, competition: account.competition, market: account.market, currency: account.currency,
       agent: account.agent, model: account.model, strategy: { version: account.strategy.version, summary: account.strategy.summary, updatedAt: account.strategy.updatedAt },
@@ -549,6 +937,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       lastActivityAt: [account.trades.at(-1)?.at, account.journal.at(-1)?.at, account.orders.at(-1)?.createdAt, account.reports?.at(-1)?.at].filter(Boolean).sort().at(-1) ?? null,
       latestReport: account.reports?.length ? (({ id, at, title, summary, sentiment }) => ({ id, at, title, summary, sentiment }))(account.reports.at(-1)) : null,
       watchlist: account.watchlist ?? null,
+      riskPolicy: riskPolicyOf(account), risk, health, lastRoundAt: health.lastRoundAt, alerts,
     };
     if (!detail) return summary;
     return {
@@ -558,7 +947,13 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       strategyHistory: account.strategy.history, closedPositions: (account.closedPositions ?? []).slice(-limit).reverse(),
       lotOverrides: account.lotOverrides ?? {},
       reports: (account.reports ?? []).slice(-limit).reverse(),
+      events: (account.events ?? []).slice(-limit).reverse().map(({ dedupe, ...event }) => event),
     };
+  }
+
+  function markRound(account, kind, at = now()) {
+    account.lastRoundAt = at;
+    account.lastRoundKind = kind;
   }
 
   return {
@@ -582,7 +977,8 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         model,
         strategy: { version: 1, summary: String(input.strategySummary ?? "").slice(0, 2000), updatedAt: at, history: [{ version: 1, summary: String(input.strategySummary ?? "").slice(0, 2000), note: "initial", at }] },
         initialCash: round(initialCash), cash: round(initialCash), realizedPnl: 0,
-        settings: { slippageBps: clamp(input.slippageBps ?? 5, 0, 100), maxQuoteAgeSeconds: clamp(input.maxQuoteAgeSeconds ?? 180, 30, 900), feeModel: `${market}-retail-v1` },
+        settings: { slippageBps: clamp(input.slippageBps ?? 5, 0, 100), maxQuoteAgeSeconds: clamp(input.maxQuoteAgeSeconds ?? 180, 30, 900), maxVolumePct: clamp(input.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT, 0.1, 100), feeModel: `${market}-retail-v1` },
+        riskPolicy: { ...DEFAULT_RISK_POLICY },
         benchmark: { symbol: config.benchmark, name: config.benchmarkName, startPrice: null, startAt: null },
         positions: {}, orders: [], trades: [], journal: [], equity: [{ at, equity: round(initialCash), cash: round(initialCash), marketValue: 0 }],
         createdAt: at, updatedAt: at, createdBy: caller.client ?? "dashboard",
@@ -647,6 +1043,8 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       if (type === "limit" && !(finite(input.limitPrice) && input.limitPrice > 0)) throw new ArenaError("limitPrice is required for limit orders.");
       const reason = String(input.reason ?? "").trim();
       if (reason.length < 10) throw new ArenaError("reason is required (at least 10 characters): explain the thesis so the decision can be reviewed.");
+      const exits = normalizeExits(input);
+      if (exits && side !== "BUY") throw new ArenaError("stopLoss / takeProfit attach to BUY orders; use arena_set_exits for an existing position.");
       if (input.clientOrderId) {
         const existing = account.orders.find((order) => order.clientOrderId === input.clientOrderId);
         if (existing) return { duplicate: true, order: existing, account: publicAccount(account) };
@@ -663,7 +1061,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         horizon: input.horizon ?? null, strategyVersion: account.strategy.version, createdAt: at,
         expiresAt: input.timeInForce === "gtc" ? new Date(Date.parse(at) + 30 * 86400000).toISOString() : session.closeAt,
         quoteAtSubmit: observed ? { price: observed.price, asOf: observed.asOf, source: observed.provider ?? observed.source } : null,
-        placedBy: caller.client ?? "unknown",
+        placedBy: caller.client ?? "unknown", ...(exits ? { exits } : {}),
       };
       const reject = (message, code = "rejected") => { Object.assign(order, { status: "rejected", rejectReason: message, closedAt: at }); return { code, message }; };
 
@@ -686,8 +1084,10 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           ? `Market is ${tradable.session.status} now (${account.market} local ${tradable.session.date}). Market orders need an open session; use a limit order to rest until the session opens.`
           : `Quote not usable for a fill (${tradable.reason}). Retry when a fresh quote is available.`);
       }
+      const suspended = tradable.ok ? suspensionStatus(account, observed, at) : null;
+      if (!failure && suspended && type === "market") failure = reject(`${symbol} looks suspended (${suspended}): no trades today, so market orders cannot fill. Limit orders may rest until trading resumes.`);
       let execution = null;
-      if (!failure && tradable.ok) {
+      if (!failure && tradable.ok && !suspended) {
         execution = executionPrice(account, order, observed);
         if (type === "market" && execution.price === null)
           failure = reject(execution.blocked === "limit-up" ? `${symbol} is at its daily limit-up; buy orders cannot fill.` : `${symbol} is at its daily limit-down; sell orders cannot fill.`);
@@ -705,6 +1105,15 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           failure = reject(`Limit price is outside today's A-share price band (${observed.limitDown}–${observed.limitUp}).`);
         else if (deviation > 30) failure = reject(`Limit price is ${round(deviation, 1)}% away from the last price ${observed.price}; check units and price.`);
       }
+      if (!failure && exits && finite(observed?.price)) {
+        const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed.price);
+        if (finite(exits.stopLoss?.price) && exits.stopLoss.price >= reference) failure = reject(`stopLossPrice ${exits.stopLoss.price} must be below the entry price (~${reference}).`);
+        else if (finite(exits.takeProfit?.price) && exits.takeProfit.price <= reference) failure = reject(`takeProfitPrice ${exits.takeProfit.price} must be above the entry price (~${reference}).`);
+      }
+      if (!failure && side === "BUY") {
+        const violation = riskViolation(account, symbol, order.reserved);
+        if (violation) failure = reject(violation, "risk");
+      }
 
       return withLock(async () => {
         // Re-read under the lock: another process may have traded this account since our checks.
@@ -716,6 +1125,11 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           if (order.reserved > available + 1e-6) failure = reject(`Insufficient available cash: need about ${order.reserved} ${current.currency}, available ${round(available)}.`);
         }
         if (!failure && side === "SELL" && quantity > sellableQuantity(current, symbol, at)) failure = reject("Sellable quantity changed while the order was being placed.");
+        if (!failure && side === "BUY") {
+          const violation = riskViolation(current, symbol, order.reserved);
+          if (violation) failure = reject(violation, "risk");
+        }
+        markRound(current, "order", at);
         current.orders.push(order);
         if (current.orders.length > LIMITS.orders) {
           const open = current.orders.filter((entry) => entry.status === "open");
@@ -723,7 +1137,11 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
             .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
         }
         let trade = null;
-        if (!failure && execution?.price !== null && execution?.price !== undefined) trade = applyFill(current, order, execution.price, observed, at);
+        let liquidity = null;
+        if (!failure && execution?.price !== null && execution?.price !== undefined) {
+          liquidity = fillQuantity(current, order, observed, at);
+          if (liquidity.quantity > 0) trade = applyFill(current, order, execution.price, observed, at, liquidity.quantity);
+        }
         recordEquity(current, at, Boolean(trade));
         await save(current);
         const result = {
@@ -732,7 +1150,8 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           session: tradable.session ? { status: tradable.session.status, date: tradable.session.date, calendarVerified: tradable.session.verified } : null,
         };
         if (failure) result.error = failure.message;
-        else if (!trade) result.note = tradable.ok ? "Limit order resting: price not reached yet. It fills when a later sync observes a marketable quote." : `Order resting until the ${account.market} session opens (expires ${order.expiresAt}).`;
+        else if (order.status === "open" && liquidity?.capped) result.note = `${trade ? `Partially filled ${order.filledQuantity} of ${quantity}` : "Not filled yet"}: one account may take at most ${current.settings?.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT}% of the day's volume (${liquidity.volume} shares so far). The remainder rests and the background matcher fills it as volume builds, until ${order.expiresAt}.`;
+        else if (!trade) result.note = suspended ? `${symbol} looks suspended (${suspended}); the limit order rests until trading resumes.` : tradable.ok ? "Limit order resting: price not reached yet. The background matcher fills it when a later quote is marketable." : `Order resting until the ${account.market} session opens (expires ${order.expiresAt}).`;
         return result;
       });
     },
@@ -763,6 +1182,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         };
         account.journal.push(entry);
         if (account.journal.length > LIMITS.journal) account.journal = account.journal.slice(-LIMITS.journal);
+        markRound(account, `decision:${entry.kind}`, entry.at);
         await save(account);
         return { entry };
       });
@@ -810,6 +1230,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           strategyVersion: account.strategy.version,
         };
         account.reports = [...(account.reports ?? []), report].slice(-LIMITS.reports);
+        markRound(account, "report", report.at);
         await save(account);
         return { report };
       });
@@ -846,12 +1267,55 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           }
         }
         if (input.unbindAgent) account.agent.client = null;
+        // The owner's risk policy and liquidity cap are dashboard-only: no MCP tool reaches this method.
+        if (input.riskPolicy !== undefined) {
+          if (!input.riskPolicy || typeof input.riskPolicy !== "object" || Array.isArray(input.riskPolicy)) throw new ArenaError("riskPolicy must be an object.");
+          account.riskPolicy = { ...sanitizeRiskPolicy(input.riskPolicy, account.riskPolicy), updatedAt: now() };
+          addEvent(account, now(), { type: "risk-policy", message: "Owner updated the risk policy.", policy: account.riskPolicy });
+        }
+        if (input.resetBreaker) {
+          const equity = valuation(account).equity;
+          account.risk = { ...account.risk, breaker: null, resetAt: now(), resetEquity: equity };
+          addEvent(account, now(), { type: "risk-reset", message: `Owner reset the drawdown breaker at equity ${equity}.` });
+        }
+        if (input.maxVolumePct !== undefined) {
+          const pct = Number(input.maxVolumePct);
+          if (!Number.isFinite(pct) || pct < 0.1 || pct > 100) throw new ArenaError("maxVolumePct must be between 0.1 and 100.");
+          account.settings = { ...account.settings, maxVolumePct: round(pct, 2) };
+        }
         if (input.lotOverrides && typeof input.lotOverrides === "object") {
           account.lotOverrides = Object.fromEntries(Object.entries(input.lotOverrides)
             .filter(([, lot]) => Number.isInteger(lot) && lot > 0).map(([symbol, lot]) => [normalizeTradeSymbol(symbol), lot]));
         }
         await save(account);
         return publicAccount(account, { detail: true });
+      });
+    },
+
+    // Protective exits on an existing position; null clears a level.
+    async setExits(input, caller = {}) {
+      const symbol = normalizeTradeSymbol(input.symbol);
+      const exits = normalizeExits(input, { allowClear: true });
+      if (!exits && !input.clear) throw new ArenaError("Give stopLossPrice / stopLossPct and/or takeProfitPrice / takeProfitPct (null clears one), or clear=true.");
+      return withLock(async () => {
+        const account = await load(input.accountId);
+        assertActive(account);
+        assertCaller(account, caller);
+        const position = account.positions[symbol];
+        if (!position) throw new ArenaError(`No ${symbol} position in this account.`, "not_found", 404);
+        const next = input.clear ? {} : { ...position.exits, ...exits };
+        for (const key of Object.keys(next)) if (next[key] === null) delete next[key];
+        const candidate = { ...position, exits: next };
+        const levels = exitLevels(candidate);
+        const last = position.lastPrice;
+        if (finite(last) && levels?.stopLoss !== null && levels?.stopLoss !== undefined && levels.stopLoss >= last) throw new ArenaError(`Stop-loss ${levels.stopLoss} is at or above the last price ${last}; it would trigger immediately. Sell directly instead.`);
+        if (finite(last) && levels?.takeProfit !== null && levels?.takeProfit !== undefined && levels.takeProfit <= last) throw new ArenaError(`Take-profit ${levels.takeProfit} is at or below the last price ${last}; it would trigger immediately. Sell directly instead.`);
+        if (Object.keys(next).length) position.exits = next; else delete position.exits;
+        const at = now();
+        addEvent(account, at, { type: "exits-set", symbol, exits: position.exits ?? null, levels: exitLevels(position), message: position.exits ? `Exits for ${symbol}: stop ${levels?.stopLoss ?? "—"}, take-profit ${levels?.takeProfit ?? "—"}.` : `Exits for ${symbol} cleared.` });
+        markRound(account, "exits", at);
+        await save(account);
+        return { symbol, exits: position.exits ?? null, levels: exitLevels(position), lastPrice: last ?? null };
       });
     },
 
@@ -865,13 +1329,331 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
     },
 
     sync,
+    now,
+
+    // Active account ids grouped by market, for the matcher.
+    async activeByMarket() {
+      const groups = new Map();
+      for (const account of await loadAll()) {
+        if (account.status !== "active") continue;
+        const entry = groups.get(account.market) ?? { ids: [], firstCreatedAt: account.createdAt };
+        entry.ids.push(account.id);
+        if (account.createdAt < entry.firstCreatedAt) entry.firstCreatedAt = account.createdAt;
+        groups.set(account.market, entry);
+      }
+      return groups;
+    },
+
+    withLock,
+
+    // Generic single-leader lease per arena dir (matcher, scheduler, …): taken when absent, expired,
+    // held by a dead local process, or already ours.
+    async acquireLease(name, ownerId, leaseMs) {
+      if (!/^[a-z-]+$/.test(name)) throw new ArenaError(`Invalid lease name ${name}`);
+      const file = path.join(root, `${name}-lease.json`);
+      return withLock(async () => {
+        const at = now();
+        let lease = null;
+        try { lease = JSON.parse(await readFile(file, "utf8")); } catch { lease = null; }
+        const free = !lease || lease.ownerId === ownerId || Date.parse(lease.expiresAt) <= Date.parse(at)
+          || (lease.host === os.hostname() && !processAlive(lease.pid));
+        if (!free) return { owner: false, lease };
+        const next = { ownerId, pid: process.pid, host: os.hostname(), acquiredAt: lease?.ownerId === ownerId ? lease.acquiredAt : at, renewedAt: at, expiresAt: new Date(Date.parse(at) + leaseMs).toISOString() };
+        await writeFile(file, JSON.stringify(next, null, 1), "utf8");
+        return { owner: true, lease: next };
+      });
+    },
+
+    async releaseLease(name, ownerId) {
+      const file = path.join(root, `${name}-lease.json`);
+      return withLock(async () => {
+        try { const lease = JSON.parse(await readFile(file, "utf8")); if (lease.ownerId === ownerId) await rm(file, { force: true }); } catch { /* none */ }
+      });
+    },
+
+    // One matcher per arena dir: the lease is taken when absent, expired, held by a dead local process, or already ours.
+    async acquireMatcherLease(ownerId, leaseMs = MATCHER_DEFAULTS.leaseMs) {
+      return withLock(async () => {
+        const at = now();
+        let lease = null;
+        try { lease = JSON.parse(await readFile(leaseFile, "utf8")); } catch { lease = null; }
+        const free = !lease || lease.ownerId === ownerId || Date.parse(lease.expiresAt) <= Date.parse(at)
+          || (lease.host === os.hostname() && !processAlive(lease.pid));
+        if (!free) return { owner: false, lease };
+        const next = {
+          ownerId, pid: process.pid, host: os.hostname(), acquiredAt: lease?.ownerId === ownerId ? lease.acquiredAt : at,
+          renewedAt: at, expiresAt: new Date(Date.parse(at) + leaseMs).toISOString(),
+        };
+        await writeFile(leaseFile, JSON.stringify(next, null, 1), "utf8");
+        return { owner: true, lease: next, takeover: Boolean(lease && lease.ownerId !== ownerId) };
+      });
+    },
+
+    async releaseMatcherLease(ownerId) {
+      return withLock(async () => {
+        try {
+          const lease = JSON.parse(await readFile(leaseFile, "utf8"));
+          if (lease.ownerId === ownerId) await rm(leaseFile, { force: true });
+        } catch { /* No lease to release. */ }
+      });
+    },
+
+    async writeMatcherStatus(status) {
+      await mkdir(root, { recursive: true });
+      const temporary = `${statusFile}.${process.pid}.${randomUUID()}.tmp`;
+      await writeFile(temporary, JSON.stringify(status, null, 1), "utf8");
+      await rename(temporary, statusFile);
+    },
+
+    // Status visible from any process: who leads, when it last ran and whether the lease is live.
+    async matcherStatus() {
+      const read = async (file) => { try { return JSON.parse(await readFile(file, "utf8")); } catch { return null; } };
+      const [lease, status] = await Promise.all([read(leaseFile), read(statusFile)]);
+      const at = now();
+      const live = Boolean(lease && Date.parse(lease.expiresAt) > Date.parse(at));
+      return {
+        state: live ? "running" : lease ? "stale" : "stopped", lease, ...status,
+        notes: ["The matcher runs inside any open MCP or dashboard process; only one leader matches at a time.", "It syncs only during regular sessions and writes one digest after each market close."],
+      };
+    },
+
+    async generateDigest({ market = null, date, trigger = "manual", language = "zh-CN" } = {}) {
+      const at = now();
+      const accounts = (await loadAll()).filter((account) => account.status === "active");
+      const digestDate = date ?? (market ? reportingDate(market, at) : localMarketTime(at, "A").date);
+      const zh = language !== "en";
+      const rows = accounts.map((account) => {
+        const sessionDate = market === account.market ? digestDate : reportingDate(account.market, at);
+        const onDate = (value) => localMarketTime(value, account.market)?.date === sessionDate;
+        const metrics = computeMetrics(account, { benchmarkPrice: account.benchmark?.lastPrice ?? null, now: at });
+        const health = runHealth(account, at);
+        const trades = account.trades.filter((trade) => onDate(trade.at)).map((trade) => ({ side: trade.side, symbol: trade.symbol, name: trade.name, quantity: trade.quantity, price: trade.price, realizedPnl: trade.realizedPnl, trigger: trade.trigger ?? null }));
+        const events = (account.events ?? []).filter((event) => onDate(event.at) && !["risk-policy", "exits-set"].includes(event.type));
+        const rejected = account.orders.filter((order) => order.status === "rejected" && onDate(order.closedAt ?? order.createdAt)).length;
+        const latest = account.reports?.at(-1) ?? null;
+        const warnings = [
+          ...(health.status === "missed" ? [zh ? `漏跑 ${health.missedTradingDays} 个交易日（最近一轮 ${health.lastRoundAt ?? "从未"}）` : `Missed ${health.missedTradingDays} trading day(s) (last round ${health.lastRoundAt ?? "never"})`] : []),
+          ...(account.risk?.breaker ? [zh ? `回撤熔断已触发（${account.risk.breaker.drawdownPct}%），禁止新买入` : `Drawdown breaker tripped (${account.risk.breaker.drawdownPct}%); buys blocked`] : []),
+          ...(latest && onDate(latest.at) ? [] : [zh ? "本交易日没有发布报告" : "No report published this session"]),
+          ...(rejected ? [zh ? `${rejected} 笔委托被拒` : `${rejected} order(s) rejected`] : []),
+          ...events.filter((event) => ["stop-loss", "take-profit", "exit-deferred", "suspended", "risk-reduce", "corporate-action-skipped"].includes(event.type)).map((event) => event.message),
+        ];
+        return {
+          id: account.id, name: account.name, model: account.model, agent: account.agent.label ?? account.agent.client ?? null, market: account.market, currency: account.currency,
+          sessionDate, equity: metrics.equity, dayReturnPct: metrics.todayReturnPct, totalReturnPct: metrics.totalReturnPct, excessReturnPct: metrics.excessReturnPct,
+          maxDrawdownPct: metrics.maxDrawdownPct, exposurePct: metrics.exposurePct, positions: metrics.positions, trades,
+          corporateActions: events.filter((event) => ["dividend", "split", "bonus"].includes(event.type)).map((event) => event.message),
+          latestReport: latest ? { title: latest.title, summary: latest.summary, at: latest.at, sentiment: latest.sentiment, today: onDate(latest.at) } : null,
+          health: { status: health.status, missedTradingDays: health.missedTradingDays, lastRoundAt: health.lastRoundAt }, warnings,
+        };
+      }).sort((a, b) => a.market.localeCompare(b.market) || b.totalReturnPct - a.totalReturnPct);
+      const marketLabel = market ? `${market} ` : "";
+      const title = zh ? `Agent 模拟盘日报 · ${marketLabel}${digestDate}` : `Agent arena digest · ${marketLabel}${digestDate}`;
+      const pct = (value) => (finite(value) ? `${value >= 0 ? "+" : ""}${value}%` : "—");
+      const lines = [`**${title}**`, zh ? "（虚拟资金模拟盘，非真实收益）" : "(Virtual-money paper trading, not real returns)", ""];
+      for (const row of rows) {
+        lines.push(`• ${row.name} [${row.market}·${row.model}] ${zh ? "净值" : "equity"} ${row.equity} ${row.currency} | ${zh ? "当日" : "day"} ${pct(row.dayReturnPct)} | ${zh ? "累计" : "total"} ${pct(row.totalReturnPct)} | ${zh ? "成交" : "fills"} ${row.trades.length}`);
+        for (const trade of row.trades.slice(0, 6)) lines.push(`  - ${trade.side === "BUY" ? (zh ? "买" : "BUY") : (zh ? "卖" : "SELL")} ${trade.name ?? trade.symbol} ${trade.quantity} @ ${trade.price}${trade.trigger ? ` (${trade.trigger})` : ""}`);
+        if (row.latestReport) lines.push(`  ${zh ? "报告" : "Report"}: ${row.latestReport.title}${row.latestReport.today ? "" : zh ? "（旧）" : " (earlier)"}`);
+        for (const action of row.corporateActions) lines.push(`  ${zh ? "公司行动" : "Corporate action"}: ${action}`);
+        for (const warning of row.warnings) lines.push(`  ⚠ ${warning}`);
+      }
+      if (!rows.length) lines.push(zh ? "没有活跃账户。" : "No active accounts.");
+      const digest = {
+        id: `dig_${digestDate}_${market ?? "manual"}`, at, date: digestDate, market, trigger, language, title,
+        headline: rows.length ? `${rows.length} ${zh ? "个账户" : "accounts"} · ${rows.reduce((sum, row) => sum + row.trades.length, 0)} ${zh ? "笔成交" : "fills"} · ${rows.reduce((sum, row) => sum + row.warnings.length, 0)} ${zh ? "条提醒" : "warnings"}` : (zh ? "没有活跃账户" : "No active accounts"),
+        totals: { accounts: rows.length, trades: rows.reduce((sum, row) => sum + row.trades.length, 0), warnings: rows.reduce((sum, row) => sum + row.warnings.length, 0) },
+        accounts: rows, text: lines.join("\n"), delivery: null,
+      };
+      await withLock(async () => {
+        await mkdir(digestDir, { recursive: true });
+        await writeFile(path.join(digestDir, `${digest.id}.json`), JSON.stringify(digest, null, 1), "utf8");
+        const names = (await readdir(digestDir)).filter((name) => name.endsWith(".json")).sort();
+        for (const name of names.slice(0, Math.max(0, names.length - LIMITS.digests))) await rm(path.join(digestDir, name), { force: true });
+      });
+      return digest;
+    },
+
+    async getDigest(id) {
+      if (!/^dig_\d{4}-\d{2}-\d{2}_[A-Za-z]+$/.test(id ?? "")) throw new ArenaError(`Invalid digest id: ${id}`);
+      try { return JSON.parse(await readFile(path.join(digestDir, `${id}.json`), "utf8")); }
+      catch (error) { if (error.code === "ENOENT") return null; throw error; }
+    },
+
+    async listDigests({ limit = 30 } = {}) {
+      let names = [];
+      try { names = await readdir(digestDir); } catch (error) { if (error.code !== "ENOENT") throw error; }
+      const digests = [];
+      for (const name of names.filter((entry) => /^dig_.+\.json$/.test(entry))) {
+        try { digests.push(JSON.parse(await readFile(path.join(digestDir, name), "utf8"))); } catch { /* Skip a file mid-write. */ }
+      }
+      return digests.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, limit);
+    },
+
+    async recordDigestDelivery(id, delivery) {
+      return withLock(async () => {
+        const file = path.join(digestDir, `${id}.json`);
+        const digest = JSON.parse(await readFile(file, "utf8"));
+        digest.delivery = { ...delivery, attempts: (digest.delivery?.attempts ?? 0) + 1 };
+        await writeFile(file, JSON.stringify(digest, null, 1), "utf8");
+        return digest;
+      });
+    },
   };
 }
 
 let defaultArena;
 export function getArena() {
-  defaultArena ??= createArena();
+  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions });
   return defaultArena;
+}
+
+// ---------------------------------------------------------------------------
+// End-of-day digest delivery
+// ---------------------------------------------------------------------------
+
+export function digestPayload(digest, format = "generic") {
+  if (format === "wecom") return { msgtype: "markdown", markdown: { content: digest.text.slice(0, 4000) } };
+  if (format === "feishu") return { msg_type: "text", content: { text: digest.text.slice(0, 30000) } };
+  return { type: "hrouter.arena.digest", version: 1, id: digest.id, title: digest.title, headline: digest.headline, text: digest.text, generatedAt: digest.at, paperTradingOnly: true, digest };
+}
+
+// POST the digest to the owner's webhook (generic JSON, or WeChat Work / Feishu bot shapes).
+export async function deliverDigest(digest, webhook, { fetchImpl = fetch, timeoutMs = 10000, now = () => new Date().toISOString() } = {}) {
+  if (!webhook?.url || webhook.enabled === false) return { status: "skipped", at: now() };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(webhook.url, {
+      method: "POST", headers: { "Content-Type": "application/json; charset=utf-8", "User-Agent": "hrouter-market-pulse-digest" },
+      body: JSON.stringify(digestPayload(digest, webhook.format)), signal: controller.signal,
+    });
+    return response.ok ? { status: "delivered", httpStatus: response.status, at: now() } : { status: "failed", httpStatus: response.status, error: `HTTP ${response.status}`, at: now() };
+  } catch (error) {
+    return { status: "failed", error: error.name === "AbortError" ? "timeout" : error.message, at: now() };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Background matcher
+// ---------------------------------------------------------------------------
+
+// Runs inside every MCP / dashboard process; the lease file elects one leader per arena dir. The
+// leader syncs accounts whose market is in a regular session every 1-2 minutes, and after each close
+// syncs once more (expiring day orders), writes the digest and posts it to the owner's webhook.
+export function createMatcher({
+  arena, intervalMs = MATCHER_DEFAULTS.intervalMs, jitterMs = MATCHER_DEFAULTS.jitterMs, leaseMs = MATCHER_DEFAULTS.leaseMs,
+  getPreferences = loadPreferences, fetchImpl = fetch, digestWindowMs = MATCHER_DEFAULTS.digestWindowMs, onError = () => {},
+} = {}) {
+  const ownerId = `${os.hostname()}:${process.pid}:${randomBytes(4).toString("hex")}`;
+  let timer = null;
+  let running = null;
+  let role = "idle";
+  let last = null;
+
+  async function deliver(digest, preferences) {
+    const webhook = preferences?.digestWebhook;
+    if (!webhook?.url || webhook.enabled === false) return digest;
+    const delivery = await deliverDigest(digest, webhook, { fetchImpl, now: arena.now });
+    return arena.recordDigestDelivery(digest.id, delivery);
+  }
+
+  async function runTick() {
+    const at = arena.now();
+    const lease = await arena.acquireMatcherLease(ownerId, leaseMs);
+    if (!lease.owner) {
+      role = "standby";
+      last = { at, role, leader: lease.lease?.ownerId ?? null };
+      return last;
+    }
+    role = "leader";
+    const result = { at, role, ownerId, synced: 0, fills: 0, exits: 0, events: 0, markets: {}, digests: [], deliveries: [], errors: [] };
+    const groups = await arena.activeByMarket();
+    let preferences = null;
+    const prefs = async () => (preferences ??= await getPreferences().catch(() => ({})));
+    for (const [market, group] of groups) {
+      const session = getMarketSession(market, at);
+      result.markets[market] = session.status;
+      try {
+        if (session.status === "open") {
+          const synced = await arena.sync(group.ids, { force: true });
+          result.synced += synced.synced;
+          result.events += synced.events.length;
+          result.fills += synced.events.filter((event) => event.type === "filled" || event.type === "partial").length;
+          result.exits += synced.events.filter((event) => event.type === "stop-loss" || event.type === "take-profit").length;
+          continue;
+        }
+        const closed = lastCompletedSession(market, at);
+        if (!closed || Date.parse(at) - Date.parse(closed.closeAt) > digestWindowMs || group.firstCreatedAt > closed.closeAt) continue;
+        if (await arena.getDigest(`dig_${closed.date}_${market}`)) continue;
+        await arena.sync(group.ids, { force: true });
+        const digest = await arena.generateDigest({ market, date: closed.date, trigger: "market-close", language: (await prefs()).language });
+        result.digests.push(digest.id);
+        const delivered = await deliver(digest, await prefs());
+        if (delivered.delivery) result.deliveries.push({ id: digest.id, status: delivered.delivery.status });
+      } catch (error) {
+        result.errors.push(`${market}: ${error.message}`);
+        onError(error);
+      }
+    }
+    // Retry failed webhook deliveries from the last day.
+    try {
+      const webhook = (await prefs()).digestWebhook;
+      if (webhook?.url && webhook.enabled !== false) {
+        for (const digest of await arena.listDigests({ limit: 10 })) {
+          if (result.digests.includes(digest.id) || digest.trigger === "manual" || Date.parse(at) - Date.parse(digest.at) > 86400000) continue;
+          if (digest.delivery?.status === "delivered" || (digest.delivery?.attempts ?? 0) >= MATCHER_DEFAULTS.webhookAttempts) continue;
+          if (digest.delivery && Date.parse(at) - Date.parse(digest.delivery.at) < 10 * 60000) continue;
+          const delivered = await deliver(digest, { digestWebhook: webhook });
+          result.deliveries.push({ id: digest.id, status: delivered.delivery?.status, retry: true });
+        }
+      }
+    } catch (error) { result.errors.push(`webhook: ${error.message}`); }
+    last = result;
+    const previous = await arena.matcherStatus().catch(() => ({}));
+    const hasWork = result.synced || result.digests.length;
+    await arena.writeMatcherStatus({
+      ownerId, pid: process.pid, host: os.hostname(), intervalMs, lastTickAt: at,
+      lastRunAt: hasWork ? at : previous.lastRunAt ?? null, lastResult: { ...result, events: result.events },
+      lastError: result.errors.at(-1) ?? null, lastErrorAt: result.errors.length ? at : previous.lastErrorAt ?? null,
+      nextTickAt: new Date(Date.parse(at) + intervalMs).toISOString(), markets: result.markets,
+      totals: { ticks: (previous.totals?.ticks ?? 0) + 1, fills: (previous.totals?.fills ?? 0) + result.fills, exits: (previous.totals?.exits ?? 0) + result.exits, digests: (previous.totals?.digests ?? 0) + result.digests.length },
+    });
+    return result;
+  }
+
+  // Ticks never overlap within one process; the lease prevents overlap across processes.
+  async function tick() {
+    if (running) return running;
+    running = runTick().catch((error) => { onError(error); last = { at: arena.now(), role, error: error.message }; return last; })
+      .finally(() => { running = null; });
+    return running;
+  }
+
+  function schedule(delay) {
+    timer = setTimeout(async () => {
+      await tick();
+      if (timer) schedule(intervalMs + Math.round((Math.random() * 2 - 1) * jitterMs));
+    }, delay);
+    timer.unref?.();
+  }
+
+  return {
+    ownerId,
+    tick,
+    start({ initialDelayMs = 5000 } = {}) { if (!timer) schedule(initialDelayMs); return this; },
+    async stop() {
+      const wasRunning = Boolean(timer);
+      clearTimeout(timer);
+      timer = null;
+      await running;
+      if (wasRunning || role === "leader") await arena.releaseMatcherLease(ownerId).catch(() => {});
+      role = "stopped";
+    },
+    status: () => ({ ownerId, role, last }),
+  };
 }
 
 // Identity of the MCP client so accounts can be attributed and protected.

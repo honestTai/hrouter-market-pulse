@@ -249,6 +249,15 @@ async function getYahooQuote(input, options = {}) {
   return parseYahooChart(input, payload, options);
 }
 
+/**
+ * Dividends and splits (incl. bonus-share issues, which Yahoo reports as splits) for paper-account
+ * corporate actions. Dates are local ex-dates; dividends are cash per share in the quote currency.
+ */
+export async function getCorporateActions(input, { range = "3mo", timeoutMs = 10000 } = {}) {
+  const quote = await getYahooQuote(input, { interval: "1d", range, timeoutMs });
+  return quote.corporateActions ?? [];
+}
+
 export function parseYahooChart(input, payload, options = {}) {
   const symbol = normalizeSymbol(input);
   const market = marketFromSymbol(symbol);
@@ -467,7 +476,12 @@ export function parseTencentQuote(payload, input) {
     changePct,
     dayHigh: finite(fields[33]),
     dayLow: finite(fields[34]),
+    open: finite(fields[5]),
     volume: finite(fields[6]),
+    // Tencent reports A-share volume in board lots of 100 shares; HK and US in shares.
+    volumeShares: finite(fields[6]) === null ? null : market === "A" ? finite(fields[6]) * 100 : finite(fields[6]),
+    // No opening print and no volume: Tencent's signature of a suspended (or not yet opened) security.
+    noTradesToday: finite(fields[5]) === 0 && finite(fields[6]) === 0,
     asOf: parseTencentTimestamp(fields[30], market),
     source: "Tencent Finance quote API",
     provider: "Tencent Finance",
@@ -980,6 +994,7 @@ export async function loadPreferences() {
     calendarOverrides: saved.calendarOverrides ?? {},
     monitorIntervalSeconds: Math.max(60, Math.min(3600, finite(saved.monitorIntervalSeconds) ?? 300)),
     managedAccountId: typeof saved.managedAccountId === "string" ? saved.managedAccountId : null,
+    digestWebhook: saved.digestWebhook && typeof saved.digestWebhook.url === "string" ? saved.digestWebhook : null,
     reportPort: getReportPort(),
     reportDirectory: getStorageDir(),
     officialWebsite: OFFICIAL_WEBSITE,
@@ -1142,9 +1157,27 @@ export function sanitizePreferences(input, current = {}) {
     monitorIntervalSeconds: input.monitorIntervalSeconds ?? current.monitorIntervalSeconds ?? 300,
     // Arena account whose agent manages the owner's portfolio (null = follow the most active account).
     managedAccountId: input.managedAccountId === undefined ? current.managedAccountId ?? null : input.managedAccountId,
+    // Optional end-of-day arena digest push: generic JSON POST, or WeChat Work / Feishu bot payloads.
+    digestWebhook: input.digestWebhook === undefined ? current.digestWebhook ?? null : sanitizeDigestWebhook(input.digestWebhook),
   };
   if (next.managedAccountId !== null && !/^acc_[a-f0-9]{12}$/.test(next.managedAccountId)) throw new Error("managedAccountId must be an arena account id or null.");
   return next;
+}
+
+function sanitizeDigestWebhook(input) {
+  if (input === null || input === "" || (isPlainObject(input) && !String(input.url ?? "").trim())) return null;
+  if (!isPlainObject(input)) throw new Error("digestWebhook must be an object with a url, or null.");
+  const url = String(input.url).trim();
+  let parsed;
+  try { parsed = new URL(url); } catch { throw new Error("digestWebhook.url must be a valid http(s) URL."); }
+  if (!["https:", "http:"].includes(parsed.protocol) || url.length > 2000) throw new Error("digestWebhook.url must be an http(s) URL up to 2000 characters.");
+  const format = input.format ?? "generic";
+  if (!["generic", "wecom", "feishu"].includes(format)) throw new Error("digestWebhook.format must be generic, wecom or feishu.");
+  return { url, format, enabled: input.enabled !== false };
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export async function savePreferences(input) {

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0 — production-ready unattended arena, scheduler and strategy runtime
+
+- Long-running arena service (`--service`) with `npm run service:install | status | uninstall | run`: macOS LaunchAgent (KeepAlive), Linux systemd user service, Windows logon task. Heartbeat status in the dashboard; restarts itself when the plugin bundle changes instead of blocking the updater.
+- Round scheduler: per-account, market-local run times on trading days only, 90-minute catch-up, one leader per arena dir, no overlapping runs, hard timeouts (process group kill), per-account run logs, unhealthy after repeated failures. Runners: Claude Code (`claude -p`, strict MCP config, only this plugin's tools allowed), Codex (`codex exec`, read-only sandbox, only this plugin's tools pre-approved, duplicate installed plugin disabled for the run), custom command templates, and in-process quant strategies.
+- Strategy runtime (`mcp/strategies`): ES-module contract with params, completed-bars-only history, target weights → lot-sized sell-then-buy orders, idempotent per run, automatic round reports; built-in `ma-trend` and `momentum-rotation` examples; owner strategies loaded from `<storage>/strategies/*.mjs`.
+- Broker layer (`mcp/brokers.mjs`): `paper` (the arena) and `advisory` (live markets: proposals pending human confirmation, never executed). No real-money execution adapter.
+- Dashboard: account Automation tab (runner, model, times, budget, timeout, strategy params, run now, run log) and service status chip.
+- Verified live on the US session: a scheduled strategy round and a fully autonomous headless Codex round (stock pool, orders with stops, report) through the service; LaunchAgent install, crash restart and uninstall on macOS.
+
+
 ## 1.3.0 — Agent Arena and multi-agent plugin
 
 - Add the Agent Arena: a local paper exchange where every agent (Codex, Claude Code, WorkBuddy or any MCP client) trades its own virtual A-share, HK or US account on real public quotes.

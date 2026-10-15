@@ -1,6 +1,8 @@
 import { getPaperService } from "./paper.mjs";
 import { registerArenaTools } from "./arena-tools.mjs";
 import { acquireRuntimeLease } from "./update-coordination.mjs";
+import { startServiceLoop } from "./service.mjs";
+import { fileURLToPath } from "node:url";
 import { startDashboard } from "./http.mjs";
 import {
   enrichReport,
@@ -72,6 +74,15 @@ function toolResult(data, summary) {
     ],
     structuredContent: data,
   };
+}
+
+// Webhook URLs usually embed a bot key (WeChat Work / Feishu); agents only need to know one is set.
+function maskSecrets(preferences) {
+  const webhook = preferences?.digestWebhook;
+  if (!webhook?.url) return preferences;
+  let host = "configured";
+  try { host = new URL(webhook.url).host; } catch { /* keep the placeholder */ }
+  return { ...preferences, digestWebhook: { format: webhook.format, enabled: webhook.enabled, host } };
 }
 
 function toolError(error) {
@@ -748,7 +759,7 @@ server.registerTool(
     try {
       const preferences = await loadPreferences();
       return toolResult(
-        { ...preferences, dashboardUrl: getReportUrl() },
+        { ...maskSecrets(preferences), dashboardUrl: getReportUrl() },
         "Hrouter Market Pulse 当前配置。API Key 不会返回。",
       );
     } catch (error) {
@@ -795,7 +806,7 @@ server.registerTool(
     try {
       const preferences = await savePreferences(input);
       return toolResult(
-        { ...preferences, dashboardUrl: getReportUrl() },
+        { ...maskSecrets(preferences), dashboardUrl: getReportUrl() },
         "偏好已保存。",
       );
     } catch (error) {
@@ -981,15 +992,38 @@ registerWorkspaceTool(
   resolvePredictionOutcomes,
 );
 
+// Service management from any install (marketplace installs ship only this bundle):
+//   node <plugin>/mcp/server.bundle.mjs --install-service | --uninstall-service | --service-status
+const serviceCommand = { "--install-service": "install", "--uninstall-service": "uninstall", "--service-status": "status" }[process.argv.find((arg) => ["--install-service", "--uninstall-service", "--service-status"].includes(arg))];
+if (serviceCommand) {
+  const { main: manageService } = await import("../scripts/arena-service.mjs");
+  await manageService([serviceCommand]);
+  process.exit(0);
+}
+
 const demo = process.argv.includes("--demo");
-const releaseUpdateLease = demo ? () => {} : await acquireRuntimeLease();
-const dashboard = startDashboard({ demo });
-await dashboard.ready;
-if (!demo && !process.argv.includes("--dashboard"))
-  await server.connect(new StdioServerTransport());
+const service = process.argv.includes("--service");
+const stdio = !demo && !service && !process.argv.includes("--dashboard");
+// Agent rounds launched by the scheduler attach a stdio server without a second dashboard.
+const headless = stdio && process.env.HROUTER_NO_DASHBOARD === "1";
+// The long-running service restarts itself on plugin updates instead of blocking the updater.
+const releaseUpdateLease = demo || service ? () => {} : await acquireRuntimeLease();
+const dashboard = headless ? null : startDashboard({ demo, scheduler: service });
+await dashboard?.ready;
+let serviceLoop = null;
+if (service) {
+  serviceLoop = startServiceLoop({
+    arena: await dashboard.arena, scheduler: await dashboard.scheduler, version: typeof __HROUTER_VERSION__ === "string" ? __HROUTER_VERSION__ : "development",
+    bundlePath: fileURLToPath(import.meta.url), port: dashboard.address()?.port, onExit: () => shutdown(),
+  });
+  console.error("Hrouter Market Pulse arena service running (matcher + scheduler).");
+}
+if (stdio) await server.connect(new StdioServerTransport());
 
 async function shutdown() {
-  dashboard.close();
+  serviceLoop?.stop();
+  await new Promise((resolve) => (dashboard ? dashboard.close(() => resolve()) : resolve()));
+  await (await dashboard?.scheduler)?.stop?.().catch?.(() => {});
   await server.close();
   releaseUpdateLease();
   process.exit(0);

@@ -27,6 +27,15 @@ The plugin uses the model of whichever agent runs it (**Codex, Claude Code, Work
 - Decision theses recorded before outcomes, followed by append-only reviews.
 - Agent Arena: one virtual A-share / HK / US account per agent, fills with T+1, price limits, board lots and fees, overlaid return curves, by-model and by-agent comparison, leaderboard and decision journals. [Guide](docs/AGENT_ARENA.md)
 
+## Run it for real: unattended agent / quant paper trading
+
+```bash
+npm ci && npm run build
+npm run service:install        # login service: in-session matching, exits, scheduled agent or strategy rounds, daily digest
+```
+
+Then set each account's Automation (Claude Code / Codex / quant strategy, trading-day run times) and risk policy at <http://127.0.0.1:8787/?view=arena>. See the [Agent Arena guide](docs/AGENT_ARENA.md) and [strategies & execution](docs/STRATEGIES.md). Live trading only has an advice-plus-manual-confirmation hook; no real orders are ever sent automatically.
+
 ## Install in Claude Code / WorkBuddy
 
 The same package ships a Claude-format manifest, which both Claude Code and WorkBuddy install directly:

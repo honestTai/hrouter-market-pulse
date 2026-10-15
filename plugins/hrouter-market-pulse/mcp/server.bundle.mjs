@@ -15348,13 +15348,14 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
           stale = Date.now() - owner.at > LOCK_STALE_MS || !processAlive(owner.pid);
         } catch {
           try {
-            stale = Date.now() - (await stat(lockDir)).mtimeMs > LOCK_STALE_MS;
+            stale = Date.now() - (await stat(lockDir)).mtimeMs > 5e3;
           } catch {
             stale = false;
           }
         }
         if (stale) {
-          await rm2(lockDir, { recursive: true, force: true });
+          await rm2(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {
+          });
           continue;
         }
         if (Date.now() - started > LOCK_WAIT_MS) throw new ArenaError("Arena is busy; another agent is writing. Retry shortly.", "busy", 503);
@@ -15364,7 +15365,8 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
     try {
       return await task();
     } finally {
-      await rm2(lockDir, { recursive: true, force: true });
+      await rm2(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {
+      });
     }
   }
   const accountPath = (id) => {

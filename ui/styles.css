@@ -663,3 +663,8 @@ h2,h3,p { overflow-wrap:break-word; }
 .event-kind { flex-shrink: 0; align-self: flex-start; }
 .managed-policy { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; }
 @media (max-width: 600px) { .digest-body { padding: 4px 14px 14px; } .digest-actions { width: 100%; } }
+
+/* Automation tab */
+.automation { padding: 18px 22px; display: grid; gap: 14px; }
+.automation-heading { margin: 8px 0 0; font-size: 14px; }
+.run-output { white-space: pre-wrap; max-height: 260px; overflow: auto; font-size: 12px; background: var(--hover); padding: 8px; border-radius: 8px; }

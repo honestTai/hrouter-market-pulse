@@ -1344,6 +1344,33 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       return groups;
     },
 
+    withLock,
+
+    // Generic single-leader lease per arena dir (matcher, scheduler, …): taken when absent, expired,
+    // held by a dead local process, or already ours.
+    async acquireLease(name, ownerId, leaseMs) {
+      if (!/^[a-z-]+$/.test(name)) throw new ArenaError(`Invalid lease name ${name}`);
+      const file = path.join(root, `${name}-lease.json`);
+      return withLock(async () => {
+        const at = now();
+        let lease = null;
+        try { lease = JSON.parse(await readFile(file, "utf8")); } catch { lease = null; }
+        const free = !lease || lease.ownerId === ownerId || Date.parse(lease.expiresAt) <= Date.parse(at)
+          || (lease.host === os.hostname() && !processAlive(lease.pid));
+        if (!free) return { owner: false, lease };
+        const next = { ownerId, pid: process.pid, host: os.hostname(), acquiredAt: lease?.ownerId === ownerId ? lease.acquiredAt : at, renewedAt: at, expiresAt: new Date(Date.parse(at) + leaseMs).toISOString() };
+        await writeFile(file, JSON.stringify(next, null, 1), "utf8");
+        return { owner: true, lease: next };
+      });
+    },
+
+    async releaseLease(name, ownerId) {
+      const file = path.join(root, `${name}-lease.json`);
+      return withLock(async () => {
+        try { const lease = JSON.parse(await readFile(file, "utf8")); if (lease.ownerId === ownerId) await rm(file, { force: true }); } catch { /* none */ }
+      });
+    },
+
     // One matcher per arena dir: the lease is taken when absent, expired, held by a dead local process, or already ours.
     async acquireMatcherLease(ownerId, leaseMs = MATCHER_DEFAULTS.leaseMs) {
       return withLock(async () => {

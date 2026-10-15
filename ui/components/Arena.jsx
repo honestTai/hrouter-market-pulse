@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Callout, Dialog, IconButton, SegmentedControl, Select, Table, Tabs, TextArea, TextField, Tooltip } from "@radix-ui/themes";
 import {
-  Activity, ArrowLeft, Bell, Bot, Check, ChevronRight, CircleAlert, ClipboardCopy, Cpu, Crown, FileText, FlaskConical, History, Layers,
+  Activity, ArrowLeft, Clock3, Bell, Bot, Check, ChevronRight, CircleAlert, ClipboardCopy, Cpu, Crown, FileText, FlaskConical, History, Layers,
   LineChart, ListChecks, Newspaper, NotebookPen, Plug, Plus, RefreshCw, ScrollText, Send, Settings2, ShieldAlert, Trophy, Users, Wallet, X,
 } from "lucide-react";
 import { createChart, ColorType, LineSeries, AreaSeries } from "lightweight-charts";
 import { useWorkspace } from "../context.jsx";
 import { api, isNumber } from "../data.mjs";
+import { roundPrompt } from "../../mcp/prompts.mjs";
+export { roundPrompt };
 import { Empty, ErrorNotice, SectionHeading } from "./Primitives.jsx";
+import { AutomationPanel, ServiceChip } from "./Automation.jsx";
 
 // Distinct, colour-blind-friendly series colours for overlaying many agents.
 const SERIES = ["#2563eb", "#e8590c", "#0d9488", "#9333ea", "#ca8a04", "#db2777", "#4b5563", "#16a34a", "#0891b2", "#b45309"];
@@ -374,20 +377,6 @@ function CreateAccountDialog({ market, competition, onClose, onCreated }) {
   </Dialog.Root>;
 }
 
-export function roundPrompt({ account, market, language }) {
-  const id = account?.id;
-  const marketName = { A: language === "en" ? "China A-share" : "A 股", HK: language === "en" ? "Hong Kong" : "港股", US: language === "en" ? "US" : "美股" }[account?.market ?? market] ?? "A 股";
-  if (language === "en") return `Use the hrouter-agent-arena skill. You fully manage my ${marketName} paper portfolio; I will not approve anything, I only read your reports.
-${id ? `My arena account is ${id}; trade only this account.` : "Call arena_my_accounts first; if you have no account, register one with arena_register_account using your real model id."}
-1. Choose your own stock pool and save it with arena_set_watchlist.
-2. Review the account and session, research with get_quote / get_news, then trade with concrete reasons — or log a no-trade decision.
-3. End every round with arena_publish_report: headline, conclusion, actions, picks, risks and next steps. Do not ask me questions.`;
-  return `使用 hrouter-agent-arena 技能，全权托管我的${marketName}模拟组合：选股、交易、持仓都由你决定，不需要征求我的确认，我只看你的报告。
-${id ? `我的竞技场账户是 ${id}，只操作这个账户。` : "先调用 arena_my_accounts；如果没有账户，就用你真实的模型名调用 arena_register_account 开户。"}
-1. 自己选股，用 arena_set_watchlist 保存股票池。
-2. 查看账户与开盘状态，用 get_quote / get_news 做研究，按策略下单并写明理由；不满足条件就记录 no-trade 决策。
-3. 每轮结束必须调用 arena_publish_report 发布报告：标题、结论、操作、看好标的、风险和下一步。不要向我提问。`;
-}
 
 export function ConnectDialog({ account, market, onClose }) {
   const { t, language } = useWorkspace();
@@ -599,6 +588,7 @@ function AccountDetail({ id, onBack, onChanged }) {
           <Tabs.Trigger value="reports"><FileText size={14} />{t("报告", "Reports")} <span className="tab-count">{m.reportsPublished ?? 0}</span></Tabs.Trigger>
           <Tabs.Trigger value="journal"><NotebookPen size={14} />{t("决策日志", "Journal")} <span className="tab-count">{m.decisionsLogged}</span></Tabs.Trigger>
           <Tabs.Trigger value="strategy"><History size={14} />{t("策略版本", "Strategy")} <span className="tab-count">v{account.strategy.version}</span></Tabs.Trigger>
+          <Tabs.Trigger value="automation"><Clock3 size={14} />{t("自动运行", "Automation")}</Tabs.Trigger>
           <Tabs.Trigger value="settings"><Settings2 size={14} />{t("设置", "Settings")}</Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="positions">{account.positions.length ? <div className="table-scroll"><Table.Root size="2">
@@ -621,6 +611,7 @@ function AccountDetail({ id, onBack, onChanged }) {
           {m.byStrategyVersion.length > 0 && <div className="table-scroll"><Table.Root size="1"><Table.Header><Table.Row><Table.ColumnHeaderCell>{t("版本", "Version")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("成交", "Fills")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("平仓胜率", "Win rate")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("已实现盈亏", "Realized P&L")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("费用", "Fees")}</Table.ColumnHeaderCell></Table.Row></Table.Header><Table.Body>{m.byStrategyVersion.map((row) => <Table.Row key={row.version}><Table.Cell>v{row.version}</Table.Cell><Table.Cell align="right">{row.trades}</Table.Cell><Table.Cell align="right">{isNumber(row.winRatePct) ? `${row.winRatePct}%` : "—"}</Table.Cell><Table.Cell align="right"><Signed value={row.realizedPnl} suffix="" /></Table.Cell><Table.Cell align="right">{number(row.fees)}</Table.Cell></Table.Row>)}</Table.Body></Table.Root></div>}
           <ol className="journal-timeline">{[...(account.strategyHistory ?? [])].reverse().map((entry) => <li key={entry.version}><span className="journal-kind">v{entry.version}</span><div><p>{entry.note && entry.note !== "initial" ? <strong>{entry.note}</strong> : <strong>{t("初始策略", "Initial strategy")}</strong>}</p><p className="muted">{entry.summary}</p><small className="muted">{date(entry.at)}</small></div></li>)}</ol>
         </div></Tabs.Content>
+        <Tabs.Content value="automation"><AutomationPanel account={account} /></Tabs.Content>
         <Tabs.Content value="settings"><AccountSettings account={account} onSaved={(next) => { setAccount(next); onChanged(); }} /></Tabs.Content>
       </Tabs.Root>
       <div className="panel-foot">{t("成交按公开行情 + 滑点 + 交易所费率估算，与券商实际撮合会有差异。", "Fills are estimated from public quotes plus slippage and fee presets; real broker execution differs.")} {account.settings.slippageBps} bps · {account.settings.feeModel}{account.demo ? ` · ${t("演示数据", "demo data")}` : ""}</div>
@@ -701,6 +692,7 @@ export function ArenaPage() {
       <label className="checkbox-label muted small"><input type="checkbox" checked={archived} onChange={(event) => setArchived(event.target.checked)} />{t("含已归档", "Include archived")}</label>
       <span className="spacer" />
       <MatcherChip matcher={board?.matcher} />
+      <ServiceChip service={board?.service} />
       <Tooltip content={t("用最新行情撮合挂单并更新净值", "Match resting orders and mark positions with the latest quotes")}><Button variant="soft" color="gray" onClick={sync} loading={syncing}><RefreshCw size={15} />{t("同步行情", "Sync quotes")}</Button></Tooltip>
       <Button variant="soft" onClick={() => setDialog("create")}><Plus size={15} />{t("新建账户", "New account")}</Button>
       <Button onClick={() => setDialog("connect")}><Plug size={15} />{t("接入 Agent", "Connect agent")}</Button>

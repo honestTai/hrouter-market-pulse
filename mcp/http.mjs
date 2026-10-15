@@ -1,6 +1,9 @@
 import { getPaperService } from "./paper.mjs";
 import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
 import { createDemoArena } from "./arena-demo.mjs";
+import { createScheduler } from "./scheduler.mjs";
+import { readServiceStatus } from "./service.mjs";
+import { describeStrategy, loadStrategies } from "./strategies/index.mjs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -77,7 +80,7 @@ async function bodyJson(request) {
   return body;
 }
 
-export function startDashboard({ port = getReportPort(), demo = false, matcher: runMatcher = true } = {}) {
+export function startDashboard({ port = getReportPort(), demo = false, matcher: runMatcher = true, scheduler: runScheduler = false } = {}) {
   let demoReport = demo ? makeDemoReport() : null;
   let preferences = demo ? structuredClone(demoPreferences) : null;
   let decisions = demo ? structuredClone(demoDecisions) : null;
@@ -91,6 +94,11 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
     onError: (error) => console.error(`Arena matcher: ${error.message}`),
   }).start()).catch(() => null) : Promise.resolve(null);
   const matcherStatus = async (arena) => ({ ...(await arena.matcherStatus()), local: (await matcherReady)?.status() ?? null });
+  // Schedules are files, so any dashboard can edit them; only the service (runScheduler) runs them on time.
+  const schedulerReady = arenaReady.then((arena) => {
+    const scheduler = createScheduler({ arena, onError: (error) => console.error(`Arena scheduler: ${error.message}`) });
+    return runScheduler && !demo ? scheduler.start() : scheduler;
+  });
   let refreshedAt = 0;
   const server = createServer(async (request, response) => {
     try {
@@ -109,9 +117,20 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             market: url.searchParams.get("market") || undefined,
             competition: url.searchParams.get("competition") || undefined,
             includeArchived: url.searchParams.get("archived") === "1",
-          })), matcher: await matcherStatus(arena) });
+          })), matcher: await matcherStatus(arena), service: demo ? { state: "demo" } : await readServiceStatus(arena.root) });
         }
         if (url.pathname === "/api/arena/matcher") return respond(response, 200, await matcherStatus(await arenaReady));
+        if (url.pathname === "/api/arena/schedules") {
+          const arena = await arenaReady;
+          const scheduler = await schedulerReady;
+          const { strategies, errors, dir } = await loadStrategies();
+          return respond(response, 200, {
+            demo, jobs: await scheduler.listJobs(), strategies: [...strategies.values()].map(describeStrategy), strategyErrors: errors, strategyDir: dir,
+            service: demo ? { state: "demo" } : await readServiceStatus(arena.root), scheduler: scheduler.status(),
+          });
+        }
+        const runs = url.pathname.match(/^\/api\/arena\/runs\/(acc_[a-f0-9]{12})$/);
+        if (runs) return respond(response, 200, { runs: await (await schedulerReady).listRuns({ accountId: runs[1], limit: 50 }) });
         if (url.pathname === "/api/arena/digests") {
           const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
           const webhook = (await readPreferences())?.digestWebhook ?? null;
@@ -227,6 +246,18 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
               digest = await arena.recordDigestDelivery(digest.id, await deliverDigest(digest, { ...prefs.digestWebhook, enabled: true }, { now: arena.now }));
             }
             return respond(response, 201, digest);
+          }
+          const schedule = url.pathname.match(/^\/api\/arena\/schedules\/(acc_[a-f0-9]{12})(\/delete|\/run)?$/);
+          if (schedule) {
+            const scheduler = await schedulerReady;
+            if (schedule[2] === "/delete") return respond(response, 200, await scheduler.deleteJob(schedule[1]));
+            if (schedule[2] === "/run") {
+              if (demo) return respond(response, 409, { error: "演示模式不运行 Agent 或策略 / Demo mode does not run agents or strategies." });
+              const started = await scheduler.runNow(schedule[1]);
+              started.wait?.().catch((error) => console.error(`Arena run: ${error.message}`));
+              return respond(response, 202, { status: started.status, reason: started.reason ?? null });
+            }
+            return respond(response, 200, await scheduler.upsertJob(schedule[1], body));
           }
           const update = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})(\/delete)?$/);
           if (update) return respond(response, 200, update[2] ? await arena.deleteAccount(update[1]) : await arena.updateAccount(update[1], body));
@@ -375,7 +406,12 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
       );
     }
   });
-  server.on("close", () => { matcherReady.then((matcher) => matcher?.stop()).catch(() => {}); });
+  server.on("close", () => {
+    matcherReady.then((matcher) => matcher?.stop()).catch(() => {});
+    schedulerReady.then((scheduler) => scheduler?.stop()).catch(() => {});
+  });
+  server.arena = arenaReady;
+  server.scheduler = schedulerReady;
   server.requestTimeout = 30000;
   server.headersTimeout = 10000;
   server.ready = new Promise((resolve, reject) => {

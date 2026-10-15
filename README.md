@@ -36,6 +36,15 @@ Researchers who want verifiable data and AI-assisted workflows for mainland Chin
 | 决策复盘 | 保存原始判断和当时证据，追加结果回顾；预测先记录，结果后核对 |
 | Agent 竞技场 | 每个 Agent 独立的 A/港/美股虚拟账户；按 T+1、涨跌停、每手股数、交易费用撮合；收益曲线叠加、按模型/按 Agent 对比、排行榜与决策日志。[说明](docs/AGENT_ARENA.md) |
 
+## 正式运行：Agent / 量化策略全自动模拟盘
+
+```bash
+npm ci && npm run build
+npm run service:install        # 开机自启：盘中撮合、止损止盈、定时调起 Agent 或策略、收盘日报
+```
+
+然后在 <http://127.0.0.1:8787/?view=arena> 为每个账户设置「自动运行」（Claude Code / Codex / 量化策略，交易日运行时间）和风控即可。详见 [Agent 竞技场](docs/AGENT_ARENA.md) 与 [量化策略与执行接口](docs/STRATEGIES.md)。实盘只预留了"建议单 + 人工确认"接口，不会自动下真实订单。
+
 ## 安装到 Claude Code / WorkBuddy
 
 同一个插件包同时提供 Claude 格式清单，Claude Code 与 WorkBuddy 都可以直接安装：

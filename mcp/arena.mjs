@@ -585,14 +585,19 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           stale = Date.now() - owner.at > LOCK_STALE_MS || !processAlive(owner.pid);
         } catch {
           // Owner file not written yet, or a crashed writer: rely on the directory age.
-          try { stale = Date.now() - (await stat(lockDir)).mtimeMs > LOCK_STALE_MS; } catch { stale = false; }
+          // The owner file is written right after mkdir, so a lock dir without one for a few seconds
+          // is a leftover from an interrupted release, not a live holder.
+          try { stale = Date.now() - (await stat(lockDir)).mtimeMs > 5000; } catch { stale = false; }
         }
-        if (stale) { await rm(lockDir, { recursive: true, force: true }); continue; }
+        if (stale) { await rm(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {}); continue; }
         if (Date.now() - started > LOCK_WAIT_MS) throw new ArenaError("Arena is busy; another agent is writing. Retry shortly.", "busy", 503);
         await new Promise((resolve) => setTimeout(resolve, 20 + Math.random() * 40));
       }
     }
-    try { return await task(); } finally { await rm(lockDir, { recursive: true, force: true }); }
+    // Windows defers deleting a file another process is reading, so releasing can briefly fail with
+    // ENOTEMPTY / EBUSY. Retry; if it still fails, the finished task stands and the leftover lock is
+    // reclaimed as stale instead of turning a successful write into an error.
+    try { return await task(); } finally { await rm(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {}); }
   }
 
   const accountPath = (id) => {

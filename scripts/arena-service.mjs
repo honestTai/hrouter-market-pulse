@@ -42,7 +42,7 @@ function storageDir(home = os.homedir()) {
 
 // Environment the service needs: PATH so agent CLIs (claude, codex) resolve, plus proxy / data settings.
 export function serviceEnvironment(env = process.env) {
-  const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA"];
+  const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA", "CODEBUDDY_API_KEY"];
   const selected = Object.fromEntries(keep.filter((key) => env[key]).map((key) => [key, env[key]]));
   selected.HROUTER_REPORT_PORT = env.HROUTER_ARENA_PORT || "8780";
   return selected;

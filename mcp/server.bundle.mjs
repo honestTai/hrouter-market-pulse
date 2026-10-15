@@ -7233,7 +7233,7 @@ function storageDir(home = os7.homedir()) {
   return path12.join(base, "HrouterMarketPulse");
 }
 function serviceEnvironment(env = process.env) {
-  const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA"];
+  const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA", "CODEBUDDY_API_KEY"];
   const selected = Object.fromEntries(keep.filter((key) => env[key]).map((key) => [key, env[key]]));
   selected.HROUTER_REPORT_PORT = env.HROUTER_ARENA_PORT || "8780";
   return selected;
@@ -15348,13 +15348,14 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
           stale = Date.now() - owner.at > LOCK_STALE_MS || !processAlive(owner.pid);
         } catch {
           try {
-            stale = Date.now() - (await stat(lockDir)).mtimeMs > LOCK_STALE_MS;
+            stale = Date.now() - (await stat(lockDir)).mtimeMs > 5e3;
           } catch {
             stale = false;
           }
         }
         if (stale) {
-          await rm2(lockDir, { recursive: true, force: true });
+          await rm2(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {
+          });
           continue;
         }
         if (Date.now() - started > LOCK_WAIT_MS) throw new ArenaError("Arena is busy; another agent is writing. Retry shortly.", "busy", 503);
@@ -15364,7 +15365,8 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
     try {
       return await task();
     } finally {
-      await rm2(lockDir, { recursive: true, force: true });
+      await rm2(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {
+      });
     }
   }
   const accountPath = (id) => {

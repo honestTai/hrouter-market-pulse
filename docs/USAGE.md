@@ -33,7 +33,7 @@ Risk calculations require your capital, account currency, maximum loss per idea,
 
 ## Tools
 
-The seven skills cover setup, premarket, intraday, postmarket, stock analysis, portfolio planning, and strategy validation. The MCP tools include:
+The nine skills cover setup, premarket, intraday, postmarket, stock analysis, portfolio planning, strategy validation, fundamental research, and autonomous paper trading. The MCP tools include:
 
 | Area | Tools |
 | --- | --- |
@@ -42,12 +42,17 @@ The seven skills cover setup, premarket, intraday, postmarket, stock analysis, p
 | Research and risk | `screen_watchlist`, `calculate_position_budget`, `run_strategy`, `run_backtest` |
 | Evidence | `get_foundation_capabilities`, `register_data_provider`, `ingest_evidence`, `query_evidence`, `sync_official_evidence`, `ingest_official_records` |
 | Models | `run_prediction_model`, `evaluate_prediction_calibration`, `monitor_feature_drift`, `query_prediction_ledger`, `resolve_prediction_outcomes` |
+| Fundamental research | `build_earnings_review`, `query_catalyst_calendar`, `append_thesis_review`, `query_thesis_scorecard` |
+| Actual paper trading | `get_paper_trading_status`, `list_paper_accounts`, `refresh_paper_account`, `evaluate_paper_order`, `submit_paper_order`, `cancel_paper_order` |
 | Decisions | `record_decision`, `query_decisions`, `review_decision` |
 
 ## Environment
 
 | Variable | Meaning |
 | --- | --- |
+| `HROUTER_FUTU_ENABLED` | Explicit opt-in (`1`) to the local Futu simulation bridge; REAL is always disabled |
+| `HROUTER_FUTU_PYTHON` | Absolute path to Python in the optional SDK venv |
+| `HROUTER_FUTU_PORT` | Loopback OpenD port, default 11111 |
 | `HROUTER_REPORT_PORT` | Local HTTP port, default 8787 |
 | `HROUTER_REPORT_DIR` | Override the local data directory |
 | `HROUTER_WATCHLIST` | Optional comma-separated symbols; overrides saved watchlist |
@@ -71,3 +76,19 @@ The dashboard is local-only. A static copied HTML report requires its assets and
 ## 插件升级 / Plugin upgrades
 
 For opt-in background upgrades, migration from older installations, disabling, rollback, and publisher release instructions, see [AUTO_UPDATE.md](AUTO_UPDATE.md). Quote refresh controls in the dashboard refresh market data, not installed application code.
+
+## Fundamental research / 基本面研究
+
+See [财报变化、投资逻辑卡与事件日历](RESEARCH_WORKFLOWS.md) for workflows, source contracts, limitations and examples. New tools consume sourced evidence; they neither subscribe to commercial datasets nor authorize trades.
+
+## React workspace / React 面板
+
+左侧导航切换市场、持仓、证据事件与研究记录；窄屏使用顶部菜单。顶栏切换中英文、深浅色，设置弹窗管理自选、持仓与涨跌配色。保存设置后点击“更新行情”加载新增自选；自动更新默认关闭，仅在页面可见时轮询，不创建后台定时任务。
+
+持仓按 CNY/HKD/USD 分币种汇总，缺失价格或币种不匹配时不估值。证据保留来源、发布时间与可得时间；预计事件明确标注。新建研究记录可添加可证伪论据，复盘只追加，不改写原始判断，也不绕过候选准入门槛。
+
+演示模式全部为合成样本，仅在当前服务进程内存中保存修改。开发入口和验证方法见 [REACT_DASHBOARD.md](REACT_DASHBOARD.md)。
+
+## Actual paper trading / 真实模拟盘
+
+See [PAPER_TRADING.md](PAPER_TRADING.md). Authorize a bounded experiment in the Paper trading menu, then the agent can independently use paper execution tools without per-order confirmation. This is neither synthetic demo mode nor permission to trade real funds.

@@ -21,3 +21,5 @@ Ground the answer in Hrouter Market Pulse tools.
 11. A failed Yahoo or Tencent request is a source outage, not a reason to stop the report. Continue with the tool-selected usable source and available history. Mark `fallback` / `unavailable` cross-checks as single-source, not confirmed agreement. Do not override `signalEligible` merely because a second source is unavailable. Missing intraday bars or historical corporate actions restrict only the calculations that require them; preserve model validation gates.
 
 The plugin never calls a second model. Codex supplies the reasoning layer while MCP tools keep market data and calculations deterministic.
+
+For explicit financial-result comparisons, use `build_earnings_review` with sourced evidence IDs rather than mental arithmetic or guessed consensus. Use `query_thesis_scorecard` for saved pillar reviews and `query_catalyst_calendar` for announced events. The `hrouter-fundamental-research` skill documents their input contracts; these outputs are research-only and never override the action-state gates above.

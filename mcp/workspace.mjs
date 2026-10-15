@@ -16,6 +16,8 @@ import {
   queryPredictionLedger,
 } from "./foundation.mjs";
 
+import { normalizeThesisPillars, buildThesisScorecard, projectCatalystCalendar, researchAsOf } from "./research.mjs";
+
 let journalQueue = Promise.resolve();
 const cache = new Map();
 const benchmarkDefaults = { A: "000001.SS", HK: "^HSI", US: "^GSPC" };
@@ -52,7 +54,11 @@ export async function listDecisions({ symbol, limit = 200 } = {}) {
     decisions: items
       .filter((item) => !normalized || item.symbol === normalized)
       .slice(-Math.min(500, limit))
-      .reverse(),
+      .reverse()
+      .map((item) => {
+        const scorecard = buildThesisScorecard(item);
+        return scorecard.pillars.length ? { ...item, scorecard } : item;
+      }),
   };
 }
 
@@ -65,6 +71,7 @@ export async function recordDecision(input) {
     throw new Error("Invalid decision state");
   const thesis = cleanText(input.thesis);
   if (!thesis) throw new Error("A decision thesis is required");
+  const pillars = normalizeThesisPillars(input.pillars);
   const evidenceIds = [...new Set(input.evidenceIds ?? [])];
   const evidence = await queryEvidence({ symbols: [symbol], limit: 500 });
   if (evidenceIds.some((id) => !evidence.items.some((item) => item.id === id)))
@@ -127,6 +134,7 @@ export async function recordDecision(input) {
     symbol,
     state,
     thesis,
+    ...(pillars.length ? { pillars } : {}),
     entryCondition: cleanText(input.entryCondition),
     invalidationCondition: cleanText(input.invalidationCondition),
     horizon: cleanText(input.horizon, 160),
@@ -187,6 +195,60 @@ export async function reviewDecision(id, input) {
   });
   journalQueue = task.catch(() => {});
   return task;
+}
+
+export async function appendThesisReview(input) {
+  if (!Array.isArray(input.updates) || !input.updates.length || input.updates.length > 12)
+    throw new Error("Provide 1-12 pillar updates");
+  // Use the same queue as outcome reviews, so concurrent writes cannot lose each other.
+  const task = journalQueue.then(async () => {
+    const records = await readStore("decisions.json");
+    const record = records.find((item) => item.id === input.decisionId);
+    if (!record) throw new Error("Decision not found");
+    const existing = buildThesisScorecard(record).pillars;
+    if (existing.length && input.pillars !== undefined)
+      throw new Error("Original pillars cannot be replaced; create a new decision for a changed thesis");
+    const pillars = existing.length ? existing : normalizeThesisPillars(input.pillars);
+    if (!pillars.length) throw new Error("Define pillars on the decision or first thesis review");
+    const reviewedAt = new Date().toISOString();
+    const evidenceIds = [...new Set(input.updates.flatMap((u) => u.evidenceIds ?? []))];
+    if (evidenceIds.length > 100) throw new Error("Use at most 100 evidence IDs per review");
+    const evidence = await queryEvidence({ ids: evidenceIds, symbols: [record.symbol], asOf: reviewedAt, limit: 500 });
+    const byId = new Map(evidence.items.map((e) => [e.id, e]));
+    const seen = new Set();
+    const updates = input.updates.map((u) => {
+      if (!pillars.some((p) => p.id === u.pillarId) || seen.has(u.pillarId))
+        throw new Error("Unknown or duplicate pillarId");
+      seen.add(u.pillarId);
+      if (!["supported", "weakened", "invalidated", "inconclusive"].includes(u.status))
+        throw new Error("Invalid pillar assessment status");
+      const ids = [...new Set(u.evidenceIds ?? [])];
+      if (!ids.length || ids.some((id) => !byId.has(id)))
+        throw new Error("Every assessment requires existing, available evidence for the decision symbol");
+      if (typeof u.rationale !== "string" || !u.rationale.trim() || u.rationale.length > 2000)
+        throw new Error("Each assessment requires a rationale of 1-2000 characters");
+      return { pillarId: u.pillarId, status: u.status, rationale: u.rationale.trim(), evidenceIds: ids,
+        evidence: ids.map((id) => {
+          const e = byId.get(id);
+          return { evidenceId: id, sourceUrl: e.sourceUrl, publishedAt: e.publishedAt, availableAt: e.availableAt };
+        }) };
+    });
+    const review = { id: `thesis_review_${randomUUID()}`, reviewedAt, type: "thesis-assessment",
+      source: "research-assessment", notes: cleanText(input.notes), pillarUpdates: updates,
+      ...(!existing.length ? { pillars } : {}) };
+    record.reviews.push(review);
+    await writeStore("decisions.json", records);
+    return { review, scorecard: buildThesisScorecard(record), stateUnchanged: record.state };
+  });
+  journalQueue = task.catch(() => {});
+  return task;
+}
+
+export async function queryThesisScorecard({ decisionId, asOf: requestedAsOf } = {}) {
+  const asOf = researchAsOf(requestedAsOf);
+  const record = (await readStore("decisions.json")).find((r) => r.id === decisionId);
+  if (!record || Date.parse(record.createdAt) > Date.parse(asOf)) throw new Error("Decision not available at asOf");
+  return buildThesisScorecard(record, asOf);
 }
 
 export function deriveMarketContext(items, benchmarks = [], sectorMap = {}) {
@@ -330,22 +392,8 @@ export async function getResearchContext(items, preferences = {}) {
   return deriveMarketContext(items, benchmarks, preferences.sectorMap);
 }
 
-export function eventsFromEvidence(items) {
-  return items
-    .filter((item) => item.payload?.eventType && item.payload?.scheduledAt)
-    .map((item) => ({
-      id: item.id,
-      symbol: item.entity.symbol,
-      title: item.title,
-      eventType: item.payload.eventType,
-      scheduledAt: item.payload.scheduledAt,
-      effectiveAt: item.payload.scheduledAt,
-      availableAt: item.availableAt,
-      sourceUrl: item.sourceUrl,
-      sourceTier: item.sourceTier,
-      evidenceIds: [item.id],
-    }))
-    .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt));
+export function eventsFromEvidence(items, options = {}) {
+  return projectCatalystCalendar(items, options).events;
 }
 
 export async function enrichReport(report) {
@@ -386,7 +434,11 @@ export async function enrichReport(report) {
       evidenceId: item.id,
     }));
   report.evidence = evidence.items;
-  report.events = eventsFromEvidence(evidence.items);
+  const calendar = projectCatalystCalendar(evidence.items);
+  report.events = calendar.events;
+  report.eventWarnings = calendar.warnings;
+  if (evidence.totalMatched > evidence.returned)
+    report.eventWarnings.push("Evidence scan truncated; calendar may omit events or revisions.");
   report.decisions = (await listDecisions()).decisions;
   for (const item of report.items) {
     item.evidence = evidence.items.filter(
@@ -578,6 +630,8 @@ export function secFinancialRecords(symbol, cik, payload) {
           payload: {
             publicationTimePrecision: "date",
             metric: tag,
+            valueType: "actual",
+            accountingBasis: "us-gaap",
             value: row.val,
             unit,
             periodStart: row.start ?? null,

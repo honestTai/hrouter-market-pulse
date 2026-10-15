@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.3.0 — Agent Arena and multi-agent plugin
+
+- Add the Agent Arena: a local paper exchange where every agent (Codex, Claude Code, WorkBuddy or any MCP client) trades its own virtual A-share, HK or US account on real public quotes.
+- Enforce board lots (A-share 100 / STAR 200, HK lots from quotes, US 1 share), A-share T+1 and daily price limits, exchange tick sizes, regular sessions, slippage and retail fee schedules; long-only, cash-only.
+- Resting limit orders with cash reservation, day/GTC expiry and fills on later syncs; idempotent client order ids; accounts bound to their MCP client (or `HROUTER_AGENT_ID`); cross-process locking so concurrent agents never lose writes.
+- Eight `arena_*` MCP tools, server instructions and the portable `hrouter-agent-arena` skill. Metrics: total/today/annualized return, benchmark excess return, max drawdown, volatility, Sharpe, win rate, profit factor, fees, turnover, rejections, journal activity and per-strategy-version attribution, with small-sample warnings.
+- Dashboard: new Agent Arena page with overlaid return curves, by-model / by-agent comparison, leaderboard, account detail (positions, orders, fills, decision journal, strategy versions, settings), account creation and an agent connection guide with copyable round prompts. Labelled synthetic arena in `--demo`.
+- Ship Claude Code / WorkBuddy manifests (`.claude-plugin`, portable `.mcp.json` with `${CLAUDE_PLUGIN_ROOT}`) alongside the Codex manifest, a root Claude marketplace, and `npm run connect` for other MCP hosts. Codex now reads `.codex-plugin/mcp.json`; the updater patches both.
+- Hands-off autopilot: agents keep their own stock pool (`arena_set_watchlist`, mirrored into the dashboard watchlist for the managed account) and publish a structured report every round (`arena_publish_report`). "My portfolio" now shows the agent-managed account — latest conclusion, holdings with buy reasons, recent trades, stock pool, equity and report history — and market-page holdings follow it. Choose the managed account with the `managedAccountId` preference (defaults to the most active account).
+- Refresh the workspace shell: readable type scale (11px minimum, 14px body), light sidebar with Research / Paper trading groups, sticky top bar.
+- Resolve the same data directory on Windows even when a host does not forward `LOCALAPPDATA`, so all agents share one arena.
+
+## Unreleased (folded into 1.3.0) — React workspace and evidence-backed fundamental research
+
+- Add an optional official Futu OpenD Python bridge and a React Paper trading page for actual HK/US SIMULATE accounts; no synthetic trading fallback or REAL path.
+- Add six MCP tools for account discovery, bounded autonomous paper execution, cancellations, broker reconciliation and traceable strategy/quote records.
+- Require UI-authorized strategies/limits; enforce durable idempotency, cash-only/long-only constraints, real quote freshness and unknown-response stops. No implicit scheduler or claimed paper performance.
+- Add isolated SDK setup, offline broker contract tests and integration documentation.
+- Replace the imperative dashboard with React 19, Radix Themes and Lucide React; locally bundle all scripts/styles with esbuild.
+- Add a responsive research workspace with light/dark themes, bilingual navigation, independent market/holdings/evidence/journal pages and accessible editors.
+- Retain real OHLC charting, freshness/quality gates and append-only records; keep currencies separate and unknown values missing.
+- Add React rendering, presentation-contract and demo HTTP integration tests; make demo refresh respect saved watchlists and positions.
+
+- Add deterministic financial evidence comparisons with period, accounting-basis, unit, scale and pre-disclosure estimate checks. Missing consensus is never replaced by guidance.
+- Add falsifiable thesis pillars, append-only evidence-backed assessments and point-in-time scorecards without changing decision states or weakening candidate gates.
+- Add sourced event-calendar queries with stable revision identity, cancellations, conflict flags and explicit evidence-coverage warnings; enhance dashboard event and thesis cards.
+- Add the fundamental-research workflow skill, integration documentation and upstream workflow attribution/license. No commercial connectors or subscriptions are enabled.
+
 ## 1.2.1 - automatic market data failover
 
 - Continue quote analysis, strategy selection and price alerts with a usable Yahoo or Tencent source when the other is unavailable; retain single-source warnings and block genuine cross-source conflicts.

@@ -1,3 +1,6 @@
+import { getPaperService } from "./paper.mjs";
+import { getArena } from "./arena.mjs";
+import { createDemoArena } from "./arena-demo.mjs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -22,10 +25,12 @@ import {
 } from "./workspace.mjs";
 import { makeDemoReport, demoPreferences, demoDecisions } from "./demo.mjs";
 import { queryEvidence } from "./foundation.mjs";
+import { buildThesisScorecard, projectCatalystCalendar } from "./research.mjs";
 
 const assets = new Map([
   ["/assets/dashboard.js", ["dashboard.js", "text/javascript; charset=utf-8"]],
   ["/assets/dashboard.css", ["dashboard.css", "text/css; charset=utf-8"]],
+  ["/assets/dashboard.js.LEGAL.txt", ["dashboard.js.LEGAL.txt", "text/plain; charset=utf-8"]],
   [
     "/assets/vendor/lightweight-charts.js",
     ["vendor/lightweight-charts.js", "text/javascript; charset=utf-8"],
@@ -77,6 +82,8 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
   let preferences = demo ? structuredClone(demoPreferences) : null;
   let decisions = demo ? structuredClone(demoDecisions) : null;
   let refreshPromise = null;
+  const arenaReady = demo ? createDemoArena() : Promise.resolve(getArena());
+  const dashboardCaller = { client: "dashboard" };
   let refreshedAt = 0;
   const server = createServer(async (request, response) => {
     try {
@@ -89,24 +96,37 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
         return respond(response, 403, { error: "Cross-origin access denied" });
       const url = new URL(request.url, "http://127.0.0.1");
       if (request.method === "GET") {
-        if (url.pathname === "/api/evidence")
-          return respond(
-            response,
-            200,
-            demo
-              ? { items: demoReport.evidence ?? [] }
-              : await queryEvidence({
-                  symbols: url.searchParams.get("symbol")
-                    ? [url.searchParams.get("symbol")]
-                    : undefined,
-                  limit: 500,
-                }),
-          );
+        if (url.pathname === "/api/arena/leaderboard") {
+          const arena = await arenaReady;
+          return respond(response, 200, { demo, ...(await arena.leaderboard({
+            market: url.searchParams.get("market") || undefined,
+            competition: url.searchParams.get("competition") || undefined,
+            includeArchived: url.searchParams.get("archived") === "1",
+          })) });
+        }
+        const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
+        if (arenaAccount) {
+          const arena = await arenaReady;
+          return respond(response, 200, { demo, ...(await arena.getAccount(arenaAccount[1], { limit: 200 })) });
+        }
+        if (url.pathname === "/api/paper/status") return respond(response, 200, demo
+          ? { environment: "SIMULATE", demoDisabled: true, bridgeEnabled: false, policy: { enabled: false }, intents: [], samples: [], limitation: "Paper trading requires the real-data dashboard and actual Futu OpenD. No synthetic account, fills or performance are supplied." }
+          : await getPaperService().status());
+        if (url.pathname === "/api/evidence") {
+          const evidence = demo ? { items: demoReport.evidence ?? [] } : await queryEvidence({
+            symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : undefined,
+            limit: 500,
+          });
+          const calendar = demo ? { events: demoReport.events ?? [], warnings: [] } : projectCatalystCalendar(evidence.items);
+          const warnings = [...calendar.warnings];
+          if (evidence.totalMatched > evidence.returned) warnings.push("Evidence scan truncated; calendar may omit events or revisions.");
+          return respond(response, 200, { ...evidence, events: calendar.events, eventWarnings: warnings });
+        }
         if (url.pathname === "/health")
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: "1.1.1",
+            version: typeof __HROUTER_VERSION__ === "string" ? __HROUTER_VERSION__ : "development",
             demo,
           });
         if (assets.has(url.pathname)) {
@@ -128,7 +148,7 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
           return respond(
             response,
             200,
-            demo ? { decisions } : await listDecisions(),
+            demo ? { decisions: decisions.map((record) => ({ ...record, scorecard: buildThesisScorecard(record) })) } : await listDecisions(),
           );
         if (
           url.pathname === "/api/latest" ||
@@ -178,6 +198,23 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
       }
       if (request.method === "POST") {
         const body = await bodyJson(request);
+        if (url.pathname.startsWith("/api/arena/")) {
+          const arena = await arenaReady;
+          if (url.pathname === "/api/arena/accounts")
+            return respond(response, 201, await arena.createAccount({ ...body, agentLabel: body.agentLabel || undefined }, dashboardCaller));
+          if (url.pathname === "/api/arena/sync")
+            return respond(response, 200, await arena.sync(Array.isArray(body.accountIds) ? body.accountIds : undefined, { force: true }));
+          const update = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})(\/delete)?$/);
+          if (update) return respond(response, 200, update[2] ? await arena.deleteAccount(update[1]) : await arena.updateAccount(update[1], body));
+          return respond(response, 404, { error: "Unknown arena action" });
+        }
+        if (url.pathname.startsWith("/api/paper/")) {
+          if (demo) return respond(response, 409, { error: "演示模式不连接模拟账户。请启动真实数据面板 / Use the real-data dashboard; no synthetic trading fallback." });
+          const actions = { connect: "accounts", refresh: "refresh", policy: "savePolicy", evaluate: "evaluate", submit: "submit", cancel: "cancel" };
+          const action = actions[url.pathname.slice("/api/paper/".length)];
+          if (!action) return respond(response, 404, { error: "Unknown paper action" });
+          return respond(response, 200, await getPaperService()[action](action === "accounts" ? body.market : body));
+        }
         if (url.pathname === "/api/preferences") {
           if (body.language && !["zh-CN", "en"].includes(body.language))
             throw new Error("Invalid language");
@@ -195,6 +232,7 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
             "alertRules",
             "monitorIntervalSeconds",
             "calendarOverrides",
+            "managedAccountId",
           ];
           const selected = Object.fromEntries(
             fields
@@ -219,7 +257,7 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
             : "intraday";
           if (demo) {
             demoReport = {
-              ...makeDemoReport(),
+              ...makeDemoReport({ watchlist: preferences.watchlist, positions: preferences.positions }),
               language: preferences.language,
               phase,
               demo: true,

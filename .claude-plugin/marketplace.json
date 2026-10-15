@@ -1,0 +1,38 @@
+{
+  "name": "hrouter-market-pulse",
+  "owner": {
+    "name": "Hrouter",
+    "url": "https://hrouter.net/"
+  },
+  "metadata": {
+    "description": "A-share, Hong Kong and US quotes, evidence, strategies, leakage-aware backtests, risk planning and a multi-agent paper-trading arena.",
+    "version": "1.3.0"
+  },
+  "plugins": [
+    {
+      "name": "hrouter-market-pulse",
+      "source": "./plugins/hrouter-market-pulse",
+      "version": "1.3.0",
+      "description": "Bilingual A-share, Hong Kong and US market workbench with verified quotes, portfolio risk, evidence, research validation and a multi-agent paper-trading arena.",
+      "author": {
+        "name": "Hrouter"
+      },
+      "homepage": "https://hrouter.net/",
+      "license": "MIT",
+      "keywords": [
+        "stocks",
+        "a-shares",
+        "hong-kong",
+        "us-markets",
+        "market-research",
+        "backtesting",
+        "evidence",
+        "scheduled-tasks",
+        "paper-trading",
+        "futu",
+        "agent-arena"
+      ],
+      "category": "finance"
+    }
+  ]
+}

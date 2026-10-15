@@ -122,6 +122,8 @@ test("event calendar requires explicit announced event date, not inferred earnin
       payload: { eventType: "earnings", scheduledAt: "2026-10-01T20:00:00Z" },
       sourceUrl: "https://www.sec.gov/a",
       availableAt: "2026-09-01T00:00:00Z",
+      publishedAt: "2026-09-01T00:00:00Z",
+      providerId: "fixture",
     },
     { id: "ev_2", payload: {}, entity: { symbol: "AAPL" } },
   ]);

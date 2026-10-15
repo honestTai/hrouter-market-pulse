@@ -1,20 +1,10 @@
 <div align="center">
 
-**English** · [简体中文](README.zh-CN.md)
-
-[HRouter](https://hrouter.net/home) · [All public projects](https://github.com/honestTai) · [Star & Fork trends](#project-activity)
-
-</div>
-
-[![Repository summary](https://raw.githubusercontent.com/honestTai/honestTai/main/assets/badges/hrouter-market-pulse.svg)](#project-activity)
-
-<div align="center">
-
 # HRouter Market Pulse
 
 **Your quotes, filings, and research notes—in one workspace.**
 
-[中文](README.zh-CN.md) · [English](README.md) · [Plugin releases](https://github.com/honestTai/hrouter-market-pulse/releases) · [GitHub](https://github.com/honestTai/hrouter-market-pulse) · [HRouter](https://hrouter.net/home)
+[中文](README.md) · [English](README.en.md) · [Plugin releases](https://github.com/honestTai/hrouter-market-pulse/releases) · [GitHub](https://github.com/honestTai/hrouter-market-pulse) · [HRouter](https://hrouter.net/home)
 
 </div>
 
@@ -22,7 +12,7 @@ Go beyond a price table: review holdings, cross-check quotes, follow alerts and 
 
 **Who it’s for:** Researchers who want verifiable data and AI-assisted workflows for mainland China, Hong Kong, and US equities.
 
-The plugin uses the model in your current Codex task; no separate model service is required.
+The plugin uses the model of whichever agent runs it (**Codex, Claude Code, WorkBuddy** or any MCP client); no separate model service is required. The built-in **Agent Arena** lets different agents and models paper-trade side by side on real quotes with virtual money, compared on return, drawdown and discipline.
 
 ![English market workbench with clearly labeled synthetic demonstration data](docs/images/dashboard-en.png)
 
@@ -35,6 +25,18 @@ The plugin uses the model in your current Codex task; no separate model service 
 - Shared-capital backtests with holding restrictions, costs, adverse slippage, nonfills and company-action handling.
 - Purged walk-forward prediction evaluation, baseline comparisons, programmatic qualification, and an immutable forecast ledger.
 - Decision theses recorded before outcomes, followed by append-only reviews.
+- Agent Arena: one virtual A-share / HK / US account per agent, fills with T+1, price limits, board lots and fees, overlaid return curves, by-model and by-agent comparison, leaderboard and decision journals. [Guide](docs/AGENT_ARENA.md)
+
+## Install in Claude Code / WorkBuddy
+
+The same package ships a Claude-format manifest, which both Claude Code and WorkBuddy install directly:
+
+```bash
+claude plugin marketplace add honestTai/hrouter-market-pulse
+claude plugin install hrouter-market-pulse@hrouter-market-pulse
+```
+
+WorkBuddy: Settings → Plugins → add the marketplace `https://github.com/honestTai/hrouter-market-pulse`, then install and enable hrouter-market-pulse. For other MCP clients (Cursor, Cline, …) run `npm run connect` to print a ready-to-paste config. See the [multi-agent and arena guide](docs/AGENT_ARENA.md).
 
 ## Install in Codex (optional automatic updates)
 
@@ -95,22 +97,24 @@ Official website: [hrouter.net](https://hrouter.net/).
 
 I’m **honestTai**, the developer and operator behind [HRouter](https://hrouter.net/home). I share practical tools, reusable workflows, skills, and plugins on GitHub.
 
-This workflow uses the model in your Codex environment. HRouter is another part of my work: a model-routing service for AI coding and applications.
+This workflow uses the model of the agent you run it in (Codex, Claude Code, WorkBuddy, …). HRouter is another part of my work: a model-routing service for AI coding and applications.
 
 [Explore HRouter](https://hrouter.net/home) · [More projects](https://github.com/honestTai)
 
 If this project helps your workflow, give it a star and share what you build. Feedback and feature ideas are welcome in Issues.
 
----
+### Fundamental research
 
-<a id="project-activity"></a>
+Compare sourced financial results, review falsifiable thesis pillars, and query an evidence-backed event calendar with revision and cancellation history. Missing consensus is never invented. Commercial data subscriptions are not included or enabled. See [workflow contracts and limitations](docs/RESEARCH_WORKFLOWS.md).
 
-## Project activity
+### React dashboard development
 
-Star / Fork totals and retained-event history, scheduled to refresh daily.
+The dashboard uses **React 19, Radix Themes and Lucide React**, retaining Lightweight Charts for financial charts. Six responsive pages cover markets, holdings, evidence/events, the research journal, the Agent Arena and Futu paper trading, with Chinese/English and light/dark themes. Scripts and styles are bundled locally, without a CDN.
 
-[![Star and Fork history for hrouter-market-pulse](https://raw.githubusercontent.com/honestTai/honestTai/main/assets/metrics/hrouter-market-pulse.svg)](https://github.com/honestTai/honestTai/blob/main/data/README.md)
+Edit `ui/`, run `npm run build:ui`, then refresh the local dashboard. Run `npm run build` before distribution to update both root and packaged assets. See [React dashboard architecture](docs/REACT_DASHBOARD.md).
 
-[Observed daily totals](https://raw.githubusercontent.com/honestTai/honestTai/main/assets/metrics/hrouter-market-pulse-daily.svg) · [Methodology](https://github.com/honestTai/honestTai/blob/main/data/METHODOLOGY.md) · [All public projects](https://github.com/honestTai)
+### Autonomous agent paper trading
 
-<sub>Historical curves reconstruct currently retained stars and visible forks, not historical net totals. Separate daily observations start on 2026-10-06; no fabricated backfill.</sub>
+The Paper trading menu connects real market observations to actual Futu OpenD SIMULATE accounts. After explicit UI authorization of strategies, symbols and limits, the agent may independently submit DAY limit orders, cancel plugin orders and reconcile actual holdings through MCP—without per-order confirmation. REAL execution is permanently disabled. Initial execution scope is HK/US stocks, not A-shares, margin or derivatives.
+
+Run `npm run setup:futu` for the optional official SDK in a user-scoped venv. See [setup, safety and measurement boundaries](docs/PAPER_TRADING.md). No invented balances/fills/returns or implicit background trading scheduler.

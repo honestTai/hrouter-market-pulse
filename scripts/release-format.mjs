@@ -10,8 +10,8 @@ export const PLUGIN_ID = `${PROJECT}@${MARKETPLACE}`;
 export const MAX_DOWNLOAD = 32 * 1024 * 1024;
 export const MAX_UNPACKED = 96 * 1024 * 1024;
 export const RELEASE_PATHS = [
-  ".agents", ".codex-plugin", ".mcp.json", "assets", "docs", "mcp", "plugins",
-  "schemas", "scripts", "skills", "tests", "package.json", "package-lock.json",
+  ".agents", ".claude-plugin", ".codex-plugin", ".mcp.json", "assets", "docs", "mcp", "plugins",
+  "schemas", "scripts", "skills", "tests", "licenses", "ui", "bridges", "package.json", "package-lock.json",
   "README.md", "README.en.md", "LICENSE", "SECURITY.md", "THIRD_PARTY_NOTICES.md", "CHANGELOG.md",
 ];
 export const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");

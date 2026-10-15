@@ -1,0 +1,152 @@
+Bundled license information:
+
+react/cjs/react.production.js:
+  /**
+   * @license React
+   * react.production.js
+   *
+   * Copyright (c) Meta Platforms, Inc. and affiliates.
+   *
+   * This source code is licensed under the MIT license found in the
+   * LICENSE file in the root directory of this source tree.
+   */
+
+scheduler/cjs/scheduler.production.js:
+  /**
+   * @license React
+   * scheduler.production.js
+   *
+   * Copyright (c) Meta Platforms, Inc. and affiliates.
+   *
+   * This source code is licensed under the MIT license found in the
+   * LICENSE file in the root directory of this source tree.
+   */
+
+react-dom/cjs/react-dom.production.js:
+  /**
+   * @license React
+   * react-dom.production.js
+   *
+   * Copyright (c) Meta Platforms, Inc. and affiliates.
+   *
+   * This source code is licensed under the MIT license found in the
+   * LICENSE file in the root directory of this source tree.
+   */
+
+react-dom/cjs/react-dom-client.production.js:
+  /**
+   * @license React
+   * react-dom-client.production.js
+   *
+   * Copyright (c) Meta Platforms, Inc. and affiliates.
+   *
+   * This source code is licensed under the MIT license found in the
+   * LICENSE file in the root directory of this source tree.
+   */
+
+react/cjs/react-jsx-runtime.production.js:
+  /**
+   * @license React
+   * react-jsx-runtime.production.js
+   *
+   * Copyright (c) Meta Platforms, Inc. and affiliates.
+   *
+   * This source code is licensed under the MIT license found in the
+   * LICENSE file in the root directory of this source tree.
+   */
+
+classnames/index.js:
+  /*!
+  	Copyright (c) 2018 Jed Watson.
+  	Licensed under the MIT License (MIT), see
+  	http://jedwatson.github.io/classnames
+  */
+
+lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs:
+lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs:
+lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs:
+lucide-react/dist/esm/shared/src/utils/toPascalCase.mjs:
+lucide-react/dist/esm/shared/src/utils/mergeClasses.mjs:
+lucide-react/dist/esm/shared/src/build/defaultAttributes.mjs:
+lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs:
+lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs:
+lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs:
+lucide-react/dist/esm/context.mjs:
+lucide-react/dist/esm/Icon.mjs:
+lucide-react/dist/esm/createLucideIcon.mjs:
+lucide-react/dist/esm/icons/activity.mjs:
+lucide-react/dist/esm/icons/arrow-down-right.mjs:
+lucide-react/dist/esm/icons/arrow-down-up.mjs:
+lucide-react/dist/esm/icons/arrow-left.mjs:
+lucide-react/dist/esm/icons/arrow-up-right.mjs:
+lucide-react/dist/esm/icons/bell-ring.mjs:
+lucide-react/dist/esm/icons/book-open.mjs:
+lucide-react/dist/esm/icons/bot.mjs:
+lucide-react/dist/esm/icons/briefcase-business.mjs:
+lucide-react/dist/esm/icons/cable.mjs:
+lucide-react/dist/esm/icons/calendar-days.mjs:
+lucide-react/dist/esm/icons/chart-candlestick.mjs:
+lucide-react/dist/esm/icons/chart-line.mjs:
+lucide-react/dist/esm/icons/chart-no-axes-combined.mjs:
+lucide-react/dist/esm/icons/check.mjs:
+lucide-react/dist/esm/icons/chevron-down.mjs:
+lucide-react/dist/esm/icons/chevron-right.mjs:
+lucide-react/dist/esm/icons/circle-alert.mjs:
+lucide-react/dist/esm/icons/circle-check.mjs:
+lucide-react/dist/esm/icons/circle-dollar-sign.mjs:
+lucide-react/dist/esm/icons/circle-question-mark.mjs:
+lucide-react/dist/esm/icons/clipboard-copy.mjs:
+lucide-react/dist/esm/icons/clipboard-list.mjs:
+lucide-react/dist/esm/icons/clock-3.mjs:
+lucide-react/dist/esm/icons/cloud.mjs:
+lucide-react/dist/esm/icons/crown.mjs:
+lucide-react/dist/esm/icons/earth.mjs:
+lucide-react/dist/esm/icons/expand.mjs:
+lucide-react/dist/esm/icons/external-link.mjs:
+lucide-react/dist/esm/icons/file-check-corner.mjs:
+lucide-react/dist/esm/icons/file-text.mjs:
+lucide-react/dist/esm/icons/flask-conical.mjs:
+lucide-react/dist/esm/icons/inbox.mjs:
+lucide-react/dist/esm/icons/layers.mjs:
+lucide-react/dist/esm/icons/list-checks.mjs:
+lucide-react/dist/esm/icons/lock-keyhole.mjs:
+lucide-react/dist/esm/icons/menu.mjs:
+lucide-react/dist/esm/icons/message-square-text.mjs:
+lucide-react/dist/esm/icons/moon.mjs:
+lucide-react/dist/esm/icons/notebook-pen.mjs:
+lucide-react/dist/esm/icons/pause.mjs:
+lucide-react/dist/esm/icons/plug.mjs:
+lucide-react/dist/esm/icons/plus.mjs:
+lucide-react/dist/esm/icons/radar.mjs:
+lucide-react/dist/esm/icons/refresh-cw.mjs:
+lucide-react/dist/esm/icons/rotate-ccw-clock.mjs:
+lucide-react/dist/esm/icons/save.mjs:
+lucide-react/dist/esm/icons/scroll-text.mjs:
+lucide-react/dist/esm/icons/search.mjs:
+lucide-react/dist/esm/icons/settings-2.mjs:
+lucide-react/dist/esm/icons/shield-check.mjs:
+lucide-react/dist/esm/icons/sliders-horizontal.mjs:
+lucide-react/dist/esm/icons/sparkles.mjs:
+lucide-react/dist/esm/icons/sun.mjs:
+lucide-react/dist/esm/icons/trash.mjs:
+lucide-react/dist/esm/icons/triangle-alert.mjs:
+lucide-react/dist/esm/icons/trending-up.mjs:
+lucide-react/dist/esm/icons/trophy.mjs:
+lucide-react/dist/esm/icons/users.mjs:
+lucide-react/dist/esm/icons/wallet.mjs:
+lucide-react/dist/esm/icons/x.mjs:
+lucide-react/dist/esm/lucide-react.mjs:
+  /**
+   * @license lucide-react v1.52.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   */
+
+lightweight-charts/dist/lightweight-charts.production.mjs:
+  /*!
+   * @license
+   * TradingView Lightweight Charts™ v5.2.1
+   * Copyright (c) 2026 TradingView, Inc.
+   * Licensed under Apache License 2.0 https://www.apache.org/licenses/LICENSE-2.0
+   */

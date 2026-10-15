@@ -17,3 +17,5 @@ Create an evidence-backed opening plan from Hrouter Market Pulse data.
 8. End each material symbol with one action state: `买入候选`, `持有观察`, `卖出评估`, `不动`, or `数据不足`. Include the position change and observation trigger; do not infer holdings or risk limits.
 
 For scheduled runs, keep the response concise. If every requested market is closed and no new data is available, report that state without fabricating a premarket move.
+
+When the brief needs upcoming company or macro events, use `query_catalyst_calendar` and cite event provenance, tentative dates, cancellations and coverage warnings. It reads ingested evidence only and does not schedule reminders. Do not infer earnings dates from price history.

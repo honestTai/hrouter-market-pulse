@@ -286,8 +286,11 @@ export function createUpdater(options = {}) {
     try {
       await extractFiles(files, stage);
       // Bind runtime leases to this managed installation, including custom update homes.
-      for (const relative of [".mcp.json", `plugins/${PROJECT}/.mcp.json`]) {
-        const file = path.join(stage, relative), mcp = await readJson(file);
+      for (const relative of [".mcp.json", `plugins/${PROJECT}/.mcp.json`, `plugins/${PROJECT}/.codex-plugin/mcp.json`]) {
+        const file = path.join(stage, relative);
+        // Older releases have no separate Codex MCP file.
+        if (relative.endsWith(".codex-plugin/mcp.json") && !(await access(file).then(() => true, () => false))) continue;
+        const mcp = await readJson(file);
         const server = mcp?.mcpServers?.hrouter_market_pulse;
         if (!server) throw new Error("Missing Market Pulse MCP server configuration");
         server.env = { ...server.env, HROUTER_UPDATE_HOME: home };

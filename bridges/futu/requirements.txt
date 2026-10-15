@@ -1,0 +1,2 @@
+# Optional bridge dependency, isolated from the Node plugin runtime.
+futu-api==10.11.7108

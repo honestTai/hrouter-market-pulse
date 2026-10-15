@@ -2,6 +2,7 @@
 // workflow runs in Codex, Claude Code, WorkBuddy or any other MCP host.
 import { z } from "zod";
 import { ARENA_MARKETS, callerFromClient, getArena } from "./arena.mjs";
+import { loadPreferences, marketFromSymbol, savePreferences } from "./core.mjs";
 
 const accountId = z.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_…) returned by arena_register_account or arena_my_accounts.");
 const market = z.enum(["A", "HK", "US"]);
@@ -138,6 +139,54 @@ export function registerArenaTools(server, { toolResult, toolError }) {
   }, async (input) => {
     const result = await getArena().updateStrategy(input, caller());
     return [result, `Strategy is now version ${result.strategy.version}.`];
+  });
+
+  register("arena_publish_report", {
+    title: "Publish arena round report",
+    description: [
+      "Publish the conclusion of this round for the owner, who does not operate anything and only reads your reports.",
+      "Call it at the end of every round, including rounds with no trades: headline, plain-language summary, market view, actions taken, current picks with thesis, risks and what you will do next.",
+      "Write in the owner's language (Chinese unless told otherwise). Do not claim paper results are real returns.",
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      title: z.string().min(1).max(120).describe("One-line headline, e.g. '减仓白酒，加仓新能源龙头'."),
+      summary: z.string().min(10).max(2000).describe("The conclusion in 2–5 sentences."),
+      sentiment: z.enum(["bullish", "neutral", "bearish", "defensive"]).optional(),
+      marketView: z.string().max(2000).optional(),
+      actions: z.array(z.object({ symbol: z.string().max(20), action: z.string().max(20).describe("buy / sell / hold / watch / cancel"), detail: z.string().max(500) })).max(30).optional(),
+      picks: z.array(z.object({ symbol: z.string().max(20), thesis: z.string().max(500) })).max(20).optional(),
+      risks: z.string().max(2000).optional(),
+      nextSteps: z.string().max(2000).optional(),
+      body: z.string().max(20000).optional().describe("Optional longer Markdown analysis."),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  }, async (input) => {
+    const result = await getArena().publishReport(input, caller());
+    return [result, `Published report ${result.report.id}: ${result.report.title}`];
+  });
+
+  register("arena_set_watchlist", {
+    title: "Set agent stock pool",
+    description: [
+      "Replace your account's candidate stock pool (your own selection, at most 50, same market as the account).",
+      "If your account is the owner's managed account (or no managed account is chosen), the shared dashboard watchlist for that market is replaced with your pool plus your holdings, so the owner's market page follows your selection.",
+    ].join(" "),
+    inputSchema: { accountId, symbols: z.array(z.string().min(1).max(20)).max(50), reason: z.string().max(1000).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    const result = await getArena().setWatchlist(input, caller());
+    const preferences = await loadPreferences();
+    const managed = !preferences.managedAccountId || preferences.managedAccountId === input.accountId;
+    let mirrored = false;
+    if (managed) {
+      const market = result.watchlist.symbols[0] ? marketFromSymbol(result.watchlist.symbols[0]) : null;
+      const pool = [...new Set([...result.holdings, ...result.watchlist.symbols])];
+      const others = preferences.watchlist.filter((symbol) => { try { return market ? marketFromSymbol(symbol) !== market : true; } catch { return false; } });
+      await savePreferences({ watchlist: [...others, ...pool].slice(0, 50) });
+      mirrored = true;
+    }
+    return [{ ...result, mirroredToDashboard: mirrored }, `Stock pool set to ${result.watchlist.symbols.length} symbols${mirrored ? "; dashboard watchlist updated" : ""}.`];
   });
 
   register("arena_leaderboard", {

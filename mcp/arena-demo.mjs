@@ -67,6 +67,22 @@ function seedAccount(agent, index, start) {
       ? (n % 2 ? "大盘缩量震荡，候选标的未满足入场条件，本轮不交易。" : "复盘持仓：动量仍在，维持仓位；关注下周宏观数据。")
       : (n % 2 ? "No setup met the entry rules today; staying flat." : "Reviewed holdings: trend intact, keep exposure."), symbols: [universe[n % universe.length][0]], details: null, strategyVersion: 1 });
   }
+  const reports = [0, 1, 2].map((n) => {
+    const point = equity[equity.length - 1 - n * 5];
+    const cn = agent.market === "A";
+    return {
+      id: `rpt_demo${index}${n}`, at: point.at, strategyVersion: 1,
+      title: cn ? ["维持进攻仓位，新能源龙头继续领涨", "大盘缩量震荡，本轮不交易", "止盈部分白酒，转入金融防守"][n] : ["Trend intact, staying long mega caps", "No setup today; flat", "Trimmed winners into strength"][n],
+      summary: cn ? `${agent.name}：动量信号仍然有效，持仓集中在 2–3 只龙头，现金保留约三成以应对回撤。本轮${n === 1 ? "没有满足入场条件的标的" : "按纪律调整了仓位"}，组合累计收益 ${((point.equity / config.defaultCash - 1) * 100).toFixed(2)}%。` : `${agent.name}: momentum still positive; ${n === 1 ? "no candidate met the entry rules" : "rebalanced per plan"}. Total return ${((point.equity / config.defaultCash - 1) * 100).toFixed(2)}%.`,
+      sentiment: ["bullish", "neutral", "defensive"][n],
+      marketView: cn ? "指数在 20 日均线附近震荡，成交额回落，风格偏向大盘蓝筹。" : "Index holding its 50-day average; breadth narrowing.",
+      actions: n === 1 ? [] : [{ symbol: universe[1][0], action: n ? "sell" : "buy", detail: cn ? "按信号调整" : "per signal" }],
+      picks: universe.slice(0, 3).map(([symbol, name]) => ({ symbol, thesis: cn ? `${name}：趋势向上，回撤可控` : `${name}: uptrend, contained drawdowns` })),
+      risks: cn ? "若沪深300 跌破 60 日均线，降仓至五成以下。" : "Cut exposure below 50% if the index loses its 100-day average.",
+      nextSteps: cn ? "下一交易日开盘后复核量能，触发条件再加仓。" : "Recheck volume after the next open.",
+      snapshot: { equity: point.equity, cash: 0, positions: 2, returnPct: Math.round((point.equity / config.defaultCash - 1) * 10000) / 100 },
+    };
+  }).reverse();
   const finalEquity = equity.at(-1).equity;
   const positions = {};
   let marketValue = 0;
@@ -88,7 +104,8 @@ function seedAccount(agent, index, start) {
     realizedPnl: trades.reduce((sum, trade) => sum + (trade.realizedPnl ?? 0), 0),
     settings: { slippageBps: 5, maxQuoteAgeSeconds: 180, feeModel: `${agent.market}-retail-v1` },
     benchmark: { symbol: config.benchmark, name: config.benchmarkName, startPrice: 100, startAt: createdAt, lastPrice: agent.market === "A" ? 103.1 : 102.4, lastPriceAt: equity.at(-1).at },
-    positions, orders, trades, journal, equity, createdAt, updatedAt: equity.at(-1).at, createdBy: agent.client,
+    positions, orders, trades, journal, equity, reports, createdAt,
+    watchlist: { symbols: universe.map(([symbol]) => symbol), reason: "demo", updatedAt: equity.at(-1).at }, updatedAt: equity.at(-1).at, createdBy: agent.client,
   };
 }
 

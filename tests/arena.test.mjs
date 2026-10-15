@@ -244,3 +244,26 @@ test("caller identity normalizes MCP client info and honours HROUTER_AGENT_ID", 
   try { assert.equal(callerFromClient({ name: "WorkBuddy" }).client, "workbuddy-hunyuan"); }
   finally { delete process.env.HROUTER_AGENT_ID; }
 });
+
+test("agents publish round reports and maintain their own stock pool", async () => {
+  const h = harness({ "600519.SS": { price: 1300 }, "000300.SS": { price: 4000 } });
+  const { arena, cleanup } = await h.make();
+  try {
+    const { id } = await arena.createAccount({ name: "Autopilot", model: "m", market: "A" }, claude);
+    await arena.placeOrder({ accountId: id, symbol: "600519", side: "BUY", quantity: 100, reason }, claude);
+    const { report } = await arena.publishReport({ accountId: id, title: "加仓茅台", summary: "动量延续，建仓一成。", sentiment: "bullish", actions: [{ symbol: "600519", action: "buy", detail: "100 股" }], picks: [{ symbol: "600519", thesis: "龙头" }] }, claude);
+    assert.equal(report.actions[0].symbol, "600519.SS");
+    assert.ok(report.snapshot.equity > 0);
+    await assert.rejects(arena.publishReport({ accountId: id, title: "x", summary: "" }, claude), /required/);
+    await assert.rejects(arena.publishReport({ accountId: id, title: "t", summary: "s" }, codex), /belongs to agent/);
+    const pool = await arena.setWatchlist({ accountId: id, symbols: ["600519", "300750", "300750.SZ"], reason: "动量前列" }, claude);
+    assert.deepEqual(pool.watchlist.symbols, ["600519.SS", "300750.SZ"]);
+    assert.deepEqual(pool.holdings, ["600519.SS"]);
+    await assert.rejects(arena.setWatchlist({ accountId: id, symbols: ["AAPL"] }, claude), /not in this account's A market/);
+    const detail = await arena.getAccount(id, { sync: false });
+    assert.equal(detail.latestReport.title, "加仓茅台");
+    assert.equal(detail.reports.length, 1);
+    assert.equal(detail.metrics.reportsPublished, 1);
+    assert.equal(detail.watchlist.symbols.length, 2);
+  } finally { await cleanup(); }
+});

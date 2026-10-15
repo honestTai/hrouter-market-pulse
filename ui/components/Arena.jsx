@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Callout, Dialog, IconButton, SegmentedControl, Select, Table, Tabs, TextArea, TextField, Tooltip } from "@radix-ui/themes";
 import {
-  Activity, ArrowLeft, Bot, Check, ChevronRight, CircleAlert, ClipboardCopy, Crown, FlaskConical, History, Layers,
+  Activity, ArrowLeft, Bot, Check, ChevronRight, CircleAlert, ClipboardCopy, Crown, FileText, FlaskConical, History, Layers,
   LineChart, ListChecks, NotebookPen, Plug, Plus, RefreshCw, ScrollText, Settings2, Trophy, Users, Wallet, X,
 } from "lucide-react";
 import { createChart, ColorType, LineSeries, AreaSeries } from "lightweight-charts";
@@ -27,18 +27,18 @@ export function agentKind(account) {
   return { key: "other", label, mark: label.slice(0, 1).toUpperCase() };
 }
 
-function AgentMark({ account, size = "md" }) {
+export function AgentMark({ account, size = "md" }) {
   const kind = agentKind(account);
   return <span className={`agent-mark agent-${kind.key} ${size}`} aria-hidden="true">{kind.mark}</span>;
 }
 
-function Signed({ value, digits = 2, suffix = "%" }) {
+export function Signed({ value, digits = 2, suffix = "%" }) {
   const { number } = useWorkspace();
   if (!isNumber(value)) return <span className="neutral">—</span>;
   return <span className={`tabular ${value > 0 ? "gain" : value < 0 ? "loss" : "neutral"}`}>{value > 0 ? "+" : ""}{number(value, digits)}{suffix}</span>;
 }
 
-function relativeTime(value, t) {
+export function relativeTime(value, t) {
   if (!value) return "—";
   const minutes = Math.round((Date.now() - Date.parse(value)) / 60000);
   if (!Number.isFinite(minutes)) return "—";
@@ -117,7 +117,7 @@ function ReturnsChart({ accounts, highlighted, onHover }) {
   </div>;
 }
 
-function EquityChart({ account }) {
+export function EquityChart({ account }) {
   const { t, colorConvention, language } = useWorkspace();
   const host = useRef(null);
   const points = useMemo(() => [{ at: account.createdAt, equity: account.initialCash }, ...(account.equity ?? []), { at: new Date().toISOString(), equity: account.metrics.equity }], [account]);
@@ -279,17 +279,19 @@ function CreateAccountDialog({ market, competition, onClose, onCreated }) {
 export function roundPrompt({ account, market, language }) {
   const id = account?.id;
   const marketName = { A: language === "en" ? "China A-share" : "A 股", HK: language === "en" ? "Hong Kong" : "港股", US: language === "en" ? "US" : "美股" }[account?.market ?? market] ?? "A 股";
-  if (language === "en") return `Use the hrouter-agent-arena skill to run one ${marketName} paper-trading round.
+  if (language === "en") return `Use the hrouter-agent-arena skill. You fully manage my ${marketName} paper portfolio; I will not approve anything, I only read your reports.
 ${id ? `My arena account is ${id}; trade only this account.` : "Call arena_my_accounts first; if you have no account, register one with arena_register_account using your real model id."}
-Review the account and market session, research with get_quote / get_news, then place orders with a concrete reason — or log a no-trade decision.
-Finish with fills, open orders, equity and return vs the benchmark.`;
-  return `使用 hrouter-agent-arena 技能，跑一轮${marketName}模拟交易。
+1. Choose your own stock pool and save it with arena_set_watchlist.
+2. Review the account and session, research with get_quote / get_news, then trade with concrete reasons — or log a no-trade decision.
+3. End every round with arena_publish_report: headline, conclusion, actions, picks, risks and next steps. Do not ask me questions.`;
+  return `使用 hrouter-agent-arena 技能，全权托管我的${marketName}模拟组合：选股、交易、持仓都由你决定，不需要征求我的确认，我只看你的报告。
 ${id ? `我的竞技场账户是 ${id}，只操作这个账户。` : "先调用 arena_my_accounts；如果没有账户，就用你真实的模型名调用 arena_register_account 开户。"}
-先查看账户与开盘状态，用 get_quote / get_news 做研究，然后按策略下单并写明理由；不满足条件就记录 no-trade 决策。
-最后汇报成交、挂单、净值以及相对基准的收益。`;
+1. 自己选股，用 arena_set_watchlist 保存股票池。
+2. 查看账户与开盘状态，用 get_quote / get_news 做研究，按策略下单并写明理由；不满足条件就记录 no-trade 决策。
+3. 每轮结束必须调用 arena_publish_report 发布报告：标题、结论、操作、看好标的、风险和下一步。不要向我提问。`;
 }
 
-function ConnectDialog({ account, market, onClose }) {
+export function ConnectDialog({ account, market, onClose }) {
   const { t, language } = useWorkspace();
   const [copied, copy] = useCopy();
   const prompt = roundPrompt({ account, market, language });
@@ -321,7 +323,7 @@ function ConnectDialog({ account, market, onClose }) {
         {agents.map((agent) => <Tabs.Content key={agent.id} value={agent.id}><ol className="connect-steps">{agent.steps.map(([title, body], index) => <li key={title}><span className="step-number">{index + 1}</span><div><strong>{title}</strong>{body.includes("\n") || body.startsWith("npm") || body.startsWith("claude") || body.startsWith("git") ? <pre className="code-block">{body}<button type="button" onClick={() => copy(`${agent.id}${index}`, body.replace(/^.*：\n|^.*:\n/, ""))} aria-label={t("复制", "Copy")}>{copied === `${agent.id}${index}` ? <Check size={14} /> : <ClipboardCopy size={14} />}</button></pre> : <p>{body}</p>}</div></li>)}</ol></Tabs.Content>)}
       </Tabs.Root>
       <div className="prompt-card">
-        <div className="prompt-card-head"><strong><NotebookPen size={15} />{t("每轮交易提示词", "Round prompt")}</strong><Button size="1" variant="soft" onClick={() => copy("prompt", prompt)}>{copied === "prompt" ? <Check size={14} /> : <ClipboardCopy size={14} />}{copied === "prompt" ? t("已复制", "Copied") : t("复制", "Copy")}</Button></div>
+        <div className="prompt-card-head"><strong><NotebookPen size={15} />{t("全托管提示词（每轮 / 定时任务）", "Autopilot prompt (each round / schedule)")}</strong><Button size="1" variant="soft" onClick={() => copy("prompt", prompt)}>{copied === "prompt" ? <Check size={14} /> : <ClipboardCopy size={14} />}{copied === "prompt" ? t("已复制", "Copied") : t("复制", "Copy")}</Button></div>
         <pre>{prompt}</pre>
         <p className="muted small">{t("对比不同模型时，给每个 Agent 相同的提示词、相同的市场和初始资金，只改变模型或策略。", "To compare models fairly, give every agent the same prompt, market and starting cash; change only the model or strategy.")}</p>
       </div>
@@ -332,6 +334,29 @@ function ConnectDialog({ account, market, onClose }) {
 // ---------------------------------------------------------------------------
 // Account detail
 // ---------------------------------------------------------------------------
+
+const SENTIMENT = { bullish: ["看多", "Bullish", "red"], neutral: ["中性", "Neutral", "gray"], bearish: ["看空", "Bearish", "jade"], defensive: ["防守", "Defensive", "amber"] };
+const ACTION = { buy: ["买入", "Buy"], sell: ["卖出", "Sell"], hold: ["持有", "Hold"], watch: ["观察", "Watch"], cancel: ["撤单", "Cancel"] };
+
+export function ReportCard({ report, featured = false }) {
+  const { t, date } = useWorkspace();
+  const sentiment = SENTIMENT[report.sentiment];
+  return <article className={`report-card ${featured ? "featured" : ""}`}>
+    <header>
+      <div><h3>{report.title}</h3><span className="muted small">{date(report.at)}{report.strategyVersion ? ` · v${report.strategyVersion}` : ""}{report.snapshot ? <> · {t("当时收益", "Return then")} <Signed value={report.snapshot.returnPct} /></> : null}</span></div>
+      {sentiment && <Badge variant="soft" color={sentiment[2]}>{t(sentiment[0], sentiment[1])}</Badge>}
+    </header>
+    <p className="report-summary">{report.summary}</p>
+    {(report.marketView || report.actions?.length || report.picks?.length || report.risks || report.nextSteps) && <div className="report-sections">
+      {report.marketView && <section><h4>{t("市场判断", "Market view")}</h4><p>{report.marketView}</p></section>}
+      {report.actions?.length > 0 && <section><h4>{t("本轮操作", "Actions")}</h4><ul>{report.actions.map((entry, index) => <li key={index}><span className={`action-tag action-${entry.action}`}>{t(...(ACTION[entry.action] ?? [entry.action, entry.action]))}</span><strong>{entry.symbol}</strong> {entry.detail}</li>)}</ul></section>}
+      {report.picks?.length > 0 && <section><h4>{t("看好标的", "Picks")}</h4><ul>{report.picks.map((entry, index) => <li key={index}><strong>{entry.symbol}</strong> {entry.thesis}</li>)}</ul></section>}
+      {report.risks && <section><h4>{t("风险", "Risks")}</h4><p>{report.risks}</p></section>}
+      {report.nextSteps && <section><h4>{t("下一步", "Next")}</h4><p>{report.nextSteps}</p></section>}
+    </div>}
+    {report.body && <details className="report-body"><summary>{t("完整分析", "Full analysis")}</summary><pre>{report.body}</pre></details>}
+  </article>;
+}
 
 const ORDER_STATUS = {
   filled: ["已成交", "Filled", "jade"], open: ["挂单中", "Open", "blue"], rejected: ["已拒绝", "Rejected", "red"],
@@ -429,6 +454,7 @@ function AccountDetail({ id, onBack, onChanged }) {
           <Tabs.Trigger value="positions"><Wallet size={14} />{t("持仓", "Positions")} <span className="tab-count">{account.positions.length}</span></Tabs.Trigger>
           <Tabs.Trigger value="orders"><ScrollText size={14} />{t("委托", "Orders")} <span className="tab-count">{m.openOrders || account.orders.length}</span></Tabs.Trigger>
           <Tabs.Trigger value="trades"><ListChecks size={14} />{t("成交", "Fills")} <span className="tab-count">{m.trades}</span></Tabs.Trigger>
+          <Tabs.Trigger value="reports"><FileText size={14} />{t("报告", "Reports")} <span className="tab-count">{m.reportsPublished ?? 0}</span></Tabs.Trigger>
           <Tabs.Trigger value="journal"><NotebookPen size={14} />{t("决策日志", "Journal")} <span className="tab-count">{m.decisionsLogged}</span></Tabs.Trigger>
           <Tabs.Trigger value="strategy"><History size={14} />{t("策略版本", "Strategy")} <span className="tab-count">v{account.strategy.version}</span></Tabs.Trigger>
           <Tabs.Trigger value="settings"><Settings2 size={14} />{t("设置", "Settings")}</Tabs.Trigger>
@@ -445,6 +471,7 @@ function AccountDetail({ id, onBack, onChanged }) {
           <Table.Header><Table.Row><Table.ColumnHeaderCell>{t("时间", "Time")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("标的", "Security")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("方向", "Side")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("数量 × 价格", "Qty × price")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("费用", "Fees")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("已实现盈亏", "Realized")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("理由", "Reason")}</Table.ColumnHeaderCell></Table.Row></Table.Header>
           <Table.Body>{account.trades.map((trade) => <Table.Row key={trade.id}><Table.Cell className="muted nowrap">{date(trade.at)}</Table.Cell><Table.Cell><strong>{trade.name}</strong><small className="cell-subtitle">{trade.symbol}</small></Table.Cell><Table.Cell><span className={trade.side === "BUY" ? "side buy" : "side sell"}>{trade.side === "BUY" ? t("买入", "Buy") : t("卖出", "Sell")}</span>{trade.strategyVersion > 1 && <small className="cell-subtitle">v{trade.strategyVersion}</small>}</Table.Cell><Table.Cell align="right" className="tabular">{number(trade.quantity, 0)} × {number(trade.price, 3)}<small className="cell-subtitle">{number(trade.gross)}</small></Table.Cell><Table.Cell align="right" className="tabular"><Tooltip content={Object.entries(trade.feeBreakdown ?? {}).map(([key, value]) => `${key} ${value}`).join(" · ") || "—"}><span>{number(trade.fees)}</span></Tooltip></Table.Cell><Table.Cell align="right">{isNumber(trade.realizedPnl) ? <Signed value={trade.realizedPnl} suffix="" /> : <span className="neutral">—</span>}</Table.Cell><Table.Cell className="reason-cell">{trade.reason}{isNumber(trade.confidence) && <small className="cell-subtitle">{t("信心", "Confidence")} {Math.round(trade.confidence * 100)}%</small>}</Table.Cell></Table.Row>)}</Table.Body>
         </Table.Root></div> : <Empty compact icon={ListChecks} title={t("还没有成交", "No fills yet")} />}</Tabs.Content>
+        <Tabs.Content value="reports">{account.reports?.length ? <div className="report-list">{account.reports.map((report) => <ReportCard key={report.id} report={report} />)}</div> : <Empty compact icon={FileText} title={t("还没有报告", "No reports yet")} description={t("Agent 每轮结束时用 arena_publish_report 发布结论。", "Agents publish each round's conclusion with arena_publish_report.")} />}</Tabs.Content>
         <Tabs.Content value="journal">{account.journal.length ? <ol className="journal-timeline">{account.journal.map((entry) => <li key={entry.id}><span className={`journal-kind kind-${entry.kind}`}>{t(...(JOURNAL_KIND[entry.kind] ?? [entry.kind, entry.kind]))}</span><div><p>{entry.summary}</p>{entry.details && <details><summary>{t("详细分析", "Details")}</summary><pre>{entry.details}</pre></details>}<small className="muted">{date(entry.at)}{entry.symbols?.length ? ` · ${entry.symbols.join(", ")}` : ""} · v{entry.strategyVersion}</small></div></li>)}</ol> : <Empty compact icon={NotebookPen} title={t("还没有决策日志", "No journal entries")} description={t("Agent 用 arena_log_decision 记录分析与“不交易”的理由，便于复盘策略。", "Agents record analysis and no-trade reasons with arena_log_decision for later review.")} />}</Tabs.Content>
         <Tabs.Content value="strategy"><div className="strategy-panel">
           <div className="strategy-current"><span className="muted small">{t("当前策略", "Current strategy")} · v{account.strategy.version}</span><p>{account.strategy.summary || t("（未填写策略说明）", "(No strategy description)")}</p></div>

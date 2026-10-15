@@ -88,6 +88,8 @@ try {
     "arena_log_decision",
     "arena_update_strategy",
     "arena_leaderboard",
+    "arena_publish_report",
+    "arena_set_watchlist",
   ])
     assert.ok(
       tools.some((tool) => tool.name === name),

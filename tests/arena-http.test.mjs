@@ -55,6 +55,10 @@ test("real dashboard creates, lists, edits, archives and deletes accounts", asyn
     assert.equal((await call("/api/arena/leaderboard?archived=1")).body.groups[0].accounts.length, 1);
     assert.equal((await call(`/api/arena/accounts/${id}/delete`, {})).body.deleted, id);
     assert.equal((await call(`/api/arena/accounts/${id}`)).status, 404);
+    const managed = await call("/api/preferences", { managedAccountId: id });
+    assert.equal(managed.body.managedAccountId, id);
+    assert.equal((await call("/api/preferences", { managedAccountId: "nope" })).status, 400);
+    assert.equal((await call("/api/preferences", { managedAccountId: null })).body.managedAccountId, null);
     const invalid = await call("/api/arena/accounts", { name: "x", model: "", market: "US" });
     assert.equal(invalid.status, 400);
   });

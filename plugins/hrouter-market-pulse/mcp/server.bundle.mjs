@@ -8409,6 +8409,7 @@ async function loadPreferences() {
     alertRules: Array.isArray(saved.alertRules) ? saved.alertRules : [],
     calendarOverrides: saved.calendarOverrides ?? {},
     monitorIntervalSeconds: Math.max(60, Math.min(3600, finite(saved.monitorIntervalSeconds) ?? 300)),
+    managedAccountId: typeof saved.managedAccountId === "string" ? saved.managedAccountId : null,
     reportPort: getReportPort(),
     reportDirectory: getStorageDir(),
     officialWebsite: OFFICIAL_WEBSITE,
@@ -8564,8 +8565,11 @@ function sanitizePreferences(input, current = {}) {
       return { ...rule, symbol: normalizeSymbol(rule.symbol) };
     }) : current.alertRules ?? [],
     calendarOverrides: input.calendarOverrides ?? current.calendarOverrides ?? {},
-    monitorIntervalSeconds: input.monitorIntervalSeconds ?? current.monitorIntervalSeconds ?? 300
+    monitorIntervalSeconds: input.monitorIntervalSeconds ?? current.monitorIntervalSeconds ?? 300,
+    // Arena account whose agent manages the owner's portfolio (null = follow the most active account).
+    managedAccountId: input.managedAccountId === void 0 ? current.managedAccountId ?? null : input.managedAccountId
   };
+  if (next.managedAccountId !== null && !/^acc_[a-f0-9]{12}$/.test(next.managedAccountId)) throw new Error("managedAccountId must be an arena account id or null.");
   return next;
 }
 async function savePreferences(input) {
@@ -14604,7 +14608,7 @@ var ARENA_MARKETS = {
   HK: { currency: "HKD", defaultCash: 1e6, benchmark: "^HSI", benchmarkName: "\u6052\u751F\u6307\u6570 / Hang Seng" },
   US: { currency: "USD", defaultCash: 1e5, benchmark: "^GSPC", benchmarkName: "\u6807\u666E500 / S&P 500" }
 };
-var LIMITS = { orders: 5e3, trades: 5e3, journal: 2e3, equity: 6e3, strategyHistory: 200 };
+var LIMITS = { orders: 5e3, trades: 5e3, journal: 2e3, equity: 6e3, strategyHistory: 200, reports: 500 };
 var SYNC_THROTTLE_MS = 2e4;
 var QUOTE_CACHE_MS = 1e4;
 var LOCK_STALE_MS = 3e4;
@@ -14920,6 +14924,7 @@ function computeMetrics(account2, { benchmarkPrice = null } = {}) {
     ordersRejected: account2.orders.filter((order) => order.status === "rejected").length,
     openOrders: openOrders(account2).length,
     decisionsLogged: account2.journal.length,
+    reportsPublished: (account2.reports ?? []).length,
     daysActive: round4(days, 1),
     tradingDays: closes.length - 1,
     sampleWarning: closes.length < 6 ? "fewer-than-5-trading-days" : sells.length < 10 ? "fewer-than-10-closed-trades" : null,
@@ -15142,7 +15147,9 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
       demo: account2.demo === true,
       curve: returnCurve(account2, metrics.equity),
       lastTradeAt: account2.trades.at(-1)?.at ?? null,
-      lastActivityAt: [account2.trades.at(-1)?.at, account2.journal.at(-1)?.at, account2.orders.at(-1)?.createdAt].filter(Boolean).sort().at(-1) ?? null
+      lastActivityAt: [account2.trades.at(-1)?.at, account2.journal.at(-1)?.at, account2.orders.at(-1)?.createdAt, account2.reports?.at(-1)?.at].filter(Boolean).sort().at(-1) ?? null,
+      latestReport: account2.reports?.length ? (({ id, at, title, summary: summary2, sentiment }) => ({ id, at, title, summary: summary2, sentiment }))(account2.reports.at(-1)) : null,
+      watchlist: account2.watchlist ?? null
     };
     if (!detail) return summary;
     return {
@@ -15155,7 +15162,8 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
       equity: account2.equity,
       strategyHistory: account2.strategy.history,
       closedPositions: (account2.closedPositions ?? []).slice(-limit).reverse(),
-      lotOverrides: account2.lotOverrides ?? {}
+      lotOverrides: account2.lotOverrides ?? {},
+      reports: (account2.reports ?? []).slice(-limit).reverse()
     };
   }
   return {
@@ -15405,6 +15413,59 @@ function createArena({ root = path5.join(getStorageDir(), "arena"), quoteProvide
         return { strategy: account2.strategy };
       });
     },
+    // The agent's round report: the conclusion a hands-off owner reads instead of operating anything.
+    async publishReport(input, caller = {}) {
+      const title = String(input.title ?? "").trim();
+      const summary = String(input.summary ?? "").trim();
+      if (!title || !summary) throw new ArenaError("title and summary are required.");
+      const list = (value, limit, map) => Array.isArray(value) ? value.slice(0, limit).map(map).filter(Boolean) : [];
+      const symbolOf = (value) => {
+        try {
+          return normalizeTradeSymbol(value);
+        } catch {
+          return String(value ?? "").slice(0, 20) || null;
+        }
+      };
+      return withLock(async () => {
+        const account2 = await load(input.accountId);
+        assertActive(account2);
+        assertCaller(account2, caller);
+        const value = valuation(account2);
+        const report = {
+          id: shortId("rpt"),
+          at: now(),
+          title: title.slice(0, 120),
+          summary: summary.slice(0, 2e3),
+          sentiment: ["bullish", "neutral", "bearish", "defensive"].includes(input.sentiment) ? input.sentiment : null,
+          marketView: input.marketView ? String(input.marketView).slice(0, 2e3) : null,
+          actions: list(input.actions, 30, (entry) => entry && { symbol: symbolOf(entry.symbol), action: String(entry.action ?? "").slice(0, 20), detail: String(entry.detail ?? "").slice(0, 500) }),
+          picks: list(input.picks, 20, (entry) => entry && { symbol: symbolOf(entry.symbol), thesis: String(entry.thesis ?? "").slice(0, 500) }),
+          risks: input.risks ? String(input.risks).slice(0, 2e3) : null,
+          nextSteps: input.nextSteps ? String(input.nextSteps).slice(0, 2e3) : null,
+          body: input.body ? String(input.body).slice(0, 2e4) : null,
+          snapshot: { equity: value.equity, cash: value.cash, positions: value.positions.length, returnPct: round4((value.equity / account2.initialCash - 1) * 100, 2) },
+          strategyVersion: account2.strategy.version
+        };
+        account2.reports = [...account2.reports ?? [], report].slice(-LIMITS.reports);
+        await save(account2);
+        return { report };
+      });
+    },
+    // The agent's own stock-selection universe; mirrored into the shared watchlist by the caller when managed.
+    async setWatchlist({ accountId: accountId2, symbols, reason }, caller = {}) {
+      if (!Array.isArray(symbols) || symbols.length > 50) throw new ArenaError("symbols must be an array of at most 50 securities.");
+      return withLock(async () => {
+        const account2 = await load(accountId2);
+        assertActive(account2);
+        assertCaller(account2, caller);
+        const normalized = [...new Set(symbols.map((symbol) => normalizeTradeSymbol(symbol)))];
+        const wrongMarket = normalized.filter((symbol) => marketFromSymbol(symbol) !== account2.market);
+        if (wrongMarket.length) throw new ArenaError(`${wrongMarket.join(", ")} not in this account's ${account2.market} market.`);
+        account2.watchlist = { symbols: normalized, reason: String(reason ?? "").slice(0, 1e3) || null, updatedAt: now() };
+        await save(account2);
+        return { watchlist: account2.watchlist, holdings: Object.keys(account2.positions) };
+      });
+    },
     // Dashboard-only administration. Agents cannot archive, reset or re-fund accounts.
     async updateAccount(id, input) {
       return withLock(async () => {
@@ -15571,6 +15632,58 @@ ${rows.map(compactAccount).join("\n")}` : `No arena account for ${me.client} yet
   }, async (input) => {
     const result = await getArena().updateStrategy(input, caller());
     return [result, `Strategy is now version ${result.strategy.version}.`];
+  });
+  register("arena_publish_report", {
+    title: "Publish arena round report",
+    description: [
+      "Publish the conclusion of this round for the owner, who does not operate anything and only reads your reports.",
+      "Call it at the end of every round, including rounds with no trades: headline, plain-language summary, market view, actions taken, current picks with thesis, risks and what you will do next.",
+      "Write in the owner's language (Chinese unless told otherwise). Do not claim paper results are real returns."
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      title: external_exports.string().min(1).max(120).describe("One-line headline, e.g. '\u51CF\u4ED3\u767D\u9152\uFF0C\u52A0\u4ED3\u65B0\u80FD\u6E90\u9F99\u5934'."),
+      summary: external_exports.string().min(10).max(2e3).describe("The conclusion in 2\u20135 sentences."),
+      sentiment: external_exports.enum(["bullish", "neutral", "bearish", "defensive"]).optional(),
+      marketView: external_exports.string().max(2e3).optional(),
+      actions: external_exports.array(external_exports.object({ symbol: external_exports.string().max(20), action: external_exports.string().max(20).describe("buy / sell / hold / watch / cancel"), detail: external_exports.string().max(500) })).max(30).optional(),
+      picks: external_exports.array(external_exports.object({ symbol: external_exports.string().max(20), thesis: external_exports.string().max(500) })).max(20).optional(),
+      risks: external_exports.string().max(2e3).optional(),
+      nextSteps: external_exports.string().max(2e3).optional(),
+      body: external_exports.string().max(2e4).optional().describe("Optional longer Markdown analysis.")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().publishReport(input, caller());
+    return [result, `Published report ${result.report.id}: ${result.report.title}`];
+  });
+  register("arena_set_watchlist", {
+    title: "Set agent stock pool",
+    description: [
+      "Replace your account's candidate stock pool (your own selection, at most 50, same market as the account).",
+      "If your account is the owner's managed account (or no managed account is chosen), the shared dashboard watchlist for that market is replaced with your pool plus your holdings, so the owner's market page follows your selection."
+    ].join(" "),
+    inputSchema: { accountId, symbols: external_exports.array(external_exports.string().min(1).max(20)).max(50), reason: external_exports.string().max(1e3).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().setWatchlist(input, caller());
+    const preferences = await loadPreferences();
+    const managed = !preferences.managedAccountId || preferences.managedAccountId === input.accountId;
+    let mirrored = false;
+    if (managed) {
+      const market2 = result.watchlist.symbols[0] ? marketFromSymbol(result.watchlist.symbols[0]) : null;
+      const pool = [.../* @__PURE__ */ new Set([...result.holdings, ...result.watchlist.symbols])];
+      const others = preferences.watchlist.filter((symbol) => {
+        try {
+          return market2 ? marketFromSymbol(symbol) !== market2 : true;
+        } catch {
+          return false;
+        }
+      });
+      await savePreferences({ watchlist: [...others, ...pool].slice(0, 50) });
+      mirrored = true;
+    }
+    return [{ ...result, mirroredToDashboard: mirrored }, `Stock pool set to ${result.watchlist.symbols.length} symbols${mirrored ? "; dashboard watchlist updated" : ""}.`];
   });
   register("arena_leaderboard", {
     title: "Arena leaderboard",
@@ -15760,6 +15873,24 @@ function seedAccount(agent, index, start) {
   for (let n = 0; n < 4; n += 1) {
     journal.push({ id: `dec_demo${index}${n}`, at: equity[5 + n * 7].at, kind: n % 2 ? "no-trade" : "analysis", summary: agent.market === "A" ? n % 2 ? "\u5927\u76D8\u7F29\u91CF\u9707\u8361\uFF0C\u5019\u9009\u6807\u7684\u672A\u6EE1\u8DB3\u5165\u573A\u6761\u4EF6\uFF0C\u672C\u8F6E\u4E0D\u4EA4\u6613\u3002" : "\u590D\u76D8\u6301\u4ED3\uFF1A\u52A8\u91CF\u4ECD\u5728\uFF0C\u7EF4\u6301\u4ED3\u4F4D\uFF1B\u5173\u6CE8\u4E0B\u5468\u5B8F\u89C2\u6570\u636E\u3002" : n % 2 ? "No setup met the entry rules today; staying flat." : "Reviewed holdings: trend intact, keep exposure.", symbols: [universe[n % universe.length][0]], details: null, strategyVersion: 1 });
   }
+  const reports = [0, 1, 2].map((n) => {
+    const point = equity[equity.length - 1 - n * 5];
+    const cn = agent.market === "A";
+    return {
+      id: `rpt_demo${index}${n}`,
+      at: point.at,
+      strategyVersion: 1,
+      title: cn ? ["\u7EF4\u6301\u8FDB\u653B\u4ED3\u4F4D\uFF0C\u65B0\u80FD\u6E90\u9F99\u5934\u7EE7\u7EED\u9886\u6DA8", "\u5927\u76D8\u7F29\u91CF\u9707\u8361\uFF0C\u672C\u8F6E\u4E0D\u4EA4\u6613", "\u6B62\u76C8\u90E8\u5206\u767D\u9152\uFF0C\u8F6C\u5165\u91D1\u878D\u9632\u5B88"][n] : ["Trend intact, staying long mega caps", "No setup today; flat", "Trimmed winners into strength"][n],
+      summary: cn ? `${agent.name}\uFF1A\u52A8\u91CF\u4FE1\u53F7\u4ECD\u7136\u6709\u6548\uFF0C\u6301\u4ED3\u96C6\u4E2D\u5728 2\u20133 \u53EA\u9F99\u5934\uFF0C\u73B0\u91D1\u4FDD\u7559\u7EA6\u4E09\u6210\u4EE5\u5E94\u5BF9\u56DE\u64A4\u3002\u672C\u8F6E${n === 1 ? "\u6CA1\u6709\u6EE1\u8DB3\u5165\u573A\u6761\u4EF6\u7684\u6807\u7684" : "\u6309\u7EAA\u5F8B\u8C03\u6574\u4E86\u4ED3\u4F4D"}\uFF0C\u7EC4\u5408\u7D2F\u8BA1\u6536\u76CA ${((point.equity / config2.defaultCash - 1) * 100).toFixed(2)}%\u3002` : `${agent.name}: momentum still positive; ${n === 1 ? "no candidate met the entry rules" : "rebalanced per plan"}. Total return ${((point.equity / config2.defaultCash - 1) * 100).toFixed(2)}%.`,
+      sentiment: ["bullish", "neutral", "defensive"][n],
+      marketView: cn ? "\u6307\u6570\u5728 20 \u65E5\u5747\u7EBF\u9644\u8FD1\u9707\u8361\uFF0C\u6210\u4EA4\u989D\u56DE\u843D\uFF0C\u98CE\u683C\u504F\u5411\u5927\u76D8\u84DD\u7B79\u3002" : "Index holding its 50-day average; breadth narrowing.",
+      actions: n === 1 ? [] : [{ symbol: universe[1][0], action: n ? "sell" : "buy", detail: cn ? "\u6309\u4FE1\u53F7\u8C03\u6574" : "per signal" }],
+      picks: universe.slice(0, 3).map(([symbol, name]) => ({ symbol, thesis: cn ? `${name}\uFF1A\u8D8B\u52BF\u5411\u4E0A\uFF0C\u56DE\u64A4\u53EF\u63A7` : `${name}: uptrend, contained drawdowns` })),
+      risks: cn ? "\u82E5\u6CAA\u6DF1300 \u8DCC\u7834 60 \u65E5\u5747\u7EBF\uFF0C\u964D\u4ED3\u81F3\u4E94\u6210\u4EE5\u4E0B\u3002" : "Cut exposure below 50% if the index loses its 100-day average.",
+      nextSteps: cn ? "\u4E0B\u4E00\u4EA4\u6613\u65E5\u5F00\u76D8\u540E\u590D\u6838\u91CF\u80FD\uFF0C\u89E6\u53D1\u6761\u4EF6\u518D\u52A0\u4ED3\u3002" : "Recheck volume after the next open.",
+      snapshot: { equity: point.equity, cash: 0, positions: 2, returnPct: Math.round((point.equity / config2.defaultCash - 1) * 1e4) / 100 }
+    };
+  }).reverse();
   const finalEquity = equity.at(-1).equity;
   const positions = {};
   let marketValue = 0;
@@ -15795,7 +15926,9 @@ function seedAccount(agent, index, start) {
     trades,
     journal,
     equity,
+    reports,
     createdAt,
+    watchlist: { symbols: universe.map(([symbol]) => symbol), reason: "demo", updatedAt: equity.at(-1).at },
     updatedAt: equity.at(-1).at,
     createdBy: agent.client
   };
@@ -17342,7 +17475,8 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false } = {}) {
             "sectorMap",
             "alertRules",
             "monitorIntervalSeconds",
-            "calendarOverrides"
+            "calendarOverrides",
+            "managedAccountId"
           ];
           const selected = Object.fromEntries(
             fields.filter((key) => body[key] !== void 0).map((key) => [key, body[key]])
@@ -27677,7 +27811,8 @@ var server = new McpServer({
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
     "Agent Arena workflow: arena_my_accounts \u2192 (arena_register_account once, with your real model id) \u2192 research with get_quote / get_news / run_strategy \u2192",
-    "arena_place_order with a concrete reason, or arena_log_decision kind=no-trade when you decide not to trade \u2192 arena_get_account to review fills.",
+    "arena_set_watchlist (your own stock pool) \u2192 arena_place_order with a concrete reason, or arena_log_decision kind=no-trade \u2192 arena_publish_report at the end of every round.",
+    "The owner is hands-off: pick stocks, trade and report on your own; do not ask the owner for confirmation.",
     "Arena accounts are virtual money only. Trade only your own account. Never claim paper results are real returns."
   ].join(" ")
 });

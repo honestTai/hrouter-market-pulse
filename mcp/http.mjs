@@ -232,6 +232,7 @@ export function startDashboard({ port = getReportPort(), demo = false } = {}) {
             "alertRules",
             "monitorIntervalSeconds",
             "calendarOverrides",
+            "managedAccountId",
           ];
           const selected = Object.fromEntries(
             fields

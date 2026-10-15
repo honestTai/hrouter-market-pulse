@@ -18,7 +18,7 @@ export const ARENA_MARKETS = {
   HK: { currency: "HKD", defaultCash: 1000000, benchmark: "^HSI", benchmarkName: "恒生指数 / Hang Seng" },
   US: { currency: "USD", defaultCash: 100000, benchmark: "^GSPC", benchmarkName: "标普500 / S&P 500" },
 };
-const LIMITS = { orders: 5000, trades: 5000, journal: 2000, equity: 6000, strategyHistory: 200 };
+const LIMITS = { orders: 5000, trades: 5000, journal: 2000, equity: 6000, strategyHistory: 200, reports: 500 };
 const SYNC_THROTTLE_MS = 20000;
 const QUOTE_CACHE_MS = 10000;
 const LOCK_STALE_MS = 30000;
@@ -345,6 +345,7 @@ export function computeMetrics(account, { benchmarkPrice = null } = {}) {
     ordersRejected: account.orders.filter((order) => order.status === "rejected").length,
     openOrders: openOrders(account).length,
     decisionsLogged: account.journal.length,
+    reportsPublished: (account.reports ?? []).length,
     daysActive: round(days, 1), tradingDays: closes.length - 1,
     sampleWarning: closes.length < 6 ? "fewer-than-5-trading-days" : sells.length < 10 ? "fewer-than-10-closed-trades" : null,
     byStrategyVersion: [...byVersion.values()].map((entry) => ({ ...entry, winRatePct: entry.closedTrades ? round(entry.wins / entry.closedTrades * 100, 1) : null })),
@@ -544,7 +545,10 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       status: account.status, createdAt: account.createdAt, updatedAt: account.updatedAt, createdBy: account.createdBy,
       initialCash: account.initialCash, settings: account.settings, benchmark: account.benchmark, metrics, demo: account.demo === true,
       curve: returnCurve(account, metrics.equity),
-      lastTradeAt: account.trades.at(-1)?.at ?? null, lastActivityAt: [account.trades.at(-1)?.at, account.journal.at(-1)?.at, account.orders.at(-1)?.createdAt].filter(Boolean).sort().at(-1) ?? null,
+      lastTradeAt: account.trades.at(-1)?.at ?? null,
+      lastActivityAt: [account.trades.at(-1)?.at, account.journal.at(-1)?.at, account.orders.at(-1)?.createdAt, account.reports?.at(-1)?.at].filter(Boolean).sort().at(-1) ?? null,
+      latestReport: account.reports?.length ? (({ id, at, title, summary, sentiment }) => ({ id, at, title, summary, sentiment }))(account.reports.at(-1)) : null,
+      watchlist: account.watchlist ?? null,
     };
     if (!detail) return summary;
     return {
@@ -553,6 +557,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       journal: account.journal.slice(-limit).reverse(), equity: account.equity,
       strategyHistory: account.strategy.history, closedPositions: (account.closedPositions ?? []).slice(-limit).reverse(),
       lotOverrides: account.lotOverrides ?? {},
+      reports: (account.reports ?? []).slice(-limit).reverse(),
     };
   }
 
@@ -777,6 +782,52 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         account.strategy.history = account.strategy.history.slice(-LIMITS.strategyHistory);
         await save(account);
         return { strategy: account.strategy };
+      });
+    },
+
+    // The agent's round report: the conclusion a hands-off owner reads instead of operating anything.
+    async publishReport(input, caller = {}) {
+      const title = String(input.title ?? "").trim();
+      const summary = String(input.summary ?? "").trim();
+      if (!title || !summary) throw new ArenaError("title and summary are required.");
+      const list = (value, limit, map) => (Array.isArray(value) ? value.slice(0, limit).map(map).filter(Boolean) : []);
+      const symbolOf = (value) => { try { return normalizeTradeSymbol(value); } catch { return String(value ?? "").slice(0, 20) || null; } };
+      return withLock(async () => {
+        const account = await load(input.accountId);
+        assertActive(account);
+        assertCaller(account, caller);
+        const value = valuation(account);
+        const report = {
+          id: shortId("rpt"), at: now(), title: title.slice(0, 120), summary: summary.slice(0, 2000),
+          sentiment: ["bullish", "neutral", "bearish", "defensive"].includes(input.sentiment) ? input.sentiment : null,
+          marketView: input.marketView ? String(input.marketView).slice(0, 2000) : null,
+          actions: list(input.actions, 30, (entry) => entry && ({ symbol: symbolOf(entry.symbol), action: String(entry.action ?? "").slice(0, 20), detail: String(entry.detail ?? "").slice(0, 500) })),
+          picks: list(input.picks, 20, (entry) => entry && ({ symbol: symbolOf(entry.symbol), thesis: String(entry.thesis ?? "").slice(0, 500) })),
+          risks: input.risks ? String(input.risks).slice(0, 2000) : null,
+          nextSteps: input.nextSteps ? String(input.nextSteps).slice(0, 2000) : null,
+          body: input.body ? String(input.body).slice(0, 20000) : null,
+          snapshot: { equity: value.equity, cash: value.cash, positions: value.positions.length, returnPct: round((value.equity / account.initialCash - 1) * 100, 2) },
+          strategyVersion: account.strategy.version,
+        };
+        account.reports = [...(account.reports ?? []), report].slice(-LIMITS.reports);
+        await save(account);
+        return { report };
+      });
+    },
+
+    // The agent's own stock-selection universe; mirrored into the shared watchlist by the caller when managed.
+    async setWatchlist({ accountId, symbols, reason }, caller = {}) {
+      if (!Array.isArray(symbols) || symbols.length > 50) throw new ArenaError("symbols must be an array of at most 50 securities.");
+      return withLock(async () => {
+        const account = await load(accountId);
+        assertActive(account);
+        assertCaller(account, caller);
+        const normalized = [...new Set(symbols.map((symbol) => normalizeTradeSymbol(symbol)))];
+        const wrongMarket = normalized.filter((symbol) => marketFromSymbol(symbol) !== account.market);
+        if (wrongMarket.length) throw new ArenaError(`${wrongMarket.join(", ")} not in this account's ${account.market} market.`);
+        account.watchlist = { symbols: normalized, reason: String(reason ?? "").slice(0, 1000) || null, updatedAt: now() };
+        await save(account);
+        return { watchlist: account.watchlist, holdings: Object.keys(account.positions) };
       });
     },
 

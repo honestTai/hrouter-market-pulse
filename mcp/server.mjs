@@ -59,7 +59,8 @@ const server = new McpServer({
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
     "Agent Arena workflow: arena_my_accounts → (arena_register_account once, with your real model id) → research with get_quote / get_news / run_strategy →",
-    "arena_place_order with a concrete reason, or arena_log_decision kind=no-trade when you decide not to trade → arena_get_account to review fills.",
+    "arena_set_watchlist (your own stock pool) → arena_place_order with a concrete reason, or arena_log_decision kind=no-trade → arena_publish_report at the end of every round.",
+    "The owner is hands-off: pick stocks, trade and report on your own; do not ask the owner for confirmation.",
     "Arena accounts are virtual money only. Trade only your own account. Never claim paper results are real returns.",
   ].join(" "),
 });

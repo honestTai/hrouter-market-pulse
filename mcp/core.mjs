@@ -979,6 +979,7 @@ export async function loadPreferences() {
     alertRules: Array.isArray(saved.alertRules) ? saved.alertRules : [],
     calendarOverrides: saved.calendarOverrides ?? {},
     monitorIntervalSeconds: Math.max(60, Math.min(3600, finite(saved.monitorIntervalSeconds) ?? 300)),
+    managedAccountId: typeof saved.managedAccountId === "string" ? saved.managedAccountId : null,
     reportPort: getReportPort(),
     reportDirectory: getStorageDir(),
     officialWebsite: OFFICIAL_WEBSITE,
@@ -1139,7 +1140,10 @@ export function sanitizePreferences(input, current = {}) {
     }) : current.alertRules ?? [],
     calendarOverrides: input.calendarOverrides ?? current.calendarOverrides ?? {},
     monitorIntervalSeconds: input.monitorIntervalSeconds ?? current.monitorIntervalSeconds ?? 300,
+    // Arena account whose agent manages the owner's portfolio (null = follow the most active account).
+    managedAccountId: input.managedAccountId === undefined ? current.managedAccountId ?? null : input.managedAccountId,
   };
+  if (next.managedAccountId !== null && !/^acc_[a-f0-9]{12}$/.test(next.managedAccountId)) throw new Error("managedAccountId must be an arena account id or null.");
   return next;
 }
 

@@ -117,6 +117,7 @@ lucide-react/dist/esm/icons/notebook-pen.mjs:
 lucide-react/dist/esm/icons/pause.mjs:
 lucide-react/dist/esm/icons/plug.mjs:
 lucide-react/dist/esm/icons/plus.mjs:
+lucide-react/dist/esm/icons/radar.mjs:
 lucide-react/dist/esm/icons/refresh-cw.mjs:
 lucide-react/dist/esm/icons/rotate-ccw-clock.mjs:
 lucide-react/dist/esm/icons/save.mjs:
@@ -125,6 +126,7 @@ lucide-react/dist/esm/icons/search.mjs:
 lucide-react/dist/esm/icons/settings-2.mjs:
 lucide-react/dist/esm/icons/shield-check.mjs:
 lucide-react/dist/esm/icons/sliders-horizontal.mjs:
+lucide-react/dist/esm/icons/sparkles.mjs:
 lucide-react/dist/esm/icons/sun.mjs:
 lucide-react/dist/esm/icons/trash.mjs:
 lucide-react/dist/esm/icons/triangle-alert.mjs:

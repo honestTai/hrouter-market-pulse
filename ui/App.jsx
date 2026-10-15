@@ -3,10 +3,11 @@ import { Badge, Button, Dialog, DropdownMenu, IconButton, Select, Theme, Tooltip
 import { ArrowUpRight, Bot, BookOpen, BriefcaseBusiness, CandlestickChart, CheckCircle2, ChevronRight, Cloud, FileCheck2, FlaskConical, Globe2, Menu, Moon, Plus, RefreshCw, Settings2, ShieldCheck, Sun, Trophy, TriangleAlert, X } from "lucide-react";
 import { WorkspaceContext, useWorkspace } from "./context.jsx";
 import { api, array, collectEvidence, holdingsFor, readStorage, writeStorage } from "./data.mjs";
-import { MarketPage, PortfolioPage } from "./components/MarketBoard.jsx";
+import { MarketPage } from "./components/MarketBoard.jsx";
 import { EvidencePage, JournalPage } from "./components/ResearchPanels.jsx";
 import { PaperTradingPage } from "./components/PaperTrading.jsx";
 import { ArenaPage } from "./components/Arena.jsx";
+import { ManagedPortfolioPage } from "./components/Managed.jsx";
 import { Editor } from "./components/Editors.jsx";
 import { ErrorNotice } from "./components/Primitives.jsx";
 
@@ -24,7 +25,7 @@ const groups = [
 ];
 const subtitles = {
   market: ["把行情、证据与判断放在同一个视野。", "Prices, evidence and the reasoning behind them, in one view."],
-  portfolio: ["按币种查看持仓，关注风险与原始投资逻辑。", "Holdings by currency, with risk and your original thesis in view."],
+  portfolio: ["由 Agent 全权托管：它负责选股、交易和调仓，你在这里看结论、持仓和收益。", "Fully managed by an agent: it picks, trades and rebalances; you read the conclusions, holdings and returns here."],
   evidence: ["从原始资料出发，区分事实、事件和推断。", "Start from original sources. Separate facts, events and interpretation."],
   journal: ["保存当时的理由，持续用新证据检验。", "Preserve what you believed then, and keep testing it against new evidence."],
   arena: ["让 Claude Code、Codex、WorkBuddy 等 Agent 用各自的模型同场模拟交易，横向比较收益、回撤与交易纪律。", "Claude Code, Codex, WorkBuddy and other agents paper-trade side by side; compare return, drawdown and discipline."],
@@ -140,7 +141,7 @@ function PageHeading() {
 
 function CurrentPage() {
   const { view } = useWorkspace();
-  if (view === "portfolio") return <PortfolioPage />;
+  if (view === "portfolio") return <ManagedPortfolioPage />;
   if (view === "evidence") return <EvidencePage />;
   if (view === "journal") return <JournalPage />;
   if (view === "arena") return <ArenaPage />;
@@ -168,7 +169,37 @@ export default function App({ initialReport = {}, initialView = "market" }) {
   const [interval, setIntervalSeconds] = useState(0);
   const t = (zh, en) => language === "en" ? en : zh;
   const notify = useCallback((message, error = false) => setToast({ message, error, id: Date.now() }), []);
-  const holdings = useMemo(() => holdingsFor(report.items, preferences?.positions), [report.items, preferences]);
+  // The agent-managed arena account is the owner's portfolio; manual positions are only a fallback.
+  const [arenaAccounts, setArenaAccounts] = useState([]);
+  const [managedAccount, setManagedAccount] = useState(null);
+  const [managedLoading, setManagedLoading] = useState(true);
+  const managedPreference = preferences?.managedAccountId;
+  const loadManaged = useCallback(async (signal) => {
+    try {
+      const board = await api("/api/arena/leaderboard", undefined, signal);
+      const accounts = array(board.groups).flatMap((group) => array(group.accounts));
+      if (signal?.aborted) return;
+      setArenaAccounts(accounts);
+      const latest = [...accounts].sort((a, b) => (Date.parse(b.lastActivityAt) || 0) - (Date.parse(a.lastActivityAt) || 0))[0];
+      const pick = accounts.find((account) => account.id === managedPreference) ?? latest;
+      const detail = pick ? await api(`/api/arena/accounts/${pick.id}`, undefined, signal) : null;
+      if (!signal?.aborted) setManagedAccount(detail);
+    } catch { /* The arena is optional; the portfolio page shows its onboarding instead. */ }
+    finally { if (!signal?.aborted) setManagedLoading(false); }
+  }, [managedPreference]);
+  useEffect(() => {
+    if (loading) return undefined;
+    const abort = new AbortController();
+    loadManaged(abort.signal);
+    const timer = window.setInterval(() => { if (!document.hidden) loadManaged(abort.signal); }, 60000);
+    return () => { abort.abort(); window.clearInterval(timer); };
+  }, [loading, loadManaged]);
+  const chooseManaged = async (id) => {
+    try { const result = await api("/api/preferences", { managedAccountId: id }); setPreferences(result.preferences || result); }
+    catch (error) { notify(error.message, true); }
+  };
+  const managedPositions = useMemo(() => managedAccount?.positions?.map((position) => ({ symbol: position.symbol, quantity: position.quantity, averageCost: position.averageCost, currency: managedAccount.currency })), [managedAccount]);
+  const holdings = useMemo(() => holdingsFor(report.items, managedPositions ?? preferences?.positions), [report.items, preferences, managedPositions]);
   useEffect(() => { document.documentElement.lang = language; writeStorage("language", language); }, [language]);
   useEffect(() => { document.documentElement.style.colorScheme = appearance; writeStorage("appearance", appearance); }, [appearance]);
   useEffect(() => { writeStorage("colorConvention", colorConvention); }, [colorConvention]);
@@ -238,6 +269,7 @@ export default function App({ initialReport = {}, initialView = "market" }) {
     try { const result = await api("/api/decisions"); setDecisions(array(result, "decisions")); } catch { /* The saved record remains visible. */ }
     notify(t("复盘已追加，原始判断保持不变。", "Review appended. The original decision is unchanged."));
   });
-  const context = { report, view, setView, language, setLanguage, appearance, setAppearance, colorConvention, preferences, decisions, selected, setSelected, timeframe, setTimeframe, clock, busy, loading, holdings, interval, setIntervalSeconds, refresh, syncSources, savePreferences, saveDecision, saveReview, openEditor: setEditor, reloadWorkspace: () => loadWorkspace(), notify };
+  const managed = { accounts: arenaAccounts, account: managedAccount, loading: managedLoading || loading, choose: chooseManaged, reload: () => loadManaged() };
+  const context = { managed, report, view, setView, language, setLanguage, appearance, setAppearance, colorConvention, preferences, decisions, selected, setSelected, timeframe, setTimeframe, clock, busy, loading, holdings, interval, setIntervalSeconds, refresh, syncSources, savePreferences, saveDecision, saveReview, openEditor: setEditor, reloadWorkspace: () => loadWorkspace(), notify };
   return <Theme appearance={appearance} accentColor="jade" grayColor="slate" radius="large" scaling="100%" panelBackground="solid" className={`workspace-theme ${colorConvention === "red-up" ? "red-up" : "green-up"}`}><WorkspaceContext.Provider value={context}><div className="workspace-shell"><Sidebar /><div className="workspace-main"><Header /><main className="main-content"><PageHeading />{report.demo && view !== "arena" && <div className="demo-banner"><FlaskConical size={15} /><span>{t("演示模式", "DEMO MODE")}</span>{t("全部价格、持仓与事件均为合成样本，不用于真实决策。", "All prices, positions and events are synthetic. Not for real investment decisions.")}</div>}<ErrorNotice message={loadError} onRetry={() => loadWorkspace()} /><CurrentPage /><footer className="workspace-footer"><span><ShieldCheck size={13} />{t("公开行情可能延迟 · 研究不等于交易建议", "Public quotes may be delayed · Research is not a trade recommendation")}</span><a href="https://hrouter.net/" target="_blank" rel="noreferrer">HRouter <ArrowUpRight size={12} /></a></footer></main></div></div>{editor && <Editor key={`${editor.type}:${editor.record?.id || ""}`} editor={editor} onClose={() => setEditor(null)} />}<div className="toast-region" aria-live="polite">{toast && <div className={`app-toast ${toast.error ? "error" : ""}`} role={toast.error ? "alert" : "status"}>{toast.error ? <TriangleAlert size={18} /> : <CheckCircle2 size={18} />}<span>{toast.message}</span><IconButton variant="ghost" color="gray" size="1" aria-label={t("关闭通知", "Dismiss notification")} onClick={() => setToast(null)}><X size={14} /></IconButton></div>}</div></WorkspaceContext.Provider></Theme>;
 }

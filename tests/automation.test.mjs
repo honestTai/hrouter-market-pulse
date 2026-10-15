@@ -20,7 +20,7 @@ async function setup(clock = { value: OPEN_A }) {
     root, now: () => clock.value, quoteCacheMs: 0,
     quoteProvider: async (symbol) => ({ symbol, name: symbol, price: prices[symbol], asOf: clock.value, provider: "test", volumeShares: 1e9 }),
   });
-  return { root, arena, clock, cleanup: () => rm(root, { recursive: true, force: true }) };
+  return { root, arena, clock, cleanup: () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) };
 }
 
 // Rising closes for the first two symbols, falling for the third: completed bars only.
@@ -150,5 +150,5 @@ test("advisory broker only records proposals for human confirmation", async () =
     assert.equal((await broker.listProposals({ status: "pending-confirmation" })).length, 1);
     await assert.rejects(broker.cancelOrder("x"), /confirmed or rejected by the owner/);
     assert.throws(() => normalizeIntent({ symbol: "AAPL", side: "SHORT", quantity: 1 }), /BUY or SELL/);
-  } finally { await rm(root, { recursive: true, force: true }); }
+  } finally { await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });

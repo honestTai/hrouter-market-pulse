@@ -32,7 +32,7 @@ function harness(prices = {}, { actions = {} } = {}) {
           return { symbol, name: entry.name ?? symbol, price: entry.price, asOf: entry.asOf ?? clock, provider: "test", lotSize: entry.lotSize ?? null, limitUp: entry.limitUp ?? null, limitDown: entry.limitDown ?? null, volumeShares: entry.volumeShares ?? null, suspended: entry.suspended };
         },
       });
-      return { arena, root, cleanup: () => rm(root, { recursive: true, force: true }) };
+      return { arena, root, cleanup: () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) };
     },
   };
 }

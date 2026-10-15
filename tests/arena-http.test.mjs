@@ -19,7 +19,7 @@ async function withServer(options, run) {
   try { await run(call); } finally { await new Promise((resolve) => server.close(resolve)); }
 }
 
-test.after(() => rm(dataDir, { recursive: true, force: true }));
+test.after(() => rm(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
 
 test("demo dashboard serves a labelled synthetic arena without touching real data", async () => {
   await withServer({ demo: true }, async (call) => {

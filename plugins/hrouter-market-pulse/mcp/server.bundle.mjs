@@ -17554,7 +17554,7 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
 
 // mcp/scheduler.mjs
 var RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "command", "strategy"];
-var SCHEDULER_DEFAULTS = Object.freeze({ tickMs: 3e4, leaseMs: 12e4, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6e3, runLogLimit: 300, failureThreshold: 3 });
+var SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 10, tickMs: 3e4, leaseMs: 12e4, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6e3, runLogLimit: 300, failureThreshold: 3 });
 var TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 var minuteOf = (time3) => {
   const [, h, m] = time3.match(TIME);
@@ -17569,6 +17569,14 @@ function sanitizeJob(input, current = {}) {
     const times = [...new Set(input.times.map((time3) => String(time3).trim()))];
     for (const time3 of times) if (!TIME.test(time3)) throw new ArenaError(`Invalid time "${time3}"; use 24-hour HH:MM in the market's local time.`);
     job.times = times.sort();
+  }
+  if (input.intervalMinutes !== void 0) {
+    if (input.intervalMinutes === null || input.intervalMinutes === "" || input.intervalMinutes === 0) delete job.intervalMinutes;
+    else {
+      const interval = Number(input.intervalMinutes);
+      if (!Number.isInteger(interval) || interval < 1 || interval > 240) throw new ArenaError("intervalMinutes must be a whole number of minutes between 1 and 240.");
+      job.intervalMinutes = interval;
+    }
   }
   if (input.runner !== void 0) {
     const runner = input.runner ?? {};
@@ -17592,7 +17600,10 @@ function sanitizeJob(input, current = {}) {
     }
     job.runner = next;
   }
-  if (!job.times?.length) throw new ArenaError("Give at least one run time.");
+  if (job.intervalMinutes && job.runner && job.runner.type !== "strategy" && job.intervalMinutes < SCHEDULER_DEFAULTS.minAgentIntervalMinutes)
+    throw new ArenaError(`Agent rounds take several minutes; use an interval of at least ${SCHEDULER_DEFAULTS.minAgentIntervalMinutes} minutes (code strategies may run every minute).`);
+  job.times ??= [];
+  if (!job.times.length && !job.intervalMinutes) throw new ArenaError("Give at least one run time or a repeat interval.");
   if (!job.runner) throw new ArenaError("Give a runner.");
   return job;
 }
@@ -17690,14 +17701,24 @@ ${prompt}` : prompt
   }
   throw new ArenaError(`Runner ${runner.type} is not an agent CLI.`);
 }
+var hhmm = (minute) => `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
 function dueSlots(job, market2, at, done, catchUpMinutes = SCHEDULER_DEFAULTS.catchUpMinutes) {
   const session = getMarketSession(market2, at);
   if (session.status === "closed") return [];
-  return job.times.filter((time3) => {
+  const fixed = (job.times ?? []).filter((time3) => {
     const slot = minuteOf(time3);
     const key = `${session.date}T${time3}`;
     return session.minute >= slot && session.minute - slot <= catchUpMinutes && !done.includes(key);
   }).map((time3) => ({ time: time3, key: `${session.date}T${time3}`, date: session.date }));
+  if (job.intervalMinutes && session.status === "open") {
+    const segment = session.sessions.find(([start, end]) => session.minute >= start && session.minute < end);
+    if (segment) {
+      const slotStart = segment[0] + Math.floor((session.minute - segment[0]) / job.intervalMinutes) * job.intervalMinutes;
+      const key = `${session.date}T${hhmm(slotStart)}`;
+      if (!done.includes(key) && !fixed.some((slot) => slot.key === key)) fixed.push({ time: hhmm(slotStart), key, date: session.date, repeat: true });
+    }
+  }
+  return fixed;
 }
 function runChild({ command, args, env, cwd, timeoutMs, spawnImpl, tailBytes }) {
   return new Promise((resolve) => {
@@ -17891,9 +17912,16 @@ function createScheduler({
       }
       if (account2.status !== "active") continue;
       const slots = dueSlots(job, account2.market, at, done[job.accountId] ?? [], catchUpMinutes);
-      if (!slots.length || running.has(job.accountId)) continue;
+      if (!slots.length) continue;
+      if (running.has(job.accountId)) {
+        const skipped = slots.filter((slot) => slot.repeat);
+        if (skipped.length) await update((state) => {
+          state.done[job.accountId] = [...state.done[job.accountId] ?? [], ...skipped.map((slot) => slot.key)].slice(-600);
+        });
+        continue;
+      }
       await update((state) => {
-        state.done[job.accountId] = [...state.done[job.accountId] ?? [], ...slots.map((slot) => slot.key)].slice(-100);
+        state.done[job.accountId] = [...state.done[job.accountId] ?? [], ...slots.map((slot) => slot.key)].slice(-600);
       });
       started.push(job.accountId);
       execute(job, { slot: slots.at(-1).key }).catch((error2) => onError(error2));
@@ -20431,8 +20459,8 @@ var e164 = /^\+(?:[0-9]){6,14}[0-9]$/;
 var dateSource = `(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))`;
 var date = /* @__PURE__ */ new RegExp(`^${dateSource}$`);
 function timeSource(args) {
-  const hhmm = `(?:[01]\\d|2[0-3]):[0-5]\\d`;
-  const regex = typeof args.precision === "number" ? args.precision === -1 ? `${hhmm}` : args.precision === 0 ? `${hhmm}:[0-5]\\d` : `${hhmm}:[0-5]\\d\\.\\d{${args.precision}}` : `${hhmm}(?::[0-5]\\d(?:\\.\\d+)?)?`;
+  const hhmm2 = `(?:[01]\\d|2[0-3]):[0-5]\\d`;
+  const regex = typeof args.precision === "number" ? args.precision === -1 ? `${hhmm2}` : args.precision === 0 ? `${hhmm2}:[0-5]\\d` : `${hhmm2}:[0-5]\\d\\.\\d{${args.precision}}` : `${hhmm2}(?::[0-5]\\d(?:\\.\\d+)?)?`;
   return regex;
 }
 function time(args) {

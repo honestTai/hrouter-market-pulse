@@ -42,7 +42,8 @@ export function AutomationPanel({ account }) {
       const job = schedules.jobs.find((entry) => entry.accountId === account.id);
       setForm((current) => current ?? {
         enabled: job?.enabled ?? true,
-        times: (job?.times ?? DEFAULT_TIMES[account.market].split(", ")).join(", "),
+        times: (job?.times ?? (job?.intervalMinutes ? [] : DEFAULT_TIMES[account.market].split(", "))).join(", "),
+        intervalMinutes: job?.intervalMinutes ?? "",
         type: job?.runner.type ?? (account.agent?.client?.startsWith("strategy") ? "strategy" : /codex/i.test(account.agent?.label ?? "") ? "codex" : /workbuddy|codebuddy/i.test(account.agent?.label ?? "") ? "workbuddy" : /kimi/i.test(`${account.agent?.label ?? ""} ${account.agent?.client ?? ""}`) ? "kimi" : "claude"),
         model: job?.runner.model ?? (account.model?.startsWith("strategy:") ? "" : account.model ?? ""),
         timeoutMinutes: job?.runner.timeoutMinutes ?? 20, maxBudgetUsd: job?.runner.maxBudgetUsd ?? "",
@@ -67,7 +68,7 @@ export function AutomationPanel({ account }) {
         ...(form.model ? { model: form.model } : {}), ...(form.maxBudgetUsd !== "" ? { maxBudgetUsd: Number(form.maxBudgetUsd) } : {}),
         ...(form.type === "strategy" ? { strategyId: form.strategyId, params } : {}),
         ...(form.type === "command" ? { command: form.command, args: form.args.split("\n").map((line) => line.trim()).filter(Boolean) } : {}) };
-      await api(`/api/arena/schedules/${account.id}`, { enabled: form.enabled, times: form.times.split(/[,，\s]+/).filter(Boolean), runner });
+      await api(`/api/arena/schedules/${account.id}`, { enabled: form.enabled, times: form.times.split(/[,，\s]+/).filter(Boolean), intervalMinutes: form.intervalMinutes === "" ? null : Number(form.intervalMinutes), runner });
       notify(t("自动运行已保存。", "Automation saved.")); await load();
     } catch (failure) { setError(failure.message); } finally { setBusy(""); }
   };
@@ -83,7 +84,8 @@ export function AutomationPanel({ account }) {
     {job?.unhealthy && <Callout.Root color="red" size="1"><Callout.Icon><CircleAlert size={16} /></Callout.Icon><Callout.Text>{t(`已连续 ${job.consecutiveFailures} 轮失败，请查看下方运行记录。`, `${job.consecutiveFailures} consecutive failed rounds; see the run log below.`)}</Callout.Text></Callout.Root>}
     <div className="form-grid">
       <div className="form-field"><label>{t("运行方式", "Runner")}</label><select className="native-select" value={form.type} onChange={set("type")}>{RUNNERS.map((runner) => <option key={runner.id} value={runner.id}>{t(runner.zh, runner.en)}</option>)}</select></div>
-      <div className="form-field"><label>{t(`运行时间（${account.market} 当地时间，逗号分隔）`, `Run times (${account.market} local, comma-separated)`)}</label><TextField.Root value={form.times} onChange={set("times")} placeholder="09:45, 14:30" /><small className="muted">{t("只在交易日运行；同组账户建议用相同时间，对比才公平。", "Trading days only; use the same times across a group for a fair comparison.")}</small></div>
+      <div className="form-field"><label>{t("交易时段内每隔（分钟）", "Repeat every (minutes, in session)")}</label><TextField.Root type="number" min={form.type === "strategy" ? 1 : 10} max="240" value={form.intervalMinutes} onChange={set("intervalMinutes")} placeholder={form.type === "strategy" ? "5" : "30"} /><small className="muted">{form.type === "strategy" ? t("代码策略最短 1 分钟；只在开盘时段触发，午休不触发。", "Code strategies: 1 minute minimum; regular sessions only, never at lunch.") : t("Agent 一轮要几分钟并消耗模型额度，最短 10 分钟；上一轮没结束会跳过本次。", "Agent rounds take minutes and cost model usage: 10 minutes minimum; a slot is skipped while the previous round runs.")}</small></div>
+      <div className="form-field"><label>{t(`固定时间（${account.market} 当地时间，可选，逗号分隔）`, `Fixed times (${account.market} local, optional)`)}</label><TextField.Root value={form.times} onChange={set("times")} placeholder="09:45, 14:30" /><small className="muted">{t("可与间隔同时使用；只在交易日运行。同组账户建议用相同设置，对比才公平。", "Combine with the interval if you like; trading days only. Use the same settings across a group for a fair comparison.")}</small></div>
       {form.type === "workbuddy" && <div className="form-field full"><Callout.Root color="amber" size="1"><Callout.Text>{t("WorkBuddy 命令行没有独立登录，需要在服务环境里提供 CODEBUDDY_API_KEY。没有 API key 时，请改用 WorkBuddy App 自带的定时任务触发每一轮（提示词见「接入 Agent」）。", "The WorkBuddy CLI has no standalone login and needs CODEBUDDY_API_KEY in the service environment. Without one, trigger rounds from WorkBuddy's own scheduled tasks instead (prompt under Connect agent).")}</Callout.Text></Callout.Root></div>}
       {form.type !== "strategy" && <div className="form-field"><label>{t("模型（可选）", "Model (optional)")}</label><TextField.Root value={form.model} onChange={set("model")} placeholder={form.type === "codex" ? "gpt-5.5-codex" : form.type === "workbuddy" ? "primary-model" : form.type === "kimi" ? "kimi-code/k3-256k" : "claude-opus-5-5"} /></div>}
       {form.type === "claude" && <div className="form-field"><label>{t("单轮费用上限（美元，可选）", "Max cost per round (USD, optional)")}</label><TextField.Root type="number" min="0.1" step="0.1" value={form.maxBudgetUsd} onChange={set("maxBudgetUsd")} /></div>}

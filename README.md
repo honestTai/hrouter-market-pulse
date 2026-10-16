@@ -2,154 +2,140 @@
 
 # HRouter Market Pulse
 
-**把行情、公告与研究记录，放到同一个工作台。**  
-**Your quotes, filings, and research notes—in one workspace.**
+**让 Agent 替你炒股（模拟盘）：选股、交易、持仓全托管，你只看报告。**  
+**Let your AI agents run a paper portfolio end to end — you just read the reports.**
 
-[中文](README.md) · [English](README.en.md) · [下载插件 / Plugin releases](https://github.com/honestTai/hrouter-market-pulse/releases) · [GitHub](https://github.com/honestTai/hrouter-market-pulse) · [HRouter](https://hrouter.net/home)
+[中文](README.md) · [English](README.en.md) · [下载 / Releases](https://github.com/honestTai/hrouter-market-pulse/releases/latest) · [更新日志](CHANGELOG.md) · [HRouter](https://hrouter.net/home)
 
 </div>
 
-不只看一张涨跌表：在中英文工作台里查看持仓、核对行情、跟踪异动和公告，并保留判断与复盘记录。
+一个给 **Codex、Claude Code、Kimi Code、WorkBuddy** 以及任意 MCP 客户端用的股票研究与模拟交易插件。A 股、港股、美股都支持，所有数据保存在本机，所有 Agent 共享同一份记录。
 
-Go beyond a price table: review holdings, cross-check quotes, follow alerts and filings, and keep a record of your reasoning.
+- **Agent 竞技场**：每个 Agent、每个模型一个虚拟账户，在真实行情和真实交易规则下同场模拟交易，横向比收益、回撤和交易纪律。
+- **全托管**：Agent 自己扫描全市场选股、下单、设止损、写报告；常驻服务按时调起 Agent 和量化策略，收盘自动生成日报并推送。
+- **研究工作台**：双源行情核验、全市场扫描、公告证据、回测、决策复盘。
 
-**适合谁 / Who it’s for**  
-希望结合可复核数据与 AI 整理 A 股、港股和美股研究的用户。  
-Researchers who want verifiable data and AI-assisted workflows for mainland China, Hong Kong, and US equities.
+![Agent 竞技场：多个 Agent 的收益曲线与横向对比（合成演示数据）](docs/images/arena-zh.png)
 
-插件使用当前 Agent 的模型（**Codex、Claude Code、WorkBuddy** 或任意 MCP 客户端），无需另配模型服务。内置 **Agent 竞技场**：让不同 Agent、不同模型用虚拟资金在真实行情下同场模拟交易，横向对比收益、回撤与交易纪律。
+> 截图均为 `npm run demo` 的**合成演示数据**。模拟盘使用虚拟资金，结果不代表真实收益，也不构成投资建议。
 
-![HRouter Market Pulse 中文看盘工作台，使用合成演示数据](docs/images/dashboard-zh.png)
+## 功能一览
 
-## 能做什么
+### Agent 竞技场（模拟盘）
 
-| 工作流 | 能力 |
+| 能力 | 说明 |
 | --- | --- |
-| 看盘 | 中英文切换、自选股筛选排序、持仓优先、日线和 5 分钟图、成交量、清晰的指标周期与数据状态 |
-| 行情核验 | Yahoo Finance 与腾讯财经交叉检查，核对报价时间、交易时段、历史样本和数据质量 |
-| 异动监控 | 记录触发、恢复和冷却状态，避免同一个条件反复通知；过期数据不触发新交易信号 |
-| 研究背景 | 指数对照、相对强弱、自选池行业分组，明确区分自选池统计和完整市场统计 |
-| 公告证据 | SEC 公告与财务事实、巨潮公告适配器，以及原始交易所公告导入；保留来源和首次可见时间 |
-| 风险预算 | 校验币种与汇率，纳入已有持仓、可用现金、组合风险和交易单位 |
-| 策略验证 | 按时间推进的共享资金回测、市场持有规则、费用滑点、公司行动，以及滚动样本外评估 |
-| 基本面研究 | 财报证据可比性检查、可证伪的投资逻辑卡、保留改期与取消历史的事件日历；不虚构共识预期 |
-| 决策复盘 | 保存原始判断和当时证据，追加结果回顾；预测先记录，结果后核对 |
-| Agent 竞技场 | 每个 Agent 独立的 A/港/美股虚拟账户；按 T+1、涨跌停、每手股数、交易费用撮合；收益曲线叠加、按模型/按 Agent 对比、排行榜与决策日志。[说明](docs/AGENT_ARENA.md) |
+| 多 Agent 同场 | Codex、Claude Code、Kimi Code、WorkBuddy、量化策略各自开户，按市场与组别排名；按模型 / 按 Agent 横向对比 |
+| 真实交易规则 | A 股 T+1、涨跌停、每手 100 股（科创板 200 股起 1 股递增、北交所 100 股起 1 股递增）、港股每手股数、美股 1 股；交易所价位、零售费用、滑点、成交量上限、停牌、派息拆股 |
+| 全市场选股 | `scan_market` 按成交额、5 分钟涨速、主力净流入、涨幅、量比等扫描主板、创业板、科创板、北交所和 ST，以及热门行业 / 概念板块和成分股；港股、美股同样可扫 |
+| 风控 | 单票上限、总仓位上限、回撤熔断（只有你能复位）；买入自带止损止盈，后台每 1–2 分钟盯价执行 |
+| 绩效 | 累计 / 今日 / 年化收益、相对沪深300 / 恒指 / 标普500 的超额、最大回撤、夏普、胜率、盈亏比、换手、拒单数，按策略版本归因，样本不足时明确提示 |
+| 报告 | 每轮结束 Agent 必须发布结论报告（结论、操作、看好标的、风险、下一步）；收盘自动生成日报，可推送企业微信 / 飞书 / 通用 webhook |
 
-## 正式运行：Agent / 量化策略全自动模拟盘
+### 自动运行
 
-```bash
-npm ci && npm run build
-npm run service:install        # 开机自启：盘中撮合、止损止盈、定时调起 Agent 或策略、收盘日报
-```
+| 能力 | 说明 |
+| --- | --- |
+| 常驻服务 | `npm run service:install` 开机自启（macOS LaunchAgent / Linux systemd / Windows 计划任务），崩溃自动重启，插件更新后自动换新版本；退出 Agent 客户端不影响运行 |
+| 调度 | 每个账户独立设置：交易时段每 N 分钟一轮 + 固定时间；**Agent 默认每 15 分钟一轮**（最短 5 分钟），代码策略最短 1 分钟；漏跑 90 分钟内补跑，同一账户不并发，超时强制结束 |
+| 运行方式 | Claude Code（`claude -p`）、Codex（`codex exec`）、Kimi Code（`kimi -p`）、WorkBuddy、内置量化策略、自定义命令；只挂载本插件的工具 |
+| 自己找新闻 | 插件新闻源拿不到时，调度运行的 Agent 可以自己联网搜索（Claude WebSearch、Codex web search、Kimi 自带搜索），不会因为某个接口挂了就停摆 |
 
-然后在 <http://127.0.0.1:8780/?view=arena> 为每个账户设置「自动运行」（Claude Code / Codex / 量化策略，交易日运行时间）和风控即可。详见 [Agent 竞技场](docs/AGENT_ARENA.md) 与 [量化策略与执行接口](docs/STRATEGIES.md)。实盘只预留了"建议单 + 人工确认"接口，不会自动下真实订单。
+### 量化策略
 
-## 安装到 Claude Code / WorkBuddy
+- 策略就是一个 ES 模块：拿到账户、股票池、**只含已收盘 K 线**的日线、当日分钟线（含均价线 VWAP）、全市场扫描，返回目标仓位或订单；运行时换算成整手订单，先卖后买，不卖 T+1 锁定的股份，同一轮幂等。
+- 内置三个示例：`ma-trend`（均线趋势）、`momentum-rotation`（动量轮动）、`intraday-momentum`（全市场日内动量，适合每 1–5 分钟运行）。自己的策略放进 `<数据目录>/strategies/*.mjs` 即可。详见 [量化策略](docs/STRATEGIES.md)。
+- 执行层抽象为 broker：`paper`（模拟盘）与 `advisory`（实盘建议单，必须人工确认，**不会自动下真实订单**）。
 
-同一个插件包同时提供 Claude 格式清单，Claude Code 与 WorkBuddy 都可以直接安装：
+### 工作台界面
 
-```bash
-claude plugin marketplace add honestTai/hrouter-market-pulse
-claude plugin install hrouter-market-pulse@hrouter-market-pulse
-```
+| 页面 | 内容 |
+| --- | --- |
+| 我的持仓 | Agent 托管组合：最新结论、持仓与买入理由、止损止盈、最近操作、股票池、净值曲线 |
+| Agent 竞技场 | 收益曲线叠加、横向对比、排行榜；账户详情含持仓、委托、成交、事件、报告、决策日志、策略版本、自动运行、风控设置 |
+| 报告中心 | 所有 Agent 报告和收盘日报：搜索、按市场 / 账户 / 观点 / 日期筛选、分页、详情 |
+| 市场工作台 | 自选行情、日线与 5 分钟图、指标、双源数据核验、异动、板块 |
+| 证据与事件、研究记录 | 公告与财务事实、事件日历、可证伪的投资逻辑与追加式复盘 |
 
-WorkBuddy：设置 → 插件 → 添加插件市场 `https://github.com/honestTai/hrouter-market-pulse`，安装并启用 hrouter-market-pulse。其他 MCP 客户端（Cursor、Cline 等）运行 `npm run connect` 打印可粘贴的配置。[多 Agent 接入与竞技场说明](docs/AGENT_ARENA.md)。
+- **⌘K / Ctrl+K**（或 `/`）全局搜索页面、账户、股票和操作；整页全屏与单个面板全屏。
+- 所有长列表都在服务端**筛选 + 分页**（搜索、买卖方向、状态 / 类型、日期范围），数据再多也不卡。
+- 中英文、深浅色、手机布局；切换筛选和页签时布局不跳动。
 
-## 安装 Codex 插件（可自动更新）
+![报告中心：所有 Agent 的报告，可搜索、筛选、分页（合成演示数据）](docs/images/reports-zh.png)
 
-需要 Node.js 20 或更新版本，以及支持插件的 Codex CLI / 桌面应用。
+<details><summary>更多截图</summary>
 
-自动更新安装器从 **v1.2.0** 起提供；更早的 ZIP 不包含安装器。
+![我的持仓：Agent 托管组合](docs/images/portfolio-zh.png)
+![账户详情：成交记录的筛选与分页](docs/images/account-zh.png)
+![⌘K 全局搜索](docs/images/palette-zh.png)
+![市场工作台](docs/images/dashboard-zh.png)
+![深色模式](docs/images/arena-dark.png)
 
-**推荐：**从 [Releases](https://github.com/honestTai/hrouter-market-pulse/releases/latest) 下载最新正式版 ZIP，解压后在目录内运行：
+</details>
 
-```bash
-node scripts/install.mjs --auto-update
-```
+### 数据
 
-这会安装插件，并明确启用**当前用户的自动更新任务**：约每 6 小时检查正式版本，校验后在插件进程退出时安装，保留设置和上一版。不会修改系统 PATH 或安装全局依赖。只想手动更新时省略 `--auto-update`。安装或更新后，新建 Codex 任务，再选择 HRouter Market Pulse。
+- 行情：腾讯财经实时 + Yahoo Finance 交叉核验，Yahoo 不可用时改用东方财富；A 股自动选更新鲜的源（Yahoo 的 A 股报价约延迟 15 分钟）。每条报价带时效、交易时段和交叉核验状态，`signalEligible` 是唯一的交易数据闸门。
+- 新闻：A 股 / 港股优先东方财富全文搜索（公司、概念、政策关键词都能搜），美股优先 Yahoo。
+- 公告与财务：SEC、巨潮适配器，原始交易所公告导入，保留来源与首次可见时间。
 
-已按旧方式安装的用户，需要先关闭旧插件任务，再执行一次 `node scripts/install.mjs --auto-update --migrate`。[完整更新说明、停用与回退](docs/AUTO_UPDATE.md)。
+## 快速开始
 
-```text
-设置中文界面，自选股为 600519、0700.HK、AAPL，生成盘中报告。
-```
-
-也可以使用普通 GitHub marketplace 安装；**以下方式不注册本项目的自动更新器**：
-
-```bash
-codex plugin marketplace add honestTai/hrouter-market-pulse
-codex plugin add hrouter-market-pulse@hrouter-market-pulse
-```
-
-安装包已包含 MCP 运行文件和图表资源。ZIP 的解压根目录才是 marketplace，不要把 `plugins/hrouter-market-pulse` 当作 marketplace 根目录。
-
-## 本地运行与开发
+需要 Node.js 20+。
 
 ```bash
 git clone https://github.com/honestTai/hrouter-market-pulse.git
 cd hrouter-market-pulse
+npm ci && npm run build
+npm run service:install
+```
+
+浏览器打开 <http://127.0.0.1:8780/?view=arena>，然后：
+
+1. 把插件装进你的 Agent（见下文），发送面板「接入 Agent」里的提示词，Agent 会自己开户、选股、交易、发报告；开户时会自动建好「交易时段每 15 分钟一轮」的调度。
+2. 在账户「设置」里设风控，在「收盘日报」里填推送地址（可选）。
+3. 之后你只看「我的持仓」和「报告中心」。
+
+只想先看看界面：`npm run demo`，打开 <http://127.0.0.1:8787>（合成数据，不写入真实记录）。
+
+## 安装到 Agent
+
+| Agent | 安装 |
+| --- | --- |
+| Codex | 从 [Releases](https://github.com/honestTai/hrouter-market-pulse/releases/latest) 下载 ZIP，解压后运行 `node scripts/install.mjs --auto-update`（约每 6 小时检查正式版并自动更新，[说明](docs/AUTO_UPDATE.md)）；或 `codex plugin marketplace add honestTai/hrouter-market-pulse` |
+| Claude Code | `claude plugin marketplace add honestTai/hrouter-market-pulse`，再 `claude plugin install hrouter-market-pulse@hrouter-market-pulse` |
+| WorkBuddy | 设置 → 插件 → 添加插件市场 `https://github.com/honestTai/hrouter-market-pulse`，安装并启用 |
+| Kimi Code | 在 `~/.kimi-code/mcp.json` 登记 `node <插件目录>/mcp/server.bundle.mjs --stdio`，把 `skills/` 复制到 `~/.kimi-code/skills/` |
+| 其他 MCP 客户端 | `npm run connect -- cursor` 等，打印可粘贴的配置 |
+
+所有客户端读写同一个数据目录（默认 `~/.hrouter-market-pulse/HrouterMarketPulse`，Windows 为 `%LOCALAPPDATA%\HrouterMarketPulse`），面板统一排名。完整说明见 [Agent 竞技场](docs/AGENT_ARENA.md)。
+
+## MCP 工具（节选）
+
+`arena_register_account` · `arena_my_accounts` · `arena_get_account` · `arena_place_order` · `arena_set_exits` · `arena_cancel_order` · `arena_log_decision` · `arena_update_strategy` · `arena_set_watchlist` · `arena_publish_report` · `arena_leaderboard` · `scan_market` · `get_quote` · `get_news` · `screen_watchlist` · `run_strategy` · `run_backtest` · `query_evidence` · `record_decision` … 共 48 个。Agent 不能归档、重置或给账户加钱，这些只能你在面板里操作。
+
+## 边界
+
+- **只有模拟盘会自动交易。** 实盘只有「建议单 + 人工确认」接口，代码里没有真实资金下单通道。富途模拟盘（OpenD SIMULATE 账户）需单独授权，见 [富途模拟交易](docs/PAPER_TRADING.md)。
+- 公开行情可能延迟或被限流；数据源不可用时如实显示，不用模拟价格补齐。模拟成交与真实券商撮合有差异。
+- 几天的收益和少量平仓交易主要反映运气；排行榜会给出样本不足提示。
+- 数据只写本机，不写入仓库。联网查询会把所查证券代码发送给对应数据源。方法与假设见 [方法说明](docs/METHODOLOGY.md)。
+
+## 开发
+
+```bash
 npm ci
-npm run build
-npm run demo
+npm run build        # 打包 MCP 服务、React 面板和可安装插件
+npm test             # 离线回归测试
+npm run check && npm run smoke
 ```
 
-浏览器打开 [http://127.0.0.1:8787](http://127.0.0.1:8787)。演示模式使用明确标注的合成数据，修改仅保存在本次进程内。
+React 19 + Radix Themes + Lucide，图表用 TradingView Lightweight Charts，全部本地打包、不依赖 CDN。修改 `ui/` 后 `npm run build:ui`。目录：`mcp/`（服务、行情、竞技场、调度、策略）、`ui/`（面板）、`skills/`（10 个通用技能）、`tests/`、`docs/`、`plugins/hrouter-market-pulse/`（自动生成的插件包）。
 
-运行 `npm start` 启动真实数据工作台，在设置中添加自选股后刷新。运行 `npm test`、`npm run check` 和 `npm run smoke` 验证源码、构建及 MCP 接口。
+代码采用 [MIT](LICENSE) 许可证，第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-## 数据边界
+## 作者
 
-- 公开行情可能延迟或被限流。本项目没有券商级实时数据承诺，真实资金下单始终禁用；富途模拟执行需单独授权。
-- HKEXnews 公告当前通过原始记录导入。完整市场广度需要带来源与统计范围的数据输入，自选池涨跌数始终标注为自选池。
-- 官方源不可用时显示失败或缺失，不用模拟行情替代。财务数据保留单位、期间与修订信息，不自动混算不同期间。
-- 内置交易日历的覆盖范围、回测执行假设和模型准入条件见[方法说明](docs/METHODOLOGY.md)。历史样本和模拟成交不能证明未来收益。
-- 自选股、持仓、证据与决策记录写入本机数据目录，不写入仓库。报告的联网查询会把所查证券代码发送给对应数据源。
+我是 **honestTai**，开发工具，也运营 [HRouter](https://hrouter.net/home)——面向 AI 编程与应用开发的模型接入服务。这个插件直接使用你所用 Agent 里的模型，不需要另配模型服务。
 
-## 项目结构
-
-```text
-mcp/                       服务、行情、风控、研究与 HTTP 接口
-ui/                        React 组件、样式与展示层数据校验
-assets/                    构建产物与本地图表资源（不要手工修改 bundle）
-skills/                    10 个工作流技能（Codex / Claude Code / WorkBuddy 通用）
-tests/                     离线回归测试
-docs/                      使用、方法、宣传与截图
-plugins/hrouter-market-pulse/  自动构建的可安装插件
-.agents/plugins/marketplace.json  Codex marketplace 入口
-.claude-plugin/marketplace.json   Claude Code / WorkBuddy marketplace 入口
-```
-
-代码采用 [MIT](LICENSE) 许可证。图表使用 [TradingView Lightweight Charts](https://www.tradingview.com/lightweight-charts/)，图标使用 [Lucide](https://lucide.dev/)，各自许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
-欢迎提交包含复现步骤、数据时间和脱敏样例的 Issue 或 PR。项目官网：[https://hrouter.net/](https://hrouter.net/)。
-
-## 作者与 HRouter · About the author
-
-我是 **honestTai**，开发工具，也运营 [HRouter](https://hrouter.net/home)。这里持续分享实用代码、AI 应用、Skills 与插件，把工作中的需求变成可复用的项目。  
-I’m **honestTai**, the developer and operator behind HRouter. I share practical code, AI apps, skills, and plugins built around real workflows.
-
-此工作流使用你所用 Agent（Codex、Claude Code、WorkBuddy 等）中的模型。HRouter 是我同时运营的模型路由服务，面向 AI 编程与应用开发。  
-This workflow uses the model in your Codex environment. HRouter is another part of my work: a model-routing service for AI coding and applications.
-
-[了解 HRouter · Explore HRouter](https://hrouter.net/home) · [发现更多项目 · More projects](https://github.com/honestTai)
-
-**觉得有用，欢迎 Star；有想法，欢迎到 Issues 交流。**  
-**Star the project if it helps, and share your ideas in Issues.**
-
-### 基本面研究扩展
-
-新增财报对比、投资逻辑逐项复核与证据事件日历。未配置商业数据时仍可基于已导入的官方资料开展研究；缺少数据明确标注，不推断为超预期。[使用说明与边界](docs/RESEARCH_WORKFLOWS.md)。
-
-### React 面板开发
-
-面板采用 **React 19 + Radix Themes + Lucide React**，行情图继续使用 Lightweight Charts。包含市场、持仓、证据事件、研究记录、Agent 竞技场和富途模拟盘六个页面，支持中英文、深浅色与窄屏布局；所有脚本、样式和字体回退均可本地运行，不依赖 CDN。
-
-修改 `ui/` 后执行 `npm run build:ui`，刷新本地页面；提交或打包前执行 `npm run build`，同步根目录与插件分发目录。完整说明见 [React 面板](docs/REACT_DASHBOARD.md)。
-
-### Agent 自主模拟交易
-
-新增「模拟交易」菜单，使用真实行情和富途 OpenD 的实际 SIMULATE 账户。用户授权策略、白名单和限额后，Agent 可以自主提交限价单、撤单和核对持仓，不需逐笔确认；真实资金交易在代码层禁用。首次支持港股、美股股票，不提供伪造余额、撮合结果或收益。
-
-`npm run setup:futu` 安装可选官方 Python SDK 到独立用户级 venv。连接和授权步骤见 [富途模拟交易](docs/PAPER_TRADING.md)。界面授权不会自动创建后台交易任务。
+**觉得有用，欢迎 Star；有想法，欢迎到 [Issues](https://github.com/honestTai/hrouter-market-pulse/issues) 交流。**

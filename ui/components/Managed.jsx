@@ -4,6 +4,7 @@ import { ArrowUpRight, Bell, Bot, CircleAlert, FileText, ListChecks, Plug, Radar
 import { useWorkspace } from "../context.jsx";
 import { isNumber } from "../data.mjs";
 import { Empty, SectionHeading } from "./Primitives.jsx";
+import { ReportDialog } from "./Reports.jsx";
 import { AgentMark, ConnectDialog, DigestPanel, EquityChart, HealthBadges, ReportCard, Signed, agentKind, relativeTime } from "./Arena.jsx";
 
 const ACTIVITY = { "stop-loss": ["止损", "Stop-loss"], "take-profit": ["止盈", "Take-profit"], "exit-deferred": ["离场等待", "Exit waiting"], dividend: ["派息", "Dividend"], split: ["拆股", "Split"], bonus: ["送转", "Bonus"], suspended: ["停牌", "Suspended"], "risk-breaker": ["熔断", "Breaker"], "risk-reset": ["复位", "Reset"] };
@@ -13,6 +14,7 @@ import { PortfolioPage as ManualHoldings } from "./MarketBoard.jsx";
 export function ManagedPortfolioPage() {
   const { t, number, date, managed, setView, preferences } = useWorkspace();
   const [connect, setConnect] = useState(false);
+  const [report, setReport] = useState(null);
   const { accounts, account, loading, choose } = managed;
   const manual = preferences?.positions?.filter((position) => position.quantity > 0) ?? [];
   const openInArena = () => {
@@ -86,7 +88,7 @@ export function ManagedPortfolioPage() {
     <div className="managed-grid">
       <section className="surface">
         <SectionHeading icon={FileText} title={t("最新结论", "Latest conclusion")} caption={latest ? relativeTime(latest.at, t) : null} />
-        {latest ? <div className="managed-report"><ReportCard report={latest} featured /></div> : <Empty compact icon={FileText} title={t("Agent 还没有发布报告", "No report from the agent yet")} description={t("全托管提示词会要求 Agent 每轮结束时发布结论。", "The autopilot prompt asks the agent to publish a conclusion after every round.")} />}
+        {latest ? <div className="managed-report"><ReportCard report={latest} featured compact onOpen={(entry) => setReport({ ...entry, account })} /></div> : <Empty compact icon={FileText} title={t("Agent 还没有发布报告", "No report from the agent yet")} description={t("全托管提示词会要求 Agent 每轮结束时发布结论。", "The autopilot prompt asks the agent to publish a conclusion after every round.")} />}
       </section>
       <section className="surface">
         <SectionHeading icon={Wallet} title={t("净值走势", "Equity")} caption={t("虚线为初始资金", "Dashed: starting cash")} expandable />
@@ -120,10 +122,10 @@ export function ManagedPortfolioPage() {
           return <Table.Row key={position.symbol}>
             <Table.RowHeaderCell><strong>{position.name}</strong><small className="cell-subtitle">{position.symbol}</small></Table.RowHeaderCell>
             <Table.Cell align="right" className="tabular">{number(position.quantity, 0)}</Table.Cell>
-            <Table.Cell align="right" className="tabular">{number(position.averageCost, 3)}<small className="cell-subtitle">{number(position.lastPrice, 3)}</small></Table.Cell>
+            <Table.Cell align="right" className="tabular">{number(position.averageCost, account.market === "HK" ? 3 : 2)}<small className="cell-subtitle">{number(position.lastPrice, account.market === "HK" ? 3 : 2)}</small></Table.Cell>
             <Table.Cell align="right" className="tabular">{number(position.marketValue)}<small className="cell-subtitle">{number(position.weightPct, 1)}%</small></Table.Cell>
             <Table.Cell align="right"><Signed value={position.unrealizedPnl} suffix="" /><small className="cell-subtitle"><Signed value={position.unrealizedPnlPct} /></small></Table.Cell>
-            <Table.Cell align="right" className="tabular">{position.exitLevels ? <><span className="loss">{isNumber(position.exitLevels.stopLoss) ? number(position.exitLevels.stopLoss, 3) : "—"}</span> / <span className="gain">{isNumber(position.exitLevels.takeProfit) ? number(position.exitLevels.takeProfit, 3) : "—"}</span></> : <span className="neutral">—</span>}</Table.Cell>
+            <Table.Cell align="right" className="tabular">{position.exitLevels ? <><span className="loss">{isNumber(position.exitLevels.stopLoss) ? number(position.exitLevels.stopLoss, account.market === "HK" ? 3 : 2) : "—"}</span> / <span className="gain">{isNumber(position.exitLevels.takeProfit) ? number(position.exitLevels.takeProfit, account.market === "HK" ? 3 : 2) : "—"}</span></> : <span className="neutral">—</span>}</Table.Cell>
             <Table.Cell className="reason-cell">{why?.reason ?? "—"}</Table.Cell>
           </Table.Row>;
         })}</Table.Body>
@@ -148,7 +150,7 @@ export function ManagedPortfolioPage() {
         </>}
         {older.length > 0 && <>
           <SectionHeading icon={FileText} title={t("历史报告", "Earlier reports")} caption={`${older.length}`} />
-          <ul className="report-history">{older.slice(0, 6).map((report) => <li key={report.id}><strong>{report.title}</strong><span className="muted small">{date(report.at)}</span><p className="muted small">{report.summary}</p></li>)}</ul>
+          <ul className="report-history">{older.slice(0, 6).map((entry) => <li key={entry.id}><button type="button" className="report-history-item" onClick={() => setReport({ ...entry, account })}><strong>{entry.title}</strong><span className="muted small">{date(entry.at)}</span><p className="muted small">{entry.summary}</p></button></li>)}</ul>{older.length > 6 && <Button size="1" variant="ghost" onClick={() => setView("reports")}>{t(`查看全部 ${reports.length} 份报告`, `All ${reports.length} reports`)}</Button>}
         </>}
       </section>
     </div>
@@ -157,5 +159,6 @@ export function ManagedPortfolioPage() {
 
     {manual.length > 0 && <details className="manual-holdings"><summary>{t(`手动登记的持仓（${manual.length}，不参与 Agent 交易）`, `Manually recorded holdings (${manual.length}, not traded by agents)`)}</summary><ManualHoldings /></details>}
     {connect && <ConnectDialog account={account} market={account.market} onClose={() => setConnect(false)} />}
+    <ReportDialog report={report} onClose={() => setReport(null)} />
   </div>;
 }

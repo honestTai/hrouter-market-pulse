@@ -11,6 +11,8 @@ import { roundPrompt } from "../../mcp/prompts.mjs";
 export { roundPrompt };
 import { Empty, ErrorNotice, SectionHeading } from "./Primitives.jsx";
 import { AutomationPanel, ServiceChip } from "./Automation.jsx";
+import { DigestDialog, ReportDialog } from "./Reports.jsx";
+import { DateRange, Pager, SearchField, useDebounced, usePagedList } from "./Paging.jsx";
 
 // Distinct, colour-blind-friendly series colours for overlaying many agents.
 const SERIES = ["#2563eb", "#e8590c", "#0d9488", "#9333ea", "#ca8a04", "#db2777", "#4b5563", "#16a34a", "#0891b2", "#b45309"];
@@ -116,6 +118,7 @@ export function DigestPanel({ compact = false }) {
   const [busy, setBusy] = useState("");
   const [dialog, setDialog] = useState(false);
   const [index, setIndex] = useState(0);
+  const [detail, setDetail] = useState(null);
   const load = useCallback(async (signal) => {
     try { const next = await api("/api/arena/digests?limit=14", undefined, signal); if (!signal?.aborted) setData(next); } catch { /* Optional panel. */ }
   }, []);
@@ -134,19 +137,21 @@ export function DigestPanel({ compact = false }) {
   return <section className="surface digest-panel">
     <SectionHeading icon={Newspaper} title={t("收盘日报", "End-of-day digest")} caption={digest ? `${digest.title} · ${date(digest.at)}` : null} actions={!compact && <div className="digest-actions">
       {digests.length > 1 && <Select.Root value={String(index)} onValueChange={(value) => setIndex(Number(value))}><Select.Trigger variant="surface" aria-label={t("历史日报", "Earlier digests")} /><Select.Content>{digests.map((entry, position) => <Select.Item key={entry.id} value={String(position)}>{entry.date} · {entry.market ?? t("手动", "manual")}</Select.Item>)}</Select.Content></Select.Root>}
+      {digest && <Button size="1" variant="soft" onClick={() => setDetail(digest)}><FileText size={13} />{t("查看详情", "Details")}</Button>}
       <Button size="1" variant="soft" color="gray" loading={busy === "make"} onClick={() => run(false)}><RefreshCw size={13} />{t("立即生成", "Generate now")}</Button>
       {data?.webhook && !data.demo && <Button size="1" variant="soft" loading={busy === "send"} onClick={() => run(true)}><Send size={13} />{t("生成并推送", "Generate & send")}</Button>}
       <Button size="1" variant="soft" color="gray" onClick={() => setDialog(true)} disabled={data?.demo}><Bell size={13} />{data?.webhook ? t(`推送：${data.webhook.host}`, `Push: ${data.webhook.host}`) : t("设置推送", "Set up push")}</Button>
     </div>} />
     {digest ? <div className="digest-body">
       <p className="digest-headline"><strong>{digest.headline}</strong>{delivery && <Badge variant="soft" color={delivery.status === "delivered" ? "jade" : delivery.status === "failed" ? "red" : "gray"}>{delivery.status === "delivered" ? t("已推送", "Delivered") : delivery.status === "failed" ? t(`推送失败 ×${delivery.attempts ?? 1}`, `Failed ×${delivery.attempts ?? 1}`) : delivery.status}</Badge>}</p>
-      <ul className="digest-accounts">{digest.accounts.slice(0, compact ? 3 : 20).map((row) => <li key={row.id}>
+      <ul className="digest-accounts">{digest.accounts.slice(0, compact ? 3 : 20).map((row) => <li key={row.id} className="clickable" role="button" tabIndex={0} onClick={() => setDetail(digest)} onKeyDown={(event) => { if (event.key === "Enter") setDetail(digest); }}>
         <div className="digest-row-head"><strong>{row.name}</strong><span className="muted small">{row.market} · {row.model}</span><span className="spacer" /><span className="muted small">{t("当日", "Day")}</span> <Signed value={row.dayReturnPct} /><span className="muted small">{t("累计", "Total")}</span> <Signed value={row.totalReturnPct} /></div>
         {row.trades.length > 0 && <p className="muted small">{row.trades.slice(0, 4).map((trade) => `${trade.side === "BUY" ? t("买", "Buy") : t("卖", "Sell")} ${trade.name ?? trade.symbol} ${number(trade.quantity, 0)}@${trade.price}${trade.trigger ? ` (${trade.trigger})` : ""}`).join(" · ")}{row.trades.length > 4 ? " …" : ""}</p>}
         {row.latestReport && <p className="small">{t("报告", "Report")}：{row.latestReport.title}{!row.latestReport.today && <span className="muted">{t("（非当日）", " (earlier)")}</span>}</p>}
         {row.warnings.length > 0 && <ul className="digest-warnings">{row.warnings.slice(0, 4).map((warning, position) => <li key={position}><CircleAlert size={12} />{warning}</li>)}</ul>}
       </li>)}</ul>
     </div> : <Empty compact icon={Newspaper} title={t("还没有日报", "No digest yet")} description={t("每个市场收盘后，后台撮合器会自动汇总所有账户的收益、成交、报告与提醒。", "After each market close the background matcher summarizes every account's returns, fills, reports and warnings.")} />}
+    <DigestDialog digest={detail} onClose={() => setDetail(null)} />
     {dialog && <WebhookDialog onClose={() => setDialog(false)} onSaved={async () => { setDialog(false); await load(); reloadWorkspace?.(); notify(t("推送设置已保存。", "Push settings saved.")); }} />}
   </section>;
 }
@@ -173,7 +178,9 @@ function useChart(host, height, build, deps) {
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: dark ? "#94a3b8" : "#64748b", fontSize: 12, fontFamily: "Inter, -apple-system, 'PingFang SC', sans-serif", attributionLogo: false },
       grid: { vertLines: { visible: false }, horzLines: { color: dark ? "#1f2a37" : "#eef2f6" } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.08 } },
-      timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
+      // Intraday points show the clock time; day ticks show the date (otherwise every tick read "16日").
+      timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: true, timeVisible: true, secondsVisible: false,
+        tickMarkFormatter: (time, type) => new Intl.DateTimeFormat(language, type >= 3 ? { hour: "2-digit", minute: "2-digit", hour12: false } : { month: "numeric", day: "numeric" }).format(new Date(Number(time) * 1000)) },
       crosshair: { vertLine: { color: dark ? "#475569" : "#cbd5e1", labelBackgroundColor: "#334155" }, horzLine: { color: dark ? "#475569" : "#cbd5e1", labelBackgroundColor: "#334155" } },
       localization: { locale: language },
       handleScroll: false, handleScale: false,
@@ -314,7 +321,7 @@ function LeaderboardTable({ accounts, onOpen, highlighted, onHover }) {
       <Table.Body>{accounts.map((account) => <Table.Row key={account.id} className={`arena-row ${highlighted === account.id ? "highlighted" : ""}`} onMouseEnter={() => onHover(account.id)} onMouseLeave={() => onHover(null)} onClick={() => onOpen(account.id)}>
         <Table.Cell><span className={`rank rank-${account.rank}`}>{account.rank}</span></Table.Cell>
         <Table.RowHeaderCell><button className="arena-identity" onClick={(event) => { event.stopPropagation(); onOpen(account.id); }}><AgentMark account={account} /><span><strong>{account.name}</strong><small>{agentKind(account).label}{account.status === "archived" ? ` · ${t("已归档", "archived")}` : ""}{account.demo ? ` · ${t("演示", "demo")}` : ""}</small><span className="health-badges"><HealthBadges account={account} /></span></span></button></Table.RowHeaderCell>
-        <Table.Cell><code className="model-chip">{account.model}</code>{account.strategy.version > 1 && <small className="cell-subtitle">{t("策略", "Strategy")} v{account.strategy.version}</small>}</Table.Cell>
+        <Table.Cell><code className="model-chip" title={account.model}>{account.model}</code>{account.strategy.version > 1 && <small className="cell-subtitle">{t("策略", "Strategy")} v{account.strategy.version}</small>}</Table.Cell>
         <Table.Cell align="right"><strong><Signed value={account.metrics.totalReturnPct} /></strong><small className="cell-subtitle tabular">{number(account.metrics.equity, 0)} {account.currency}</small></Table.Cell>
         <Table.Cell align="right"><Signed value={account.metrics.todayReturnPct} /></Table.Cell>
         <Table.Cell align="right"><Signed value={account.metrics.excessReturnPct} /></Table.Cell>
@@ -424,13 +431,24 @@ export function ConnectDialog({ account, market, onClose }) {
 // Account detail
 // ---------------------------------------------------------------------------
 
-const SENTIMENT = { bullish: ["看多", "Bullish", "red"], neutral: ["中性", "Neutral", "gray"], bearish: ["看空", "Bearish", "jade"], defensive: ["防守", "Defensive", "amber"] };
+export const SENTIMENT = { bullish: ["看多", "Bullish", "red"], neutral: ["中性", "Neutral", "gray"], bearish: ["看空", "Bearish", "jade"], defensive: ["防守", "Defensive", "amber"] };
 const ACTION = { buy: ["买入", "Buy"], sell: ["卖出", "Sell"], hold: ["持有", "Hold"], watch: ["观察", "Watch"], cancel: ["撤单", "Cancel"] };
 
-export function ReportCard({ report, featured = false }) {
+// compact: headline, conclusion and action chips with a "details" button (onOpen); full: everything,
+// including the agent's full analysis expanded.
+export function ReportCard({ report, featured = false, compact = false, full = false, onOpen }) {
   const { t, date } = useWorkspace();
   const sentiment = SENTIMENT[report.sentiment];
-  return <article className={`report-card ${featured ? "featured" : ""}`}>
+  if (compact) return <article className={`report-card compact ${featured ? "featured" : ""}`}>
+    <header>
+      <div><h3>{report.title}</h3><span className="muted small">{date(report.at)}{report.strategyVersion ? ` · v${report.strategyVersion}` : ""}{report.snapshot ? <> · {t("当时收益", "Return then")} <Signed value={report.snapshot.returnPct} /></> : null}</span></div>
+      {sentiment && <Badge variant="soft" color={sentiment[2]}>{t(sentiment[0], sentiment[1])}</Badge>}
+    </header>
+    <p className="report-summary clamp">{report.summary}</p>
+    {report.actions?.length > 0 && <ul className="action-chips">{report.actions.slice(0, 6).map((entry, index) => <li key={index}><span className={`action-tag action-${entry.action}`}>{t(...(ACTION[entry.action] ?? [entry.action, entry.action]))}</span>{entry.symbol}</li>)}{report.actions.length > 6 && <li className="muted small">+{report.actions.length - 6}</li>}</ul>}
+    {onOpen && <div className="report-card-foot"><Button size="1" variant="soft" onClick={() => onOpen(report)}><FileText size={13} />{t("查看完整报告", "Read full report")}</Button>{report.picks?.length > 0 && <span className="muted small">{t("看好", "Picks")}：{report.picks.slice(0, 4).map((pick) => pick.symbol).join("、")}</span>}</div>}
+  </article>;
+  return <article className={`report-card ${featured ? "featured" : ""} ${full ? "full" : ""}`}>
     <header>
       <div><h3>{report.title}</h3><span className="muted small">{date(report.at)}{report.strategyVersion ? ` · v${report.strategyVersion}` : ""}{report.snapshot ? <> · {t("当时收益", "Return then")} <Signed value={report.snapshot.returnPct} /></> : null}</span></div>
       {sentiment && <Badge variant="soft" color={sentiment[2]}>{t(sentiment[0], sentiment[1])}</Badge>}
@@ -443,7 +461,7 @@ export function ReportCard({ report, featured = false }) {
       {report.risks && <section><h4>{t("风险", "Risks")}</h4><p>{report.risks}</p></section>}
       {report.nextSteps && <section><h4>{t("下一步", "Next")}</h4><p>{report.nextSteps}</p></section>}
     </div>}
-    {report.body && <details className="report-body"><summary>{t("完整分析", "Full analysis")}</summary><pre>{report.body}</pre></details>}
+    {report.body && <details className="report-body" open={full || undefined}><summary>{t("完整分析", "Full analysis")}</summary><pre>{report.body}</pre></details>}
   </article>;
 }
 
@@ -538,12 +556,43 @@ function AccountSettings({ account, onSaved }) {
   </div>;
 }
 
+const TRADE_ORIGIN = { manual: ["主动交易", "Agent order"], "stop-loss": ["止损", "Stop-loss"], "take-profit": ["止盈", "Take-profit"] };
+
+// One account history tab: search, side / type / date filters and server-side paging.
+function HistoryTab({ account, kind, typeOptions, side = false, empty, render }) {
+  const { t } = useWorkspace();
+  const [q, setQ] = useState("");
+  const [sideValue, setSide] = useState("all");
+  const [type, setType] = useState("all");
+  const [range, setRange] = useState({ from: "", to: "" });
+  const query = useDebounced(q);
+  const list = usePagedList(`/api/arena/accounts/${account.id}/history`, { kind, q: query, side: sideValue, type, from: range.from, to: range.to, v: account.updatedAt }, { refreshMs: 30000 });
+  const filtered = Boolean(query || sideValue !== "all" || type !== "all" || range.from || range.to);
+  const types = list.data?.facets?.types ?? [];
+  const placeholder = { orders: t("搜索代码、名称、理由…", "Search symbol, name, reason…"), trades: t("搜索代码、名称、理由…", "Search symbol, name, reason…"), events: t("搜索代码或事件内容…", "Search symbol or event…"), journal: t("搜索日志内容或代码…", "Search entries or symbols…"), reports: t("搜索标题、结论、代码…", "Search title, conclusion, symbol…") }[kind];
+  return <div className="history-tab">
+    <div className="history-filters">
+      <SearchField value={q} onChange={setQ} placeholder={placeholder} />
+      {side && <SegmentedControl.Root size="1" value={sideValue} onValueChange={setSide}><SegmentedControl.Item value="all">{t("全部", "All")}</SegmentedControl.Item><SegmentedControl.Item value="BUY">{t("买入", "Buy")}</SegmentedControl.Item><SegmentedControl.Item value="SELL">{t("卖出", "Sell")}</SegmentedControl.Item></SegmentedControl.Root>}
+      {typeOptions && types.length > 0 && <Select.Root value={type} onValueChange={setType}><Select.Trigger variant="surface" aria-label={t("类型", "Type")} /><Select.Content><Select.Item value="all">{{ orders: t("全部状态", "Any status"), trades: t("全部来源", "Any origin"), reports: t("全部观点", "Any stance") }[kind] ?? t("全部类型", "Any type")}</Select.Item>{types.map((value) => <Select.Item key={value} value={value}>{typeOptions[value] ? t(typeOptions[value][0], typeOptions[value][1]) : value}</Select.Item>)}</Select.Content></Select.Root>}
+      <DateRange from={range.from} to={range.to} onChange={setRange} />
+      {filtered && <Button size="1" variant="ghost" color="gray" onClick={() => { setQ(""); setSide("all"); setType("all"); setRange({ from: "", to: "" }); }}>{t("清除筛选", "Clear filters")}</Button>}
+    </div>
+    <ErrorNotice message={list.error} onRetry={list.reload} />
+    <div className={`history-body ${list.loading ? "is-loading" : ""}`}>
+      {list.items.length ? render(list.items) : list.data ? filtered ? <Empty compact title={t("没有匹配的记录", "No matching records")} description={t("调整或清除筛选条件。", "Adjust or clear the filters.")} /> : empty : <Empty compact title={t("正在载入…", "Loading…")} />}
+    </div>
+    <Pager total={list.total} page={list.page} pageSize={list.pageSize} onPage={list.setPage} onPageSize={list.setPageSize} loading={list.loading} />
+  </div>;
+}
+
 function AccountDetail({ id, onBack, onChanged }) {
   const { t, number, date, notify } = useWorkspace();
   const [account, setAccount] = useState(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState("positions");
   const [connect, setConnect] = useState(false);
+  const [report, setReport] = useState(null);
   const load = useCallback(async (signal) => {
     try { const next = await api(`/api/arena/accounts/${id}`, undefined, signal); if (!signal?.aborted) { setAccount(next); setError(""); } }
     catch (failure) { if (!signal?.aborted) setError(failure.message); }
@@ -562,7 +611,7 @@ function AccountDetail({ id, onBack, onChanged }) {
     <section className="surface account-hero">
       <div className="account-identity"><AgentMark account={account} size="lg" /><div>
         <h2>{account.name}</h2>
-        <div className="account-tags"><Badge variant="soft" color="gray">{kind.label}</Badge><code className="model-chip">{account.model}</code><Badge variant="soft" color="gray">{account.market} · {account.currency}</Badge><Badge variant="soft" color="gray">{t("组别", "Group")} {account.competition}</Badge>{account.status === "archived" && <Badge color="amber">{t("已归档", "Archived")}</Badge>}{account.demo && <Badge color="amber">{t("演示数据", "Demo")}</Badge>}<HealthBadges account={account} /></div>
+        <div className="account-tags"><Badge variant="soft" color="gray">{kind.label}</Badge><code className="model-chip" title={account.model}>{account.model}</code><Badge variant="soft" color="gray">{account.market} · {account.currency}</Badge><Badge variant="soft" color="gray">{t("组别", "Group")} {account.competition}</Badge>{account.status === "archived" && <Badge color="amber">{t("已归档", "Archived")}</Badge>}{account.demo && <Badge color="amber">{t("演示数据", "Demo")}</Badge>}<HealthBadges account={account} /></div>
         <p className="muted small">{account.id} · {t("开户", "Opened")} {date(account.createdAt)} · {t("已运行", "Running")} {m.tradingDays} {t("个交易日", "trading days")} · {t("最近一轮", "Last round")} {relativeTime(account.health?.lastRoundAt, t)}</p>
       </div></div>
       <div className="account-equity"><span className="muted">{t("账户净值", "Equity")}</span><strong className="tabular">{number(m.equity)}</strong><span><Signed value={m.totalReturnPct} /> · <Signed value={m.totalPnl} suffix={` ${account.currency}`} /></span><Button size="2" variant="soft" onClick={() => setConnect(true)}><Plug size={15} />{t("发给 Agent 的提示词", "Agent prompt")}</Button></div>
@@ -595,19 +644,19 @@ function AccountDetail({ id, onBack, onChanged }) {
         </Tabs.List>
         <Tabs.Content value="positions">{account.positions.length ? <div className="table-scroll"><Table.Root size="2">
           <Table.Header><Table.Row><Table.ColumnHeaderCell>{t("标的", "Security")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("数量", "Qty")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("成本", "Avg cost")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("现价", "Last")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("市值 / 权重", "Value / weight")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("浮动盈亏", "Unrealized")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("止损 / 止盈", "Stop / target")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("报价时间", "Priced at")}</Table.ColumnHeaderCell></Table.Row></Table.Header>
-          <Table.Body>{account.positions.map((position) => <Table.Row key={position.symbol}><Table.RowHeaderCell><strong>{position.name}</strong><small className="cell-subtitle">{position.symbol}</small></Table.RowHeaderCell><Table.Cell align="right" className="tabular">{number(position.quantity, 0)}</Table.Cell><Table.Cell align="right" className="tabular">{number(position.averageCost, 3)}</Table.Cell><Table.Cell align="right" className="tabular">{number(position.lastPrice, 3)}</Table.Cell><Table.Cell align="right" className="tabular">{number(position.marketValue)}<small className="cell-subtitle">{number(position.weightPct, 1)}%</small></Table.Cell><Table.Cell align="right"><Signed value={position.unrealizedPnl} suffix="" /><small className="cell-subtitle"><Signed value={position.unrealizedPnlPct} /></small></Table.Cell><Table.Cell align="right" className="tabular">{position.exitLevels ? <><span className="loss">{isNumber(position.exitLevels.stopLoss) ? number(position.exitLevels.stopLoss, 3) : "—"}</span> / <span className="gain">{isNumber(position.exitLevels.takeProfit) ? number(position.exitLevels.takeProfit, 3) : "—"}</span></> : <span className="neutral">—</span>}</Table.Cell><Table.Cell className="muted">{date(position.lastPriceAt)}</Table.Cell></Table.Row>)}</Table.Body>
+          <Table.Body>{account.positions.map((position) => <Table.Row key={position.symbol}><Table.RowHeaderCell><strong>{position.name}</strong><small className="cell-subtitle">{position.symbol}</small></Table.RowHeaderCell><Table.Cell align="right" className="tabular">{number(position.quantity, 0)}</Table.Cell><Table.Cell align="right" className="tabular">{number(position.averageCost, account.market === "HK" ? 3 : 2)}</Table.Cell><Table.Cell align="right" className="tabular">{number(position.lastPrice, account.market === "HK" ? 3 : 2)}</Table.Cell><Table.Cell align="right" className="tabular">{number(position.marketValue)}<small className="cell-subtitle">{number(position.weightPct, 1)}%</small></Table.Cell><Table.Cell align="right"><Signed value={position.unrealizedPnl} suffix="" /><small className="cell-subtitle"><Signed value={position.unrealizedPnlPct} /></small></Table.Cell><Table.Cell align="right" className="tabular">{position.exitLevels ? <><span className="loss">{isNumber(position.exitLevels.stopLoss) ? number(position.exitLevels.stopLoss, account.market === "HK" ? 3 : 2) : "—"}</span> / <span className="gain">{isNumber(position.exitLevels.takeProfit) ? number(position.exitLevels.takeProfit, account.market === "HK" ? 3 : 2) : "—"}</span></> : <span className="neutral">—</span>}</Table.Cell><Table.Cell className="muted">{date(position.lastPriceAt)}</Table.Cell></Table.Row>)}</Table.Body>
         </Table.Root></div> : <Empty compact icon={Wallet} title={t("空仓", "No positions")} description={t("当前全部为现金。", "The account is entirely in cash.")} />}</Tabs.Content>
-        <Tabs.Content value="orders">{account.orders.length ? <div className="table-scroll"><Table.Root size="2">
+        <Tabs.Content value="orders"><HistoryTab account={account} kind="orders" typeOptions={ORDER_STATUS} side empty={<Empty compact icon={ScrollText} title={t("还没有委托", "No orders yet")} />} render={(rows) => <div className="table-scroll"><Table.Root size="2">
           <Table.Header><Table.Row><Table.ColumnHeaderCell>{t("时间", "Time")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("标的", "Security")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("方向 / 类型", "Side / type")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("数量", "Qty")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("限价 / 成交价", "Limit / fill")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("状态", "Status")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("理由 / 拒绝原因", "Reason / rejection")}</Table.ColumnHeaderCell></Table.Row></Table.Header>
-          <Table.Body>{account.orders.map((order) => { const [zh, en, color] = ORDER_STATUS[order.status] ?? [order.status, order.status, "gray"]; return <Table.Row key={order.id}><Table.Cell className="muted nowrap">{date(order.createdAt)}</Table.Cell><Table.Cell><strong>{order.name ?? order.symbol}</strong><small className="cell-subtitle">{order.symbol}</small></Table.Cell><Table.Cell><span className={order.side === "BUY" ? "side buy" : "side sell"}>{order.side === "BUY" ? t("买入", "Buy") : t("卖出", "Sell")}</span><small className="cell-subtitle">{order.type === "limit" ? t("限价", "Limit") : t("市价", "Market")} · {order.timeInForce?.toUpperCase()}{order.trigger ? ` · ${t(...(EVENT_KIND[order.trigger] ?? [order.trigger, order.trigger]).slice(0, 2))}` : ""}</small></Table.Cell><Table.Cell align="right" className="tabular">{order.filledQuantity && order.filledQuantity < order.quantity ? `${number(order.filledQuantity, 0)} / ` : ""}{number(order.quantity, 0)}{order.lastBlock && order.status === "open" && <small className="cell-subtitle">{order.lastBlock}</small>}</Table.Cell><Table.Cell align="right" className="tabular">{order.limitPrice ? number(order.limitPrice, 3) : "—"} / {order.fillPrice ? number(order.fillPrice, 3) : "—"}</Table.Cell><Table.Cell><Badge color={color} variant="soft">{t(zh, en)}</Badge></Table.Cell><Table.Cell className="reason-cell">{order.rejectReason ? <span className="loss">{order.rejectReason}</span> : order.reason}</Table.Cell></Table.Row>; })}</Table.Body>
-        </Table.Root></div> : <Empty compact icon={ScrollText} title={t("还没有委托", "No orders yet")} />}</Tabs.Content>
-        <Tabs.Content value="trades">{account.trades.length ? <div className="table-scroll"><Table.Root size="2">
+          <Table.Body>{rows.map((order) => { const [zh, en, color] = ORDER_STATUS[order.status] ?? [order.status, order.status, "gray"]; return <Table.Row key={order.id}><Table.Cell className="muted nowrap">{date(order.createdAt)}</Table.Cell><Table.Cell><strong>{order.name ?? order.symbol}</strong><small className="cell-subtitle">{order.symbol}</small></Table.Cell><Table.Cell><span className={order.side === "BUY" ? "side buy" : "side sell"}>{order.side === "BUY" ? t("买入", "Buy") : t("卖出", "Sell")}</span><small className="cell-subtitle">{order.type === "limit" ? t("限价", "Limit") : t("市价", "Market")} · {order.timeInForce?.toUpperCase()}{order.trigger ? ` · ${t(...(EVENT_KIND[order.trigger] ?? [order.trigger, order.trigger]).slice(0, 2))}` : ""}</small></Table.Cell><Table.Cell align="right" className="tabular">{order.filledQuantity && order.filledQuantity < order.quantity ? `${number(order.filledQuantity, 0)} / ` : ""}{number(order.quantity, 0)}{order.lastBlock && order.status === "open" && <small className="cell-subtitle">{order.lastBlock}</small>}</Table.Cell><Table.Cell align="right" className="tabular">{order.limitPrice ? number(order.limitPrice, account.market === "HK" ? 3 : 2) : "—"} / {order.fillPrice ? number(order.fillPrice, account.market === "HK" ? 3 : 2) : "—"}</Table.Cell><Table.Cell><Badge color={color} variant="soft">{t(zh, en)}</Badge></Table.Cell><Table.Cell className="reason-cell">{order.rejectReason ? <span className="loss">{order.rejectReason}</span> : order.reason}</Table.Cell></Table.Row>; })}</Table.Body>
+        </Table.Root></div>} /></Tabs.Content>
+        <Tabs.Content value="trades"><HistoryTab account={account} kind="trades" typeOptions={TRADE_ORIGIN} side empty={<Empty compact icon={ListChecks} title={t("还没有成交", "No fills yet")} />} render={(rows) => <div className="table-scroll"><Table.Root size="2">
           <Table.Header><Table.Row><Table.ColumnHeaderCell>{t("时间", "Time")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("标的", "Security")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("方向", "Side")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("数量 × 价格", "Qty × price")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("费用", "Fees")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("已实现盈亏", "Realized")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("理由", "Reason")}</Table.ColumnHeaderCell></Table.Row></Table.Header>
-          <Table.Body>{account.trades.map((trade) => <Table.Row key={trade.id}><Table.Cell className="muted nowrap">{date(trade.at)}</Table.Cell><Table.Cell><strong>{trade.name}</strong><small className="cell-subtitle">{trade.symbol}</small></Table.Cell><Table.Cell><span className={trade.side === "BUY" ? "side buy" : "side sell"}>{trade.side === "BUY" ? t("买入", "Buy") : t("卖出", "Sell")}</span>{trade.strategyVersion > 1 && <small className="cell-subtitle">v{trade.strategyVersion}</small>}{trade.trigger && <small className="cell-subtitle">{t(...(EVENT_KIND[trade.trigger] ?? [trade.trigger, trade.trigger]).slice(0, 2))}</small>}</Table.Cell><Table.Cell align="right" className="tabular">{number(trade.quantity, 0)} × {number(trade.price, 3)}<small className="cell-subtitle">{number(trade.gross)}</small></Table.Cell><Table.Cell align="right" className="tabular"><Tooltip content={Object.entries(trade.feeBreakdown ?? {}).map(([key, value]) => `${key} ${value}`).join(" · ") || "—"}><span>{number(trade.fees)}</span></Tooltip></Table.Cell><Table.Cell align="right">{isNumber(trade.realizedPnl) ? <Signed value={trade.realizedPnl} suffix="" /> : <span className="neutral">—</span>}</Table.Cell><Table.Cell className="reason-cell">{trade.reason}{isNumber(trade.confidence) && <small className="cell-subtitle">{t("信心", "Confidence")} {Math.round(trade.confidence * 100)}%</small>}</Table.Cell></Table.Row>)}</Table.Body>
-        </Table.Root></div> : <Empty compact icon={ListChecks} title={t("还没有成交", "No fills yet")} />}</Tabs.Content>
-        <Tabs.Content value="events">{account.events?.length ? <ol className="journal-timeline">{account.events.map((event) => { const [zh, en, color] = EVENT_KIND[event.type] ?? [event.type, event.type, "gray"]; return <li key={event.id}><Badge variant="soft" color={color} className="event-kind">{t(zh, en)}</Badge><div><p>{event.message}</p><small className="muted">{date(event.at)}{event.symbol ? ` · ${event.symbol}` : ""}</small></div></li>; })}</ol> : <Empty compact icon={Bell} title={t("还没有事件", "No events yet")} description={t("后台撮合成交、止盈止损、派息拆股、停牌与风控熔断会记录在这里。", "Background fills, stops, dividends, splits, suspensions and risk breaches are recorded here.")} />}</Tabs.Content>
-        <Tabs.Content value="reports">{account.reports?.length ? <div className="report-list">{account.reports.map((report) => <ReportCard key={report.id} report={report} />)}</div> : <Empty compact icon={FileText} title={t("还没有报告", "No reports yet")} description={t("Agent 每轮结束时用 arena_publish_report 发布结论。", "Agents publish each round's conclusion with arena_publish_report.")} />}</Tabs.Content>
-        <Tabs.Content value="journal">{account.journal.length ? <ol className="journal-timeline">{account.journal.map((entry) => <li key={entry.id}><span className={`journal-kind kind-${entry.kind}`}>{t(...(JOURNAL_KIND[entry.kind] ?? [entry.kind, entry.kind]))}</span><div><p>{entry.summary}</p>{entry.details && <details><summary>{t("详细分析", "Details")}</summary><pre>{entry.details}</pre></details>}<small className="muted">{date(entry.at)}{entry.symbols?.length ? ` · ${entry.symbols.join(", ")}` : ""} · v{entry.strategyVersion}</small></div></li>)}</ol> : <Empty compact icon={NotebookPen} title={t("还没有决策日志", "No journal entries")} description={t("Agent 用 arena_log_decision 记录分析与“不交易”的理由，便于复盘策略。", "Agents record analysis and no-trade reasons with arena_log_decision for later review.")} />}</Tabs.Content>
+          <Table.Body>{rows.map((trade) => <Table.Row key={trade.id}><Table.Cell className="muted nowrap">{date(trade.at)}</Table.Cell><Table.Cell><strong>{trade.name}</strong><small className="cell-subtitle">{trade.symbol}</small></Table.Cell><Table.Cell><span className={trade.side === "BUY" ? "side buy" : "side sell"}>{trade.side === "BUY" ? t("买入", "Buy") : t("卖出", "Sell")}</span>{trade.strategyVersion > 1 && <small className="cell-subtitle">v{trade.strategyVersion}</small>}{trade.trigger && <small className="cell-subtitle">{t(...(EVENT_KIND[trade.trigger] ?? [trade.trigger, trade.trigger]).slice(0, 2))}</small>}</Table.Cell><Table.Cell align="right" className="tabular">{number(trade.quantity, 0)} × {number(trade.price, account.market === "HK" ? 3 : 2)}<small className="cell-subtitle">{number(trade.gross)}</small></Table.Cell><Table.Cell align="right" className="tabular"><Tooltip content={Object.entries(trade.feeBreakdown ?? {}).map(([key, value]) => `${key} ${value}`).join(" · ") || "—"}><span>{number(trade.fees)}</span></Tooltip></Table.Cell><Table.Cell align="right">{isNumber(trade.realizedPnl) ? <Signed value={trade.realizedPnl} suffix="" /> : <span className="neutral">—</span>}</Table.Cell><Table.Cell className="reason-cell">{trade.reason}{isNumber(trade.confidence) && <small className="cell-subtitle">{t("信心", "Confidence")} {Math.round(trade.confidence * 100)}%</small>}</Table.Cell></Table.Row>)}</Table.Body>
+        </Table.Root></div>} /></Tabs.Content>
+        <Tabs.Content value="events"><HistoryTab account={account} kind="events" typeOptions={EVENT_KIND} empty={<Empty compact icon={Bell} title={t("还没有事件", "No events yet")} description={t("后台撮合成交、止盈止损、派息拆股、停牌与风控熔断会记录在这里。", "Background fills, stops, dividends, splits, suspensions and risk breaches are recorded here.")} />} render={(rows) => <ol className="journal-timeline">{rows.map((event) => { const [zh, en, color] = EVENT_KIND[event.type] ?? [event.type, event.type, "gray"]; return <li key={event.id}><Badge variant="soft" color={color} className="event-kind">{t(zh, en)}</Badge><div><p>{event.message}</p><small className="muted">{date(event.at)}{event.symbol ? ` · ${event.symbol}` : ""}</small></div></li>; })}</ol>} /></Tabs.Content>
+        <Tabs.Content value="reports"><HistoryTab account={account} kind="reports" typeOptions={SENTIMENT} empty={<Empty compact icon={FileText} title={t("还没有报告", "No reports yet")} description={t("Agent 每轮结束时用 arena_publish_report 发布结论。", "Agents publish each round's conclusion with arena_publish_report.")} />} render={(rows) => <div className="report-list">{rows.map((report) => <ReportCard key={report.id} report={report} compact onOpen={(entry) => setReport({ ...entry, account })} />)}</div>} /></Tabs.Content>
+        <Tabs.Content value="journal"><HistoryTab account={account} kind="journal" typeOptions={JOURNAL_KIND} empty={<Empty compact icon={NotebookPen} title={t("还没有决策日志", "No journal entries")} description={t("Agent 用 arena_log_decision 记录分析与“不交易”的理由，便于复盘策略。", "Agents record analysis and no-trade reasons with arena_log_decision for later review.")} />} render={(rows) => <ol className="journal-timeline">{rows.map((entry) => <li key={entry.id}><span className={`journal-kind kind-${entry.kind}`}>{t(...(JOURNAL_KIND[entry.kind] ?? [entry.kind, entry.kind]))}</span><div><p>{entry.summary}</p>{entry.details && <details><summary>{t("详细分析", "Details")}</summary><pre>{entry.details}</pre></details>}<small className="muted">{date(entry.at)}{entry.symbols?.length ? ` · ${entry.symbols.join(", ")}` : ""} · v{entry.strategyVersion}</small></div></li>)}</ol>} /></Tabs.Content>
         <Tabs.Content value="strategy"><div className="strategy-panel">
           <div className="strategy-current"><span className="muted small">{t("当前策略", "Current strategy")} · v{account.strategy.version}</span><p>{account.strategy.summary || t("（未填写策略说明）", "(No strategy description)")}</p></div>
           {m.byStrategyVersion.length > 0 && <div className="table-scroll"><Table.Root size="1"><Table.Header><Table.Row><Table.ColumnHeaderCell>{t("版本", "Version")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("成交", "Fills")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("平仓胜率", "Win rate")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("已实现盈亏", "Realized P&L")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("费用", "Fees")}</Table.ColumnHeaderCell></Table.Row></Table.Header><Table.Body>{m.byStrategyVersion.map((row) => <Table.Row key={row.version}><Table.Cell>v{row.version}</Table.Cell><Table.Cell align="right">{row.trades}</Table.Cell><Table.Cell align="right">{isNumber(row.winRatePct) ? `${row.winRatePct}%` : "—"}</Table.Cell><Table.Cell align="right"><Signed value={row.realizedPnl} suffix="" /></Table.Cell><Table.Cell align="right">{number(row.fees)}</Table.Cell></Table.Row>)}</Table.Body></Table.Root></div>}
@@ -619,6 +668,7 @@ function AccountDetail({ id, onBack, onChanged }) {
       <div className="panel-foot">{t("成交按公开行情 + 滑点 + 交易所费率估算，与券商实际撮合会有差异。", "Fills are estimated from public quotes plus slippage and fee presets; real broker execution differs.")} {account.settings.slippageBps} bps · {account.settings.feeModel}{account.demo ? ` · ${t("演示数据", "demo data")}` : ""}</div>
     </section>
     {connect && <ConnectDialog account={account} market={account.market} onClose={() => setConnect(false)} />}
+    <ReportDialog report={report} onClose={() => setReport(null)} />
   </div>;
 }
 

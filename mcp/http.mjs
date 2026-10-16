@@ -1,3 +1,4 @@
+import { inDateRange, matchesText, pageParams, paginate } from "./paging.mjs";
 import { getPaperService } from "./paper.mjs";
 import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
 import { createDemoArena } from "./arena-demo.mjs";
@@ -127,6 +128,28 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           })), matcher: await matcherStatus(arena), service: demo ? { state: "demo" } : await readServiceStatus(arena.root) });
         }
         if (url.pathname === "/api/arena/matcher") return respond(response, 200, await matcherStatus(await arenaReady));
+        // Every account's round reports, newest first, paged and filtered for the report centre.
+        if (url.pathname === "/api/arena/reports") {
+          const arena = await arenaReady;
+          const paging = pageParams(url.searchParams);
+          const market = url.searchParams.get("market"), accountId = url.searchParams.get("account"), sentiment = url.searchParams.get("sentiment");
+          const summaries = await arena.listAccounts({ status: url.searchParams.get("archived") === "1" ? "all" : "active" });
+          const rows = [];
+          for (const summary of summaries) {
+            const account = await arena.getAccount(summary.id, { sync: false, limit: 500 });
+            const owner = { id: account.id, name: account.name, model: account.model, market: account.market, currency: account.currency, agent: account.agent };
+            for (const report of account.reports ?? []) rows.push({ ...report, account: owner });
+          }
+          rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+          const filtered = rows.filter((report) => (!market || market === "all" || report.account.market === market)
+            && (!accountId || accountId === "all" || report.account.id === accountId)
+            && (!sentiment || sentiment === "all" || report.sentiment === sentiment)
+            && inDateRange(report.at, paging)
+            && matchesText(paging.q, report.title, report.summary, report.marketView, report.account.name, report.account.model, ...(report.actions ?? []).map((entry) => entry.symbol), ...(report.picks ?? []).map((entry) => entry.symbol)));
+          const page = paginate(filtered, paging);
+          const accounts = [...new Map(rows.map((report) => [report.account.id, report.account])).values()];
+          return respond(response, 200, { demo, reports: page.items, total: page.total, offset: page.offset, limit: page.limit, all: rows.length, accounts });
+        }
         if (url.pathname === "/api/arena/schedules") {
           const arena = await arenaReady;
           const scheduler = await schedulerReady;
@@ -137,11 +160,27 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           });
         }
         const runs = url.pathname.match(/^\/api\/arena\/runs\/(acc_[a-f0-9]{12})$/);
-        if (runs) return respond(response, 200, { runs: await (await schedulerReady).listRuns({ accountId: runs[1], limit: 50 }) });
+        if (runs) {
+          const paging = pageParams(url.searchParams);
+          const status = url.searchParams.get("status");
+          const rows = (await (await schedulerReady).listRuns({ accountId: runs[1], limit: 300 })).filter((run) => (!status || run.status === status) && inDateRange(run.startedAt ?? run.at, paging));
+          const page = paginate(rows, paging);
+          return respond(response, 200, { runs: page.items, total: page.total, offset: page.offset, limit: page.limit });
+        }
         if (url.pathname === "/api/arena/digests") {
-          const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+          const paging = pageParams(url.searchParams);
+          const market = url.searchParams.get("market");
           const webhook = (await readPreferences())?.digestWebhook ?? null;
-          return respond(response, 200, { demo, digests: await (await arenaReady).listDigests({ limit }), webhook: webhook ? { format: webhook.format, enabled: webhook.enabled, host: new URL(webhook.url).host } : null });
+          const rows = (await (await arenaReady).listDigests({ limit: 400 })).filter((digest) => (!market || market === "all" || !digest.market || digest.market === market)
+            && inDateRange(digest.at, paging) && matchesText(paging.q, digest.title, digest.headline, ...(digest.accounts ?? []).map((row) => row.name)));
+          const page = paginate(rows, paging);
+          return respond(response, 200, { demo, digests: page.items, total: page.total, offset: page.offset, limit: page.limit, webhook: webhook ? { format: webhook.format, enabled: webhook.enabled, host: new URL(webhook.url).host } : null });
+        }
+        const history = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/history$/);
+        if (history) {
+          const paging = pageParams(url.searchParams);
+          const side = ["BUY", "SELL"].includes(url.searchParams.get("side")) ? url.searchParams.get("side") : undefined;
+          return respond(response, 200, await (await arenaReady).history(history[1], url.searchParams.get("kind"), { ...paging, side, type: url.searchParams.get("type") || undefined, symbol: url.searchParams.get("symbol") || undefined }));
         }
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {

@@ -1297,6 +1297,18 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       });
     },
 
+    // Record that a round ran without writing a journal entry or report (frequent no-op strategy rounds).
+    async touchRound(accountId, kind = "strategy", caller = {}) {
+      return withLock(async () => {
+        const account = await load(accountId);
+        assertActive(account);
+        assertCaller(account, caller);
+        markRound(account, kind);
+        await save(account);
+        return { lastRoundAt: account.lastRoundAt };
+      });
+    },
+
     // Protective exits on an existing position; null clears a level.
     async setExits(input, caller = {}) {
       const symbol = normalizeTradeSymbol(input.symbol);

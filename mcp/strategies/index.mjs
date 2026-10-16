@@ -110,6 +110,19 @@ export function ordersFromTargets(account, targets, quotes, { minTradeValuePct =
   return [...sells, ...buys];
 }
 
+// Completed daily bars do not change during a session, so frequent rounds reuse them for up to an
+// hour instead of re-downloading every symbol every few minutes.
+const HISTORY_TTL_MS = 3600000;
+const historyMemo = new Map();
+async function cachedHistory(historyProvider, symbol, range) {
+  const key = `${symbol}:${range}`;
+  const hit = historyMemo.get(key);
+  if (hit && hit.provider === historyProvider && Date.now() - hit.fetchedAt < HISTORY_TTL_MS) return hit.quote;
+  const quote = await historyProvider(symbol, { range });
+  historyMemo.set(key, { quote, provider: historyProvider, fetchedAt: Date.now() });
+  return quote;
+}
+
 // Run one strategy round for an account through a broker. Returns a structured round record.
 export async function runStrategyRound({ strategy, params: rawParams, broker, now = () => new Date().toISOString(), runId, historyProvider = getHistoricalQuote, quoteProvider = getTradeQuote }) {
   const startedAt = now();
@@ -124,7 +137,7 @@ export async function runStrategyRound({ strategy, params: rawParams, broker, no
     now: startedAt, market: account.market, account, params, universe, log,
     async history(symbol, { days = 260 } = {}) {
       if (!historyCache.has(symbol)) {
-        const quote = await historyProvider(symbol, { range: days > 250 ? "2y" : "1y" });
+        const quote = await cachedHistory(historyProvider, symbol, days > 250 ? "2y" : "1y");
         // Completed bars only: never let a strategy see today's unfinished candle.
         historyCache.set(symbol, (quote.history ?? []).filter((bar) => bar.complete !== false && (!bar.availableAt || Date.parse(bar.availableAt) <= Date.parse(startedAt))));
       }
@@ -169,7 +182,13 @@ export async function runStrategyRound({ strategy, params: rawParams, broker, no
     picks: (output.targets ?? []).filter((target) => target.weight > 0).map((target) => ({ symbol: target.symbol, thesis: target.reason ?? `目标权重 ${(target.weight * 100).toFixed(1)}%` })),
     nextSteps: "按调度时间运行下一轮。",
   };
-  if (broker.publishReport) await broker.publishReport(report);
+  // Frequent strategies would otherwise publish a "no signal" report every few minutes. Publish when
+  // something was traded, when the strategy supplies its own report, or once per day as a heartbeat.
+  const today = new Date(startedAt).toLocaleDateString("en-CA", { timeZone: { A: "Asia/Shanghai", HK: "Asia/Hong_Kong", US: "America/New_York" }[account.market] ?? "UTC" });
+  const reportedToday = (account.reports ?? []).some((entry) => new Date(entry.at).toLocaleDateString("en-CA", { timeZone: { A: "Asia/Shanghai", HK: "Asia/Hong_Kong", US: "America/New_York" }[account.market] ?? "UTC" }) === today);
+  const publish = orders.length > 0 || Boolean(output.report) || !reportedToday;
+  if (publish && broker.publishReport) await broker.publishReport(report);
+  else if (!publish && broker.touchRound) await broker.touchRound("strategy-no-change");
   else if (!orders.length && broker.logDecision) await broker.logDecision({ kind: "no-trade", summary: report.summary });
   return { strategyId: strategy.id, version: strategy.version, params, startedAt, finishedAt: now(), orders: results, logs, notes: output.notes ?? null };
 }

@@ -16253,6 +16253,17 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         return publicAccount(account2, { detail: true });
       });
     },
+    // Record that a round ran without writing a journal entry or report (frequent no-op strategy rounds).
+    async touchRound(accountId2, kind = "strategy", caller = {}) {
+      return withLock(async () => {
+        const account2 = await load(accountId2);
+        assertActive(account2);
+        assertCaller(account2, caller);
+        markRound(account2, kind);
+        await save(account2);
+        return { lastRoundAt: account2.lastRoundAt };
+      });
+    },
     // Protective exits on an existing position; null clears a level.
     async setExits(input, caller = {}) {
       const symbol = normalizeTradeSymbol(input.symbol);
@@ -17311,7 +17322,8 @@ function createPaperBroker({ arena, accountId: accountId2, caller }) {
     cancelOrder: (orderId, reason) => arena.cancelOrder({ accountId: accountId2, orderId, reason }, caller),
     logDecision: (entry) => arena.logDecision({ accountId: accountId2, ...entry }, caller),
     publishReport: (report) => arena.publishReport({ accountId: accountId2, ...report }, caller),
-    setExits: (input) => arena.setExits({ accountId: accountId2, ...input }, caller)
+    setExits: (input) => arena.setExits({ accountId: accountId2, ...input }, caller),
+    touchRound: (kind) => arena.touchRound(accountId2, kind, caller)
   };
 }
 
@@ -17480,6 +17492,16 @@ function ordersFromTargets(account2, targets, quotes, { minTradeValuePct = 0.5 }
   }
   return [...sells, ...buys];
 }
+var HISTORY_TTL_MS = 36e5;
+var historyMemo = /* @__PURE__ */ new Map();
+async function cachedHistory(historyProvider, symbol, range) {
+  const key = `${symbol}:${range}`;
+  const hit = historyMemo.get(key);
+  if (hit && hit.provider === historyProvider && Date.now() - hit.fetchedAt < HISTORY_TTL_MS) return hit.quote;
+  const quote = await historyProvider(symbol, { range });
+  historyMemo.set(key, { quote, provider: historyProvider, fetchedAt: Date.now() });
+  return quote;
+}
 async function runStrategyRound({ strategy: strategy2, params: rawParams, broker, now = () => (/* @__PURE__ */ new Date()).toISOString(), runId, historyProvider = getHistoricalQuote, quoteProvider = getTradeQuote }) {
   const startedAt = now();
   const logs = [];
@@ -17498,7 +17520,7 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
     log,
     async history(symbol, { days = 260 } = {}) {
       if (!historyCache.has(symbol)) {
-        const quote = await historyProvider(symbol, { range: days > 250 ? "2y" : "1y" });
+        const quote = await cachedHistory(historyProvider, symbol, days > 250 ? "2y" : "1y");
         historyCache.set(symbol, (quote.history ?? []).filter((bar) => bar.complete !== false && (!bar.availableAt || Date.parse(bar.availableAt) <= Date.parse(startedAt))));
       }
       return historyCache.get(symbol).slice(-days);
@@ -17547,7 +17569,11 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
     picks: (output.targets ?? []).filter((target) => target.weight > 0).map((target) => ({ symbol: target.symbol, thesis: target.reason ?? `\u76EE\u6807\u6743\u91CD ${(target.weight * 100).toFixed(1)}%` })),
     nextSteps: "\u6309\u8C03\u5EA6\u65F6\u95F4\u8FD0\u884C\u4E0B\u4E00\u8F6E\u3002"
   };
-  if (broker.publishReport) await broker.publishReport(report);
+  const today = new Date(startedAt).toLocaleDateString("en-CA", { timeZone: { A: "Asia/Shanghai", HK: "Asia/Hong_Kong", US: "America/New_York" }[account2.market] ?? "UTC" });
+  const reportedToday = (account2.reports ?? []).some((entry) => new Date(entry.at).toLocaleDateString("en-CA", { timeZone: { A: "Asia/Shanghai", HK: "Asia/Hong_Kong", US: "America/New_York" }[account2.market] ?? "UTC" }) === today);
+  const publish = orders.length > 0 || Boolean(output.report) || !reportedToday;
+  if (publish && broker.publishReport) await broker.publishReport(report);
+  else if (!publish && broker.touchRound) await broker.touchRound("strategy-no-change");
   else if (!orders.length && broker.logDecision) await broker.logDecision({ kind: "no-trade", summary: report.summary });
   return { strategyId: strategy2.id, version: strategy2.version, params, startedAt, finishedAt: now(), orders: results, logs, notes: output.notes ?? null };
 }

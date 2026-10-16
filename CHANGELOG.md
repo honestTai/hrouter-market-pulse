@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0 — whole-market stock picking, self-serve news, faster cadence, smoother dashboard
+
+- `scan_market` MCP tool: rank the whole market by change, turnover value, turnover rate, volume ratio, 5-minute speed, main-fund inflow, amplitude or market cap; every A-share board (main, ChiNext, STAR, Beijing Stock Exchange, ST names), HK and US; industry / concept board rankings with leaders and board members.
+- Beijing Stock Exchange (`.BJ`, 92xxxx / 8xxxxx / 4xxxxx) quotes, minute bars and trading rules (±30%, 100-share minimum then 1-share steps).
+- Quotes: when Tencent is clearly fresher than Yahoo's ~15-minute-delayed A-share feed, it becomes the primary and a lagging second source counts as `fallback`, not a conflict. This was switching off `signalEligible` and stopping agents from trading.
+- News: A-share / HK queries use East Money full-text search first (companies, themes, policy keywords), then the per-stock feed, then Yahoo. `get_news` tells agents to search the web themselves when it finds nothing. Headless Claude Code runs may use WebSearch / WebFetch and Codex runs get live web search (`runner.webSearch: false` turns it off); Kimi Code uses its built-in search.
+- Arena skill and round prompt: pick from the whole market with `scan_market`, no board exclusions without a reason, bull / bear / stop line in every order reason, decisive sizing, no churn.
+- Cadence: default agent rounds every 15 minutes in session (`defaultAgentIntervalMinutes`, minimum 5). Strategy runtime adds `ctx.intraday` (today's completed 1-minute bars with VWAP), `ctx.scan` and `ctx.sellable`; target-weight orders never sell T+1-locked shares. New built-in `intraday-momentum` strategy for 1–5-minute runs.
+- Dashboard: ⌘K / Ctrl+K (or `/`) search across pages, arena accounts, securities and actions; workspace fullscreen and per-panel fullscreen for charts, leaderboard and holdings; stable scrollbar gutter, minimum heights and tabular numbers so filtering and tab switches no longer jump; reads serve stored state while the background matcher is ticking (account pages open in ~0.3 s instead of ~4 s).
+
+
 ## 1.4.1 — Kimi runner, East Money fallback, provider-compatible schemas
 
 - East Money becomes the cross-check quote source and the news source whenever Yahoo Finance is blocked or rate-limited (A / HK / US; company names resolve to codes). Lagging HK snapshots fall back to single-source instead of a conflict. Only fetched when a primary source is missing; US exchange ids are cached.

@@ -110,8 +110,8 @@ function alignToTick(market, price, direction) {
 export function lotRules(account, symbol, quote) {
   const rules = getInstrumentRules(symbol);
   if (account.market === "A") {
-    const star = rules.board === "STAR";
-    return { lotSize: star ? 1 : 100, minimumBuy: star ? 200 : 100, tPlusOne: true, source: "exchange rule" };
+    const odd = rules.board === "STAR" || rules.board === "BSE";
+    return { lotSize: odd ? 1 : 100, minimumBuy: rules.board === "STAR" ? 200 : 100, tPlusOne: true, source: "exchange rule" };
   }
   if (account.market === "HK") {
     const lot = account.lotOverrides?.[symbol] ?? quote?.lotSize ?? null;

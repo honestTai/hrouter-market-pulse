@@ -28,19 +28,35 @@ The Arena is a **local paper exchange with virtual money**. Fills use live publi
 - Check the market session: market orders are rejected outside regular hours. Outside hours you may analyse and place **limit** orders that rest until the session opens, or log a no-trade decision.
 - Re-read your strategy (`strategy.summary`, version). Follow it. If you want to change it, call `arena_update_strategy` with a `changeNote` **before** trading on the new rules, so performance is attributed to the right version.
 
-## 3. Pick stocks
+## 3. Pick stocks — from the whole market, not a few remembered large caps
 
-Maintain your own candidate pool from the account's market with `arena_set_watchlist` (at most 50 symbols, with the reason). Revisit it every round: drop names that no longer fit the strategy, add new ones you researched. The owner's dashboard watchlist follows your pool and holdings. Use `screen_watchlist`, `get_market_snapshot`, `get_news` and your own reasoning; you are not limited to symbols the owner happened to save.
+Maintain your own candidate pool with `arena_set_watchlist` (at most 50 symbols, with the reason) and refresh it **every round**. Your universe is the account's whole market:
 
-## 4. Research
+- **A-share**: main board, **ChiNext 创业板 (30xxxx, ±20%)**, **STAR 科创板 (68xxxx, ±20%, 200-share minimum then 1-share steps)**, **Beijing 北交所 (92xxxx / 8xxxxx / 4xxxxx → `.BJ`, ±30%)** and **ST / *ST names** are all tradable here. Do not exclude a board or small caps by default; exclude only what your written strategy excludes, and say why. ST names carry delisting and limit-down-chain risk: size them smaller and set tight stops rather than banning them outright.
+- Start every round with `scan_market`: e.g. `sort: "amount"` (where the money is), `sort: "speed"` (what is moving in the last minutes), `sort: "mainInflow"`, `sort: "change"`, `view: "concepts"` / `"sectors"` for today's hot themes and their leaders, then `sector: <BK code>` for that theme's members. Use `minAmount` (e.g. 300000000) to keep liquidity, `boards` to focus.
+- Combine themes (sector strength), leaders and your own holdings into the pool. `screen_watchlist` / `get_market_snapshot` help rank the pool.
+- Confirm every candidate with `get_quote` before trading; the scan is a snapshot.
 
-Use the plugin's research tools as evidence, not decoration: `get_quote` (freshness, cross-check, indicators), `screen_watchlist`, `get_news`, `run_strategy`, `query_evidence`. Do not invent prices, news or fundamentals.
+## 4. Research — never let a missing feed stop you
 
-How to treat data quality — the tools already apply the gates, so do not add stricter ones of your own:
+Use the plugin's tools as evidence: `get_quote` (freshness, cross-check, indicators, limit-up/down), `scan_market`, `get_news` (works for companies, themes and policy keywords; pass the Chinese name for A/HK), `run_strategy`, `query_evidence`. Do not invent prices, news or fundamentals.
 
-- **`signalEligible: true` means the quote is usable for a decision**, including `crossCheck.status` of `matched`, `fallback` or `unavailable` (one fresh source, the other missing or lagging). Only `divergent`, `stale`, `future` or `signalEligible: false` should stop a trade in that name.
-- **Missing news is not a veto.** If `get_news` fails or returns nothing, say so in the report and decide on price, trend and your strategy rules. Do not stay in cash round after round solely because a data provider is unavailable — that is a data outage, not a signal.
-- If your strategy truly requires a specific input that is missing, trade smaller or skip only the affected names, and record the reason with `arena_log_decision`.
+**News**: if `get_news` returns nothing or fails, **search the web yourself** with your host's tool (WebSearch / web_search / SearchWeb / FetchURL), e.g. "<公司名> 公告", "<公司名> 最新消息", "<概念> 政策". Use web results for news and events only; take prices from `get_quote`. If no source works, decide on price, trend, volume and your rules — missing news is never a veto.
+
+Data quality — the tools already apply the gates; do not add stricter ones:
+
+- **`signalEligible: true` means the quote is usable**, with `crossCheck.status` `matched`, `fallback` or `unavailable`. Only `divergent`, `stale`, `future` or `signalEligible: false` stop a trade in that name — and only in that name.
+- Do not stay in cash round after round because of a data outage. That is not a signal.
+
+Before each new position, run a quick **bull / bear check** in your own reasoning (as in multi-agent research desks): the strongest case for, the strongest case against, what would prove you wrong (→ your stop). Put one line of each into the order `reason`.
+
+## Trading cadence
+
+You run every ~15 minutes during the session. Each round should do something useful: re-scan, re-rank the pool, review exits, and act when your rules say so. Guidelines from public LLM trading competitions: the worst results came from over-trading and changing the plan every round; the best kept a plan, sized positions and used stops. So:
+
+- Be decisive when the setup is there (buy the full planned size or a clear first tranche) and use your cash: a strategy that keeps >50% cash for days without a reason is not following "fully managed".
+- Do not churn: no buy-then-sell of the same name in one day without a stop / thesis break, and remember A-share T+1.
+- Let the background matcher handle stops and take-profits between your rounds; fast intraday rules belong in a code strategy (`intraday-momentum`), not in you polling.
 
 ## 5. Act — or deliberately don't
 

@@ -28,10 +28,12 @@ npm run service:install          # 安装开机自启的常驻服务（macOS Lau
 - `npm run service:status` 查看状态，`npm run service:uninstall` 卸载，`npm run service:run` 前台调试。日志在 `<数据目录>/arena/service.log`。
 - **Agent 需要能在命令行登录**：Claude Code 运行一次 `claude auth login`；Codex 运行 `codex login`；WorkBuddy 的命令行没有独立登录（App 启动它时通过内部通道传入凭据），所以 **WorkBuddy 推荐在 App 里用它自带的「自动化 / 定时任务」触发每一轮**（提示词可在面板「接入 Agent」里复制），插件与数据和其他 Agent 共享；若你有 CodeBuddy API key，也可以把 `CODEBUDDY_API_KEY` 设进服务环境后使用调度器的 WorkBuddy 运行方式。桌面 App 的登录不会自动共享给命令行。
 - **Kimi Code**：使用 `kimi -p` 运行，沿用 Kimi 自己的登录与 `~/.kimi-code/mcp.json` 里登记的本插件（模型如 `kimi-code/k3-256k`，不写前缀会自动补全）。
+- **选股范围是全市场**：`scan_market` 可按成交额、涨速、主力净流入、涨幅、量比等扫描主板、创业板、科创板、北交所（`.BJ`）和 ST 股，也能看热门行业/概念及其龙头；Agent 不应无理由只盯大盘蓝筹。
+- **新闻拿不到时 Agent 自己联网搜索**：调度运行的 Claude Code 允许 WebSearch / WebFetch，Codex 开启实时 web search，Kimi Code 用自带搜索；不想联网可在任务里设 `runner.webSearch: false`。
 - 行情第二数据源与新闻：Yahoo Finance 不可用时自动改用**东方财富**做交叉验证和个股资讯（A 股、港股、美股）；港股东方财富报价有延迟，时间对不上时按单源可用处理而不是冲突。
 - 无头运行只挂载本插件的 MCP 服务，并且只预先批准本插件的工具：Claude 使用 `--strict-mcp-config --allowedTools mcp__hrouter_market_pulse`；Codex 使用只读沙箱和 `default_tools_approval_mode="approve"`，并临时禁用已安装的同名插件以免重复。
-- **默认规则：每个 Agent 账户交易时段内每 30 分钟一轮。** Agent 自己开户（`arena_register_account`）或在面板新建账户时，会按账户所属 Agent 自动创建调度（Codex / Kimi Code / Claude Code / WorkBuddy），模型沿用账户模型；量化策略账户不自动创建。默认间隔由设置 `defaultAgentIntervalMinutes` 控制（默认 30，`0` 关闭，最小 10）。
-- 除了固定时间，也可以设「交易时段内每隔 N 分钟」：代码策略最短 1 分钟，Agent 最短 10 分钟（一轮本身要几分钟、每轮消耗模型额度）；上一轮还在跑时这一次直接跳过，不会排队连跑。推荐分工：Agent 每 15–30 分钟或每天几次负责选股、调策略、设止损；代码策略每 1–5 分钟执行；挂单与止损由后台每 1–2 分钟撮合。
+- **默认规则：每个 Agent 账户交易时段内每 15 分钟一轮。** Agent 自己开户（`arena_register_account`）或在面板新建账户时，会按账户所属 Agent 自动创建调度（Codex / Kimi Code / Claude Code / WorkBuddy），模型沿用账户模型；量化策略账户不自动创建。默认间隔由设置 `defaultAgentIntervalMinutes` 控制（默认 15，`0` 关闭，最小 5）。
+- 除了固定时间，也可以设「交易时段内每隔 N 分钟」：代码策略最短 1 分钟，Agent 最短 5 分钟（一轮本身要 2–5 分钟、每轮消耗模型额度）；上一轮还在跑时这一次直接跳过，不会排队连跑。推荐分工：Agent 每 15 分钟负责选股、调策略、设止损；日内代码策略（如 `intraday-momentum`）每 1–5 分钟执行；挂单与止损由后台每 1–2 分钟撮合。
 - 每轮有超时（默认 20 分钟），同一账户不会并发运行；连续 3 轮失败会在面板标红。错过的时段在 90 分钟内会补跑，更晚的直接跳过。
 - 量化策略的写法见 [STRATEGIES.md](STRATEGIES.md)。
 
@@ -78,6 +80,7 @@ npm run service:install          # 安装开机自启的常驻服务（macOS Lau
 | `arena_set_watchlist` | 保存 Agent 自己的股票池；若是托管账户，面板自选随之更新 |
 | `arena_publish_report` | 每轮结束发布结论报告（标题、结论、市场判断、操作、看好标的、风险、下一步） |
 | `arena_leaderboard` | 按市场与组别排名 |
+| `scan_market` | 全市场扫描：各板块（含创业板、科创板、北交所、ST）、港股、美股排行，行业/概念板块与成分股 |
 
 Agent 不能归档、重置或给账户加钱，这些只能在面板里由你操作。
 

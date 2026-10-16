@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge, Button, Tooltip, IconButton, Callout } from "@radix-ui/themes";
-import { ArrowUpRight, ArrowDownRight, CircleHelp, Inbox, TriangleAlert, RefreshCw } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, CircleHelp, Inbox, Maximize2, Minimize2, TriangleAlert, RefreshCw } from "lucide-react";
 import { useWorkspace } from "../context.jsx";
 import { isNumber, quoteStatus, crossStatus } from "../data.mjs";
 
@@ -33,9 +33,27 @@ export function ErrorNotice({ message, onRetry }) {
   if (!message) return null;
   return <Callout.Root color="red" size="1" role="alert"><Callout.Icon><TriangleAlert size={16} /></Callout.Icon><Callout.Text>{message}{onRetry && <Button variant="ghost" color="red" size="1" onClick={onRetry}><RefreshCw size={13} />{t("重试", "Retry")}</Button>}</Callout.Text></Callout.Root>;
 }
-export function SectionHeading({ icon: Icon, title, caption, actions }) {
-  return <div className="section-heading"><div className="section-title">{Icon && <Icon size={17} />}<h2>{title}</h2>{caption && <span className="muted small">{caption}</span>}</div>{actions}</div>;
+export function SectionHeading({ icon: Icon, title, caption, actions, expandable = false }) {
+  return <div className="section-heading"><div className="section-title">{Icon && <Icon size={17} />}<h2>{title}</h2>{caption && <span className="muted small">{caption}</span>}</div>{(actions || expandable) && <div className="section-actions">{actions}{expandable && <FullscreenButton />}</div>}</div>;
+}
+
+// Shows the surrounding panel (.surface) in fullscreen; charts inside grow with it.
+export function FullscreenButton() {
+  const { t } = useWorkspace();
+  const button = React.useRef(null);
+  const [active, setActive] = React.useState(false);
+  React.useEffect(() => {
+    const onChange = () => setActive(Boolean(document.fullscreenElement && button.current && document.fullscreenElement.contains(button.current)));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  if (typeof document !== "undefined" && !document.documentElement.requestFullscreen) return null;
+  const toggle = () => {
+    if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
+    button.current?.closest(".surface, .fullscreen-target")?.requestFullscreen().catch(() => {});
+  };
+  return <Tooltip content={active ? t("退出全屏（Esc）", "Exit fullscreen (Esc)") : t("全屏查看", "Fullscreen")}><IconButton ref={button} type="button" size="1" variant="ghost" color="gray" aria-label={active ? t("退出全屏", "Exit fullscreen") : t("全屏查看", "Fullscreen")} onClick={toggle}>{active ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</IconButton></Tooltip>;
 }
 export function StockMark({ symbol, market, small = false }) {
-  return <span className={`stock-mark ${small ? "small" : ""} market-${market || "US"}`}>{symbol?.replace(/\.(HK|SS|SZ)$/, "").slice(0, 2) || "—"}</span>;
+  return <span className={`stock-mark ${small ? "small" : ""} market-${market || "US"}`}>{symbol?.replace(/\.(HK|SS|SZ|BJ)$/, "").slice(0, 2) || "—"}</span>;
 }

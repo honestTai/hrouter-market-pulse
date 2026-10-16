@@ -47,7 +47,7 @@ test("job validation and slots only fire on trading days, once, inside the catch
 test("repeat mode fires once per interval inside regular sessions, never at lunch, with agent minimums", () => {
   const strategy = sanitizeJob({ intervalMinutes: 5, runner: { type: "strategy", strategyId: "ma-trend" } });
   assert.deepEqual(strategy.times, []);
-  assert.throws(() => sanitizeJob({ intervalMinutes: 5, runner: { type: "kimi" } }), /at least 10 minutes/);
+  assert.throws(() => sanitizeJob({ intervalMinutes: 3, runner: { type: "kimi" } }), /at least 5 minutes/);
   assert.throws(() => sanitizeJob({ runner: { type: "kimi" } }), /run time or a repeat interval/);
   const at = (local) => new Date(Date.parse(`2026-10-15T${local}:00+08:00`)).toISOString();
   assert.deepEqual(dueSlots(strategy, "A", at("09:37"), []).map((slot) => slot.key), ["2026-10-15T09:35"]);
@@ -88,7 +88,7 @@ test("agent invocations attach only this plugin, pin the data dir and pre-approv
   const mcp = JSON.parse(claude.args[claude.args.indexOf("--mcp-config") + 1]);
   assert.equal(mcp.mcpServers.hrouter_market_pulse.env.HROUTER_REPORT_DIR, "/data");
   assert.ok(claude.args.includes("--strict-mcp-config"));
-  assert.equal(claude.args[claude.args.indexOf("--allowedTools") + 1], "mcp__hrouter_market_pulse");
+  assert.equal(claude.args[claude.args.indexOf("--allowedTools") + 1], "mcp__hrouter_market_pulse,WebSearch,WebFetch");
   const workbuddy = agentInvocation({ job: { runner: { type: "workbuddy", model: "primary-model", maxBudgetUsd: 1, timeoutMinutes: 5 } }, account: { id: "acc_000000000001" }, prompt: "go", nodePath: "/n", bundlePath: "/b.mjs", skillText: null, workDir: "/w", identity: "workbuddy-x", dataDir: "/data" });
   assert.match(workbuddy.command, /codebuddy/);
   assert.ok(workbuddy.args.includes("--strict-mcp-config") && !workbuddy.args.includes("--max-budget-usd"));

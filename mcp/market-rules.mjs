@@ -26,19 +26,21 @@ export const CALENDARS_2026 = {
 
 export function getInstrumentRules(input, { asOf = new Date().toISOString() } = {}) {
   const symbol = String(input).toUpperCase();
-  const market = /\.(SS|SZ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) || ["^HSI", "^HSTECH", "^HSCE"].includes(symbol) ? "HK" : "US";
+  const market = /\.(SS|SZ|BJ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) || ["^HSI", "^HSTECH", "^HSCE"].includes(symbol) ? "HK" : "US";
   const index = symbol.startsWith("^") || ["000001.SS", "399001.SZ", "399006.SZ"].includes(symbol);
   const fund = market === "A" && /^[15]\d{5}\./.test(symbol);
-  const ordinary = market === "A" && !index && !fund && /^(60|68|00|30)\d{4}\./.test(symbol);
-  const board = ordinary ? symbol.startsWith("68") ? "STAR" : symbol.startsWith("30") ? "ChiNext" : "main" : null;
+  const ordinary = market === "A" && !index && !fund && (/^(60|68|00|30)\d{4}\./.test(symbol) || symbol.endsWith(".BJ"));
+  const board = ordinary ? symbol.endsWith(".BJ") ? "BSE" : symbol.startsWith("68") ? "STAR" : symbol.startsWith("30") ? "ChiNext" : "main" : null;
+  // STAR and the Beijing Stock Exchange: 200 / 100 shares minimum, then 1-share increments.
+  const oddIncrement = board === "STAR" || board === "BSE";
   return {
     symbol, market, asOf, currency: market === "A" && symbol.startsWith("900") ? "USD" : market === "A" && symbol.startsWith("200") ? "HKD" : MARKETS[market].currency,
     instrumentType: index ? "index" : fund ? "fund-unclassified" : ordinary || market !== "A" ? "equity" : "unclassified",
     board, minimumHoldingSessions: ordinary ? 1 : market === "A" && !index ? null : 0,
-    lotSize: ordinary && board !== "STAR" ? 100 : market === "US" && !index ? 1 : null,
+    lotSize: ordinary && !oddIncrement ? 100 : market === "US" && !index ? 1 : null,
     minimumOrderUnits: ordinary ? board === "STAR" ? 200 : 100 : null,
-    orderIncrement: ordinary ? board === "STAR" ? 1 : 100 : null,
-    priceLimitPct: ordinary ? board === "main" || board === "ChiNext" && String(asOf).slice(0, 10) < "2020-08-24" ? 10 : 20 : null,
+    orderIncrement: ordinary ? oddIncrement ? 1 : 100 : null,
+    priceLimitPct: ordinary ? board === "BSE" ? 30 : board === "main" || board === "ChiNext" && String(asOf).slice(0, 10) < "2020-08-24" ? 10 : 20 : null,
     priceLimitRequiresVerification: market === "A",
     calendar: { timezone: MARKETS[market].timezone, coverage: String(asOf).startsWith("2026-") ? "official-2026" : "weekday-only", holidayCoverage: String(asOf).startsWith("2026-"), ...CALENDARS_2026[market] },
     limitations: ["Board defaults require dated verification for ST, IPO, delisting, funds and exceptional sessions.", "Holiday and half-day schedules must be supplied with dated calendar evidence."],

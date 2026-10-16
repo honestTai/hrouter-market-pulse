@@ -7432,11 +7432,12 @@ var CALENDARS_2026 = {
 };
 function getInstrumentRules(input, { asOf = (/* @__PURE__ */ new Date()).toISOString() } = {}) {
   const symbol = String(input).toUpperCase();
-  const market2 = /\.(SS|SZ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) || ["^HSI", "^HSTECH", "^HSCE"].includes(symbol) ? "HK" : "US";
+  const market2 = /\.(SS|SZ|BJ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) || ["^HSI", "^HSTECH", "^HSCE"].includes(symbol) ? "HK" : "US";
   const index = symbol.startsWith("^") || ["000001.SS", "399001.SZ", "399006.SZ"].includes(symbol);
   const fund = market2 === "A" && /^[15]\d{5}\./.test(symbol);
-  const ordinary = market2 === "A" && !index && !fund && /^(60|68|00|30)\d{4}\./.test(symbol);
-  const board = ordinary ? symbol.startsWith("68") ? "STAR" : symbol.startsWith("30") ? "ChiNext" : "main" : null;
+  const ordinary = market2 === "A" && !index && !fund && (/^(60|68|00|30)\d{4}\./.test(symbol) || symbol.endsWith(".BJ"));
+  const board = ordinary ? symbol.endsWith(".BJ") ? "BSE" : symbol.startsWith("68") ? "STAR" : symbol.startsWith("30") ? "ChiNext" : "main" : null;
+  const oddIncrement = board === "STAR" || board === "BSE";
   return {
     symbol,
     market: market2,
@@ -7445,10 +7446,10 @@ function getInstrumentRules(input, { asOf = (/* @__PURE__ */ new Date()).toISOSt
     instrumentType: index ? "index" : fund ? "fund-unclassified" : ordinary || market2 !== "A" ? "equity" : "unclassified",
     board,
     minimumHoldingSessions: ordinary ? 1 : market2 === "A" && !index ? null : 0,
-    lotSize: ordinary && board !== "STAR" ? 100 : market2 === "US" && !index ? 1 : null,
+    lotSize: ordinary && !oddIncrement ? 100 : market2 === "US" && !index ? 1 : null,
     minimumOrderUnits: ordinary ? board === "STAR" ? 200 : 100 : null,
-    orderIncrement: ordinary ? board === "STAR" ? 1 : 100 : null,
-    priceLimitPct: ordinary ? board === "main" || board === "ChiNext" && String(asOf).slice(0, 10) < "2020-08-24" ? 10 : 20 : null,
+    orderIncrement: ordinary ? oddIncrement ? 1 : 100 : null,
+    priceLimitPct: ordinary ? board === "BSE" ? 30 : board === "main" || board === "ChiNext" && String(asOf).slice(0, 10) < "2020-08-24" ? 10 : 20 : null,
     priceLimitRequiresVerification: market2 === "A",
     calendar: { timezone: MARKETS[market2].timezone, coverage: String(asOf).startsWith("2026-") ? "official-2026" : "weekday-only", holidayCoverage: String(asOf).startsWith("2026-"), ...CALENDARS_2026[market2] },
     limitations: ["Board defaults require dated verification for ST, IPO, delisting, funds and exceptional sessions.", "Holiday and half-day schedules must be supplied with dated calendar evidence."]
@@ -7726,8 +7727,8 @@ var PHASE_LABELS = {
 };
 function finite(value) {
   if (value === null || value === void 0 || typeof value === "boolean" || typeof value === "string" && !value.trim()) return null;
-  const number4 = Number(value);
-  return Number.isFinite(number4) ? number4 : null;
+  const number5 = Number(value);
+  return Number.isFinite(number5) ? number5 : null;
 }
 function round(value, digits = 2) {
   if (!Number.isFinite(value)) return null;
@@ -7764,7 +7765,7 @@ function emaSeries(values, period) {
 function normalizeSymbol(input) {
   const raw = String(input ?? "").trim().toUpperCase().replace(/\s+/g, "");
   if (!raw) throw new Error("\u80A1\u7968\u4EE3\u7801\u4E0D\u80FD\u4E3A\u7A7A");
-  if (/^[A-Z0-9.^=-]+\.(SS|SZ|HK)$/.test(raw) || raw.startsWith("^")) return raw;
+  if (/^[A-Z0-9.^=-]+\.(SS|SZ|BJ|HK)$/.test(raw) || raw.startsWith("^")) return raw;
   if (/^HK\d{1,5}$/.test(raw)) {
     const code = String(Number(raw.slice(2))).padStart(4, "0");
     return `${code}.HK`;
@@ -7773,14 +7774,14 @@ function normalizeSymbol(input) {
     return `${String(Number(raw)).padStart(4, "0")}.HK`;
   }
   if (/^\d{6}$/.test(raw)) {
-    return `${raw}.${/^[569]/.test(raw) ? "SS" : "SZ"}`;
+    return `${raw}.${/^(92|8|4)/.test(raw) ? "BJ" : /^[569]/.test(raw) ? "SS" : "SZ"}`;
   }
   if (/^[A-Z][A-Z0-9.-]{0,14}$/.test(raw)) return raw;
   throw new Error(`\u65E0\u6CD5\u8BC6\u522B\u80A1\u7968\u4EE3\u7801: ${input}`);
 }
 function marketFromSymbol(symbol) {
   const normalized = normalizeSymbol(symbol);
-  if (normalized.endsWith(".SS") || normalized.endsWith(".SZ")) return "A";
+  if (/\.(SS|SZ|BJ)$/.test(normalized)) return "A";
   if (normalized.endsWith(".HK") || ["^HSI", "^HSTECH", "^HSCE"].includes(normalized)) return "HK";
   return "US";
 }
@@ -8027,6 +8028,7 @@ function tencentCodeForSymbol(input) {
   if (TENCENT_INDEX_CODES[symbol]) return TENCENT_INDEX_CODES[symbol];
   if (symbol.endsWith(".SS")) return `sh${symbol.slice(0, -3)}`;
   if (symbol.endsWith(".SZ")) return `sz${symbol.slice(0, -3)}`;
+  if (symbol.endsWith(".BJ")) return `bj${symbol.slice(0, -3)}`;
   if (symbol.endsWith(".HK")) return `hk${symbol.slice(0, -3).padStart(5, "0")}`;
   if (symbol.startsWith("^")) throw new Error(`\u817E\u8BAF\u8D22\u7ECF\u6682\u4E0D\u652F\u6301\u6307\u6570\u4EE3\u7801 ${symbol}`);
   return `us${symbol}`;
@@ -8273,7 +8275,7 @@ function eastmoneyIds(input) {
   const symbol = normalizeSymbol(input);
   if (symbol.startsWith("^")) return [];
   if (symbol.endsWith(".SS")) return [`1.${symbol.slice(0, -3)}`];
-  if (symbol.endsWith(".SZ")) return [`0.${symbol.slice(0, -3)}`];
+  if (symbol.endsWith(".SZ") || symbol.endsWith(".BJ")) return [`0.${symbol.slice(0, -3)}`];
   if (symbol.endsWith(".HK")) return [`116.${symbol.slice(0, -3).padStart(5, "0")}`];
   const ticker = symbol.replace(/-/g, "_");
   return ["105", "106", "107"].map((market2) => `${market2}.${ticker}`);
@@ -8365,7 +8367,8 @@ async function getQuote(input, options = {}) {
   const sourceUsable = (result) => result.status === "fulfilled" && !["stale", "future", "unknown-timestamp"].includes(assessQuoteFreshness(result.value, normalizedOptions).status);
   const yahooUsable = sourceUsable(yahooResult), tencentUsable = sourceUsable(tencentResult);
   const [eastmoneyResult] = yahooUsable && tencentUsable || options.eastmoney === false ? [{ status: "rejected", reason: new Error("not needed") }] : await Promise.allSettled([getEastmoneyQuote(symbol)]);
-  const quote = yahooUsable ? yahooResult.value : tencentUsable ? tencentResult.value : yahooResult.status === "fulfilled" ? yahooResult.value : tencentResult.status === "fulfilled" ? tencentResult.value : null;
+  const tencentFresher = yahooUsable && tencentUsable && Date.parse(tencentResult.value.asOf) - Date.parse(yahooResult.value.asOf) > (options.maxTimestampSkewSeconds ?? 120) * 1e3;
+  const quote = tencentFresher ? tencentResult.value : yahooUsable ? yahooResult.value : tencentUsable ? tencentResult.value : yahooResult.status === "fulfilled" ? yahooResult.value : tencentResult.status === "fulfilled" ? tencentResult.value : null;
   if (!quote) throw new Error(`\u884C\u60C5\u8BF7\u6C42\u5931\u8D25\uFF1AYahoo Finance: ${yahooResult.reason?.message}; Tencent Finance: ${tencentResult.reason?.message}`);
   if (!quote.history.length) {
     try {
@@ -8379,11 +8382,12 @@ async function getQuote(input, options = {}) {
   if (!options.now) normalizedOptions.now = (/* @__PURE__ */ new Date()).toISOString();
   quote.freshness = assessQuoteFreshness(quote, normalizedOptions);
   const selectedYahoo = quote === yahooResult.value;
-  quote.dataSources = [{ provider: quote.provider, role: selectedYahoo ? "primary" : "fallback", price: quote.price, asOf: quote.asOf, freshness: quote.freshness }];
+  quote.dataSources = [{ provider: quote.provider, role: selectedYahoo || tencentFresher ? "primary" : "fallback", price: quote.price, asOf: quote.asOf, freshness: quote.freshness }];
   if (yahooUsable && tencentUsable) {
-    const check2 = tencentResult.value;
-    quote.crossCheck = crossCheckQuotes(quote, check2, normalizedOptions);
-    quote.source = "Yahoo Finance + Tencent Finance";
+    const check2 = selectedYahoo ? tencentResult.value : yahooResult.value;
+    const compared = crossCheckQuotes(quote, check2, normalizedOptions);
+    quote.crossCheck = compared.status === "time-mismatch" && compared.primaryFreshness.signalEligible ? { ...compared, status: "fallback", error: `${check2.provider} lags the primary by ${Math.round(compared.timestampSkewSeconds ?? 0)}s` } : compared;
+    quote.source = selectedYahoo ? "Yahoo Finance + Tencent Finance" : "Tencent Finance + Yahoo Finance";
     quote.dataSources.push({ provider: check2.provider, role: "cross-check", price: check2.price, asOf: check2.asOf, freshness: quote.crossCheck.secondaryFreshness });
   } else if (sourceUsable(eastmoneyResult) && (selectedYahoo || quote === tencentResult.value)) {
     const check2 = eastmoneyResult.value;
@@ -8637,22 +8641,49 @@ function calculatePositionBudget(input) {
 }
 async function getNews(query, count = 5, { symbol } = {}) {
   const boundedCount = Math.max(0, Math.min(10, Number(count) || 5));
-  let yahoo = [];
-  let yahooError = null;
+  let market2 = null;
   try {
-    yahoo = await getYahooNews(query, boundedCount);
-  } catch (error2) {
-    yahooError = error2;
+    market2 = marketFromSymbol(symbol ?? query);
+  } catch {
   }
-  if (yahoo.length) return yahoo;
-  try {
-    const fallback = await getEastmoneyNews(symbol ?? query, boundedCount);
-    if (fallback.length || !yahooError) return fallback;
-  } catch (error2) {
-    if (!yahooError) return [];
-    throw new Error(`\u65B0\u95FB\u6E90\u5747\u4E0D\u53EF\u7528 / news unavailable: Yahoo ${yahooError.message}; East Money ${error2.message}`);
+  const chinese = /[\u4e00-\u9fff]/u.test(String(query)) || market2 && market2 !== "US" && /\d/.test(String(symbol ?? query));
+  const sources = chinese ? [() => searchEastmoneyNews(query, boundedCount), () => getEastmoneyNews(symbol ?? query, boundedCount), () => getYahooNews(query, boundedCount)] : [() => getYahooNews(query, boundedCount), () => getEastmoneyNews(symbol ?? query, boundedCount), () => searchEastmoneyNews(query, boundedCount)];
+  const errors = [];
+  for (const source of sources) {
+    try {
+      const items = await source();
+      if (items.length) return items;
+    } catch (error2) {
+      errors.push(error2.message);
+    }
   }
-  throw yahooError;
+  if (errors.length === sources.length) throw new Error(`\u65B0\u95FB\u6E90\u5747\u4E0D\u53EF\u7528 / news unavailable: ${errors.join("; ")}`);
+  return [];
+}
+var EASTMONEY_SEARCH = "https://search-api-web.eastmoney.com/search/jsonp";
+function parseEastmoneySearch(text2, count = 5) {
+  const json = JSON.parse(String(text2).replace(/^[^(]*\(/, "").replace(/\);?\s*$/, ""));
+  return (json?.result?.cmsArticleWebOld ?? []).slice(0, count).map((item) => ({
+    title: String(item.title ?? "").replace(/<[^>]+>/g, ""),
+    publisher: item.mediaName ? `${item.mediaName} / \u4E1C\u65B9\u8D22\u5BCC` : "\u4E1C\u65B9\u8D22\u5BCC / East Money",
+    publishedAt: item.date ? (/* @__PURE__ */ new Date(`${item.date.replace(" ", "T")}+08:00`)).toISOString() : null,
+    url: item.url ?? "",
+    summary: String(item.content ?? "").replace(/<[^>]+>/g, "").slice(0, 300)
+  }));
+}
+async function searchEastmoneyNews(keyword, count = 5) {
+  const param = {
+    uid: "",
+    keyword: String(keyword).slice(0, 60),
+    type: ["cmsArticleWebOld"],
+    client: "web",
+    clientType: "web",
+    clientVersion: "curr",
+    param: { cmsArticleWebOld: { searchScope: "default", sort: "default", pageIndex: 1, pageSize: Math.max(1, Math.min(20, count)), preTag: "", postTag: "" } }
+  };
+  const response = await fetch(`${EASTMONEY_SEARCH}?cb=cb&param=${encodeURIComponent(JSON.stringify(param))}`, { headers: { "User-Agent": "Mozilla/5.0", Referer: "https://so.eastmoney.com/" }, signal: AbortSignal.timeout(8e3) });
+  if (!response.ok) throw new Error(`East Money search HTTP ${response.status}`);
+  return parseEastmoneySearch(await response.text(), count);
 }
 async function getYahooNews(query, boundedCount) {
   const url = `${YAHOO_SEARCH}?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=${boundedCount}`;
@@ -8720,7 +8751,7 @@ async function loadPreferences() {
     monitorIntervalSeconds: Math.max(60, Math.min(3600, finite(saved.monitorIntervalSeconds) ?? 300)),
     managedAccountId: typeof saved.managedAccountId === "string" ? saved.managedAccountId : null,
     // New agent accounts get a repeat-every-N-minutes schedule automatically (0 = off).
-    defaultAgentIntervalMinutes: Number.isInteger(saved.defaultAgentIntervalMinutes) ? saved.defaultAgentIntervalMinutes : 30,
+    defaultAgentIntervalMinutes: Number.isInteger(saved.defaultAgentIntervalMinutes) ? saved.defaultAgentIntervalMinutes : 15,
     digestWebhook: saved.digestWebhook && typeof saved.digestWebhook.url === "string" ? saved.digestWebhook : null,
     reportPort: getReportPort(),
     reportDirectory: getStorageDir(),
@@ -8880,13 +8911,13 @@ function sanitizePreferences(input, current = {}) {
     monitorIntervalSeconds: input.monitorIntervalSeconds ?? current.monitorIntervalSeconds ?? 300,
     // Arena account whose agent manages the owner's portfolio (null = follow the most active account).
     managedAccountId: input.managedAccountId === void 0 ? current.managedAccountId ?? null : input.managedAccountId,
-    defaultAgentIntervalMinutes: input.defaultAgentIntervalMinutes === void 0 ? current.defaultAgentIntervalMinutes ?? 30 : input.defaultAgentIntervalMinutes,
+    defaultAgentIntervalMinutes: input.defaultAgentIntervalMinutes === void 0 ? current.defaultAgentIntervalMinutes ?? 15 : input.defaultAgentIntervalMinutes,
     // Optional end-of-day arena digest push: generic JSON POST, or WeChat Work / Feishu bot payloads.
     digestWebhook: input.digestWebhook === void 0 ? current.digestWebhook ?? null : sanitizeDigestWebhook(input.digestWebhook)
   };
   if (next.managedAccountId !== null && !/^acc_[a-f0-9]{12}$/.test(next.managedAccountId)) throw new Error("managedAccountId must be an arena account id or null.");
-  if (!Number.isInteger(next.defaultAgentIntervalMinutes) || next.defaultAgentIntervalMinutes < 0 || next.defaultAgentIntervalMinutes > 240 || next.defaultAgentIntervalMinutes > 0 && next.defaultAgentIntervalMinutes < 10)
-    throw new Error("defaultAgentIntervalMinutes must be 0 (off) or a whole number of minutes from 10 to 240.");
+  if (!Number.isInteger(next.defaultAgentIntervalMinutes) || next.defaultAgentIntervalMinutes < 0 || next.defaultAgentIntervalMinutes > 240 || next.defaultAgentIntervalMinutes > 0 && next.defaultAgentIntervalMinutes < 5)
+    throw new Error("defaultAgentIntervalMinutes must be 0 (off) or a whole number of minutes from 5 to 240.");
   return next;
 }
 function sanitizeDigestWebhook(input) {
@@ -9042,6 +9073,109 @@ async function loadReport(runId = "latest", format = "json") {
   if (!safeRunId) throw new Error("\u65E0\u6548\u7684\u62A5\u544A\u7F16\u53F7");
   return readFile2(path2.join(getStorageDir(), "reports", `${safeRunId}.${format}`), "utf8");
 }
+var EASTMONEY_LIST = "https://push2.eastmoney.com/api/qt/clist/get";
+var SCAN_SORTS = Object.freeze({ change: "f3", amount: "f6", turnover: "f8", volumeRatio: "f10", speed: "f22", mainInflow: "f62", amplitude: "f7", marketCap: "f20" });
+var A_BOARDS = Object.freeze({ main: ["m:1+t:2", "m:0+t:6"], chinext: ["m:0+t:80"], star: ["m:1+t:23"], bse: ["m:0+t:81+s:2048"] });
+var SCAN_FIELDS = "f2,f3,f5,f6,f7,f8,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f22,f62,f100";
+function scanSymbol(code, marketId, market2) {
+  if (market2 === "HK") return `${String(Number(code)).padStart(4, "0")}.HK`;
+  if (market2 === "US") return String(code).replace(/_/g, "-");
+  if (/^(92|8|4)/.test(code)) return `${code}.BJ`;
+  return `${code}.${marketId === 1 ? "SS" : "SZ"}`;
+}
+function boardOf(symbol, name) {
+  const st = /ST/i.test(name ?? "");
+  const board = symbol.endsWith(".BJ") ? "bse" : /^68/.test(symbol) ? "star" : /^30/.test(symbol) ? "chinext" : "main";
+  return { board, st };
+}
+var number = (value) => typeof value === "number" && Number.isFinite(value) ? value : null;
+function parseEastmoneyList(payload, { market: market2 = "A" } = {}) {
+  return (payload?.data?.diff ?? []).map((row) => {
+    const symbol = scanSymbol(row.f12, row.f13, market2);
+    const { board, st } = market2 === "A" ? boardOf(symbol, row.f14) : { board: null, st: false };
+    return {
+      symbol,
+      name: row.f14,
+      market: market2,
+      board,
+      st,
+      industry: row.f100 && row.f100 !== "-" ? row.f100 : null,
+      price: number(row.f2),
+      changePct: number(row.f3),
+      amount: number(row.f6),
+      turnoverPct: number(row.f8),
+      volumeRatio: number(row.f10),
+      speedPct: number(row.f22),
+      mainNetInflow: number(row.f62),
+      amplitudePct: number(row.f7),
+      open: number(row.f17),
+      high: number(row.f15),
+      low: number(row.f16),
+      previousClose: number(row.f18),
+      marketCap: number(row.f20),
+      floatMarketCap: number(row.f21)
+    };
+  }).filter((row) => row.price !== null);
+}
+async function scanMarket({ market: market2 = "A", view = "stocks", sort = "change", order = "desc", boards, includeST = true, sector, minAmount = 0, limit = 30 } = {}) {
+  const bounded = Math.max(1, Math.min(100, Number(limit) || 30));
+  const fid = SCAN_SORTS[sort] ?? "f3";
+  if (view === "sectors" || view === "concepts") {
+    const payload2 = await fetchJson(`${EASTMONEY_LIST}?pn=1&pz=${bounded}&po=${order === "asc" ? 0 : 1}&np=1&fltt=2&invt=2&fid=${fid}&fs=${view === "concepts" ? "m:90+t:3" : "m:90+t:2"}&fields=f2,f3,f6,f8,f12,f14,f62,f104,f105,f128,f140`, 1e4, false);
+    return {
+      market: "A",
+      view,
+      sort,
+      asOf: (/* @__PURE__ */ new Date()).toISOString(),
+      source: "East Money",
+      rows: (payload2?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, changePct: number(row.f3), amount: number(row.f6), turnoverPct: number(row.f8), mainNetInflow: number(row.f62), advancers: row.f104 ?? null, decliners: row.f105 ?? null, leader: row.f128 ? { name: row.f128, symbol: scanSymbol(row.f140, null, "A") } : null }))
+    };
+  }
+  let fs;
+  if (sector) fs = `b:${String(sector).toUpperCase().replace(/[^A-Z0-9]/g, "")}`;
+  else if (market2 === "HK") fs = "m:128+t:3,m:128+t:4,m:128+t:1,m:128+t:2";
+  else if (market2 === "US") fs = "m:105,m:106,m:107";
+  else fs = (boards?.length ? boards : Object.keys(A_BOARDS)).flatMap((board) => A_BOARDS[board] ?? []).join(",");
+  if (!fs) throw new Error("No board selected. Use main, chinext, star or bse.");
+  const filtered = !includeST || minAmount > 0;
+  const payload = await fetchJson(`${EASTMONEY_LIST}?pn=1&pz=${filtered ? Math.min(300, bounded * 4) : bounded}&po=${order === "asc" ? 0 : 1}&np=1&fltt=2&invt=2&fid=${fid}&fs=${fs}&fields=${SCAN_FIELDS}`, 1e4, false);
+  const rows = parseEastmoneyList(payload, { market: sector ? "A" : market2 }).filter((row) => includeST || !row.st).filter((row) => !(minAmount > 0) || (row.amount ?? 0) >= minAmount).slice(0, bounded);
+  return { market: market2, view: "stocks", sort, order, boards: boards ?? (market2 === "A" ? Object.keys(A_BOARDS) : null), includeST, sector: sector ?? null, total: payload?.data?.total ?? null, asOf: (/* @__PURE__ */ new Date()).toISOString(), source: "East Money", rows };
+}
+function parseTencentMinutes(payload, code, market2) {
+  const node = payload?.data?.[code]?.data;
+  const rows = node?.data ?? [];
+  const date3 = String(node?.date ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
+  const [, lastPrice, lastVolume, lastAmount] = String(rows.at(-1) ?? "").split(" ").map(Number);
+  const volumeUnit = market2 !== "A" ? 1 : lastAmount > 0 && lastVolume > 0 ? lastAmount / lastVolume > lastPrice * 20 ? 100 : 1 : 100;
+  let previousVolume = 0, estimatedAmount = 0;
+  return rows.map((line) => {
+    const [time3, price, cumVolume, cumAmount] = String(line).split(" ");
+    const volume = Number(cumVolume) * volumeUnit;
+    const delta = Math.max(0, volume - previousVolume);
+    estimatedAmount += delta * Number(price);
+    const amount = Number(cumAmount) > 0 ? Number(cumAmount) : estimatedAmount;
+    const bar = { time: `${time3.slice(0, 2)}:${time3.slice(2, 4)}`, date: date3 || null, price: Number(price), volume: delta, cumVolume: volume, vwap: volume > 0 && amount > 0 ? amount / volume : Number(price) };
+    previousVolume = volume;
+    return bar;
+  }).filter((bar) => Number.isFinite(bar.price) && bar.price > 0);
+}
+async function getIntradayBars(input) {
+  const symbol = normalizeSymbol(input);
+  const market2 = marketFromSymbol(symbol);
+  if (market2 === "US") {
+    const quote = await getYahooQuote(symbol, { interval: "5m", range: "1d", historyLimit: 200 });
+    let cumVolume = 0, cumAmount = 0;
+    return { symbol, market: market2, period: "5m", source: "Yahoo Finance", bars: (quote.history ?? []).map((bar) => {
+      cumVolume += bar.volume ?? 0;
+      cumAmount += (bar.volume ?? 0) * bar.close;
+      return { time: String(bar.timestamp ?? bar.date).slice(11, 16), date: String(bar.timestamp ?? bar.date).slice(0, 10), price: bar.close, volume: bar.volume ?? 0, cumVolume, vwap: cumVolume ? cumAmount / cumVolume : bar.close };
+    }) };
+  }
+  const code = tencentCodeForSymbol(symbol);
+  const payload = await fetchJson(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${code}`, 1e4, false);
+  return { symbol, market: market2, period: "1m", source: "Tencent Finance", bars: parseTencentMinutes(payload, code, market2) };
+}
 
 // mcp/foundation.mjs
 import { createHash } from "node:crypto";
@@ -9049,7 +9183,7 @@ import { mkdir as mkdir3, readFile as readFile3, rename as rename3, writeFile as
 import path3 from "node:path";
 
 // mcp/research-validation.mjs
-var number = (value) => value === null || value === void 0 || value === "" ? null : Number.isFinite(Number(value)) ? Number(value) : null;
+var number2 = (value) => value === null || value === void 0 || value === "" ? null : Number.isFinite(Number(value)) ? Number(value) : null;
 var round2 = (value, digits = 6) => Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
 function researchAsOf(value, now = /* @__PURE__ */ new Date()) {
   const date3 = value ? new Date(value) : now;
@@ -9059,7 +9193,7 @@ function researchAsOf(value, now = /* @__PURE__ */ new Date()) {
 function prepareDailyHistory(symbol, history, asOf = (/* @__PURE__ */ new Date()).toISOString()) {
   const cutoff = Date.parse(researchAsOf(asOf));
   const rules = getInstrumentRules(symbol, { asOf });
-  const timeZone = rules.calendar?.timezone ?? (symbol.endsWith(".HK") ? "Asia/Hong_Kong" : /\.(SS|SZ)$/.test(symbol) ? "Asia/Shanghai" : "America/New_York");
+  const timeZone = rules.calendar?.timezone ?? (symbol.endsWith(".HK") ? "Asia/Hong_Kong" : /\.(SS|SZ|BJ)$/.test(symbol) ? "Asia/Shanghai" : "America/New_York");
   const dates = /* @__PURE__ */ new Set();
   const rows = [];
   const excluded = { unfinished: 0, invalid: 0, duplicate: 0 };
@@ -9085,7 +9219,7 @@ function prepareDailyHistory(symbol, history, asOf = (/* @__PURE__ */ new Date()
       continue;
     }
     const row = { ...source, sessionDate: date3, timestamp: openAt, openAt, closeAt, availableAt };
-    if (![row.open, row.high, row.low, row.close].every((value) => number(value) > 0) || row.high < Math.max(row.open, row.close) || row.low > Math.min(row.open, row.close) || Date.parse(openAt) >= Date.parse(closeAt)) {
+    if (![row.open, row.high, row.low, row.close].every((value) => number2(value) > 0) || row.high < Math.max(row.open, row.close) || row.low > Math.min(row.open, row.close) || Date.parse(openAt) >= Date.parse(closeAt)) {
       excluded.invalid += 1;
       gapBefore = true;
       continue;
@@ -9102,7 +9236,7 @@ function prepareDailyHistory(symbol, history, asOf = (/* @__PURE__ */ new Date()
   return { rows, excluded, rules };
 }
 function adjustedIndicatorRows(rows) {
-  const factor = (row) => number(row.adjustmentFactor) ?? (number(row.adjustedClose) > 0 ? row.adjustedClose / row.close : 1);
+  const factor = (row) => number2(row.adjustmentFactor) ?? (number2(row.adjustedClose) > 0 ? row.adjustedClose / row.close : 1);
   const latestFactor = factor(rows.at(-1));
   if (!(latestFactor > 0)) throw new Error("Invalid corporate-action adjustment factor");
   return rows.map((row) => {
@@ -9114,24 +9248,24 @@ function adjustedIndicatorRows(rows) {
 function executionHistory(quote) {
   if (quote.historyPriceBasis !== "split-adjusted") return quote;
   const splits = (quote.corporateActions ?? []).filter((action) => action.type === "split");
-  if (splits.some((action) => !(number(action.ratio) > 0) || !Number.isFinite(Date.parse(action.effectiveAt)))) throw new Error("Split reconstruction requires dated positive ratios");
+  if (splits.some((action) => !(number2(action.ratio) > 0) || !Number.isFinite(Date.parse(action.effectiveAt)))) throw new Error("Split reconstruction requires dated positive ratios");
   const factorAfter = (date3) => splits.filter((action) => String(action.date ?? action.effectiveAt).slice(0, 10) > String(date3).slice(0, 10)).reduce((factor, action) => factor * action.ratio, 1);
   const history = (quote.history ?? []).map((row) => {
     const factor = factorAfter(row.sessionDate ?? row.openAt ?? row.timestamp);
     const close = row.close * factor;
-    return { ...row, open: row.open * factor, high: row.high * factor, low: row.low * factor, close, volume: number(row.volume) === null ? null : row.volume / factor, adjustmentFactor: row.adjustedClose > 0 && close > 0 ? row.adjustedClose / close : (number(row.adjustmentFactor) ?? 1) / factor };
+    return { ...row, open: row.open * factor, high: row.high * factor, low: row.low * factor, close, volume: number2(row.volume) === null ? null : row.volume / factor, adjustmentFactor: row.adjustedClose > 0 && close > 0 ? row.adjustedClose / close : (number2(row.adjustmentFactor) ?? 1) / factor };
   });
   const corporateActions = (quote.corporateActions ?? []).map((action) => action.type === "dividend" ? { ...action, cashPerShare: action.cashPerShare * factorAfter(action.effectiveAt) } : action);
   return { ...quote, history, corporateActions, historyPriceBasis: "reconstructed-unadjusted", sourceHistoryPriceBasis: "split-adjusted" };
 }
 function fillRestriction(symbol, row, previous, side) {
-  if (!(number(row?.volume) > 0) || row.suspended === true) return "no-volume-or-suspended";
+  if (!(number2(row?.volume) > 0) || row.suspended === true) return "no-volume-or-suspended";
   const rules = getInstrumentRules(symbol, { asOf: row.openAt });
   if (row[side === "buy" ? "buyBlocked" : "sellBlocked"] === true) return "provider-reported-unfillable";
-  const limit = number(row.priceLimitPct) ?? number(rules.priceLimitPct);
+  const limit = number2(row.priceLimitPct) ?? number2(rules.priceLimitPct);
   if (limit && previous?.close > 0) {
-    const reference = number(row.previousClose) ?? previous.close;
-    const tolerance = number(rules.tickSize) ?? 0.01;
+    const reference = number2(row.previousClose) ?? previous.close;
+    const tolerance = number2(rules.tickSize) ?? 0.01;
     const limitPrice = reference * (1 + (side === "buy" ? limit : -limit) / 100);
     const executionPrice2 = side === "buy" ? row.open : row.close;
     if (side === "buy" ? executionPrice2 >= limitPrice - tolerance / 2 : executionPrice2 <= limitPrice + tolerance / 2) return side === "buy" ? "limit-up-no-assumed-fill" : "limit-down-no-assumed-fill";
@@ -9139,14 +9273,14 @@ function fillRestriction(symbol, row, previous, side) {
   return null;
 }
 function simulatePortfolio({ candidates, histories, initialCapital = 1e5, currency = "USD", fxRates = {}, maxPositionPct = 20, maxGrossExposurePct = 100, transactionCostBps = 10, slippageBps = 5, lotSizes = {}, corporateActions = {} }) {
-  if (!(number(initialCapital) > 0)) throw new Error("initialCapital must be positive");
+  if (!(number2(initialCapital) > 0)) throw new Error("initialCapital must be positive");
   if (!(maxPositionPct > 0 && maxPositionPct <= 100 && maxGrossExposurePct > 0 && maxGrossExposurePct <= 100)) throw new Error("Position and gross exposure caps must be in (0, 100]");
   if (!(transactionCostBps >= 0 && transactionCostBps <= 500 && slippageBps >= 0 && slippageBps <= 500)) throw new Error("Costs and slippage must be between 0 and 500 basis points");
   currency = String(currency).toUpperCase();
   const events = [];
   const conversion = (symbol) => {
     const native = getInstrumentRules(symbol).currency;
-    const rate = native === currency ? 1 : number(fxRates[native]);
+    const rate = native === currency ? 1 : number2(fxRates[native]);
     if (!(rate > 0)) throw new Error(`Missing positive ${native}/${currency} FX rate for ${symbol}`);
     return rate;
   };
@@ -9200,12 +9334,12 @@ function simulatePortfolio({ candidates, histories, initialCapital = 1e5, curren
         continue;
       }
       const rules = getInstrumentRules(event.symbol, { asOf: event.time });
-      const increment = number(lotSizes[event.symbol]) ?? number(rules.orderIncrement) ?? number(rules.lotSize);
+      const increment = number2(lotSizes[event.symbol]) ?? number2(rules.orderIncrement) ?? number2(rules.lotSize);
       if (!(increment > 0)) {
         skipped.push({ symbol: event.symbol, entryAt: event.time, reason: "unverified-board-lot" });
         continue;
       }
-      const minimum = number(rules.minimumOrderUnits) ?? increment;
+      const minimum = number2(rules.minimumOrderUnits) ?? increment;
       const equity = cash + grossValue();
       const budget = Math.max(0, Math.min(cash, equity * maxPositionPct / 100, equity * maxGrossExposurePct / 100 - grossValue()));
       const entryPrice = event.candidate.entryPrice * (1 + slippage);
@@ -9319,8 +9453,8 @@ var providerWriteQueue = Promise.resolve();
 var predictionWriteQueue = Promise.resolve();
 function finite2(value) {
   if (value === null || value === void 0 || value === "") return null;
-  const number4 = Number(value);
-  return Number.isFinite(number4) ? number4 : null;
+  const number5 = Number(value);
+  return Number.isFinite(number5) ? number5 : null;
 }
 function round3(value, digits = 4) {
   if (!Number.isFinite(value)) return null;
@@ -10454,7 +10588,7 @@ function paperSymbol(symbol) {
 function futuCode(symbol, market2) {
   const normalized = paperSymbol(symbol);
   if (market2 === "HK" && /^\d{4,5}\.HK$/.test(normalized)) return `HK.${normalized.split(".")[0].padStart(5, "0")}`;
-  if (market2 === "US" && /^[A-Z][A-Z0-9.\-]{0,14}$/.test(normalized) && !/^US\./.test(normalized) && !/\.(HK|SS|SZ)$/.test(normalized)) return `US.${normalized}`;
+  if (market2 === "US" && /^[A-Z][A-Z0-9.\-]{0,14}$/.test(normalized) && !/^US\./.test(normalized) && !/\.(HK|SS|SZ|BJ)$/.test(normalized)) return `US.${normalized}`;
   fail("Only HK/US symbols matching the selected account market are supported / \u4EC5\u652F\u6301\u5BF9\u5E94\u5E02\u573A\u7684\u6E2F\u7F8E\u80A1");
 }
 function account(input) {
@@ -15016,8 +15150,8 @@ function alignToTick(market2, price, direction) {
 function lotRules(account2, symbol, quote) {
   const rules = getInstrumentRules(symbol);
   if (account2.market === "A") {
-    const star = rules.board === "STAR";
-    return { lotSize: star ? 1 : 100, minimumBuy: star ? 200 : 100, tPlusOne: true, source: "exchange rule" };
+    const odd = rules.board === "STAR" || rules.board === "BSE";
+    return { lotSize: odd ? 1 : 100, minimumBuy: rules.board === "STAR" ? 200 : 100, tPlusOne: true, source: "exchange rule" };
   }
   if (account2.market === "HK") {
     const lot = account2.lotOverrides?.[symbol] ?? quote?.lotSize ?? null;
@@ -16697,15 +16831,18 @@ import { fileURLToPath as fileURLToPath2 } from "node:url";
 function roundPrompt({ account: account2, market: market2, language }) {
   const id = account2?.id;
   const marketName = { A: language === "en" ? "China A-share" : "A \u80A1", HK: language === "en" ? "Hong Kong" : "\u6E2F\u80A1", US: language === "en" ? "US" : "\u7F8E\u80A1" }[account2?.market ?? market2] ?? "A \u80A1";
+  const a = (account2?.market ?? market2 ?? "A") === "A";
+  const scopeEn = a ? "all boards: main, ChiNext, STAR, Beijing, ST; hot sectors/concepts" : "the whole exchange by turnover, speed and change, not only mega caps";
+  const scopeZh = a ? "\u4E3B\u677F\u3001\u521B\u4E1A\u677F\u3001\u79D1\u521B\u677F\u3001\u5317\u4EA4\u6240\u3001ST \u90FD\u53EF\u4EE5\u505A\uFF1B\u770B\u70ED\u95E8\u884C\u4E1A/\u6982\u5FF5\u548C\u9F99\u5934" : "\u6309\u6210\u4EA4\u989D\u3001\u6DA8\u901F\u3001\u6DA8\u5E45\u770B\u6574\u4E2A\u5E02\u573A\uFF0C\u4E0D\u53EA\u76EF\u8D85\u5927\u76D8\u80A1";
   if (language === "en") return `Use the hrouter-agent-arena skill. You fully manage my ${marketName} paper portfolio; I will not approve anything, I only read your reports.
 ${id ? `My arena account is ${id}; trade only this account.` : "Call arena_my_accounts first; if you have no account, register one with arena_register_account using your real model id."}
-1. Choose your own stock pool and save it with arena_set_watchlist.
-2. Review the account and session, research with get_quote / get_news, then trade with concrete reasons \u2014 or log a no-trade decision.
+1. Scan the whole market with scan_market (${scopeEn}), pick your own pool and save it with arena_set_watchlist. If your strategy excludes boards or small caps without a good reason, revise it first with arena_update_strategy.
+2. Review the account and session; research with get_quote / get_news. If the plugin returns no news, search the web yourself; never stay idle because of a data gap. Trade decisively with concrete reasons (bull case, bear case, stop) \u2014 or log a no-trade decision.
 3. End every round with arena_publish_report: headline, conclusion, actions, picks, risks and next steps. Do not ask me questions.`;
   return `\u4F7F\u7528 hrouter-agent-arena \u6280\u80FD\uFF0C\u5168\u6743\u6258\u7BA1\u6211\u7684${marketName}\u6A21\u62DF\u7EC4\u5408\uFF1A\u9009\u80A1\u3001\u4EA4\u6613\u3001\u6301\u4ED3\u90FD\u7531\u4F60\u51B3\u5B9A\uFF0C\u4E0D\u9700\u8981\u5F81\u6C42\u6211\u7684\u786E\u8BA4\uFF0C\u6211\u53EA\u770B\u4F60\u7684\u62A5\u544A\u3002
 ${id ? `\u6211\u7684\u7ADE\u6280\u573A\u8D26\u6237\u662F ${id}\uFF0C\u53EA\u64CD\u4F5C\u8FD9\u4E2A\u8D26\u6237\u3002` : "\u5148\u8C03\u7528 arena_my_accounts\uFF1B\u5982\u679C\u6CA1\u6709\u8D26\u6237\uFF0C\u5C31\u7528\u4F60\u771F\u5B9E\u7684\u6A21\u578B\u540D\u8C03\u7528 arena_register_account \u5F00\u6237\u3002"}
-1. \u81EA\u5DF1\u9009\u80A1\uFF0C\u7528 arena_set_watchlist \u4FDD\u5B58\u80A1\u7968\u6C60\u3002
-2. \u67E5\u770B\u8D26\u6237\u4E0E\u5F00\u76D8\u72B6\u6001\uFF0C\u7528 get_quote / get_news \u505A\u7814\u7A76\uFF0C\u6309\u7B56\u7565\u4E0B\u5355\u5E76\u5199\u660E\u7406\u7531\uFF1B\u4E0D\u6EE1\u8DB3\u6761\u4EF6\u5C31\u8BB0\u5F55 no-trade \u51B3\u7B56\u3002
+1. \u5148\u7528 scan_market \u626B\u63CF\u5168\u5E02\u573A\uFF08${scopeZh}\uFF09\uFF0C\u81EA\u5DF1\u9009\u80A1\uFF0C\u7528 arena_set_watchlist \u4FDD\u5B58\u80A1\u7968\u6C60\u3002\u5982\u679C\u4F60\u7684\u7B56\u7565\u6CA1\u6709\u5145\u5206\u7406\u7531\u5C31\u6392\u9664\u4E86\u67D0\u4E9B\u677F\u5757\u6216\u4E2D\u5C0F\u76D8\uFF0C\u5148\u7528 arena_update_strategy \u4FEE\u8BA2\u7B56\u7565\u3002
+2. \u67E5\u770B\u8D26\u6237\u4E0E\u5F00\u76D8\u72B6\u6001\uFF0C\u7528 get_quote / get_news \u505A\u7814\u7A76\uFF1B\u63D2\u4EF6\u62FF\u4E0D\u5230\u65B0\u95FB\u65F6\u81EA\u5DF1\u8054\u7F51\u641C\u7D22\uFF0C\u4E0D\u80FD\u56E0\u4E3A\u6570\u636E\u7F3A\u5931\u505C\u6446\u3002\u7B26\u5408\u6761\u4EF6\u5C31\u679C\u65AD\u4E0B\u5355\u5E76\u5199\u660E\u7406\u7531\uFF08\u770B\u591A\u7406\u7531\u3001\u770B\u7A7A\u7406\u7531\u3001\u6B62\u635F\u4F4D\uFF09\uFF1B\u4E0D\u6EE1\u8DB3\u6761\u4EF6\u5C31\u8BB0\u5F55 no-trade \u51B3\u7B56\u3002
 3. \u6BCF\u8F6E\u7ED3\u675F\u5FC5\u987B\u8C03\u7528 arena_publish_report \u53D1\u5E03\u62A5\u544A\uFF1A\u6807\u9898\u3001\u7ED3\u8BBA\u3001\u64CD\u4F5C\u3001\u770B\u597D\u6807\u7684\u3001\u98CE\u9669\u548C\u4E0B\u4E00\u6B65\u3002\u4E0D\u8981\u5411\u6211\u63D0\u95EE\u3002`;
 }
 
@@ -16837,8 +16974,99 @@ var momentum_rotation_default = {
   }
 };
 
+// mcp/strategies/intraday-momentum.mjs
+var minuteOf = (time3) => {
+  const [h, m] = String(time3).split(":").map(Number);
+  return h * 60 + m;
+};
+var intraday_momentum_default = {
+  id: "intraday-momentum",
+  name: "\u65E5\u5185\u52A8\u91CF Intraday Momentum",
+  version: "1.0.0",
+  markets: ["A", "HK", "US"],
+  description: "\u6BCF\u8F6E\u626B\u63CF\u5168\u5E02\u573A\u6210\u4EA4\u6700\u6D3B\u8DC3\u7684\u80A1\u7968\uFF08\u53EF\u542B\u521B\u4E1A\u677F\u3001\u79D1\u521B\u677F\u3001\u5317\u4EA4\u6240\u3001ST\uFF09\uFF0C\u6311\u9009\u7AD9\u7A33\u5F53\u65E5\u5747\u4EF7\u7EBF\uFF08VWAP\uFF09\u3001\u8FD1 N \u5206\u949F\u7EE7\u7EED\u4E0A\u653B\u3001\u91CF\u6BD4\u653E\u5927\u7684\u5F3A\u52BF\u80A1\u7B49\u6743\u6301\u6709\uFF1B\u8DCC\u7834 VWAP \u6216\u4ECE\u65E5\u5185\u9AD8\u70B9\u56DE\u64A4\u8FC7\u5927\u65F6\u5356\u51FA\uFF08A \u80A1\u9075\u5B88 T+1\uFF09\u3002\u9002\u5408\u6BCF 1\u20135 \u5206\u949F\u8FD0\u884C\u3002\u793A\u4F8B\u7B56\u7565\uFF0C\u4E0D\u6784\u6210\u6295\u8D44\u5EFA\u8BAE\u3002",
+  params: {
+    top: { type: "integer", default: 4, min: 1, max: 10, label: "\u6700\u591A\u6301\u6709\u6570\u91CF" },
+    exposure: { type: "number", default: 0.9, min: 0.1, max: 1, label: "\u76EE\u6807\u603B\u4ED3\u4F4D\uFF080\u20131\uFF09" },
+    scanSort: { type: "enum", options: ["amount", "speed", "change", "volumeRatio", "mainInflow"], default: "amount", label: "\u626B\u63CF\u6392\u5E8F" },
+    scanLimit: { type: "integer", default: 60, min: 10, max: 100, label: "\u626B\u63CF\u6570\u91CF" },
+    boards: { type: "enum", options: ["main", "chinext", "star", "bse"], default: ["main", "chinext", "star", "bse"], label: "\u677F\u5757\uFF08A \u80A1\uFF09" },
+    includeST: { type: "boolean", default: false, label: "\u5305\u542B ST" },
+    minAmount: { type: "number", default: 3e8, min: 0, max: 1e11, label: "\u6700\u4F4E\u6210\u4EA4\u989D" },
+    minChangePct: { type: "number", default: 2, min: -10, max: 20, label: "\u6700\u4F4E\u6DA8\u5E45 %" },
+    maxChangePct: { type: "number", default: 8, min: 0, max: 30, label: "\u6700\u9AD8\u6DA8\u5E45 %\uFF08\u907F\u5F00\u6DA8\u505C\u9644\u8FD1\uFF09" },
+    momentumMinutes: { type: "integer", default: 15, min: 3, max: 60, label: "\u77ED\u671F\u52A8\u91CF\u7A97\u53E3\uFF08\u5206\u949F\uFF09" },
+    minVolumeRatio: { type: "number", default: 1.2, min: 0, max: 20, label: "\u6700\u4F4E\u91CF\u6BD4" },
+    exitBelowVwapPct: { type: "number", default: 0.5, min: 0, max: 5, label: "\u8DCC\u7834 VWAP \u591A\u5C11 % \u5356\u51FA" },
+    maxGivebackPct: { type: "number", default: 4, min: 0.5, max: 20, label: "\u8DDD\u65E5\u5185\u9AD8\u70B9\u56DE\u64A4 % \u5356\u51FA" },
+    noEntryAfter: { type: "string", default: "14:30", label: "\u6B64\u65F6\u95F4\u540E\u4E0D\u518D\u5F00\u65B0\u4ED3\uFF08\u5F53\u5730\u65F6\u95F4\uFF09" },
+    stopLossPct: { type: "number", default: 5, min: 0.5, max: 30, label: "\u6B62\u635F %" },
+    takeProfitPct: { type: "number", default: 12, min: 1, max: 100, label: "\u6B62\u76C8 %" }
+  },
+  async run(ctx) {
+    const p = ctx.params;
+    const local = new Intl.DateTimeFormat("en-GB", { timeZone: { A: "Asia/Shanghai", HK: "Asia/Hong_Kong", US: "America/New_York" }[ctx.market], hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(ctx.now));
+    const entriesOpen = minuteOf(local) < minuteOf(p.noEntryAfter || "23:59");
+    const held = new Map(ctx.account.positions.map((position) => [position.symbol, position]));
+    const equity = ctx.account.metrics.equity;
+    const keep = [];
+    for (const [symbol, position] of held) {
+      const weight = position.marketValue / equity;
+      let reason = null;
+      try {
+        const bars2 = await ctx.intraday(symbol);
+        const last = bars2.at(-1);
+        if (last) {
+          const high = Math.max(...bars2.map((bar) => bar.price));
+          if (last.price < last.vwap * (1 - p.exitBelowVwapPct / 100)) reason = `\u8DCC\u7834\u5F53\u65E5\u5747\u4EF7\u7EBF ${last.vwap.toFixed(2)}\uFF08\u73B0\u4EF7 ${last.price}\uFF09`;
+          else if (high > 0 && (high - last.price) / high * 100 > p.maxGivebackPct) reason = `\u8DDD\u65E5\u5185\u9AD8\u70B9 ${high} \u56DE\u64A4 ${((high - last.price) / high * 100).toFixed(1)}%`;
+        }
+      } catch (error2) {
+        ctx.log(`${symbol} intraday: ${error2.message}`);
+      }
+      if (reason && ctx.sellable(symbol) > 0) ctx.log(`exit ${symbol}: ${reason}`);
+      else keep.push({ symbol, weight, reason: reason ? `${reason}\uFF0C\u4F46 T+1 \u4ECA\u65E5\u4E0D\u53EF\u5356\uFF0C\u7EE7\u7EED\u6301\u6709` : `\u7EE7\u7EED\u6301\u6709\uFF1A\u4ECD\u5728\u5747\u4EF7\u7EBF\u4E0A\u65B9` });
+    }
+    const picks = [];
+    if (entriesOpen && keep.length < p.top) {
+      let rows = [];
+      try {
+        const scan = await ctx.scan({ sort: p.scanSort, limit: p.scanLimit, boards: Array.isArray(p.boards) ? p.boards : [p.boards], includeST: p.includeST, minAmount: p.minAmount });
+        rows = scan.rows;
+      } catch (error2) {
+        ctx.log(`scan: ${error2.message}`);
+      }
+      const candidates = rows.filter((row) => !held.has(row.symbol)).filter((row) => row.changePct >= p.minChangePct && row.changePct <= p.maxChangePct).filter((row) => row.volumeRatio === null || row.volumeRatio >= p.minVolumeRatio);
+      for (const row of candidates) {
+        if (keep.length + picks.length >= p.top) break;
+        try {
+          const bars2 = await ctx.intraday(row.symbol);
+          if (bars2.length < p.momentumMinutes + 1) continue;
+          const last = bars2.at(-1), past = bars2.at(-1 - p.momentumMinutes);
+          const momentum = (last.price / past.price - 1) * 100;
+          if (last.price > last.vwap && momentum > 0) {
+            picks.push({ symbol: row.symbol, reason: `${row.name}\uFF1A\u6DA8 ${row.changePct}%\uFF0C\u7AD9\u4E0A\u5747\u4EF7\u7EBF ${last.vwap.toFixed(2)}\uFF0C\u8FD1 ${p.momentumMinutes} \u5206\u949F +${momentum.toFixed(2)}%\uFF0C\u91CF\u6BD4 ${row.volumeRatio ?? "\u2014"}\uFF0C\u6210\u4EA4\u989D ${(row.amount / 1e8).toFixed(1)} \u4EBF` });
+          }
+        } catch (error2) {
+          ctx.log(`${row.symbol} intraday: ${error2.message}`);
+        }
+      }
+    }
+    const kept = keep.reduce((sum, row) => sum + row.weight, 0);
+    const room = Math.max(0, p.exposure - kept);
+    const each = picks.length ? Math.min(p.exposure / p.top, room / picks.length) : 0;
+    return {
+      targets: [...keep, ...picks.map((pick2) => ({ ...pick2, weight: each }))],
+      exits: { stopLossPct: p.stopLossPct, takeProfitPct: p.takeProfitPct },
+      // Holdings drift with price; only trade when a change is meaningful.
+      minTradeValuePct: 2,
+      notes: { entriesOpen, kept: keep.length, picks: picks.length }
+    };
+  }
+};
+
 // mcp/strategies/index.mjs
-var BUILTIN_STRATEGIES = [ma_trend_default, momentum_rotation_default];
+var BUILTIN_STRATEGIES = [ma_trend_default, momentum_rotation_default, intraday_momentum_default];
 var ID = /^[a-z0-9][a-z0-9-]{1,40}$/;
 function validateStrategy(module, origin = "builtin") {
   const strategy2 = module?.default ?? module;
@@ -16882,6 +17110,9 @@ function resolveParams(strategy2, input = {}) {
     } else if (spec.type === "symbols") {
       value = Array.isArray(value) ? value.slice(0, 100).map(String) : [];
     } else if (spec.type === "boolean") value = Boolean(value);
+    else if (spec.type === "enum") {
+      value = Array.isArray(value) ? value.map(String).filter((item) => spec.options.includes(item)) : spec.options.includes(String(value)) ? String(value) : spec.default;
+    } else if (spec.type === "string") value = String(value ?? "").slice(0, 200);
     params[key] = value;
   }
   if (Array.isArray(input.universe)) params.universe = input.universe.slice(0, 100).map(String);
@@ -16889,7 +17120,14 @@ function resolveParams(strategy2, input = {}) {
 }
 var sma = (values, length) => values.length >= length ? values.slice(-length).reduce((sum, value) => sum + value, 0) / length : null;
 var indicators = { sma };
-function ordersFromTargets(account2, targets, quotes, { minTradeValuePct = 0.5 } = {}) {
+function sellableNow(account2, symbol, now = (/* @__PURE__ */ new Date()).toISOString()) {
+  const position = account2.positions.find((entry) => entry.symbol === symbol);
+  if (!position) return 0;
+  if (account2.market !== "A") return position.quantity;
+  const today = localMarketTime(now, "A")?.date;
+  return (position.lots ?? [{ date: "", quantity: position.quantity }]).filter((lot) => lot.date < today).reduce((sum, lot) => sum + lot.quantity, 0);
+}
+function ordersFromTargets(account2, targets, quotes, { minTradeValuePct = 0.5, now } = {}) {
   const equity = account2.metrics.equity;
   const held = new Map(account2.positions.map((position) => [position.symbol, position]));
   const wanted = new Map(targets.map((target) => [target.symbol, target]));
@@ -16906,7 +17144,9 @@ function ordersFromTargets(account2, targets, quotes, { minTradeValuePct = 0.5 }
     const delta = targetQuantity - currentQuantity;
     if (Math.abs(delta) * quote.price < equity * minTradeValuePct / 100) continue;
     if (delta < 0) {
-      const quantity = targetQuantity === 0 ? currentQuantity : Math.floor(-delta / lot) * lot;
+      const sellable = sellableNow(account2, symbol, now);
+      const wantedQuantity = targetQuantity === 0 ? currentQuantity : Math.floor(-delta / lot) * lot;
+      const quantity = wantedQuantity >= currentQuantity && sellable < currentQuantity ? Math.floor(sellable / lot) * lot : Math.min(wantedQuantity, Math.floor(sellable / lot) * lot);
       if (quantity > 0) sells.push({ symbol, side: "SELL", quantity, reason: target?.reason ?? `Target weight 0: exit ${symbol}.` });
     } else if (delta > 0) {
       const quantity = Math.floor(delta / lot) * lot;
@@ -16925,7 +17165,7 @@ async function cachedHistory(historyProvider, symbol, range) {
   historyMemo.set(key, { quote, provider: historyProvider, fetchedAt: Date.now() });
   return quote;
 }
-async function runStrategyRound({ strategy: strategy2, params: rawParams, broker, now = () => (/* @__PURE__ */ new Date()).toISOString(), runId, historyProvider = getHistoricalQuote, quoteProvider = getTradeQuote }) {
+async function runStrategyRound({ strategy: strategy2, params: rawParams, broker, now = () => (/* @__PURE__ */ new Date()).toISOString(), runId, historyProvider = getHistoricalQuote, quoteProvider = getTradeQuote, intradayProvider = getIntradayBars, scanProvider = scanMarket }) {
   const startedAt = now();
   const logs = [];
   const log = (message) => logs.push({ at: now(), message: String(message).slice(0, 500) });
@@ -16952,6 +17192,20 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
       if (!quoteCache.has(symbol)) quoteCache.set(symbol, await quoteProvider(symbol));
       return quoteCache.get(symbol);
     },
+    async intraday(symbol) {
+      const key = `intraday:${symbol}`;
+      if (!historyCache.has(key)) {
+        const result = await intradayProvider(symbol);
+        const minute = localMarketTime(startedAt, account2.market)?.minute ?? 1440;
+        historyCache.set(key, result.bars.filter((bar) => {
+          const [h, m] = bar.time.split(":").map(Number);
+          return h * 60 + m < minute;
+        }));
+      }
+      return historyCache.get(key);
+    },
+    scan: (options = {}) => scanProvider({ market: account2.market, ...options }),
+    sellable: (symbol) => sellableNow(account2, symbol, startedAt),
     indicators
   };
   const output = await strategy2.run(ctx) ?? {};
@@ -16966,7 +17220,7 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
         log(`quote ${symbol}: ${error2.message}`);
       }
     }
-    orders = [...orders, ...ordersFromTargets(account2, output.targets, quotes)];
+    orders = [...orders, ...ordersFromTargets(account2, output.targets, quotes, { now: startedAt, minTradeValuePct: output.minTradeValuePct ?? 0.5 })];
   }
   const results = [];
   for (const [index, order] of orders.slice(0, 50).entries()) {
@@ -17003,9 +17257,9 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
 
 // mcp/scheduler.mjs
 var RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "command", "strategy"];
-var SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 10, tickMs: 3e4, leaseMs: 12e4, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6e3, runLogLimit: 300, failureThreshold: 3 });
+var SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 5, tickMs: 3e4, leaseMs: 12e4, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6e3, runLogLimit: 300, failureThreshold: 3 });
 var TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
-var minuteOf = (time3) => {
+var minuteOf2 = (time3) => {
   const [, h, m] = time3.match(TIME);
   return Number(h) * 60 + Number(m);
 };
@@ -17034,6 +17288,7 @@ function sanitizeJob(input, current = {}) {
     if (!Number.isFinite(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 60) throw new ArenaError("timeoutMinutes must be between 1 and 60.");
     const next = { type: runner.type, timeoutMinutes, language: runner.language === "en" ? "en" : "zh-CN" };
     if (runner.model) next.model = String(runner.model).slice(0, 80);
+    if (runner.webSearch === false) next.webSearch = false;
     if (runner.command) next.command = String(runner.command).slice(0, 500);
     if (Array.isArray(runner.args)) next.args = runner.args.slice(0, 40).map((arg) => String(arg).slice(0, 2e3));
     if (runner.maxBudgetUsd !== void 0 && runner.maxBudgetUsd !== null && runner.maxBudgetUsd !== "") {
@@ -17088,8 +17343,9 @@ function agentInvocation({ job, account: account2, prompt, nodePath, bundlePath:
       "--mcp-config",
       JSON.stringify(mcp),
       "--strict-mcp-config",
+      // Web search/fetch let the agent research news itself when the plugin's feeds come up empty.
       "--allowedTools",
-      "mcp__hrouter_market_pulse",
+      runner.webSearch === false ? "mcp__hrouter_market_pulse" : "mcp__hrouter_market_pulse,WebSearch,WebFetch",
       "--permission-mode",
       "dontAsk",
       "--output-format",
@@ -17132,6 +17388,9 @@ ${prompt}` : prompt, "--output-format", "text", ...model ? ["-m", model] : []];
       'mcp_servers.hrouter_market_pulse.default_tools_approval_mode="approve"',
       "-c",
       'approval_policy="never"',
+      // Live web search for news and events the plugin's feeds miss (read-only, no shell access).
+      "-c",
+      `web_search=${runner.webSearch === false ? '"disabled"' : '"live"'}`,
       // An installed copy of this plugin would add a second same-named server; keep only ours.
       "-c",
       'plugins."hrouter-market-pulse@hrouter-market-pulse".enabled=false',
@@ -17155,7 +17414,7 @@ function dueSlots(job, market2, at, done, catchUpMinutes = SCHEDULER_DEFAULTS.ca
   const session = getMarketSession(market2, at);
   if (session.status === "closed") return [];
   const fixed = (job.times ?? []).filter((time3) => {
-    const slot = minuteOf(time3);
+    const slot = minuteOf2(time3);
     const key = `${session.date}T${time3}`;
     return session.minute >= slot && session.minute - slot <= catchUpMinutes && !done.includes(key);
   }).map((time3) => ({ time: time3, key: `${session.date}T${time3}`, date: session.date }));
@@ -17423,7 +17682,7 @@ function createScheduler({
       });
     },
     // Give a new agent account the owner's default repeat schedule, unless it already has one.
-    async ensureDefaultSchedule(accountId2, intervalMinutes = 30) {
+    async ensureDefaultSchedule(accountId2, intervalMinutes = 15) {
       if (!intervalMinutes) return { created: false, reason: "default schedule disabled" };
       const { jobs } = await readState();
       if (jobs.some((job2) => job2.accountId === accountId2)) return { created: false, reason: "already scheduled" };
@@ -18046,7 +18305,7 @@ async function createDemoArena() {
     // Synthetic quotes: hold the seeded marks so the demo stays stable while it is open.
     quoteProvider: async (symbol) => {
       const position = prices.get(symbol);
-      const market2 = /\.(SS|SZ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) ? "HK" : "US";
+      const market2 = /\.(SS|SZ|BJ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) ? "HK" : "US";
       const base = position?.lastPrice ?? ({ "000300.SS": 103.1, "^GSPC": 102.4, "^HSI": 101.2 }[symbol] ?? 50);
       return { symbol, name: position?.name ?? symbol, market: market2, price: base, asOf: (/* @__PURE__ */ new Date()).toISOString(), provider: "Synthetic demo", lotSize: market2 === "HK" ? 100 : null, limitUp: null, limitDown: null };
     }
@@ -19249,7 +19508,7 @@ function makeDemoReport(options = {}) {
   );
   const items = options.watchlist ? options.watchlist.map((symbol) => allItems.find((item) => item.symbol === symbol) ?? {
     symbol,
-    market: symbol.endsWith(".HK") ? "HK" : /\.(SS|SZ)$/.test(symbol) ? "A" : "US",
+    market: symbol.endsWith(".HK") ? "HK" : /\.(SS|SZ|BJ)$/.test(symbol) ? "A" : "US",
     error: "No synthetic fixture for this symbol; no market data was requested.",
     history: []
   }) : allItems;
@@ -19456,6 +19715,10 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
     onError: (error2) => console.error(`Arena matcher: ${error2.message}`)
   }).start()).catch(() => null) : Promise.resolve(null);
   const matcherStatus = async (arena) => ({ ...await arena.matcherStatus(), local: (await matcherReady)?.status() ?? null });
+  const needsSync = async (arena) => {
+    const status = await arena.matcherStatus().catch(() => null);
+    return !(status?.lastTickAt && Date.now() - Date.parse(status.lastTickAt) < 18e4);
+  };
   const schedulerReady = arenaReady.then((arena) => {
     const scheduler = createScheduler({ arena, onError: (error2) => console.error(`Arena scheduler: ${error2.message}`) });
     return runScheduler && !demo2 ? scheduler.start() : scheduler;
@@ -19477,7 +19740,8 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           return respond(response, 200, { demo: demo2, ...await arena.leaderboard({
             market: url.searchParams.get("market") || void 0,
             competition: url.searchParams.get("competition") || void 0,
-            includeArchived: url.searchParams.get("archived") === "1"
+            includeArchived: url.searchParams.get("archived") === "1",
+            sync: url.searchParams.get("sync") === "1" || await needsSync(arena)
           }), matcher: await matcherStatus(arena), service: demo2 ? { state: "demo" } : await readServiceStatus(arena.root) });
         }
         if (url.pathname === "/api/arena/matcher") return respond(response, 200, await matcherStatus(await arenaReady));
@@ -19505,7 +19769,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {
           const arena = await arenaReady;
-          return respond(response, 200, { demo: demo2, ...await arena.getAccount(arenaAccount[1], { limit: 200 }) });
+          return respond(response, 200, { demo: demo2, ...await arena.getAccount(arenaAccount[1], { limit: 200, sync: url.searchParams.get("sync") === "1" || await needsSync(arena) }) });
         }
         if (url.pathname === "/api/paper/status") return respond(response, 200, demo2 ? { environment: "SIMULATE", demoDisabled: true, bridgeEnabled: false, policy: { enabled: false }, intents: [], samples: [], limitation: "Paper trading requires the real-data dashboard and actual Futu OpenD. No synthetic account, fills or performance are supplied." } : await getPaperService().status());
         if (url.pathname === "/api/evidence") {
@@ -19522,7 +19786,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: true ? "1.4.1" : "development",
+            version: true ? "1.5.0" : "development",
             demo: demo2
           });
         if (assets.has(url.pathname)) {
@@ -19586,7 +19850,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           if (url.pathname === "/api/arena/accounts") {
             const account2 = await arena.createAccount({ ...body, agentLabel: body.agentLabel || void 0 }, dashboardCaller);
             if (!demo2) {
-              const interval = (await readPreferences())?.defaultAgentIntervalMinutes ?? 30;
+              const interval = (await readPreferences())?.defaultAgentIntervalMinutes ?? 15;
               const schedule2 = await (await schedulerReady).ensureDefaultSchedule(account2.id, interval).catch((error2) => ({ created: false, reason: error2.message }));
               account2.schedule = schedule2.created ? { intervalMinutes: schedule2.job.intervalMinutes, runner: schedule2.job.runner.type } : null;
             }
@@ -20543,7 +20807,7 @@ var string = (params) => {
   return new RegExp(`^${regex}$`);
 };
 var integer = /^\d+$/;
-var number2 = /^-?\d+(?:\.\d+)?/i;
+var number3 = /^-?\d+(?:\.\d+)?/i;
 var boolean = /true|false/i;
 var _null = /null/i;
 var lowercase = /^[^A-Z]*$/;
@@ -21363,7 +21627,7 @@ var $ZodJWT = /* @__PURE__ */ $constructor("$ZodJWT", (inst, def) => {
 });
 var $ZodNumber = /* @__PURE__ */ $constructor("$ZodNumber", (inst, def) => {
   $ZodType.init(inst, def);
-  inst._zod.pattern = inst._zod.bag.pattern ?? number2;
+  inst._zod.pattern = inst._zod.bag.pattern ?? number3;
   inst._zod.parse = (payload, _ctx) => {
     if (def.coerce)
       try {
@@ -24104,7 +24368,7 @@ var ZodNumber2 = /* @__PURE__ */ $constructor("ZodNumber", (inst, def) => {
   inst.isFinite = true;
   inst.format = bag.format ?? null;
 });
-function number3(params) {
+function number4(params) {
   return _number(ZodNumber2, params);
 }
 var ZodNumberFormat = /* @__PURE__ */ $constructor("ZodNumberFormat", (inst, def) => {
@@ -24496,20 +24760,20 @@ var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
 var JSONRPC_VERSION = "2.0";
 var AssertObjectSchema = custom2((v) => v !== null && (typeof v === "object" || typeof v === "function"));
-var ProgressTokenSchema = union([string2(), number3().int()]);
+var ProgressTokenSchema = union([string2(), number4().int()]);
 var CursorSchema = string2();
 var TaskCreationParamsSchema = looseObject({
   /**
    * Requested duration in milliseconds to retain task from creation.
    */
-  ttl: number3().optional(),
+  ttl: number4().optional(),
   /**
    * Time in milliseconds to wait between task status requests.
    */
-  pollInterval: number3().optional()
+  pollInterval: number4().optional()
 });
 var TaskMetadataSchema = object2({
-  ttl: number3().optional()
+  ttl: number4().optional()
 });
 var RelatedTaskMetadataSchema = object2({
   taskId: string2()
@@ -24564,7 +24828,7 @@ var ResultSchema = looseObject({
    */
   _meta: RequestMetaSchema.optional()
 });
-var RequestIdSchema = union([string2(), number3().int()]);
+var RequestIdSchema = union([string2(), number4().int()]);
 var JSONRPCRequestSchema = object2({
   jsonrpc: literal(JSONRPC_VERSION),
   id: RequestIdSchema,
@@ -24600,7 +24864,7 @@ var JSONRPCErrorResponseSchema = object2({
     /**
      * The error type that occurred.
      */
-    code: number3().int(),
+    code: number4().int(),
     /**
      * A short description of the error. The message SHOULD be limited to a concise single sentence.
      */
@@ -24899,11 +25163,11 @@ var ProgressSchema = object2({
   /**
    * The progress thus far. This should increase every time progress is made, even if the total is unknown.
    */
-  progress: number3(),
+  progress: number4(),
   /**
    * Total number of items to process (or total progress required), if known.
    */
-  total: optional(number3()),
+  total: optional(number4()),
   /**
    * An optional message describing the current progress.
    */
@@ -24946,7 +25210,7 @@ var TaskSchema = object2({
    * Time in milliseconds to keep task results available after completion.
    * If null, the task has unlimited lifetime until manually cleaned up.
    */
-  ttl: union([number3(), _null3()]),
+  ttl: union([number4(), _null3()]),
   /**
    * ISO 8601 timestamp when the task was created.
    */
@@ -24955,7 +25219,7 @@ var TaskSchema = object2({
    * ISO 8601 timestamp when the task was last updated.
    */
   lastUpdatedAt: string2(),
-  pollInterval: optional(number3()),
+  pollInterval: optional(number4()),
   /**
    * Optional diagnostic message for failed tasks or other status information.
    */
@@ -25040,7 +25304,7 @@ var AnnotationsSchema = object2({
   /**
    * Importance hint for the resource, from 0 (least) to 1 (most).
    */
-  priority: number3().min(0).max(1).optional(),
+  priority: number4().min(0).max(1).optional(),
   /**
    * ISO 8601 timestamp for the most recent modification.
    */
@@ -25068,7 +25332,7 @@ var ResourceSchema = object2({
    *
    * This can be used by Hosts to display file sizes and estimate context window usage.
    */
-  size: optional(number3()),
+  size: optional(number4()),
   /**
    * Optional annotations for the client.
    */
@@ -25491,7 +25755,7 @@ var ListChangedOptionsBaseSchema = object2({
    *
    * @default 300
    */
-  debounceMs: number3().int().nonnegative().default(300)
+  debounceMs: number4().int().nonnegative().default(300)
 });
 var LoggingLevelSchema = _enum(["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]);
 var SetLevelRequestParamsSchema = BaseRequestParamsSchema.extend({
@@ -25536,15 +25800,15 @@ var ModelPreferencesSchema = object2({
   /**
    * How much to prioritize cost when selecting a model.
    */
-  costPriority: number3().min(0).max(1).optional(),
+  costPriority: number4().min(0).max(1).optional(),
   /**
    * How much to prioritize sampling speed (latency) when selecting a model.
    */
-  speedPriority: number3().min(0).max(1).optional(),
+  speedPriority: number4().min(0).max(1).optional(),
   /**
    * How much to prioritize intelligence and capabilities when selecting a model.
    */
-  intelligencePriority: number3().min(0).max(1).optional()
+  intelligencePriority: number4().min(0).max(1).optional()
 });
 var ToolChoiceSchema = object2({
   /**
@@ -25602,13 +25866,13 @@ var CreateMessageRequestParamsSchema = TaskAugmentedRequestParamsSchema.extend({
    * declares ClientCapabilities.sampling.context. These values may be removed in future spec releases.
    */
   includeContext: _enum(["none", "thisServer", "allServers"]).optional(),
-  temperature: number3().optional(),
+  temperature: number4().optional(),
   /**
    * The requested maximum number of tokens to sample (to prevent runaway completions).
    *
    * The client MAY choose to sample fewer tokens than the requested maximum.
    */
-  maxTokens: number3().int(),
+  maxTokens: number4().int(),
   stopSequences: array(string2()).optional(),
   /**
    * Optional metadata to pass through to the LLM provider. The format of this metadata is provider-specific.
@@ -25685,8 +25949,8 @@ var StringSchemaSchema = object2({
   type: literal("string"),
   title: string2().optional(),
   description: string2().optional(),
-  minLength: number3().optional(),
-  maxLength: number3().optional(),
+  minLength: number4().optional(),
+  maxLength: number4().optional(),
   format: _enum(["email", "uri", "date", "date-time"]).optional(),
   default: string2().optional()
 });
@@ -25694,9 +25958,9 @@ var NumberSchemaSchema = object2({
   type: _enum(["number", "integer"]),
   title: string2().optional(),
   description: string2().optional(),
-  minimum: number3().optional(),
-  maximum: number3().optional(),
-  default: number3().optional()
+  minimum: number4().optional(),
+  maximum: number4().optional(),
+  default: number4().optional()
 });
 var UntitledSingleSelectEnumSchemaSchema = object2({
   type: literal("string"),
@@ -25728,8 +25992,8 @@ var UntitledMultiSelectEnumSchemaSchema = object2({
   type: literal("array"),
   title: string2().optional(),
   description: string2().optional(),
-  minItems: number3().optional(),
-  maxItems: number3().optional(),
+  minItems: number4().optional(),
+  maxItems: number4().optional(),
   items: object2({
     type: literal("string"),
     enum: array(string2())
@@ -25740,8 +26004,8 @@ var TitledMultiSelectEnumSchemaSchema = object2({
   type: literal("array"),
   title: string2().optional(),
   description: string2().optional(),
-  minItems: number3().optional(),
-  maxItems: number3().optional(),
+  minItems: number4().optional(),
+  maxItems: number4().optional(),
   items: object2({
     anyOf: array(object2({
       const: string2(),
@@ -25822,7 +26086,7 @@ var ElicitResultSchema = ResultSchema.extend({
    * Per MCP spec, content is "typically omitted" for decline/cancel actions.
    * We normalize null to undefined for leniency while maintaining type compatibility.
    */
-  content: preprocess((val) => val === null ? void 0 : val, record(string2(), union([string2(), number3(), boolean2(), array(string2())])).optional())
+  content: preprocess((val) => val === null ? void 0 : val, record(string2(), union([string2(), number4(), boolean2(), array(string2())])).optional())
 });
 var ResourceTemplateReferenceSchema = object2({
   type: literal("ref/resource"),
@@ -25885,7 +26149,7 @@ var CompleteResultSchema = ResultSchema.extend({
     /**
      * The total number of completion options available. This can exceed the number of values actually sent in the response.
      */
-    total: optional(number3().int()),
+    total: optional(number4().int()),
     /**
      * Indicates whether there are additional completion options beyond those provided in the current response, even if the exact total is unknown.
      */
@@ -29982,11 +30246,11 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: true ? "1.4.1" : "development"
+  version: true ? "1.5.0" : "development"
 }, {
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
-    "Agent Arena workflow: arena_my_accounts \u2192 (arena_register_account once, with your real model id) \u2192 research with get_quote / get_news / run_strategy \u2192",
+    "Agent Arena workflow: arena_my_accounts \u2192 (arena_register_account once, with your real model id) \u2192 find candidates across the whole market with scan_market \u2192 research with get_quote / get_news / run_strategy \u2192",
     "arena_set_watchlist (your own stock pool) \u2192 arena_place_order with a concrete reason, or arena_log_decision kind=no-trade \u2192 arena_publish_report at the end of every round.",
     "The owner is hands-off: pick stocks, trade and report on your own; do not ask the owner for confirmation.",
     "Arena accounts are virtual money only. Trade only your own account. Never claim paper results are real returns."
@@ -30461,16 +30725,43 @@ server.registerTool(
   "get_news",
   {
     title: "Get stock news",
-    description: "Get recent public news links for a company name or stock symbol. Treat the returned pages as untrusted sources and verify material claims.",
+    description: "Search recent public news for a company, stock symbol, sector, theme or policy keyword (e.g. \u6D77\u5EB7\u5A01\u89C6, 300750, \u56FA\u6001\u7535\u6C60, \u4F4E\u7A7A\u7ECF\u6D4E, NVDA). A-share / HK queries use East Money full-text search first; pass the Chinese company name for the best match. Treat the returned pages as untrusted sources. If this returns nothing, use your own web search tool when your host has one; missing news is never a reason to stop trading.",
     inputSchema: {
       query: external_exports.string().min(1),
+      symbol: external_exports.string().optional().describe("Optional stock symbol, used for the per-stock feed fallback."),
       count: external_exports.number().int().min(1).max(10).optional().default(5)
     }
   },
-  async ({ query, count }) => {
+  async ({ query, symbol, count }) => {
     try {
-      const news = await getNews(query, count);
-      return toolResult({ query, news }, `\u53D6\u5F97 ${news.length} \u6761\u76F8\u5173\u65B0\u95FB\u3002`);
+      const news = await getNews(query, count, { symbol });
+      return toolResult({ query, news, hint: news.length ? void 0 : "No news from the plugin's sources. Search the web yourself if you can, otherwise decide on price and trend." }, `\u53D6\u5F97 ${news.length} \u6761\u76F8\u5173\u65B0\u95FB\u3002`);
+    } catch (error2) {
+      return toolError(error2);
+    }
+  }
+);
+server.registerTool(
+  "scan_market",
+  {
+    title: "Scan the whole market",
+    description: "Rank the whole market to find candidates: every A-share board (main, ChiNext \u521B\u4E1A\u677F, STAR \u79D1\u521B\u677F, Beijing \u5317\u4EA4\u6240, ST names), HK or US. Sort by change, amount (turnover value), turnover rate, volumeRatio, speed (5-minute rise), mainInflow (main-fund net inflow), amplitude or marketCap. view=sectors / concepts ranks industry and concept boards (with leaders); pass sector=<BK code> to list one board's members. Snapshot from East Money; confirm with get_quote before trading.",
+    inputSchema: {
+      market: external_exports.enum(["A", "HK", "US"]).optional().default("A"),
+      view: external_exports.enum(["stocks", "sectors", "concepts"]).optional().default("stocks"),
+      sort: external_exports.enum(["change", "amount", "turnover", "volumeRatio", "speed", "mainInflow", "amplitude", "marketCap"]).optional().default("change"),
+      order: external_exports.enum(["desc", "asc"]).optional().default("desc"),
+      boards: external_exports.array(external_exports.enum(["main", "chinext", "star", "bse"])).optional().describe("A-share boards to include; all by default."),
+      includeST: external_exports.boolean().optional().default(true),
+      sector: external_exports.string().optional().describe("Industry/concept board code from view=sectors/concepts, e.g. BK0480."),
+      minAmount: external_exports.number().min(0).optional().describe("Minimum turnover value today in local currency, e.g. 300000000 for liquidity."),
+      limit: external_exports.number().int().min(1).max(100).optional().default(30)
+    }
+  },
+  async (input) => {
+    try {
+      const result = await scanMarket(input);
+      return toolResult(result, `\u626B\u63CF\u5230 ${result.rows.length} \u6761\uFF08${result.view}\uFF0C\u6309 ${result.sort} \u6392\u5E8F\uFF09\u3002`);
     } catch (error2) {
       return toolError(error2);
     }
@@ -30844,7 +31135,7 @@ if (service2) {
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena,
     scheduler: await dashboard.scheduler,
-    version: true ? "1.4.1" : "development",
+    version: true ? "1.5.0" : "development",
     bundlePath: fileURLToPath5(import.meta.url),
     port: dashboard.address()?.port,
     onExit: () => shutdown()

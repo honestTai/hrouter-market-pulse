@@ -1,6 +1,6 @@
 {
   "name": "hrouter-market-pulse",
-  "version": "1.4.1+codex.20261016020639",
+  "version": "1.5.0+codex.20261016074744",
   "repository": "https://github.com/honestTai/hrouter-market-pulse",
   "description": "Bilingual A-share, Hong Kong and US market workbench with verified quotes, portfolio risk, evidence, research validation and a multi-agent paper-trading arena.",
   "author": {

@@ -180,7 +180,8 @@ function useChart(host, height, build, deps) {
     });
     build(chart, dark);
     chart.timeScale().fitContent();
-    const observer = new ResizeObserver(() => { if (host.current?.clientWidth) chart.applyOptions({ width: host.current.clientWidth }); });
+    // Follow the container's width, and its height too when it is stretched (panel fullscreen).
+    const observer = new ResizeObserver(() => { const box = host.current; if (box?.clientWidth) chart.applyOptions({ width: box.clientWidth, height: box.clientHeight > height ? box.clientHeight : height }); });
     observer.observe(host.current);
     return () => { observer.disconnect(); chart.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -293,7 +294,7 @@ function Breakdown({ accounts }) {
 function LeaderboardTable({ accounts, onOpen, highlighted, onHover }) {
   const { t, number } = useWorkspace();
   return <section className="surface">
-    <SectionHeading icon={Trophy} title={t("排行榜", "Leaderboard")} caption={t("按累计收益排序 · 同市场同组别", "Ranked by total return · same market & group")} />
+    <SectionHeading icon={Trophy} title={t("排行榜", "Leaderboard")} caption={t("按累计收益排序 · 同市场同组别", "Ranked by total return · same market & group")} expandable />
     <div className="table-scroll"><Table.Root size="2" className="arena-table">
       <Table.Header><Table.Row>
         <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
@@ -578,7 +579,7 @@ function AccountDetail({ id, onBack, onChanged }) {
       <MetricTile label={t("胜率 / 盈亏比", "Win rate / profit factor")} hint={`${m.closedTrades} ${t("笔平仓", "closed")}`}>{isNumber(m.winRatePct) ? `${number(m.winRatePct, 0)}%` : "—"} / {isNumber(m.profitFactor) ? number(m.profitFactor) : "—"}</MetricTile>
       <MetricTile label={t("手续费 / 换手", "Fees / turnover")} hint={`${number(m.turnover)}×`}>{number(m.feesPaid)}</MetricTile>
     </div>
-    <section className="surface"><SectionHeading icon={LineChart} title={t("净值曲线", "Equity curve")} caption={t("虚线为初始资金", "Dashed line: starting cash")} /><div className="arena-chart"><EquityChart account={account} /></div></section>
+    <section className="surface"><SectionHeading icon={LineChart} title={t("净值曲线", "Equity curve")} caption={t("虚线为初始资金", "Dashed line: starting cash")} expandable /><div className="arena-chart"><EquityChart account={account} /></div></section>
     <section className="surface">
       <Tabs.Root value={tab} onValueChange={setTab}>
         <Tabs.List className="detail-tabs">
@@ -639,10 +640,11 @@ function Onboarding({ onConnect, onCreate }) {
   </section>;
 }
 
+let consumedFocus = null;
 const urlParam = (name) => (typeof window === "undefined" ? null : new URL(window.location.href).searchParams.get(name));
 
 export function ArenaPage() {
-  const { t, notify } = useWorkspace();
+  const { t, notify, arenaFocus } = useWorkspace();
   const [board, setBoard] = useState(null);
   const [error, setError] = useState("");
   const [market, setMarket] = useState(() => urlParam("market") || "A");
@@ -652,6 +654,13 @@ export function ArenaPage() {
   const [dialog, setDialog] = useState(null);
   const [highlighted, setHighlighted] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  // Consume each palette request once, so coming back to the arena later shows the leaderboard.
+  useEffect(() => {
+    if (!arenaFocus || arenaFocus.at === consumedFocus) return;
+    consumedFocus = arenaFocus.at;
+    setSelected(arenaFocus.id);
+    if (arenaFocus.market) setMarket(arenaFocus.market);
+  }, [arenaFocus]);
   const load = useCallback(async (signal) => {
     try {
       const next = await api(`/api/arena/leaderboard${archived ? "?archived=1" : ""}`, undefined, signal);
@@ -704,7 +713,7 @@ export function ArenaPage() {
       <SummaryCards group={group} />
       {accounts.length ? <>
         <div className="arena-grid">
-          <section className="surface"><SectionHeading icon={LineChart} title={t("收益曲线", "Return curves")} caption={t("自开户以来累计收益率", "Cumulative return since inception")} /><ReturnsChart accounts={accounts} highlighted={highlighted} onHover={setHighlighted} /></section>
+          <section className="surface"><SectionHeading icon={LineChart} title={t("收益曲线", "Return curves")} caption={t("自开户以来累计收益率", "Cumulative return since inception")} expandable /><ReturnsChart accounts={accounts} highlighted={highlighted} onHover={setHighlighted} /></section>
           <Breakdown accounts={accounts} />
         </div>
         <LeaderboardTable accounts={accounts} onOpen={setSelected} highlighted={highlighted} onHover={setHighlighted} />

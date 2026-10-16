@@ -9,6 +9,9 @@
 //       // ctx.universe – symbols to consider (params.universe, else the account's stock pool, else holdings)
 //       // ctx.history(symbol, { days }) – COMPLETED daily bars only (no look-ahead), oldest first
 //       // ctx.quote(symbol)  – live quote; ctx.params – validated params; ctx.now; ctx.log(message)
+//       // ctx.intraday(symbol) – today's completed 1-minute bars (5-minute for US) with running VWAP
+//       // ctx.scan({ sort, boards, minAmount, limit, … }) – whole-market ranking (see scan_market)
+//       // ctx.sellable(symbol) – shares that can be sold now (A-share T+1 excludes today's buys)
 //       return {
 //         targets: [{ symbol, weight, reason }],        // desired portfolio weights (0–1), or
 //         orders:  [{ symbol, side, quantity, reason }], // explicit orders,
@@ -25,12 +28,14 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { getHistoricalQuote, getStorageDir, getTradeQuote } from "../core.mjs";
+import { getHistoricalQuote, getIntradayBars, getStorageDir, getTradeQuote, scanMarket } from "../core.mjs";
 import { lotRules } from "../arena.mjs";
+import { localMarketTime } from "../market-rules.mjs";
 import maTrend from "./ma-trend.mjs";
 import momentumRotation from "./momentum-rotation.mjs";
+import intradayMomentum from "./intraday-momentum.mjs";
 
-export const BUILTIN_STRATEGIES = [maTrend, momentumRotation];
+export const BUILTIN_STRATEGIES = [maTrend, momentumRotation, intradayMomentum];
 const ID = /^[a-z0-9][a-z0-9-]{1,40}$/;
 
 export function validateStrategy(module, origin = "builtin") {
@@ -72,6 +77,9 @@ export function resolveParams(strategy, input = {}) {
     } else if (spec.type === "symbols") {
       value = Array.isArray(value) ? value.slice(0, 100).map(String) : [];
     } else if (spec.type === "boolean") value = Boolean(value);
+    else if (spec.type === "enum") {
+      value = Array.isArray(value) ? value.map(String).filter((item) => spec.options.includes(item)) : spec.options.includes(String(value)) ? String(value) : spec.default;
+    } else if (spec.type === "string") value = String(value ?? "").slice(0, 200);
     params[key] = value;
   }
   if (Array.isArray(input.universe)) params.universe = input.universe.slice(0, 100).map(String);
@@ -81,8 +89,18 @@ export function resolveParams(strategy, input = {}) {
 const sma = (values, length) => values.length >= length ? values.slice(-length).reduce((sum, value) => sum + value, 0) / length : null;
 export const indicators = { sma };
 
-// Turn target weights into lot-sized buy/sell orders against current holdings. Sells come first.
-export function ordersFromTargets(account, targets, quotes, { minTradeValuePct = 0.5 } = {}) {
+// Shares that can be sold now: A-share T+1 keeps today's buys locked until the next session.
+export function sellableNow(account, symbol, now = new Date().toISOString()) {
+  const position = account.positions.find((entry) => entry.symbol === symbol);
+  if (!position) return 0;
+  if (account.market !== "A") return position.quantity;
+  const today = localMarketTime(now, "A")?.date;
+  return (position.lots ?? [{ date: "", quantity: position.quantity }]).filter((lot) => lot.date < today).reduce((sum, lot) => sum + lot.quantity, 0);
+}
+
+// Turn target weights into lot-sized buy/sell orders against current holdings. Sells come first and
+// never exceed the sellable quantity, so T+1-locked shares do not turn into rejected orders.
+export function ordersFromTargets(account, targets, quotes, { minTradeValuePct = 0.5, now } = {}) {
   const equity = account.metrics.equity;
   const held = new Map(account.positions.map((position) => [position.symbol, position]));
   const wanted = new Map(targets.map((target) => [target.symbol, target]));
@@ -100,7 +118,11 @@ export function ordersFromTargets(account, targets, quotes, { minTradeValuePct =
     if (Math.abs(delta) * quote.price < equity * minTradeValuePct / 100) continue;
     if (delta < 0) {
       // Selling everything is always allowed as an odd lot; partial sells stay in whole lots.
-      const quantity = targetQuantity === 0 ? currentQuantity : Math.floor(-delta / lot) * lot;
+      const sellable = sellableNow(account, symbol, now);
+      const wantedQuantity = targetQuantity === 0 ? currentQuantity : Math.floor(-delta / lot) * lot;
+      const quantity = wantedQuantity >= currentQuantity && sellable < currentQuantity
+        ? Math.floor(sellable / lot) * lot
+        : Math.min(wantedQuantity, Math.floor(sellable / lot) * lot);
       if (quantity > 0) sells.push({ symbol, side: "SELL", quantity, reason: target?.reason ?? `Target weight 0: exit ${symbol}.` });
     } else if (delta > 0) {
       const quantity = Math.floor(delta / lot) * lot;
@@ -124,7 +146,7 @@ async function cachedHistory(historyProvider, symbol, range) {
 }
 
 // Run one strategy round for an account through a broker. Returns a structured round record.
-export async function runStrategyRound({ strategy, params: rawParams, broker, now = () => new Date().toISOString(), runId, historyProvider = getHistoricalQuote, quoteProvider = getTradeQuote }) {
+export async function runStrategyRound({ strategy, params: rawParams, broker, now = () => new Date().toISOString(), runId, historyProvider = getHistoricalQuote, quoteProvider = getTradeQuote, intradayProvider = getIntradayBars, scanProvider = scanMarket }) {
   const startedAt = now();
   const logs = [];
   const log = (message) => logs.push({ at: now(), message: String(message).slice(0, 500) });
@@ -147,6 +169,18 @@ export async function runStrategyRound({ strategy, params: rawParams, broker, no
       if (!quoteCache.has(symbol)) quoteCache.set(symbol, await quoteProvider(symbol));
       return quoteCache.get(symbol);
     },
+    async intraday(symbol) {
+      const key = `intraday:${symbol}`;
+      if (!historyCache.has(key)) {
+        const result = await intradayProvider(symbol);
+        // Only completed minutes: drop the bar of the minute that is still forming.
+        const minute = localMarketTime(startedAt, account.market)?.minute ?? 1440;
+        historyCache.set(key, result.bars.filter((bar) => { const [h, m] = bar.time.split(":").map(Number); return h * 60 + m < minute; }));
+      }
+      return historyCache.get(key);
+    },
+    scan: (options = {}) => scanProvider({ market: account.market, ...options }),
+    sellable: (symbol) => sellableNow(account, symbol, startedAt),
     indicators,
   };
   const output = (await strategy.run(ctx)) ?? {};
@@ -155,7 +189,7 @@ export async function runStrategyRound({ strategy, params: rawParams, broker, no
     const symbols = new Set([...output.targets.map((target) => target.symbol), ...account.positions.map((position) => position.symbol)]);
     const quotes = new Map();
     for (const symbol of symbols) { try { quotes.set(symbol, await ctx.quote(symbol)); } catch (error) { log(`quote ${symbol}: ${error.message}`); } }
-    orders = [...orders, ...ordersFromTargets(account, output.targets, quotes)];
+    orders = [...orders, ...ordersFromTargets(account, output.targets, quotes, { now: startedAt, minTradeValuePct: output.minTradeValuePct ?? 0.5 })];
   }
   const results = [];
   for (const [index, order] of orders.slice(0, 50).entries()) {

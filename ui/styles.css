@@ -669,3 +669,46 @@ h2,h3,p { overflow-wrap:break-word; }
 .automation-heading { margin: 8px 0 0; font-size: 14px; }
 .run-output { white-space: pre-wrap; max-height: 260px; overflow: auto; font-size: 12px; background: var(--hover); padding: 8px; border-radius: 8px; }
 .agent-kimi { background: linear-gradient(145deg, #1f2937, #0b0f19); }
+
+/* ── Stability: nothing should jump while filtering, switching tabs or refreshing ── */
+html { scrollbar-gutter: stable; }
+.main-content { min-height: calc(100vh - 60px); }
+.page-stack { min-height: 60vh; }
+.watchlist-rows { min-height: min(550px, 60vh); }
+.rt-TableCell, .rt-TableColumnHeaderCell, .tabular, .segment-count, .nav-count { font-variant-numeric: tabular-nums; }
+.segment-count { display: inline-block; min-width: 18px; text-align: center; box-sizing: border-box; }
+.rt-TabsContent { min-height: 180px; }
+.arena-toolbar { min-height: 40px; }
+.section-actions { display: flex; align-items: center; gap: 6px; }
+
+/* ── Search (⌘K) ── */
+.search-trigger { display: flex; align-items: center; gap: 8px; width: 100%; margin: 14px 0 4px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--canvas); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+.search-trigger:hover { border-color: var(--gray-a7); color: var(--ink); }
+.search-trigger span { flex: 1; }
+.search-trigger kbd, .command-input kbd { font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 3px 5px; border-radius: 5px; border: 1px solid var(--line); background: var(--paper); color: var(--muted); }
+.search-trigger.compact { display: none; width: auto; margin: 0; padding: 6px 9px; }
+.search-trigger.compact span { display: none; }
+.command-palette { padding: 0 !important; overflow: hidden; align-self: flex-start; margin-top: 12vh; }
+.command-input { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.command-input input { flex: 1; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 15px; }
+.command-list { max-height: min(420px, 60vh); overflow-y: auto; padding: 6px; scrollbar-gutter: stable; }
+.command-group { padding: 10px 10px 4px; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+.command-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.command-item.active { background: var(--accent-soft, var(--jade-a3)); }
+.command-icon { display: inline-flex; width: 18px; justify-content: center; color: var(--muted); }
+.command-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gray-a8); }
+.command-label { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.command-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.command-enter { margin-left: auto; color: var(--muted); }
+.command-empty { padding: 28px; text-align: center; color: var(--muted); }
+
+/* ── Fullscreen: whole workspace (no sidebar; ⌘K to navigate) and single panels ── */
+.workspace-shell.is-fullscreen { grid-template-columns: minmax(0, 1fr); }
+.workspace-shell.is-fullscreen .sidebar { display: none; }
+.workspace-shell.is-fullscreen .search-trigger.compact { display: inline-flex; }
+.workspace-shell.is-fullscreen .main-content { max-width: none; }
+.surface:fullscreen, .fullscreen-target:fullscreen { overflow: auto; padding: 24px 28px; background: var(--paper); border-radius: 0; }
+.surface:fullscreen .arena-chart-canvas, .surface:fullscreen .chart-canvas { height: calc(100vh - 170px) !important; }
+.surface:fullscreen .watchlist-rows, .surface:fullscreen .table-scroll { max-height: none; }
+.chart-canvas { height: var(--chart-h, 305px); }
+@media (max-width: 1100px) { .search-trigger:not(.compact) { display: none; } .search-trigger.compact { display: inline-flex; } }

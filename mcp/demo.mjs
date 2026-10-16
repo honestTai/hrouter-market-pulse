@@ -336,7 +336,7 @@ export function makeDemoReport(options = {}) {
     },
   );
   const items = options.watchlist ? options.watchlist.map((symbol) => allItems.find((item) => item.symbol === symbol) ?? {
-    symbol, market: symbol.endsWith(".HK") ? "HK" : /\.(SS|SZ)$/.test(symbol) ? "A" : "US",
+    symbol, market: symbol.endsWith(".HK") ? "HK" : /\.(SS|SZ|BJ)$/.test(symbol) ? "A" : "US",
     error: "No synthetic fixture for this symbol; no market data was requested.", history: [],
   }) : allItems;
   const indices = [

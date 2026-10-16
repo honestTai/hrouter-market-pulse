@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Dialog, DropdownMenu, IconButton, Select, Theme, Tooltip } from "@radix-ui/themes";
-import { ArrowUpRight, Bot, BookOpen, BriefcaseBusiness, CandlestickChart, CheckCircle2, ChevronRight, Cloud, FileCheck2, FlaskConical, Globe2, Menu, Moon, Plus, RefreshCw, Settings2, ShieldCheck, Sun, Trophy, TriangleAlert, X } from "lucide-react";
+import { ArrowUpRight, Bot, BookOpen, BriefcaseBusiness, CandlestickChart, CheckCircle2, ChevronRight, Cloud, FileCheck2, FlaskConical, Globe2, Maximize2, Menu, Minimize2, Moon, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Trophy, TriangleAlert, X } from "lucide-react";
 import { WorkspaceContext, useWorkspace } from "./context.jsx";
 import { api, array, collectEvidence, holdingsFor, readStorage, writeStorage } from "./data.mjs";
 import { MarketPage } from "./components/MarketBoard.jsx";
@@ -10,14 +10,15 @@ import { ArenaPage } from "./components/Arena.jsx";
 import { ManagedPortfolioPage } from "./components/Managed.jsx";
 import { Editor } from "./components/Editors.jsx";
 import { ErrorNotice } from "./components/Primitives.jsx";
+import { CommandPalette } from "./components/CommandPalette.jsx";
 
 const views = [
-  { id: "market", group: "research", icon: CandlestickChart, labels: ["市场工作台", "Market workspace"] },
-  { id: "portfolio", group: "research", icon: BriefcaseBusiness, labels: ["我的持仓", "My portfolio"] },
-  { id: "evidence", group: "research", icon: FileCheck2, labels: ["证据与事件", "Evidence & events"] },
-  { id: "journal", group: "research", icon: BookOpen, labels: ["研究记录", "Research journal"] },
-  { id: "arena", group: "trading", icon: Trophy, labels: ["Agent 竞技场", "Agent arena"] },
-  { id: "paper", group: "trading", icon: Bot, labels: ["富途模拟盘", "Futu paper account"] },
+  { id: "market", group: "research", icon: CandlestickChart, labels: ["市场工作台", "Market workspace"], keywords: "行情 自选 K线 quotes watchlist chart sc" },
+  { id: "portfolio", group: "research", icon: BriefcaseBusiness, labels: ["我的持仓", "My portfolio"], keywords: "托管 持仓 收益 managed holdings wdcc" },
+  { id: "evidence", group: "research", icon: FileCheck2, labels: ["证据与事件", "Evidence & events"], keywords: "公告 新闻 事件 news filings zj" },
+  { id: "journal", group: "research", icon: BookOpen, labels: ["研究记录", "Research journal"], keywords: "决策 复盘 decisions review yj" },
+  { id: "arena", group: "trading", icon: Trophy, labels: ["Agent 竞技场", "Agent arena"], keywords: "排行榜 模拟盘 自动运行 日报 leaderboard automation digest jjc" },
+  { id: "paper", group: "trading", icon: Bot, labels: ["富途模拟盘", "Futu paper account"], keywords: "futu opend 富途 ft" },
 ];
 const groups = [
   { id: "research", labels: ["研究", "RESEARCH"] },
@@ -57,10 +58,19 @@ function Brand() {
   </a>;
 }
 
+function SearchTrigger({ compact = false }) {
+  const { t, openPalette } = useWorkspace();
+  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  return <button type="button" className={`search-trigger ${compact ? "compact" : ""}`} onClick={openPalette} aria-label={t("搜索菜单、账户和股票", "Search menus, accounts and securities")} aria-keyshortcuts="Meta+K Control+K">
+    <Search size={15} /><span>{t("搜索…", "Search…")}</span><kbd>{mac ? "⌘K" : "Ctrl K"}</kbd>
+  </button>;
+}
+
 function Sidebar() {
   const { t, openEditor, report } = useWorkspace();
   return <aside className="sidebar">
     <Brand />
+    <SearchTrigger />
     <Navigation />
     <div className="sidebar-create">
       <Button variant="outline" color="gray" onClick={() => openEditor({ type: "decision" })}><Plus size={15} />{t("新建研究记录", "New decision")}</Button>
@@ -78,7 +88,7 @@ function Sidebar() {
 }
 
 function Header() {
-  const { t, view, appearance, setAppearance, language, setLanguage, report, openEditor } = useWorkspace();
+  const { t, view, appearance, setAppearance, language, setLanguage, report, openEditor, fullscreen, toggleFullscreen } = useWorkspace();
   const [menu, setMenu] = useState(false);
   const current = views.find((entry) => entry.id === view) || views[0];
   const group = groups.find((entry) => entry.id === current.group);
@@ -98,8 +108,12 @@ function Header() {
       <strong>{t(...current.labels)}</strong>
     </div>
     <div className="topbar-actions">
+      <SearchTrigger compact />
       <span className="public-data-label"><Cloud size={14} />{report.demo ? t("合成演示数据", "Synthetic demo") : t("公开行情 · 可能延迟", "Public quotes · may be delayed")}</span>
       <div className="topbar-divider" />
+      <Tooltip content={fullscreen ? t("退出全屏（Esc）", "Exit fullscreen (Esc)") : t("全屏查看", "Fullscreen")}>
+        <IconButton variant="ghost" color="gray" aria-label={fullscreen ? t("退出全屏", "Exit fullscreen") : t("全屏", "Fullscreen")} aria-pressed={fullscreen} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</IconButton>
+      </Tooltip>
       <Tooltip content={appearance === "light" ? t("切换深色模式", "Switch to dark mode") : t("切换浅色模式", "Switch to light mode")}>
         <IconButton variant="ghost" color="gray" aria-label={t("切换主题", "Toggle theme")} onClick={() => setAppearance(appearance === "light" ? "dark" : "light")}>{appearance === "light" ? <Moon size={17} /> : <Sun size={17} />}</IconButton>
       </Tooltip>
@@ -167,6 +181,35 @@ export default function App({ initialReport = {}, initialView = "market" }) {
   const [toast, setToast] = useState(null);
   const [editor, setEditor] = useState(null);
   const [interval, setIntervalSeconds] = useState(0);
+  const [palette, setPalette] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  // A request from the palette to open one arena account; the arena page consumes it.
+  const [arenaFocus, setArenaFocus] = useState(null);
+  const openArenaAccount = useCallback((id, market) => { setArenaFocus({ id, market, at: Date.now() }); setView("arena"); }, []);
+  // Fullscreen = the browser's fullscreen plus a wide layout without the sidebar (navigate with ⌘K).
+  // Without the Fullscreen API (embedded webviews) the wide layout alone still applies.
+  const toggleFullscreen = useCallback(async () => {
+    const root = document.documentElement;
+    if (document.fullscreenElement) { await document.exitFullscreen().catch(() => {}); setFullscreen(false); return; }
+    if (fullscreen) { setFullscreen(false); return; }
+    setFullscreen(true);
+    if (root.requestFullscreen) await root.requestFullscreen().catch(() => {});
+  }, [fullscreen]);
+  useEffect(() => {
+    const onChange = () => { if (!document.fullscreenElement) setFullscreen(false); };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  useEffect(() => {
+    const onKey = (event) => {
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target?.tagName) || event.target?.isContentEditable;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setPalette((value) => !value); }
+      else if (event.key === "/" && !typing) { event.preventDefault(); setPalette(true); }
+      else if (event.key === "Escape" && fullscreen && !document.fullscreenElement && !palette) setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullscreen, palette]);
   const t = (zh, en) => language === "en" ? en : zh;
   const notify = useCallback((message, error = false) => setToast({ message, error, id: Date.now() }), []);
   // The agent-managed arena account is the owner's portfolio; manual positions are only a fallback.
@@ -270,6 +313,7 @@ export default function App({ initialReport = {}, initialView = "market" }) {
     notify(t("复盘已追加，原始判断保持不变。", "Review appended. The original decision is unchanged."));
   });
   const managed = { accounts: arenaAccounts, account: managedAccount, loading: managedLoading || loading, choose: chooseManaged, reload: () => loadManaged() };
-  const context = { managed, report, view, setView, language, setLanguage, appearance, setAppearance, colorConvention, preferences, decisions, selected, setSelected, timeframe, setTimeframe, clock, busy, loading, holdings, interval, setIntervalSeconds, refresh, syncSources, savePreferences, saveDecision, saveReview, openEditor: setEditor, reloadWorkspace: () => loadWorkspace(), notify };
-  return <Theme appearance={appearance} accentColor="jade" grayColor="slate" radius="large" scaling="100%" panelBackground="solid" className={`workspace-theme ${colorConvention === "red-up" ? "red-up" : "green-up"}`}><WorkspaceContext.Provider value={context}><div className="workspace-shell"><Sidebar /><div className="workspace-main"><Header /><main className="main-content"><PageHeading />{report.demo && view !== "arena" && <div className="demo-banner"><FlaskConical size={15} /><span>{t("演示模式", "DEMO MODE")}</span>{t("全部价格、持仓与事件均为合成样本，不用于真实决策。", "All prices, positions and events are synthetic. Not for real investment decisions.")}</div>}<ErrorNotice message={loadError} onRetry={() => loadWorkspace()} /><CurrentPage /><footer className="workspace-footer"><span><ShieldCheck size={13} />{t("公开行情可能延迟 · 研究不等于交易建议", "Public quotes may be delayed · Research is not a trade recommendation")}</span><a href="https://hrouter.net/" target="_blank" rel="noreferrer">HRouter <ArrowUpRight size={12} /></a></footer></main></div></div>{editor && <Editor key={`${editor.type}:${editor.record?.id || ""}`} editor={editor} onClose={() => setEditor(null)} />}<div className="toast-region" aria-live="polite">{toast && <div className={`app-toast ${toast.error ? "error" : ""}`} role={toast.error ? "alert" : "status"}>{toast.error ? <TriangleAlert size={18} /> : <CheckCircle2 size={18} />}<span>{toast.message}</span><IconButton variant="ghost" color="gray" size="1" aria-label={t("关闭通知", "Dismiss notification")} onClick={() => setToast(null)}><X size={14} /></IconButton></div>}</div></WorkspaceContext.Provider></Theme>;
+  const context = { managed, report, view, setView, language, setLanguage, appearance, setAppearance, colorConvention, preferences, decisions, selected, setSelected, timeframe, setTimeframe, clock, busy, loading, holdings, interval, setIntervalSeconds, refresh, syncSources, savePreferences, saveDecision, saveReview, openEditor: setEditor, reloadWorkspace: () => loadWorkspace(), notify,
+    openPalette: () => setPalette(true), fullscreen, toggleFullscreen, arenaFocus, openArenaAccount };
+  return <Theme appearance={appearance} accentColor="jade" grayColor="slate" radius="large" scaling="100%" panelBackground="solid" className={`workspace-theme ${colorConvention === "red-up" ? "red-up" : "green-up"}`}><WorkspaceContext.Provider value={context}><div className={`workspace-shell ${fullscreen ? "is-fullscreen" : ""}`}><Sidebar /><div className="workspace-main"><Header /><main className="main-content"><PageHeading />{report.demo && view !== "arena" && <div className="demo-banner"><FlaskConical size={15} /><span>{t("演示模式", "DEMO MODE")}</span>{t("全部价格、持仓与事件均为合成样本，不用于真实决策。", "All prices, positions and events are synthetic. Not for real investment decisions.")}</div>}<ErrorNotice message={loadError} onRetry={() => loadWorkspace()} /><CurrentPage /><footer className="workspace-footer"><span><ShieldCheck size={13} />{t("公开行情可能延迟 · 研究不等于交易建议", "Public quotes may be delayed · Research is not a trade recommendation")}</span><a href="https://hrouter.net/" target="_blank" rel="noreferrer">HRouter <ArrowUpRight size={12} /></a></footer></main></div></div><CommandPalette open={palette} onOpenChange={setPalette} views={views} onFullscreen={toggleFullscreen} />{editor && <Editor key={`${editor.type}:${editor.record?.id || ""}`} editor={editor} onClose={() => setEditor(null)} />}<div className="toast-region" aria-live="polite">{toast && <div className={`app-toast ${toast.error ? "error" : ""}`} role={toast.error ? "alert" : "status"}>{toast.error ? <TriangleAlert size={18} /> : <CheckCircle2 size={18} />}<span>{toast.message}</span><IconButton variant="ghost" color="gray" size="1" aria-label={t("关闭通知", "Dismiss notification")} onClick={() => setToast(null)}><X size={14} /></IconButton></div>}</div></WorkspaceContext.Provider></Theme>;
 }

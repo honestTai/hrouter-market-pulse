@@ -94,6 +94,12 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
     onError: (error) => console.error(`Arena matcher: ${error.message}`),
   }).start()).catch(() => null) : Promise.resolve(null);
   const matcherStatus = async (arena) => ({ ...(await arena.matcherStatus()), local: (await matcherReady)?.status() ?? null });
+  // The background matcher re-marks every active account each tick during sessions. While it is
+  // ticking, dashboard reads serve the stored state at once instead of fetching quotes per request.
+  const needsSync = async (arena) => {
+    const status = await arena.matcherStatus().catch(() => null);
+    return !(status?.lastTickAt && Date.now() - Date.parse(status.lastTickAt) < 180000);
+  };
   // Schedules are files, so any dashboard can edit them; only the service (runScheduler) runs them on time.
   const schedulerReady = arenaReady.then((arena) => {
     const scheduler = createScheduler({ arena, onError: (error) => console.error(`Arena scheduler: ${error.message}`) });
@@ -117,6 +123,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             market: url.searchParams.get("market") || undefined,
             competition: url.searchParams.get("competition") || undefined,
             includeArchived: url.searchParams.get("archived") === "1",
+            sync: url.searchParams.get("sync") === "1" || await needsSync(arena),
           })), matcher: await matcherStatus(arena), service: demo ? { state: "demo" } : await readServiceStatus(arena.root) });
         }
         if (url.pathname === "/api/arena/matcher") return respond(response, 200, await matcherStatus(await arenaReady));
@@ -139,7 +146,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {
           const arena = await arenaReady;
-          return respond(response, 200, { demo, ...(await arena.getAccount(arenaAccount[1], { limit: 200 })) });
+          return respond(response, 200, { demo, ...(await arena.getAccount(arenaAccount[1], { limit: 200, sync: url.searchParams.get("sync") === "1" || await needsSync(arena) })) });
         }
         if (url.pathname === "/api/paper/status") return respond(response, 200, demo
           ? { environment: "SIMULATE", demoDisabled: true, bridgeEnabled: false, policy: { enabled: false }, intents: [], samples: [], limitation: "Paper trading requires the real-data dashboard and actual Futu OpenD. No synthetic account, fills or performance are supplied." }
@@ -235,7 +242,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           if (url.pathname === "/api/arena/accounts") {
             const account = await arena.createAccount({ ...body, agentLabel: body.agentLabel || undefined }, dashboardCaller);
             if (!demo) {
-              const interval = (await readPreferences())?.defaultAgentIntervalMinutes ?? 30;
+              const interval = (await readPreferences())?.defaultAgentIntervalMinutes ?? 15;
               const schedule = await (await schedulerReady).ensureDefaultSchedule(account.id, interval).catch((error) => ({ created: false, reason: error.message }));
               account.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type } : null;
             }

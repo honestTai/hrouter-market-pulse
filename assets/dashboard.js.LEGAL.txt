@@ -100,6 +100,7 @@ lucide-react/dist/esm/icons/clipboard-copy.mjs:
 lucide-react/dist/esm/icons/clipboard-list.mjs:
 lucide-react/dist/esm/icons/clock-3.mjs:
 lucide-react/dist/esm/icons/cloud.mjs:
+lucide-react/dist/esm/icons/corner-down-left.mjs:
 lucide-react/dist/esm/icons/cpu.mjs:
 lucide-react/dist/esm/icons/crown.mjs:
 lucide-react/dist/esm/icons/earth.mjs:
@@ -112,8 +113,10 @@ lucide-react/dist/esm/icons/inbox.mjs:
 lucide-react/dist/esm/icons/layers.mjs:
 lucide-react/dist/esm/icons/list-checks.mjs:
 lucide-react/dist/esm/icons/lock-keyhole.mjs:
+lucide-react/dist/esm/icons/maximize-2.mjs:
 lucide-react/dist/esm/icons/menu.mjs:
 lucide-react/dist/esm/icons/message-square-text.mjs:
+lucide-react/dist/esm/icons/minimize-2.mjs:
 lucide-react/dist/esm/icons/moon.mjs:
 lucide-react/dist/esm/icons/newspaper.mjs:
 lucide-react/dist/esm/icons/notebook-pen.mjs:

@@ -34,6 +34,7 @@ import {
   loadPreferences,
   loadReport,
   savePreferences,
+  scanMarket,
   screenWatchlist,
 } from "./core.mjs";
 import {
@@ -60,7 +61,7 @@ const server = new McpServer({
 }, {
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
-    "Agent Arena workflow: arena_my_accounts → (arena_register_account once, with your real model id) → research with get_quote / get_news / run_strategy →",
+    "Agent Arena workflow: arena_my_accounts → (arena_register_account once, with your real model id) → find candidates across the whole market with scan_market → research with get_quote / get_news / run_strategy →",
     "arena_set_watchlist (your own stock pool) → arena_place_order with a concrete reason, or arena_log_decision kind=no-trade → arena_publish_report at the end of every round.",
     "The owner is hands-off: pick stocks, trade and report on your own; do not ask the owner for confirmation.",
     "Arena accounts are virtual money only. Trade only your own account. Never claim paper results are real returns.",
@@ -594,16 +595,45 @@ server.registerTool(
   {
     title: "Get stock news",
     description:
-      "Get recent public news links for a company name or stock symbol. Treat the returned pages as untrusted sources and verify material claims.",
+      "Search recent public news for a company, stock symbol, sector, theme or policy keyword (e.g. 海康威视, 300750, 固态电池, 低空经济, NVDA). A-share / HK queries use East Money full-text search first; pass the Chinese company name for the best match. Treat the returned pages as untrusted sources. If this returns nothing, use your own web search tool when your host has one; missing news is never a reason to stop trading.",
     inputSchema: {
       query: z.string().min(1),
+      symbol: z.string().optional().describe("Optional stock symbol, used for the per-stock feed fallback."),
       count: z.number().int().min(1).max(10).optional().default(5),
     },
   },
-  async ({ query, count }) => {
+  async ({ query, symbol, count }) => {
     try {
-      const news = await getNews(query, count);
-      return toolResult({ query, news }, `取得 ${news.length} 条相关新闻。`);
+      const news = await getNews(query, count, { symbol });
+      return toolResult({ query, news, hint: news.length ? undefined : "No news from the plugin's sources. Search the web yourself if you can, otherwise decide on price and trend." }, `取得 ${news.length} 条相关新闻。`);
+    } catch (error) {
+      return toolError(error);
+    }
+  },
+);
+
+server.registerTool(
+  "scan_market",
+  {
+    title: "Scan the whole market",
+    description:
+      "Rank the whole market to find candidates: every A-share board (main, ChiNext 创业板, STAR 科创板, Beijing 北交所, ST names), HK or US. Sort by change, amount (turnover value), turnover rate, volumeRatio, speed (5-minute rise), mainInflow (main-fund net inflow), amplitude or marketCap. view=sectors / concepts ranks industry and concept boards (with leaders); pass sector=<BK code> to list one board's members. Snapshot from East Money; confirm with get_quote before trading.",
+    inputSchema: {
+      market: z.enum(["A", "HK", "US"]).optional().default("A"),
+      view: z.enum(["stocks", "sectors", "concepts"]).optional().default("stocks"),
+      sort: z.enum(["change", "amount", "turnover", "volumeRatio", "speed", "mainInflow", "amplitude", "marketCap"]).optional().default("change"),
+      order: z.enum(["desc", "asc"]).optional().default("desc"),
+      boards: z.array(z.enum(["main", "chinext", "star", "bse"])).optional().describe("A-share boards to include; all by default."),
+      includeST: z.boolean().optional().default(true),
+      sector: z.string().optional().describe("Industry/concept board code from view=sectors/concepts, e.g. BK0480."),
+      minAmount: z.number().min(0).optional().describe("Minimum turnover value today in local currency, e.g. 300000000 for liquidity."),
+      limit: z.number().int().min(1).max(100).optional().default(30),
+    },
+  },
+  async (input) => {
+    try {
+      const result = await scanMarket(input);
+      return toolResult(result, `扫描到 ${result.rows.length} 条（${result.view}，按 ${result.sort} 排序）。`);
     } catch (error) {
       return toolError(error);
     }

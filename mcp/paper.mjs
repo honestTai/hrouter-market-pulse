@@ -25,7 +25,7 @@ function paperSymbol(symbol) {
 export function futuCode(symbol, market) {
   const normalized = paperSymbol(symbol);
   if (market === "HK" && /^\d{4,5}\.HK$/.test(normalized)) return `HK.${normalized.split(".")[0].padStart(5, "0")}`;
-  if (market === "US" && /^[A-Z][A-Z0-9.\-]{0,14}$/.test(normalized) && !/^US\./.test(normalized) && !/\.(HK|SS|SZ)$/.test(normalized)) return `US.${normalized}`;
+  if (market === "US" && /^[A-Z][A-Z0-9.\-]{0,14}$/.test(normalized) && !/^US\./.test(normalized) && !/\.(HK|SS|SZ|BJ)$/.test(normalized)) return `US.${normalized}`;
   fail("Only HK/US symbols matching the selected account market are supported / 仅支持对应市场的港美股");
 }
 function account(input) {

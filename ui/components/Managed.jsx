@@ -89,7 +89,7 @@ export function ManagedPortfolioPage() {
         {latest ? <div className="managed-report"><ReportCard report={latest} featured /></div> : <Empty compact icon={FileText} title={t("Agent 还没有发布报告", "No report from the agent yet")} description={t("全托管提示词会要求 Agent 每轮结束时发布结论。", "The autopilot prompt asks the agent to publish a conclusion after every round.")} />}
       </section>
       <section className="surface">
-        <SectionHeading icon={Wallet} title={t("净值走势", "Equity")} caption={t("虚线为初始资金", "Dashed: starting cash")} />
+        <SectionHeading icon={Wallet} title={t("净值走势", "Equity")} caption={t("虚线为初始资金", "Dashed: starting cash")} expandable />
         <div className="arena-chart"><EquityChart account={account} /></div>
         <dl className="managed-stats">
           <div><dt>{t("现金", "Cash")}</dt><dd className="tabular">{number(m.cash)}</dd></div>
@@ -104,7 +104,7 @@ export function ManagedPortfolioPage() {
     </div>
 
     <section className="surface">
-      <SectionHeading icon={Wallet} title={t("Agent 持仓", "Agent holdings")} caption={`${account.positions.length}`} />
+      <SectionHeading icon={Wallet} title={t("Agent 持仓", "Agent holdings")} caption={`${account.positions.length}`} expandable />
       {account.positions.length ? <div className="table-scroll"><Table.Root size="2">
         <Table.Header><Table.Row>
           <Table.ColumnHeaderCell>{t("标的", "Security")}</Table.ColumnHeaderCell>

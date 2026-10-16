@@ -22,7 +22,7 @@ import { createPaperBroker } from "./brokers.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
 export const RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "command", "strategy"];
-export const SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 10, tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3 });
+export const SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 5, tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3 });
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const minuteOf = (time) => { const [, h, m] = time.match(TIME); return Number(h) * 60 + Number(m); };
@@ -52,6 +52,7 @@ export function sanitizeJob(input, current = {}) {
     if (!Number.isFinite(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 60) throw new ArenaError("timeoutMinutes must be between 1 and 60.");
     const next = { type: runner.type, timeoutMinutes, language: runner.language === "en" ? "en" : "zh-CN" };
     if (runner.model) next.model = String(runner.model).slice(0, 80);
+    if (runner.webSearch === false) next.webSearch = false;
     if (runner.command) next.command = String(runner.command).slice(0, 500);
     if (Array.isArray(runner.args)) next.args = runner.args.slice(0, 40).map((arg) => String(arg).slice(0, 2000));
     if (runner.maxBudgetUsd !== undefined && runner.maxBudgetUsd !== null && runner.maxBudgetUsd !== "") {
@@ -112,7 +113,8 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
     const mcp = { mcpServers: { hrouter_market_pulse: { command: nodePath, args: [bundlePath, "--stdio"], env } } };
     const args = [
       "-p", prompt, "--mcp-config", JSON.stringify(mcp), "--strict-mcp-config",
-      "--allowedTools", "mcp__hrouter_market_pulse", "--permission-mode", "dontAsk",
+      // Web search/fetch let the agent research news itself when the plugin's feeds come up empty.
+      "--allowedTools", runner.webSearch === false ? "mcp__hrouter_market_pulse" : "mcp__hrouter_market_pulse,WebSearch,WebFetch", "--permission-mode", "dontAsk",
       "--output-format", "text", "--no-session-persistence",
       ...(runner.model ? ["--model", runner.model] : []),
       ...(runner.maxBudgetUsd && runner.type === "claude" ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : []),
@@ -140,6 +142,8 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
       // Only this plugin's tools are pre-approved; shell stays read-only and nothing else is granted.
       "-c", 'mcp_servers.hrouter_market_pulse.default_tools_approval_mode="approve"',
       "-c", 'approval_policy="never"',
+      // Live web search for news and events the plugin's feeds miss (read-only, no shell access).
+      "-c", `web_search=${runner.webSearch === false ? '"disabled"' : '"live"'}`,
       // An installed copy of this plugin would add a second same-named server; keep only ours.
       "-c", 'plugins."hrouter-market-pulse@hrouter-market-pulse".enabled=false',
       ...(runner.model ? ["-m", runner.model] : []),
@@ -370,7 +374,7 @@ export function createScheduler({
       });
     },
     // Give a new agent account the owner's default repeat schedule, unless it already has one.
-    async ensureDefaultSchedule(accountId, intervalMinutes = 30) {
+    async ensureDefaultSchedule(accountId, intervalMinutes = 15) {
       if (!intervalMinutes) return { created: false, reason: "default schedule disabled" };
       const { jobs } = await readState();
       if (jobs.some((job) => job.accountId === accountId)) return { created: false, reason: "already scheduled" };

@@ -101,7 +101,7 @@ export function normalizeSymbol(input) {
   const raw = String(input ?? "").trim().toUpperCase().replace(/\s+/g, "");
   if (!raw) throw new Error("股票代码不能为空");
 
-  if (/^[A-Z0-9.^=-]+\.(SS|SZ|HK)$/.test(raw) || raw.startsWith("^")) return raw;
+  if (/^[A-Z0-9.^=-]+\.(SS|SZ|BJ|HK)$/.test(raw) || raw.startsWith("^")) return raw;
   if (/^HK\d{1,5}$/.test(raw)) {
     const code = String(Number(raw.slice(2))).padStart(4, "0");
     return `${code}.HK`;
@@ -110,7 +110,7 @@ export function normalizeSymbol(input) {
     return `${String(Number(raw)).padStart(4, "0")}.HK`;
   }
   if (/^\d{6}$/.test(raw)) {
-    return `${raw}.${/^[569]/.test(raw) ? "SS" : "SZ"}`;
+    return `${raw}.${/^(92|8|4)/.test(raw) ? "BJ" : /^[569]/.test(raw) ? "SS" : "SZ"}`;
   }
   if (/^[A-Z][A-Z0-9.-]{0,14}$/.test(raw)) return raw;
   throw new Error(`无法识别股票代码: ${input}`);
@@ -118,7 +118,7 @@ export function normalizeSymbol(input) {
 
 export function marketFromSymbol(symbol) {
   const normalized = normalizeSymbol(symbol);
-  if (normalized.endsWith(".SS") || normalized.endsWith(".SZ")) return "A";
+  if (/\.(SS|SZ|BJ)$/.test(normalized)) return "A";
   if (normalized.endsWith(".HK") || ["^HSI", "^HSTECH", "^HSCE"].includes(normalized)) return "HK";
   return "US";
 }
@@ -382,6 +382,7 @@ function tencentCodeForSymbol(input) {
   if (TENCENT_INDEX_CODES[symbol]) return TENCENT_INDEX_CODES[symbol];
   if (symbol.endsWith(".SS")) return `sh${symbol.slice(0, -3)}`;
   if (symbol.endsWith(".SZ")) return `sz${symbol.slice(0, -3)}`;
+  if (symbol.endsWith(".BJ")) return `bj${symbol.slice(0, -3)}`;
   if (symbol.endsWith(".HK")) return `hk${symbol.slice(0, -3).padStart(5, "0")}`;
   if (symbol.startsWith("^")) throw new Error(`腾讯财经暂不支持指数代码 ${symbol}`);
   return `us${symbol}`;
@@ -635,7 +636,7 @@ export function eastmoneyIds(input) {
   const symbol = normalizeSymbol(input);
   if (symbol.startsWith("^")) return [];
   if (symbol.endsWith(".SS")) return [`1.${symbol.slice(0, -3)}`];
-  if (symbol.endsWith(".SZ")) return [`0.${symbol.slice(0, -3)}`];
+  if (symbol.endsWith(".SZ") || symbol.endsWith(".BJ")) return [`0.${symbol.slice(0, -3)}`];
   if (symbol.endsWith(".HK")) return [`116.${symbol.slice(0, -3).padStart(5, "0")}`];
   const ticker = symbol.replace(/-/g, "_");
   return ["105", "106", "107"].map((market) => `${market}.${ticker}`); // NASDAQ, NYSE, NYSE American
@@ -720,7 +721,10 @@ export async function getQuote(input, options = {}) {
   const [eastmoneyResult] = yahooUsable && tencentUsable || options.eastmoney === false
     ? [{ status: "rejected", reason: new Error("not needed") }]
     : await Promise.allSettled([getEastmoneyQuote(symbol)]);
-  const quote = yahooUsable ? yahooResult.value : tencentUsable ? tencentResult.value : yahooResult.status === "fulfilled" ? yahooResult.value : tencentResult.status === "fulfilled" ? tencentResult.value : null;
+  // Yahoo delays A-share and some HK quotes by ~15 minutes. When Tencent is clearly fresher, it
+  // becomes the primary and the lagging Yahoo quote only serves as the cross-check.
+  const tencentFresher = yahooUsable && tencentUsable && Date.parse(tencentResult.value.asOf) - Date.parse(yahooResult.value.asOf) > (options.maxTimestampSkewSeconds ?? 120) * 1000;
+  const quote = tencentFresher ? tencentResult.value : yahooUsable ? yahooResult.value : tencentUsable ? tencentResult.value : yahooResult.status === "fulfilled" ? yahooResult.value : tencentResult.status === "fulfilled" ? tencentResult.value : null;
   if (!quote) throw new Error(`行情请求失败：Yahoo Finance: ${yahooResult.reason?.message}; Tencent Finance: ${tencentResult.reason?.message}`);
   if (!quote.history.length) {
     try {
@@ -734,11 +738,15 @@ export async function getQuote(input, options = {}) {
   if (!options.now) normalizedOptions.now = new Date().toISOString();
   quote.freshness = assessQuoteFreshness(quote, normalizedOptions);
   const selectedYahoo = quote === yahooResult.value;
-  quote.dataSources = [{ provider: quote.provider, role: selectedYahoo ? "primary" : "fallback", price: quote.price, asOf: quote.asOf, freshness: quote.freshness }];
+  quote.dataSources = [{ provider: quote.provider, role: selectedYahoo || tencentFresher ? "primary" : "fallback", price: quote.price, asOf: quote.asOf, freshness: quote.freshness }];
   if (yahooUsable && tencentUsable) {
-    const check = tencentResult.value;
-    quote.crossCheck = crossCheckQuotes(quote, check, normalizedOptions);
-    quote.source = "Yahoo Finance + Tencent Finance";
+    const check = selectedYahoo ? tencentResult.value : yahooResult.value;
+    const compared = crossCheckQuotes(quote, check, normalizedOptions);
+    // A fresh primary with a lagging second source is single-source data, not a conflict.
+    quote.crossCheck = compared.status === "time-mismatch" && compared.primaryFreshness.signalEligible
+      ? { ...compared, status: "fallback", error: `${check.provider} lags the primary by ${Math.round(compared.timestampSkewSeconds ?? 0)}s` }
+      : compared;
+    quote.source = selectedYahoo ? "Yahoo Finance + Tencent Finance" : "Tencent Finance + Yahoo Finance";
     quote.dataSources.push({ provider: check.provider, role: "cross-check", price: check.price, asOf: check.asOf, freshness: quote.crossCheck.secondaryFreshness });
   } else if (sourceUsable(eastmoneyResult) && (selectedYahoo || quote === tencentResult.value)) {
     // Yahoo or Tencent is missing: cross-check the remaining one against East Money instead.
@@ -1010,20 +1018,46 @@ export function calculatePositionBudget(input) {
   };
 }
 
+// News for A-share / HK names comes from East Money first (per-stock feed plus full-text search);
+// Yahoo's search mostly returns unrelated English headlines for them. US names try Yahoo first.
 export async function getNews(query, count = 5, { symbol } = {}) {
   const boundedCount = Math.max(0, Math.min(10, Number(count) || 5));
-  let yahoo = [];
-  let yahooError = null;
-  try { yahoo = await getYahooNews(query, boundedCount); } catch (error) { yahooError = error; }
-  if (yahoo.length) return yahoo;
-  try {
-    const fallback = await getEastmoneyNews(symbol ?? query, boundedCount);
-    if (fallback.length || !yahooError) return fallback;
-  } catch (error) {
-    if (!yahooError) return [];
-    throw new Error(`新闻源均不可用 / news unavailable: Yahoo ${yahooError.message}; East Money ${error.message}`);
+  let market = null;
+  try { market = marketFromSymbol(symbol ?? query); } catch { /* free-text query */ }
+  const chinese = /[\u4e00-\u9fff]/u.test(String(query)) || (market && market !== "US" && /\d/.test(String(symbol ?? query)));
+  const sources = chinese
+    ? [() => searchEastmoneyNews(query, boundedCount), () => getEastmoneyNews(symbol ?? query, boundedCount), () => getYahooNews(query, boundedCount)]
+    : [() => getYahooNews(query, boundedCount), () => getEastmoneyNews(symbol ?? query, boundedCount), () => searchEastmoneyNews(query, boundedCount)];
+  const errors = [];
+  for (const source of sources) {
+    try {
+      const items = await source();
+      if (items.length) return items;
+    } catch (error) { errors.push(error.message); }
   }
-  throw yahooError;
+  if (errors.length === sources.length) throw new Error(`新闻源均不可用 / news unavailable: ${errors.join("; ")}`);
+  return [];
+}
+
+// East Money full-text news search: works for any keyword (company, theme, sector, policy).
+const EASTMONEY_SEARCH = "https://search-api-web.eastmoney.com/search/jsonp";
+export function parseEastmoneySearch(text, count = 5) {
+  const json = JSON.parse(String(text).replace(/^[^(]*\(/, "").replace(/\);?\s*$/, ""));
+  return (json?.result?.cmsArticleWebOld ?? []).slice(0, count).map((item) => ({
+    title: String(item.title ?? "").replace(/<[^>]+>/g, ""),
+    publisher: item.mediaName ? `${item.mediaName} / 东方财富` : "东方财富 / East Money",
+    publishedAt: item.date ? new Date(`${item.date.replace(" ", "T")}+08:00`).toISOString() : null,
+    url: item.url ?? "",
+    summary: String(item.content ?? "").replace(/<[^>]+>/g, "").slice(0, 300),
+  }));
+}
+
+export async function searchEastmoneyNews(keyword, count = 5) {
+  const param = { uid: "", keyword: String(keyword).slice(0, 60), type: ["cmsArticleWebOld"], client: "web", clientType: "web", clientVersion: "curr",
+    param: { cmsArticleWebOld: { searchScope: "default", sort: "default", pageIndex: 1, pageSize: Math.max(1, Math.min(20, count)), preTag: "", postTag: "" } } };
+  const response = await fetch(`${EASTMONEY_SEARCH}?cb=cb&param=${encodeURIComponent(JSON.stringify(param))}`, { headers: { "User-Agent": "Mozilla/5.0", Referer: "https://so.eastmoney.com/" }, signal: AbortSignal.timeout(8000) });
+  if (!response.ok) throw new Error(`East Money search HTTP ${response.status}`);
+  return parseEastmoneySearch(await response.text(), count);
 }
 
 async function getYahooNews(query, boundedCount) {
@@ -1104,7 +1138,7 @@ export async function loadPreferences() {
     monitorIntervalSeconds: Math.max(60, Math.min(3600, finite(saved.monitorIntervalSeconds) ?? 300)),
     managedAccountId: typeof saved.managedAccountId === "string" ? saved.managedAccountId : null,
     // New agent accounts get a repeat-every-N-minutes schedule automatically (0 = off).
-    defaultAgentIntervalMinutes: Number.isInteger(saved.defaultAgentIntervalMinutes) ? saved.defaultAgentIntervalMinutes : 30,
+    defaultAgentIntervalMinutes: Number.isInteger(saved.defaultAgentIntervalMinutes) ? saved.defaultAgentIntervalMinutes : 15,
     digestWebhook: saved.digestWebhook && typeof saved.digestWebhook.url === "string" ? saved.digestWebhook : null,
     reportPort: getReportPort(),
     reportDirectory: getStorageDir(),
@@ -1268,13 +1302,13 @@ export function sanitizePreferences(input, current = {}) {
     monitorIntervalSeconds: input.monitorIntervalSeconds ?? current.monitorIntervalSeconds ?? 300,
     // Arena account whose agent manages the owner's portfolio (null = follow the most active account).
     managedAccountId: input.managedAccountId === undefined ? current.managedAccountId ?? null : input.managedAccountId,
-    defaultAgentIntervalMinutes: input.defaultAgentIntervalMinutes === undefined ? current.defaultAgentIntervalMinutes ?? 30 : input.defaultAgentIntervalMinutes,
+    defaultAgentIntervalMinutes: input.defaultAgentIntervalMinutes === undefined ? current.defaultAgentIntervalMinutes ?? 15 : input.defaultAgentIntervalMinutes,
     // Optional end-of-day arena digest push: generic JSON POST, or WeChat Work / Feishu bot payloads.
     digestWebhook: input.digestWebhook === undefined ? current.digestWebhook ?? null : sanitizeDigestWebhook(input.digestWebhook),
   };
   if (next.managedAccountId !== null && !/^acc_[a-f0-9]{12}$/.test(next.managedAccountId)) throw new Error("managedAccountId must be an arena account id or null.");
-  if (!Number.isInteger(next.defaultAgentIntervalMinutes) || next.defaultAgentIntervalMinutes < 0 || next.defaultAgentIntervalMinutes > 240 || (next.defaultAgentIntervalMinutes > 0 && next.defaultAgentIntervalMinutes < 10))
-    throw new Error("defaultAgentIntervalMinutes must be 0 (off) or a whole number of minutes from 10 to 240.");
+  if (!Number.isInteger(next.defaultAgentIntervalMinutes) || next.defaultAgentIntervalMinutes < 0 || next.defaultAgentIntervalMinutes > 240 || (next.defaultAgentIntervalMinutes > 0 && next.defaultAgentIntervalMinutes < 5))
+    throw new Error("defaultAgentIntervalMinutes must be 0 (off) or a whole number of minutes from 5 to 240.");
   return next;
 }
 
@@ -1440,4 +1474,102 @@ export async function loadReport(runId = "latest", format = "json") {
   const safeRunId = String(runId).replace(/[^A-Za-z0-9_-]/g, "");
   if (!safeRunId) throw new Error("无效的报告编号");
   return readFile(path.join(getStorageDir(), "reports", `${safeRunId}.${format}`), "utf8");
+}
+
+// Whole-market scanner (East Money ranking lists). Lets agents and strategies pick from every board —
+// main board, ChiNext, STAR, the Beijing Stock Exchange, ST names, HK and US — instead of a few
+// remembered large caps. Values are a delayed-to-realtime public snapshot; confirm with get_quote
+// before trading.
+const EASTMONEY_LIST = "https://push2.eastmoney.com/api/qt/clist/get";
+export const SCAN_SORTS = Object.freeze({ change: "f3", amount: "f6", turnover: "f8", volumeRatio: "f10", speed: "f22", mainInflow: "f62", amplitude: "f7", marketCap: "f20" });
+export const A_BOARDS = Object.freeze({ main: ["m:1+t:2", "m:0+t:6"], chinext: ["m:0+t:80"], star: ["m:1+t:23"], bse: ["m:0+t:81+s:2048"] });
+const SCAN_FIELDS = "f2,f3,f5,f6,f7,f8,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f22,f62,f100";
+
+function scanSymbol(code, marketId, market) {
+  if (market === "HK") return `${String(Number(code)).padStart(4, "0")}.HK`;
+  if (market === "US") return String(code).replace(/_/g, "-");
+  if (/^(92|8|4)/.test(code)) return `${code}.BJ`;
+  return `${code}.${marketId === 1 ? "SS" : "SZ"}`;
+}
+
+function boardOf(symbol, name) {
+  const st = /ST/i.test(name ?? "");
+  const board = symbol.endsWith(".BJ") ? "bse" : /^68/.test(symbol) ? "star" : /^30/.test(symbol) ? "chinext" : "main";
+  return { board, st };
+}
+
+const number = (value) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+
+export function parseEastmoneyList(payload, { market = "A" } = {}) {
+  return (payload?.data?.diff ?? []).map((row) => {
+    const symbol = scanSymbol(row.f12, row.f13, market);
+    const { board, st } = market === "A" ? boardOf(symbol, row.f14) : { board: null, st: false };
+    return {
+      symbol, name: row.f14, market, board, st, industry: row.f100 && row.f100 !== "-" ? row.f100 : null,
+      price: number(row.f2), changePct: number(row.f3), amount: number(row.f6), turnoverPct: number(row.f8),
+      volumeRatio: number(row.f10), speedPct: number(row.f22), mainNetInflow: number(row.f62), amplitudePct: number(row.f7),
+      open: number(row.f17), high: number(row.f15), low: number(row.f16), previousClose: number(row.f18),
+      marketCap: number(row.f20), floatMarketCap: number(row.f21),
+    };
+  }).filter((row) => row.price !== null);
+}
+
+export async function scanMarket({ market = "A", view = "stocks", sort = "change", order = "desc", boards, includeST = true, sector, minAmount = 0, limit = 30 } = {}) {
+  const bounded = Math.max(1, Math.min(100, Number(limit) || 30));
+  const fid = SCAN_SORTS[sort] ?? "f3";
+  if (view === "sectors" || view === "concepts") {
+    const payload = await fetchJson(`${EASTMONEY_LIST}?pn=1&pz=${bounded}&po=${order === "asc" ? 0 : 1}&np=1&fltt=2&invt=2&fid=${fid}&fs=${view === "concepts" ? "m:90+t:3" : "m:90+t:2"}&fields=f2,f3,f6,f8,f12,f14,f62,f104,f105,f128,f140`, 10000, false);
+    return {
+      market: "A", view, sort, asOf: new Date().toISOString(), source: "East Money",
+      rows: (payload?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, changePct: number(row.f3), amount: number(row.f6), turnoverPct: number(row.f8), mainNetInflow: number(row.f62), advancers: row.f104 ?? null, decliners: row.f105 ?? null, leader: row.f128 ? { name: row.f128, symbol: scanSymbol(row.f140, null, "A") } : null })),
+    };
+  }
+  let fs;
+  if (sector) fs = `b:${String(sector).toUpperCase().replace(/[^A-Z0-9]/g, "")}`;
+  else if (market === "HK") fs = "m:128+t:3,m:128+t:4,m:128+t:1,m:128+t:2";
+  else if (market === "US") fs = "m:105,m:106,m:107";
+  else fs = (boards?.length ? boards : Object.keys(A_BOARDS)).flatMap((board) => A_BOARDS[board] ?? []).join(",");
+  if (!fs) throw new Error("No board selected. Use main, chinext, star or bse.");
+  // Over-fetch so ST / turnover filters still leave enough rows.
+  const filtered = !includeST || minAmount > 0;
+  const payload = await fetchJson(`${EASTMONEY_LIST}?pn=1&pz=${filtered ? Math.min(300, bounded * 4) : bounded}&po=${order === "asc" ? 0 : 1}&np=1&fltt=2&invt=2&fid=${fid}&fs=${fs}&fields=${SCAN_FIELDS}`, 10000, false);
+  const rows = parseEastmoneyList(payload, { market: sector ? "A" : market })
+    .filter((row) => includeST || !row.st)
+    .filter((row) => !(minAmount > 0) || (row.amount ?? 0) >= minAmount)
+    .slice(0, bounded);
+  return { market, view: "stocks", sort, order, boards: boards ?? (market === "A" ? Object.keys(A_BOARDS) : null), includeST, sector: sector ?? null, total: payload?.data?.total ?? null, asOf: new Date().toISOString(), source: "East Money", rows };
+}
+
+// Today's 1-minute bars (A-share incl. Beijing, HK) from Tencent: price, volume and running VWAP.
+// US names use Yahoo 5-minute bars. Bars are only the minutes that have already completed.
+export function parseTencentMinutes(payload, code, market) {
+  const node = payload?.data?.[code]?.data;
+  const rows = node?.data ?? [];
+  const date = String(node?.date ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
+  const volumeUnit = market === "A" ? 100 : 1;
+  let previousVolume = 0;
+  return rows.map((line) => {
+    const [time, price, cumVolume, cumAmount] = String(line).split(" ");
+    const volume = Number(cumVolume) * volumeUnit;
+    const amount = Number(cumAmount);
+    const bar = { time: `${time.slice(0, 2)}:${time.slice(2, 4)}`, date: date || null, price: Number(price), volume: Math.max(0, volume - previousVolume), cumVolume: volume, vwap: volume > 0 && amount > 0 ? amount / volume : Number(price) };
+    previousVolume = volume;
+    return bar;
+  }).filter((bar) => Number.isFinite(bar.price) && bar.price > 0);
+}
+
+export async function getIntradayBars(input) {
+  const symbol = normalizeSymbol(input);
+  const market = marketFromSymbol(symbol);
+  if (market === "US") {
+    const quote = await getYahooQuote(symbol, { interval: "5m", range: "1d", historyLimit: 200 });
+    let cumVolume = 0, cumAmount = 0;
+    return { symbol, market, period: "5m", source: "Yahoo Finance", bars: (quote.history ?? []).map((bar) => {
+      cumVolume += bar.volume ?? 0; cumAmount += (bar.volume ?? 0) * bar.close;
+      return { time: String(bar.timestamp ?? bar.date).slice(11, 16), date: String(bar.timestamp ?? bar.date).slice(0, 10), price: bar.close, volume: bar.volume ?? 0, cumVolume, vwap: cumVolume ? cumAmount / cumVolume : bar.close };
+    }) };
+  }
+  const code = tencentCodeForSymbol(symbol);
+  const payload = await fetchJson(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${code}`, 10000, false);
+  return { symbol, market, period: "1m", source: "Tencent Finance", bars: parseTencentMinutes(payload, code, market) };
 }

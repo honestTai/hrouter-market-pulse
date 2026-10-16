@@ -130,7 +130,7 @@ export async function createDemoArena() {
     // Synthetic quotes: hold the seeded marks so the demo stays stable while it is open.
     quoteProvider: async (symbol) => {
       const position = prices.get(symbol);
-      const market = /\.(SS|SZ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) ? "HK" : "US";
+      const market = /\.(SS|SZ|BJ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) ? "HK" : "US";
       const base = position?.lastPrice ?? ({ "000300.SS": 103.1, "^GSPC": 102.4, "^HSI": 101.2 }[symbol] ?? 50);
       return { symbol, name: position?.name ?? symbol, market, price: base, asOf: new Date().toISOString(), provider: "Synthetic demo", lotSize: market === "HK" ? 100 : null, limitUp: null, limitDown: null };
     },

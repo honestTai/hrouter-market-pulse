@@ -60,6 +60,9 @@ export default {
 | `ctx.universe` | 股票池：参数 `universe` → 账户的 Agent 股票池 → 当前持仓 |
 | `ctx.history(symbol, { days })` | **只返回已收盘**的日线（`complete` 且 `availableAt ≤ 现在`），从旧到新；当天未完成的 K 线永远看不到，避免未来函数 |
 | `ctx.quote(symbol)` | 实时报价（价格、时间、来源、每手、涨跌停） |
+| `ctx.intraday(symbol)` | 当日**已走完**的 1 分钟线（美股 5 分钟），含成交量与累计均价 `vwap`；正在形成的那一分钟不返回 |
+| `ctx.scan({ sort, boards, includeST, minAmount, limit, sector })` | 全市场排行（同 `scan_market` 工具），可直接用作动态股票池 |
+| `ctx.sellable(symbol)` | 现在可卖的股数（A 股 T+1：今天买的不算）。目标权重换算成订单时也会自动避开锁定股份 |
 | `ctx.params` | 已校验的参数（类型、上下限） |
 | `ctx.indicators.sma(values, n)` | 简单均线；更多指标可以自行计算 |
 | `ctx.log(message)` | 写入运行记录 |
@@ -85,3 +88,8 @@ export default {
 ## 回测与模拟盘的关系
 
 `run_backtest`（`mcp/foundation.mjs`）用历史数据做无未来函数的样本外回测；竞技场是**前向**的模拟盘，用真实时间、真实行情检验。建议流程：回测筛选 → 竞技场前向跑一段时间 → 达标后接实盘建议（advisory）→ 人工确认执行。
+
+## 内置日内策略 `intraday-momentum`
+
+每轮用 `ctx.scan` 取全市场成交最活跃的股票（默认含创业板、科创板、北交所，不含 ST，成交额 ≥ 3 亿），挑选涨幅在 2%–8%、站上当日均价线且近 15 分钟继续上攻的标的等权持有；跌破均价线 0.5% 或从日内高点回撤 4% 时卖出（A 股今天买的明天才卖）。14:30 后不再开新仓，买单自带 5% 止损、12% 止盈。适合「交易时段每 1–5 分钟」运行。示例策略，不构成投资建议。
+

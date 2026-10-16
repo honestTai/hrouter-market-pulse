@@ -51,6 +51,7 @@ export function createPaperBroker({ arena, accountId, caller }) {
     logDecision: (entry) => arena.logDecision({ accountId, ...entry }, caller),
     publishReport: (report) => arena.publishReport({ accountId, ...report }, caller),
     setExits: (input) => arena.setExits({ accountId, ...input }, caller),
+    touchRound: (kind) => arena.touchRound(accountId, kind, caller),
   };
 }
 

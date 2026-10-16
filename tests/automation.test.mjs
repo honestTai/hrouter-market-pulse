@@ -108,7 +108,10 @@ test("strategy rounds trade through the paper broker, never see unfinished bars,
     assert.match(detail.reports[0].title, /调仓 2 笔/);
     // Re-running the same run id is idempotent: no duplicate orders.
     await runStrategyRound({ strategy: maTrend, params: { universe: ["600519.SS", "300750.SZ"], maxPositions: 2 }, broker, runId: "run_test01", now: () => OPEN_A, historyProvider: async (symbol) => history(symbol), quoteProvider: async (symbol) => ({ price: prices[symbol] }) });
-    assert.equal((await arena.getAccount(account.id, { sync: false })).trades.length, 2);
+    const afterRepeat = await arena.getAccount(account.id, { sync: false });
+    assert.equal(afterRepeat.trades.length, 2);
+    assert.equal(afterRepeat.reports.length, 1, "a no-change repeat round does not publish another report the same day");
+    assert.ok(Date.parse(afterRepeat.lastRoundAt) >= Date.parse(detail.reports[0].at), "but it still counts as a round");
     const flat = await runStrategyRound({ strategy: momentum, params: { universe: ["601318.SS"] }, broker: createPaperBroker({ arena, accountId: (await arena.createAccount({ name: "M", model: "s", market: "A" }, { client: "dashboard" })).id, caller: { client: "strategy-momentum-rotation" } }), now: () => OPEN_A, historyProvider: async (symbol) => history(symbol), quoteProvider: async (symbol) => ({ price: prices[symbol] }) });
     assert.equal(flat.orders.length, 0, "falling stock has negative momentum");
   } finally { await cleanup(); }

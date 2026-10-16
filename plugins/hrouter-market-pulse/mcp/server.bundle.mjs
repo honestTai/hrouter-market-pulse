@@ -8719,6 +8719,8 @@ async function loadPreferences() {
     calendarOverrides: saved.calendarOverrides ?? {},
     monitorIntervalSeconds: Math.max(60, Math.min(3600, finite(saved.monitorIntervalSeconds) ?? 300)),
     managedAccountId: typeof saved.managedAccountId === "string" ? saved.managedAccountId : null,
+    // New agent accounts get a repeat-every-N-minutes schedule automatically (0 = off).
+    defaultAgentIntervalMinutes: Number.isInteger(saved.defaultAgentIntervalMinutes) ? saved.defaultAgentIntervalMinutes : 30,
     digestWebhook: saved.digestWebhook && typeof saved.digestWebhook.url === "string" ? saved.digestWebhook : null,
     reportPort: getReportPort(),
     reportDirectory: getStorageDir(),
@@ -8878,10 +8880,13 @@ function sanitizePreferences(input, current = {}) {
     monitorIntervalSeconds: input.monitorIntervalSeconds ?? current.monitorIntervalSeconds ?? 300,
     // Arena account whose agent manages the owner's portfolio (null = follow the most active account).
     managedAccountId: input.managedAccountId === void 0 ? current.managedAccountId ?? null : input.managedAccountId,
+    defaultAgentIntervalMinutes: input.defaultAgentIntervalMinutes === void 0 ? current.defaultAgentIntervalMinutes ?? 30 : input.defaultAgentIntervalMinutes,
     // Optional end-of-day arena digest push: generic JSON POST, or WeChat Work / Feishu bot payloads.
     digestWebhook: input.digestWebhook === void 0 ? current.digestWebhook ?? null : sanitizeDigestWebhook(input.digestWebhook)
   };
   if (next.managedAccountId !== null && !/^acc_[a-f0-9]{12}$/.test(next.managedAccountId)) throw new Error("managedAccountId must be an arena account id or null.");
+  if (!Number.isInteger(next.defaultAgentIntervalMinutes) || next.defaultAgentIntervalMinutes < 0 || next.defaultAgentIntervalMinutes > 240 || next.defaultAgentIntervalMinutes > 0 && next.defaultAgentIntervalMinutes < 10)
+    throw new Error("defaultAgentIntervalMinutes must be 0 (off) or a whole number of minutes from 10 to 240.");
   return next;
 }
 function sanitizeDigestWebhook(input) {
@@ -16679,595 +16684,13 @@ function callerFromClient(clientInfo) {
   return { client: name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 60), clientVersion: clientInfo?.version ?? null, clientName: clientInfo?.name ?? null };
 }
 
-// mcp/arena-tools.mjs
-var accountId = external_exports.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_\u2026) returned by arena_register_account or arena_my_accounts.");
-var market = external_exports.enum(["A", "HK", "US"]);
-var exitFields = {
-  stopLossPrice: external_exports.number().positive().optional().describe("Protective stop: sell everything sellable at market when a fresh quote trades at or below this price."),
-  stopLossPct: external_exports.number().positive().max(95).optional().describe("Protective stop as % below the average cost (e.g. 8 = cost \xD7 0.92). Use price or pct, not both."),
-  takeProfitPrice: external_exports.number().positive().optional().describe("Take profit: sell at market when a fresh quote trades at or above this price."),
-  takeProfitPct: external_exports.number().positive().max(1e3).optional().describe("Take profit as % above the average cost (e.g. 20 = cost \xD7 1.2).")
-};
-function compactAccount(account2) {
-  const { metrics } = account2;
-  const flags = [
-    account2.health?.status === "missed" ? `MISSED ${account2.health.missedTradingDays} trading day(s)` : null,
-    account2.risk?.breaker ? `RISK BREAKER TRIPPED (${account2.risk.breaker.drawdownPct}%): buys blocked` : null
-  ].filter(Boolean);
-  return `${account2.name} [${account2.id}] ${account2.market} ${account2.currency} \xB7 model ${account2.model} \xB7 equity ${metrics.equity} (${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct}%) \xB7 cash ${metrics.availableCash} \xB7 ${metrics.positions} positions \xB7 ${metrics.openOrders} open orders${flags.length ? ` \xB7 ${flags.join(" \xB7 ")}` : ""}`;
-}
-function policyText(policy) {
-  if (!policy) return "";
-  const parts = [
-    policy.maxPositionPct ? `max ${policy.maxPositionPct}% per position` : null,
-    policy.maxExposurePct ? `max ${policy.maxExposurePct}% total exposure` : null,
-    policy.maxDrawdownPct ? `drawdown breaker at -${policy.maxDrawdownPct}% (${policy.onBreach === "reduce" ? `then reduce to ${policy.reduceToExposurePct}% exposure` : "then block buys"})` : null
-  ].filter(Boolean);
-  return parts.length ? `Owner risk policy: ${parts.join(", ")}.` : "Owner risk policy: no limits set.";
-}
-function registerArenaTools(server2, { toolResult: toolResult2, toolError: toolError2 }) {
-  const caller = () => callerFromClient(server2.server.getClientVersion?.());
-  const register = (name, config2, handler) => server2.registerTool(name, config2, async (input) => {
-    try {
-      const [data, summary] = await handler(input ?? {});
-      return toolResult2(data, summary);
-    } catch (error2) {
-      return toolError2(error2);
-    }
-  });
-  register("arena_register_account", {
-    title: "Register arena paper account",
-    description: [
-      "Create this agent's own paper-trading account in the local Agent Arena, so its performance can be compared with other agents and models.",
-      "Call once per experiment and remember the returned accountId. First call arena_my_accounts: reuse an active account you already own instead of creating duplicates.",
-      `Each account trades one market with virtual cash in its currency (defaults: ${Object.entries(ARENA_MARKETS).map(([key, value]) => `${key} ${value.defaultCash.toLocaleString("en-US")} ${value.currency}`).join(", ")}).`,
-      "Report the model you are actually running on; do not guess another model's name."
-    ].join(" "),
-    inputSchema: {
-      name: external_exports.string().min(1).max(60).describe("Display name, e.g. 'Opus momentum A-share'."),
-      model: external_exports.string().min(1).max(80).describe("Exact model id you are running on, e.g. claude-opus-5-5, gpt-5.5-codex, hunyuan-t1."),
-      market,
-      strategySummary: external_exports.string().min(10).max(2e3).describe("The strategy you will follow: universe, entry/exit rules, sizing, risk limits."),
-      initialCash: external_exports.number().min(1e3).max(1e10).optional().describe("Leave unset to use the competition default so accounts stay comparable."),
-      competition: external_exports.string().min(1).max(40).optional().describe("Group name; only accounts in the same market and competition are ranked together. Default 'default'."),
-      agentLabel: external_exports.string().max(60).optional().describe("Human-friendly agent name, e.g. 'Claude Code', 'Codex', 'WorkBuddy'.")
-    },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
-  }, async (input) => {
-    const account2 = await getArena().createAccount(input, caller());
-    return [account2, `Created arena account ${account2.id}. Save this id and pass it as accountId to every arena tool. ${compactAccount(account2)}`];
-  });
-  register("arena_my_accounts", {
-    title: "List my arena accounts",
-    description: "List active arena accounts registered by this agent client (and, with all=true, every agent's accounts). Use it at the start of each session to recover your accountId.",
-    inputSchema: { all: external_exports.boolean().optional(), market: market.optional() },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  }, async ({ all = false, market: selected }) => {
-    const me = caller();
-    const accounts = await getArena().listAccounts({ market: selected, client: all ? void 0 : me.client });
-    const unowned = all ? [] : (await getArena().listAccounts({ market: selected })).filter((account2) => !account2.agent.client);
-    const rows = [...accounts, ...unowned];
-    return [{ caller: me, accounts: rows }, rows.length ? `${rows.length} account(s) for ${me.client}${unowned.length ? " (unclaimed dashboard accounts are claimed on your first order)" : ""}:
-${rows.map(compactAccount).join("\n")}` : `No arena account for ${me.client} yet. Create one with arena_register_account.`];
-  });
-  register("arena_get_account", {
-    title: "Get arena account",
-    description: [
-      "Sync with live quotes (fills resting orders that became marketable, expires day orders, marks positions) and return cash, positions (with stop-loss / take-profit levels), open orders, recent trades, journal, account events (fills by the background matcher, stops, dividends, splits, suspensions) and performance metrics.",
-      "Also returns the owner's riskPolicy (read-only for agents: max position %, max exposure %, drawdown circuit breaker), the current drawdown/breaker state and run health (missed trading days)."
-    ].join(" "),
-    inputSchema: { accountId, limit: external_exports.number().int().min(1).max(200).optional().describe("Number of recent orders/trades/journal entries (default 30).") },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, async ({ accountId: id, limit = 30 }) => {
-    const account2 = await getArena().getAccount(id, { limit });
-    const { equity, ...rest } = account2;
-    return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, `${compactAccount(account2)}
-${policyText(account2.riskPolicy)}`];
-  });
-  register("arena_place_order", {
-    title: "Place arena paper order",
-    description: [
-      "Place a long-only paper order in your own arena account. Fills use the live public quote plus slippage and exchange-style fees, during regular sessions only.",
-      "Rules enforced: board lots (A-share 100, STAR 200 min; HK per-stock lot; US 1), A-share T+1 and daily price limits, available cash incl. fees and open-order reservations.",
-      "Market orders need an open session. Limit orders rest and a background matcher fills them every 1-2 minutes during the session when the price is marketable; 'day' orders expire at the session close, 'gtc' after 30 days.",
-      "One account may take at most a configured share of the day's volume (default 5%); larger orders fill partially and the rest keeps resting. Suspended stocks (no trades today) do not fill.",
-      "BUY orders may carry stopLoss / takeProfit (price or % of average cost); the matcher sells at market when a fresh quote crosses the level, subject to T+1 and limit-down.",
-      "The owner's risk policy (see arena_get_account) can reject buys; agents cannot change it.",
-      "Always give the reason (thesis, signal, risk) so the decision can be reviewed later. Rejections are recorded and count against discipline metrics."
-    ].join(" "),
-    inputSchema: {
-      accountId,
-      symbol: external_exports.string().min(1).max(20).describe("600519 / 600519.SS, 0700.HK, AAPL \u2026"),
-      side: external_exports.enum(["BUY", "SELL"]),
-      quantity: external_exports.number().int().positive().max(1e7).describe("Number of shares (not lots)."),
-      orderType: external_exports.enum(["market", "limit"]).default("market"),
-      limitPrice: external_exports.number().positive().optional(),
-      timeInForce: external_exports.enum(["day", "gtc"]).optional(),
-      reason: external_exports.string().min(10).max(2e3).describe("Why: thesis, signal, sizing and exit plan."),
-      confidence: external_exports.number().min(0).max(1).optional().describe("Your subjective probability the trade works (0\u20131); used for calibration review."),
-      horizon: external_exports.string().max(40).optional().describe("Intended holding period, e.g. '3d', '2w'."),
-      clientOrderId: external_exports.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional().describe("Idempotency key: retries with the same id return the original order."),
-      ...exitFields
-    },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, async (input) => {
-    const result = await getArena().placeOrder(input, caller());
-    const { order, trade } = result;
-    const summary = order.status === "rejected" ? `REJECTED: ${order.rejectReason}` : trade ? `FILLED ${trade.side} ${trade.quantity} ${trade.symbol} @ ${trade.price} (fees ${trade.fees}). ${compactAccount(result.account)}` : `OPEN ${order.type} ${order.side} ${order.quantity} ${order.symbol}${order.limitPrice ? ` @ ${order.limitPrice}` : ""} [${order.id}] \u2014 ${result.note}`;
-    if (trade && order.status === "open") return [result, `PARTIAL ${trade.side} ${trade.quantity}/${order.quantity} ${trade.symbol} @ ${trade.price}. ${result.note}`];
-    return [result, summary];
-  });
-  register("arena_set_exits", {
-    title: "Set stop-loss / take-profit",
-    description: [
-      "Attach or change protective exits on one of your existing positions. Levels are a price or a percent of the average cost.",
-      "The background matcher sells all sellable shares at market when a fresh quote crosses a level during a regular session; A-share T+1 and limit-down still apply (the exit waits and is logged as deferred).",
-      "Pass null for a level to clear it, or clear=true to remove both."
-    ].join(" "),
-    inputSchema: {
-      accountId,
-      symbol: external_exports.string().min(1).max(20),
-      stopLossPrice: exitFields.stopLossPrice.unwrap().nullable().optional(),
-      stopLossPct: exitFields.stopLossPct.unwrap().nullable().optional(),
-      takeProfitPrice: exitFields.takeProfitPrice.unwrap().nullable().optional(),
-      takeProfitPct: exitFields.takeProfitPct.unwrap().nullable().optional(),
-      clear: external_exports.boolean().optional()
-    },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  }, async (input) => {
-    const result = await getArena().setExits(input, caller());
-    return [result, result.exits ? `Exits for ${result.symbol}: stop ${result.levels?.stopLoss ?? "\u2014"}, take-profit ${result.levels?.takeProfit ?? "\u2014"} (last ${result.lastPrice ?? "?"}).` : `Exits for ${result.symbol} cleared.`];
-  });
-  register("arena_cancel_order", {
-    title: "Cancel arena order",
-    description: "Cancel one of your open arena orders by order id or clientOrderId.",
-    inputSchema: { accountId, orderId: external_exports.string().min(1).max(80), reason: external_exports.string().max(500).optional() },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  }, async (input) => {
-    const result = await getArena().cancelOrder(input, caller());
-    return [result, result.note ?? `Cancelled ${result.order.id}.`];
-  });
-  register("arena_log_decision", {
-    title: "Log arena decision",
-    description: "Record analysis, a deliberate no-trade decision, a risk check or a post-trade review in your account journal. Logging why you did NOT trade is as valuable as logging trades when comparing agents.",
-    inputSchema: {
-      accountId,
-      kind: external_exports.enum(["analysis", "no-trade", "risk", "review", "note"]).default("analysis"),
-      summary: external_exports.string().min(1).max(2e3),
-      symbols: external_exports.array(external_exports.string().max(20)).max(20).optional(),
-      details: external_exports.string().max(8e3).optional()
-    },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
-  }, async (input) => {
-    const result = await getArena().logDecision(input, caller());
-    return [result, `Logged ${result.entry.kind} decision ${result.entry.id}.`];
-  });
-  register("arena_update_strategy", {
-    title: "Update arena strategy",
-    description: "Publish a new version of your strategy description. Later trades are tagged with the new version so performance can be compared per strategy version.",
-    inputSchema: { accountId, summary: external_exports.string().min(10).max(2e3), changeNote: external_exports.string().max(500).optional().describe("What changed and why.") },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
-  }, async (input) => {
-    const result = await getArena().updateStrategy(input, caller());
-    return [result, `Strategy is now version ${result.strategy.version}.`];
-  });
-  register("arena_publish_report", {
-    title: "Publish arena round report",
-    description: [
-      "Publish the conclusion of this round for the owner, who does not operate anything and only reads your reports.",
-      "Call it at the end of every round, including rounds with no trades: headline, plain-language summary, market view, actions taken, current picks with thesis, risks and what you will do next.",
-      "Write in the owner's language (Chinese unless told otherwise). Do not claim paper results are real returns."
-    ].join(" "),
-    inputSchema: {
-      accountId,
-      title: external_exports.string().min(1).max(120).describe("One-line headline, e.g. '\u51CF\u4ED3\u767D\u9152\uFF0C\u52A0\u4ED3\u65B0\u80FD\u6E90\u9F99\u5934'."),
-      summary: external_exports.string().min(10).max(2e3).describe("The conclusion in 2\u20135 sentences."),
-      sentiment: external_exports.enum(["bullish", "neutral", "bearish", "defensive"]).optional(),
-      marketView: external_exports.string().max(2e3).optional(),
-      actions: external_exports.array(external_exports.object({ symbol: external_exports.string().max(20), action: external_exports.string().max(20).describe("buy / sell / hold / watch / cancel"), detail: external_exports.string().max(500) })).max(30).optional(),
-      picks: external_exports.array(external_exports.object({ symbol: external_exports.string().max(20), thesis: external_exports.string().max(500) })).max(20).optional(),
-      risks: external_exports.string().max(2e3).optional(),
-      nextSteps: external_exports.string().max(2e3).optional(),
-      body: external_exports.string().max(2e4).optional().describe("Optional longer Markdown analysis.")
-    },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
-  }, async (input) => {
-    const result = await getArena().publishReport(input, caller());
-    return [result, `Published report ${result.report.id}: ${result.report.title}`];
-  });
-  register("arena_set_watchlist", {
-    title: "Set agent stock pool",
-    description: [
-      "Replace your account's candidate stock pool (your own selection, at most 50, same market as the account).",
-      "If your account is the owner's managed account (or no managed account is chosen), the shared dashboard watchlist for that market is replaced with your pool plus your holdings, so the owner's market page follows your selection."
-    ].join(" "),
-    inputSchema: { accountId, symbols: external_exports.array(external_exports.string().min(1).max(20)).max(50), reason: external_exports.string().max(1e3).optional() },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  }, async (input) => {
-    const result = await getArena().setWatchlist(input, caller());
-    const preferences = await loadPreferences();
-    const managed = !preferences.managedAccountId || preferences.managedAccountId === input.accountId;
-    let mirrored = false;
-    if (managed) {
-      const market2 = result.watchlist.symbols[0] ? marketFromSymbol(result.watchlist.symbols[0]) : null;
-      const pool = [.../* @__PURE__ */ new Set([...result.holdings, ...result.watchlist.symbols])];
-      const others = preferences.watchlist.filter((symbol) => {
-        try {
-          return market2 ? marketFromSymbol(symbol) !== market2 : true;
-        } catch {
-          return false;
-        }
-      });
-      await savePreferences({ watchlist: [...others, ...pool].slice(0, 50) });
-      mirrored = true;
-    }
-    return [{ ...result, mirroredToDashboard: mirrored }, `Stock pool set to ${result.watchlist.symbols.length} symbols${mirrored ? "; dashboard watchlist updated" : ""}.`];
-  });
-  register("arena_leaderboard", {
-    title: "Arena leaderboard",
-    description: "Rank all agents' accounts by total return within each market and competition, with drawdown, Sharpe, win rate, fees, turnover, benchmark and excess return.",
-    inputSchema: { market: market.optional(), competition: external_exports.string().max(40).optional() },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, async (input) => {
-    const board = await getArena().leaderboard(input);
-    const text2 = board.groups.map((group) => [
-      `${group.market} \xB7 ${group.competition} (${group.currency})`,
-      ...group.accounts.map((account2) => `#${account2.rank} ${account2.name} \u2014 ${account2.model} via ${account2.agent.label ?? account2.agent.client ?? "?"}: ${account2.metrics.totalReturnPct}% (max DD ${account2.metrics.maxDrawdownPct}%, ${account2.metrics.trades} trades)`)
-    ].join("\n")).join("\n\n");
-    return [board, text2 || "No arena accounts yet."];
-  });
-}
-
-// mcp/update-coordination.mjs
-import { mkdir as mkdir6, readFile as readFile6, writeFile as writeFile5, rename as rename6, rm as rm3, readdir as readdir2, stat as stat2 } from "node:fs/promises";
-import { rmSync } from "node:fs";
-import { randomUUID as randomUUID4 } from "node:crypto";
-import os3 from "node:os";
-import path6 from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
-function updateHome(env = process.env, platform = process.platform, home = os3.homedir()) {
-  if (env.HROUTER_UPDATE_HOME) return path6.resolve(env.HROUTER_UPDATE_HOME);
-  return platform === "win32" ? path6.join(env.LOCALAPPDATA || path6.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path6.join(env.XDG_DATA_HOME || path6.join(home, ".local", "share"), "hrouter-market-pulse-updater");
-}
-async function readJson2(file, fallback = null) {
-  try {
-    return JSON.parse(await readFile6(file, "utf8"));
-  } catch (error2) {
-    if (error2.code === "ENOENT") return fallback;
-    throw error2;
-  }
-}
-async function atomicJson(file, data) {
-  await mkdir6(path6.dirname(file), { recursive: true, mode: 448 });
-  const temp = `${file}.${randomUUID4()}.tmp`;
-  try {
-    await writeFile5(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
-    await rename6(temp, file);
-  } finally {
-    await rm3(temp, { force: true });
-  }
-}
-function processAlive2(pid) {
-  if (!Number.isSafeInteger(pid) || pid < 1) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error2) {
-    return error2.code !== "ESRCH";
-  }
-}
-async function acquireLock(home, name, { waitMs = 0, alive = processAlive2 } = {}) {
-  await mkdir6(home, { recursive: true, mode: 448 });
-  const dir = path6.join(home, `${name}.lock`);
-  const deadline = Date.now() + waitMs;
-  for (; ; ) {
-    try {
-      await mkdir6(dir, { mode: 448 });
-      await atomicJson(path6.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
-      return async () => {
-        await rm3(dir, { recursive: true, force: true });
-      };
-    } catch (error2) {
-      if (error2.code !== "EEXIST") throw error2;
-      const owner = await readJson2(path6.join(dir, "owner.json"));
-      let stale = owner && !alive(owner.pid);
-      if (!owner) {
-        try {
-          stale = Date.now() - (await stat2(dir)).mtimeMs > 6e5;
-        } catch (error3) {
-          if (error3.code === "ENOENT") continue;
-          throw error3;
-        }
-      }
-      if (stale) {
-        const reaping = `${dir}.reaping`;
-        let reaper = false;
-        try {
-          await mkdir6(reaping, { mode: 448 });
-          reaper = true;
-          const current = await readJson2(path6.join(dir, "owner.json"));
-          let removable = current && !alive(current.pid);
-          if (!current) {
-            try {
-              removable = Date.now() - (await stat2(dir)).mtimeMs > 6e5;
-            } catch (error3) {
-              if (error3.code !== "ENOENT") throw error3;
-            }
-          }
-          if (removable) await rm3(dir, { recursive: true, force: true });
-        } catch (error3) {
-          if (!["EEXIST", "ENOENT"].includes(error3.code)) throw error3;
-        } finally {
-          if (reaper) await rm3(reaping, { recursive: true, force: true });
-        }
-        if (reaper) continue;
-        if (Date.now() >= deadline) return null;
-        await delay(100);
-        continue;
-      }
-      if (Date.now() >= deadline) return null;
-      await delay(100);
-    }
-  }
-}
-async function acquireRuntimeLease(home = updateHome()) {
-  if (!await readJson2(path6.join(home, "state.json"))) return () => {
-  };
-  const unlock = await acquireLock(home, "activation", { waitMs: 12e4 });
-  if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
-  const file = path6.join(home, "running", `${process.pid}-${randomUUID4()}.json`);
-  try {
-    await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
-  } finally {
-    await unlock();
-  }
-  const release = () => {
-    rmSync(file, { force: true });
-  };
-  process.once("exit", release);
-  return () => {
-    process.removeListener("exit", release);
-    release();
-  };
-}
-
-// mcp/service.mjs
-import { mkdir as mkdir7, readFile as readFile7, rename as rename7, stat as stat3, writeFile as writeFile6 } from "node:fs/promises";
-import { randomUUID as randomUUID5 } from "node:crypto";
-import os4 from "node:os";
-import path7 from "node:path";
-var SERVICE_HEARTBEAT_MS = 3e4;
-var SERVICE_STALE_MS = 12e4;
-function serviceStatusFile(arenaRoot) {
-  return path7.join(arenaRoot, "service-status.json");
-}
-async function readServiceStatus(arenaRoot, now = Date.now()) {
-  try {
-    const status = JSON.parse(await readFile7(serviceStatusFile(arenaRoot), "utf8"));
-    const alive = now - Date.parse(status.heartbeatAt) < SERVICE_STALE_MS;
-    return { ...status, state: alive ? "running" : "stopped" };
-  } catch (error2) {
-    if (error2.code === "ENOENT") return { state: "not-installed-or-never-started" };
-    throw error2;
-  }
-}
-function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: version2, port, onExit = () => process.exit(0) }) {
-  const startedAt = (/* @__PURE__ */ new Date()).toISOString();
-  let bundleMtime = null;
-  let stopping = false;
-  const write = async () => {
-    const status = {
-      pid: process.pid,
-      host: os4.hostname(),
-      version: version2,
-      bundlePath: bundlePath2,
-      port,
-      startedAt,
-      heartbeatAt: (/* @__PURE__ */ new Date()).toISOString(),
-      node: process.version,
-      scheduler: scheduler?.status() ?? null
-    };
-    await mkdir7(arena.root, { recursive: true });
-    const file = serviceStatusFile(arena.root);
-    const temporary = `${file}.${process.pid}.${randomUUID5()}.tmp`;
-    await writeFile6(temporary, JSON.stringify(status, null, 1), "utf8");
-    await rename7(temporary, file);
-  };
-  const beat = async () => {
-    if (stopping) return;
-    try {
-      await write();
-      if (bundlePath2) {
-        const mtime = (await stat3(bundlePath2)).mtimeMs;
-        if (bundleMtime === null) bundleMtime = mtime;
-        else if (mtime !== bundleMtime) {
-          console.error("Arena service: plugin bundle changed; restarting.");
-          stopping = true;
-          onExit("bundle-changed");
-        }
-      }
-    } catch (error2) {
-      console.error(`Arena service heartbeat: ${error2.message}`);
-    }
-  };
-  beat();
-  const timer = setInterval(beat, SERVICE_HEARTBEAT_MS);
-  return { stop() {
-    stopping = true;
-    clearInterval(timer);
-  } };
-}
-
-// mcp/server.mjs
-import { fileURLToPath as fileURLToPath5 } from "node:url";
-
-// mcp/arena-demo.mjs
-import { mkdtemp, mkdir as mkdir8, writeFile as writeFile7 } from "node:fs/promises";
-import os5 from "node:os";
-import path8 from "node:path";
-function generator(seed) {
-  let state = seed >>> 0;
-  return () => {
-    state = state * 1664525 + 1013904223 >>> 0;
-    return state / 4294967296;
-  };
-}
-var UNIVERSE = {
-  A: [["600519.SS", "\u8D35\u5DDE\u8305\u53F0", 1310], ["300750.SZ", "\u5B81\u5FB7\u65F6\u4EE3", 268], ["601318.SS", "\u4E2D\u56FD\u5E73\u5B89", 58.4], ["000858.SZ", "\u4E94\u7CAE\u6DB2", 142], ["688981.SS", "\u4E2D\u82AF\u56FD\u9645", 96.5], ["600036.SS", "\u62DB\u5546\u94F6\u884C", 41.2]],
-  US: [["AAPL", "Apple", 343], ["NVDA", "NVIDIA", 182], ["MSFT", "Microsoft", 512], ["TSLA", "Tesla", 268], ["AMZN", "Amazon", 231]]
-};
-var AGENTS = [
-  { market: "A", name: "Opus \u52A8\u91CF\u8F6E\u52A8", label: "Claude Code", client: "claude-code", model: "claude-opus-5-5", drift: 19e-4, vol: 0.011, strategy: "\u6CAA\u6DF1300\u6210\u5206\u80A1\uFF0C20 \u65E5\u52A8\u91CF\u524D 3 \u540D\u7B49\u6743\u6301\u6709\uFF0C\u8DCC\u7834 MA20 \u79BB\u573A\uFF0C\u5355\u7968\u4E0D\u8D85\u8FC7 30%\u3002" },
-  { market: "A", name: "Codex \u4EF7\u503C\u9632\u5B88", label: "Codex", client: "codex-mcp-client", model: "gpt-5.5-codex", drift: 9e-4, vol: 6e-3, strategy: "\u4F4E\u4F30\u503C\u9AD8\u80A1\u606F\u84DD\u7B79\uFF0CPE \u5206\u4F4D < 30% \u5EFA\u4ED3\uFF0C\u5206 3 \u6279\u4E70\u5165\uFF0C\u6700\u5927\u56DE\u64A4 8% \u964D\u4ED3\u4E00\u534A\u3002" },
-  { market: "A", name: "WorkBuddy \u4E8B\u4EF6\u9A71\u52A8", label: "WorkBuddy", client: "workbuddy", model: "hunyuan-t1", drift: 4e-4, vol: 0.014, strategy: "\u8DDF\u8E2A\u4E1A\u7EE9\u9884\u544A\u4E0E\u516C\u544A\uFF0C\u8D85\u9884\u671F\u6B21\u65E5\u5F00\u76D8\u4E70\u5165\uFF0C\u6301\u6709 5 \u4E2A\u4EA4\u6613\u65E5\u6216\u6B62\u635F 5%\u3002" },
-  { market: "A", name: "Sonnet \u5747\u503C\u56DE\u5F52", label: "Claude Code", client: "claude-code", model: "claude-sonnet-5-5", drift: -6e-4, vol: 9e-3, strategy: "RSI(14) < 30 \u4E14\u7AD9\u4E0A MA60 \u7684\u6807\u7684\u6284\u5E95\uFF0CRSI > 60 \u6B62\u76C8\uFF0C\u5355\u6B21\u4ED3\u4F4D 20%\u3002" },
-  { market: "US", name: "Opus Mega-cap trend", label: "Claude Code", client: "claude-code", model: "claude-opus-5-5", drift: 12e-4, vol: 0.012, strategy: "Hold the 3 strongest mega caps by 50-day return, rebalance weekly, exit below the 50-day MA." },
-  { market: "US", name: "Codex Earnings drift", label: "Codex", client: "codex-mcp-client", model: "gpt-5.5-codex", drift: 7e-4, vol: 0.01, strategy: "Buy post-earnings beats with positive guidance, hold 10 sessions, 6% stop." }
-];
-function seedAccount(agent, index, start) {
-  const random = generator(9001 + index * 97);
-  const config2 = ARENA_MARKETS[agent.market];
-  const universe = UNIVERSE[agent.market];
-  const days = 34;
-  const equity = [];
-  let value = config2.defaultCash;
-  for (let day = 0; day <= days; day += 1) {
-    const shock = (random() - 0.5) * 2 * agent.vol * 1.7;
-    if (day > 0) value *= 1 + agent.drift + shock;
-    const at = new Date(start + day * 864e5 + 7 * 36e5).toISOString();
-    equity.push({ at, equity: Math.round(value * 100) / 100, cash: 0, marketValue: 0 });
-  }
-  const trades = [];
-  const orders = [];
-  const journal = [];
-  for (let n = 0; n < 9 + Math.floor(random() * 10); n += 1) {
-    const [symbol, name, base] = universe[Math.floor(random() * universe.length)];
-    const day = Math.floor(random() * days);
-    const at = new Date(start + day * 864e5 + 2 * 36e5 + n * 6e4).toISOString();
-    const price = Math.round(base * (0.92 + random() * 0.14) * 100) / 100;
-    const lot = agent.market === "A" ? 100 : 1;
-    const quantity = Math.max(lot, Math.floor(config2.defaultCash * (0.05 + random() * 0.12) / price / lot) * lot);
-    const side = random() > 0.45 ? "SELL" : "BUY";
-    const fees = computeFees(agent.market, side, quantity, price);
-    const realizedPnl = side === "SELL" ? Math.round((random() - 0.42 + agent.drift * 60) * quantity * price * 0.08) : null;
-    const id = `ord_demo${String(index).padStart(2, "0")}${String(n).padStart(4, "0")}`;
-    const reason = side === "BUY" ? agent.market === "A" ? `${name} \u653E\u91CF\u7A81\u7834 20 \u65E5\u9AD8\u70B9\uFF0C\u52A8\u91CF\u6392\u540D\u524D\u5217\uFF0C\u6309\u8BA1\u5212\u5EFA\u4ED3\u3002` : `${name} broke out above its 20-day high on rising volume; sizing per plan.` : agent.market === "A" ? `${name} \u89E6\u53D1\u6B62\u76C8/\u6B62\u635F\u6761\u4EF6\uFF0C\u6309\u7EAA\u5F8B\u51CF\u4ED3\u3002` : `${name} hit the exit rule; trimming per plan.`;
-    orders.push({ id, clientOrderId: null, symbol, name, side, type: "market", quantity, limitPrice: null, timeInForce: "day", status: "filled", reserved: 0, reason, confidence: Math.round((0.45 + random() * 0.4) * 100) / 100, strategyVersion: 1, createdAt: at, expiresAt: at, filledAt: at, fillPrice: price, fees: fees.total, placedBy: agent.client });
-    trades.push({ id: `trd_demo${String(index).padStart(2, "0")}${String(n).padStart(4, "0")}`, orderId: id, symbol, name, side, quantity, price, gross: Math.round(quantity * price * 100) / 100, fees: fees.total, feeBreakdown: fees.breakdown, realizedPnl, at, reason, confidence: null, strategyVersion: 1 });
-  }
-  orders.push({ id: `ord_demo${String(index).padStart(2, "0")}rej1`, symbol: universe[0][0], name: universe[0][1], side: "BUY", type: "market", quantity: agent.market === "A" ? 50 : 10, status: "rejected", rejectReason: agent.market === "A" ? "Buy quantity must be a multiple of the board lot (100)." : "Market is closed now. Market orders need an open session.", reason: "Demo rejection example", strategyVersion: 1, createdAt: equity[12].at, expiresAt: equity[12].at, reserved: 0 });
-  trades.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  orders.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
-  for (let n = 0; n < 4; n += 1) {
-    journal.push({ id: `dec_demo${index}${n}`, at: equity[5 + n * 7].at, kind: n % 2 ? "no-trade" : "analysis", summary: agent.market === "A" ? n % 2 ? "\u5927\u76D8\u7F29\u91CF\u9707\u8361\uFF0C\u5019\u9009\u6807\u7684\u672A\u6EE1\u8DB3\u5165\u573A\u6761\u4EF6\uFF0C\u672C\u8F6E\u4E0D\u4EA4\u6613\u3002" : "\u590D\u76D8\u6301\u4ED3\uFF1A\u52A8\u91CF\u4ECD\u5728\uFF0C\u7EF4\u6301\u4ED3\u4F4D\uFF1B\u5173\u6CE8\u4E0B\u5468\u5B8F\u89C2\u6570\u636E\u3002" : n % 2 ? "No setup met the entry rules today; staying flat." : "Reviewed holdings: trend intact, keep exposure.", symbols: [universe[n % universe.length][0]], details: null, strategyVersion: 1 });
-  }
-  const reports = [0, 1, 2].map((n) => {
-    const point = equity[equity.length - 1 - n * 5];
-    const cn = agent.market === "A";
-    return {
-      id: `rpt_demo${index}${n}`,
-      at: point.at,
-      strategyVersion: 1,
-      title: cn ? ["\u7EF4\u6301\u8FDB\u653B\u4ED3\u4F4D\uFF0C\u65B0\u80FD\u6E90\u9F99\u5934\u7EE7\u7EED\u9886\u6DA8", "\u5927\u76D8\u7F29\u91CF\u9707\u8361\uFF0C\u672C\u8F6E\u4E0D\u4EA4\u6613", "\u6B62\u76C8\u90E8\u5206\u767D\u9152\uFF0C\u8F6C\u5165\u91D1\u878D\u9632\u5B88"][n] : ["Trend intact, staying long mega caps", "No setup today; flat", "Trimmed winners into strength"][n],
-      summary: cn ? `${agent.name}\uFF1A\u52A8\u91CF\u4FE1\u53F7\u4ECD\u7136\u6709\u6548\uFF0C\u6301\u4ED3\u96C6\u4E2D\u5728 2\u20133 \u53EA\u9F99\u5934\uFF0C\u73B0\u91D1\u4FDD\u7559\u7EA6\u4E09\u6210\u4EE5\u5E94\u5BF9\u56DE\u64A4\u3002\u672C\u8F6E${n === 1 ? "\u6CA1\u6709\u6EE1\u8DB3\u5165\u573A\u6761\u4EF6\u7684\u6807\u7684" : "\u6309\u7EAA\u5F8B\u8C03\u6574\u4E86\u4ED3\u4F4D"}\uFF0C\u7EC4\u5408\u7D2F\u8BA1\u6536\u76CA ${((point.equity / config2.defaultCash - 1) * 100).toFixed(2)}%\u3002` : `${agent.name}: momentum still positive; ${n === 1 ? "no candidate met the entry rules" : "rebalanced per plan"}. Total return ${((point.equity / config2.defaultCash - 1) * 100).toFixed(2)}%.`,
-      sentiment: ["bullish", "neutral", "defensive"][n],
-      marketView: cn ? "\u6307\u6570\u5728 20 \u65E5\u5747\u7EBF\u9644\u8FD1\u9707\u8361\uFF0C\u6210\u4EA4\u989D\u56DE\u843D\uFF0C\u98CE\u683C\u504F\u5411\u5927\u76D8\u84DD\u7B79\u3002" : "Index holding its 50-day average; breadth narrowing.",
-      actions: n === 1 ? [] : [{ symbol: universe[1][0], action: n ? "sell" : "buy", detail: cn ? "\u6309\u4FE1\u53F7\u8C03\u6574" : "per signal" }],
-      picks: universe.slice(0, 3).map(([symbol, name]) => ({ symbol, thesis: cn ? `${name}\uFF1A\u8D8B\u52BF\u5411\u4E0A\uFF0C\u56DE\u64A4\u53EF\u63A7` : `${name}: uptrend, contained drawdowns` })),
-      risks: cn ? "\u82E5\u6CAA\u6DF1300 \u8DCC\u7834 60 \u65E5\u5747\u7EBF\uFF0C\u964D\u4ED3\u81F3\u4E94\u6210\u4EE5\u4E0B\u3002" : "Cut exposure below 50% if the index loses its 100-day average.",
-      nextSteps: cn ? "\u4E0B\u4E00\u4EA4\u6613\u65E5\u5F00\u76D8\u540E\u590D\u6838\u91CF\u80FD\uFF0C\u89E6\u53D1\u6761\u4EF6\u518D\u52A0\u4ED3\u3002" : "Recheck volume after the next open.",
-      snapshot: { equity: point.equity, cash: 0, positions: 2, returnPct: Math.round((point.equity / config2.defaultCash - 1) * 1e4) / 100 }
-    };
-  }).reverse();
-  const finalEquity = equity.at(-1).equity;
-  const positions = {};
-  let marketValue = 0;
-  for (const [symbol, name, base] of universe.slice(0, 2 + index % 2)) {
-    const lot = agent.market === "A" ? 100 : 1;
-    const price = Math.round(base * (0.97 + random() * 0.06) * 100) / 100;
-    const quantity = Math.floor(finalEquity * 0.22 / price / lot) * lot;
-    const cost = Math.round(quantity * price * (0.93 + random() * 0.1) * 100) / 100;
-    positions[symbol] = {
-      symbol,
-      name,
-      quantity,
-      costBasis: cost,
-      realizedPnl: 0,
-      lots: [{ date: "2026-01-01", quantity }],
-      openedAt: equity[3].at,
-      lastPrice: price,
-      lastPriceAt: equity.at(-1).at,
-      ...index % 2 === 0 ? { exits: { stopLoss: { pct: 8 }, takeProfit: { pct: 25 } } } : {}
-    };
-    marketValue += quantity * price;
-  }
-  for (const point of equity) Object.assign(point, { marketValue: Math.round(marketValue * 100) / 100, cash: Math.round((point.equity - marketValue) * 100) / 100 });
-  const createdAt = new Date(start - 36e5).toISOString();
-  return {
-    schemaVersion: 1,
-    demo: true,
-    id: `acc_${(244837814042624 + index).toString(16).slice(-12)}`,
-    name: agent.name,
-    competition: "default",
-    market: agent.market,
-    currency: config2.currency,
-    status: "active",
-    agent: { client: agent.client, clientVersion: "demo", label: agent.label },
-    model: agent.model,
-    strategy: { version: index === 0 ? 2 : 1, summary: agent.strategy, updatedAt: createdAt, history: [{ version: 1, summary: agent.strategy, note: "initial", at: createdAt }, ...index === 0 ? [{ version: 2, summary: agent.strategy, note: "\u6536\u7D27\u6B62\u635F\uFF1AMA20 \u2192 MA10", at: equity[20].at }] : []] },
-    initialCash: config2.defaultCash,
-    cash: Math.round((finalEquity - marketValue) * 100) / 100,
-    realizedPnl: trades.reduce((sum, trade) => sum + (trade.realizedPnl ?? 0), 0),
-    settings: { slippageBps: 5, maxQuoteAgeSeconds: 180, feeModel: `${agent.market}-retail-v1` },
-    benchmark: { symbol: config2.benchmark, name: config2.benchmarkName, startPrice: 100, startAt: createdAt, lastPrice: agent.market === "A" ? 103.1 : 102.4, lastPriceAt: equity.at(-1).at },
-    positions,
-    orders,
-    trades,
-    journal,
-    equity,
-    reports,
-    createdAt,
-    watchlist: { symbols: universe.map(([symbol]) => symbol), reason: "demo", updatedAt: equity.at(-1).at },
-    updatedAt: equity.at(-1).at,
-    createdBy: agent.client,
-    // The event-driven agent "stopped running" three days ago so the missed-run warning is visible.
-    lastRoundAt: agent.client === "workbuddy" ? equity.at(-4).at : reports.at(-1).at,
-    lastRoundKind: "report",
-    riskPolicy: { maxPositionPct: 35, maxExposurePct: 90, maxDrawdownPct: 15, onBreach: "block", reduceToExposurePct: 50 },
-    events: index === 0 ? [
-      { id: "evt_demo0001", at: equity.at(-6).at, type: "dividend", symbol: universe[0][0], amount: 1850, message: `${universe[0][0]} \u6D3E\u606F\u5230\u8D26 +1850 ${config2.currency}` },
-      { id: "evt_demo0002", at: equity.at(-2).at, type: "stop-loss", symbol: universe[2][0], level: 55.1, price: 55.02, message: `\u6B62\u635F ${universe[2][0]}\uFF1A\u73B0\u4EF7 55.02 \u8DCC\u7834 55.1\uFF0C\u5E02\u4EF7\u5356\u51FA` }
-    ] : []
-  };
-}
-async function createDemoArena() {
-  const root2 = await mkdtemp(path8.join(os5.tmpdir(), "hrouter-arena-demo-"));
-  await mkdir8(path8.join(root2, "accounts"), { recursive: true });
-  const start = Date.now() - 34 * 864e5 - 8 * 36e5;
-  const accounts = AGENTS.map((agent, index) => seedAccount(agent, index, start));
-  const prices = new Map(accounts.flatMap((account2) => Object.values(account2.positions).map((position) => [position.symbol, position])));
-  for (const account2 of accounts) await writeFile7(path8.join(root2, "accounts", `${account2.id}.json`), JSON.stringify(account2));
-  const arena = createArena({
-    root: root2,
-    // Synthetic quotes: hold the seeded marks so the demo stays stable while it is open.
-    quoteProvider: async (symbol) => {
-      const position = prices.get(symbol);
-      const market2 = /\.(SS|SZ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) ? "HK" : "US";
-      const base = position?.lastPrice ?? ({ "000300.SS": 103.1, "^GSPC": 102.4, "^HSI": 101.2 }[symbol] ?? 50);
-      return { symbol, name: position?.name ?? symbol, market: market2, price: base, asOf: (/* @__PURE__ */ new Date()).toISOString(), provider: "Synthetic demo", lotSize: market2 === "HK" ? 100 : null, limitUp: null, limitDown: null };
-    }
-  });
-  await arena.generateDigest({ market: "A", trigger: "demo" });
-  return arena;
-}
-
 // mcp/scheduler.mjs
 import { spawn as spawn2 } from "node:child_process";
-import { randomBytes as randomBytes2, randomUUID as randomUUID6 } from "node:crypto";
+import { randomBytes as randomBytes2, randomUUID as randomUUID4 } from "node:crypto";
 import { existsSync } from "node:fs";
-import { appendFile, mkdir as mkdir9, mkdtemp as mkdtemp2, readFile as readFile8, rename as rename8, rm as rm4, writeFile as writeFile8 } from "node:fs/promises";
-import os6 from "node:os";
-import path10 from "node:path";
+import { appendFile, mkdir as mkdir6, mkdtemp, readFile as readFile6, rename as rename6, rm as rm3, writeFile as writeFile5 } from "node:fs/promises";
+import os3 from "node:os";
+import path7 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // mcp/prompts.mjs
@@ -17328,8 +16751,8 @@ function createPaperBroker({ arena, accountId: accountId2, caller }) {
 }
 
 // mcp/strategies/index.mjs
-import { readdir as readdir3 } from "node:fs/promises";
-import path9 from "node:path";
+import { readdir as readdir2 } from "node:fs/promises";
+import path6 from "node:path";
 import { pathToFileURL } from "node:url";
 
 // mcp/strategies/ma-trend.mjs
@@ -17423,18 +16846,18 @@ function validateStrategy(module, origin = "builtin") {
   if (!ID.test(strategy2.id ?? "")) throw new Error(`Strategy id "${strategy2.id}" must be 2\u201341 lowercase letters, digits or dashes.`);
   return { name: strategy2.id, version: "0.0.0", markets: ["A", "HK", "US"], params: {}, description: "", ...strategy2, origin };
 }
-async function loadStrategies({ dir = path9.join(getStorageDir(), "strategies") } = {}) {
+async function loadStrategies({ dir = path6.join(getStorageDir(), "strategies") } = {}) {
   const strategies = new Map(BUILTIN_STRATEGIES.map((strategy2) => [strategy2.id, validateStrategy(strategy2)]));
   const errors = [];
   let names = [];
   try {
-    names = await readdir3(dir);
+    names = await readdir2(dir);
   } catch (error2) {
     if (error2.code !== "ENOENT") errors.push(error2.message);
   }
   for (const name of names.filter((entry) => entry.endsWith(".mjs"))) {
     try {
-      const file = path9.join(dir, name);
+      const file = path6.join(dir, name);
       const strategy2 = validateStrategy(await import(`${pathToFileURL(file).href}?v=${Date.now()}`), file);
       strategies.set(strategy2.id, strategy2);
     } catch (error2) {
@@ -17635,15 +17058,15 @@ function sanitizeJob(input, current = {}) {
 }
 function onPath(name, envPath = process.env.PATH ?? "") {
   const names = process.platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name];
-  for (const dir of envPath.split(path10.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path10.join(dir, candidate))) return path10.join(dir, candidate);
+  for (const dir of envPath.split(path7.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path7.join(dir, candidate))) return path7.join(dir, candidate);
   return null;
 }
 function workbuddyConfigDir(env = process.env) {
-  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path10.join(os6.homedir(), ".workbuddy");
+  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path7.join(os3.homedir(), ".workbuddy");
 }
 function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
-  if (type === "kimi") return onPath("kimi") ?? path10.join(os6.homedir(), ".local", "bin", "kimi");
+  if (type === "kimi") return onPath("kimi") ?? path7.join(os3.homedir(), ".local", "bin", "kimi");
   if (type === "workbuddy") {
     const bundled = "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy";
     return onPath("codebuddy") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codebuddy");
@@ -17791,13 +17214,23 @@ function runChild({ command, args, env, cwd, timeoutMs, spawnImpl, tailBytes }) 
     });
   });
 }
+function inferRunner(account2) {
+  const text2 = `${account2.agent?.client ?? ""} ${account2.agent?.label ?? ""}`.toLowerCase();
+  if (account2.model?.startsWith("strategy:") || text2.includes("strategy")) return null;
+  const model = account2.model && !account2.model.startsWith("strategy:") ? account2.model : void 0;
+  if (text2.includes("codex") || text2.includes("openai")) return { type: "codex", model };
+  if (text2.includes("kimi")) return { type: "kimi", model };
+  if (text2.includes("workbuddy") || text2.includes("codebuddy")) return { type: "workbuddy", model };
+  if (text2.includes("claude")) return { type: "claude", model };
+  return null;
+}
 function createScheduler({
   arena,
   now = arena.now,
   spawnImpl = spawn2,
   strategyLoader = loadStrategies,
   nodePath = process.execPath,
-  bundlePath: bundlePath2 = fileURLToPath2(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath2(import.meta.url) : path10.resolve(path10.dirname(fileURLToPath2(import.meta.url)), "server.bundle.mjs"),
+  bundlePath: bundlePath2 = fileURLToPath2(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath2(import.meta.url) : path7.resolve(path7.dirname(fileURLToPath2(import.meta.url)), "server.bundle.mjs"),
   skillPath,
   tickMs = SCHEDULER_DEFAULTS.tickMs,
   leaseMs = SCHEDULER_DEFAULTS.leaseMs,
@@ -17806,9 +17239,9 @@ function createScheduler({
   onError = () => {
   }
 } = {}) {
-  const file = path10.join(arena.root, "schedules.json");
-  const runDir = path10.join(arena.root, "runs");
-  const ownerId = `${os6.hostname()}:${process.pid}:${randomBytes2(4).toString("hex")}`;
+  const file = path7.join(arena.root, "schedules.json");
+  const runDir = path7.join(arena.root, "runs");
+  const ownerId = `${os3.hostname()}:${process.pid}:${randomBytes2(4).toString("hex")}`;
   const running = /* @__PURE__ */ new Map();
   let timer = null;
   let ticking = null;
@@ -17816,7 +17249,7 @@ function createScheduler({
   let last = null;
   async function readState() {
     try {
-      const state = JSON.parse(await readFile8(file, "utf8"));
+      const state = JSON.parse(await readFile6(file, "utf8"));
       return { jobs: state.jobs ?? [], done: state.done ?? {} };
     } catch (error2) {
       if (error2.code === "ENOENT") return { jobs: [], done: {} };
@@ -17824,10 +17257,10 @@ function createScheduler({
     }
   }
   async function writeState(state) {
-    await mkdir9(arena.root, { recursive: true });
-    const temporary = `${file}.${process.pid}.${randomUUID6()}.tmp`;
-    await writeFile8(temporary, JSON.stringify(state, null, 1), "utf8");
-    await rename8(temporary, file);
+    await mkdir6(arena.root, { recursive: true });
+    const temporary = `${file}.${process.pid}.${randomUUID4()}.tmp`;
+    await writeFile5(temporary, JSON.stringify(state, null, 1), "utf8");
+    await rename6(temporary, file);
   }
   const update = (mutate) => arena.withLock(async () => {
     const state = await readState();
@@ -17836,15 +17269,15 @@ function createScheduler({
     return result;
   });
   async function appendRun(accountId2, record2) {
-    await mkdir9(runDir, { recursive: true });
-    await appendFile(path10.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
+    await mkdir6(runDir, { recursive: true });
+    await appendFile(path7.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
 `, "utf8");
   }
   async function listRuns({ accountId: accountId2, limit = 50 } = {}) {
     if (!/^acc_[a-f0-9]{12}$/.test(accountId2 ?? "")) throw new ArenaError("accountId required.");
     let text2 = "";
     try {
-      text2 = await readFile8(path10.join(runDir, `${accountId2}.jsonl`), "utf8");
+      text2 = await readFile6(path7.join(runDir, `${accountId2}.jsonl`), "utf8");
     } catch (error2) {
       if (error2.code !== "ENOENT") throw error2;
     }
@@ -17858,10 +17291,10 @@ function createScheduler({
     return rows.slice(-limit).reverse();
   }
   async function skillText() {
-    const candidates = [skillPath, path10.resolve(path10.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
+    const candidates = [skillPath, path7.resolve(path7.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
     for (const candidate of candidates) {
       try {
-        return (await readFile8(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
+        return (await readFile6(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
       } catch {
       }
     }
@@ -17888,7 +17321,7 @@ function createScheduler({
           return { ...record2, status: "failed", finishedAt: now(), error: error2.message };
         }
       }
-      const workDir = await mkdtemp2(path10.join(os6.tmpdir(), "hrouter-round-"));
+      const workDir = await mkdtemp(path7.join(os3.tmpdir(), "hrouter-round-"));
       try {
         const identity = account2.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
         const prompt = roundPrompt({ account: account2, language: job.runner.language });
@@ -17899,7 +17332,7 @@ function createScheduler({
         const status = result.timedOut ? "timeout" : result.exitCode === 0 ? reported ? "ok" : "no-round" : "failed";
         return { ...record2, status, finishedAt: now(), command: invocation.command, exitCode: result.exitCode, durationMs: result.durationMs, error: result.error ?? null, stdoutTail: result.stdout, stderrTail: result.stderr, reported };
       } finally {
-        await rm4(workDir, { recursive: true, force: true });
+        await rm3(workDir, { recursive: true, force: true });
       }
     })();
     running.set(job.accountId, work);
@@ -17989,6 +17422,17 @@ function createScheduler({
         return job;
       });
     },
+    // Give a new agent account the owner's default repeat schedule, unless it already has one.
+    async ensureDefaultSchedule(accountId2, intervalMinutes = 30) {
+      if (!intervalMinutes) return { created: false, reason: "default schedule disabled" };
+      const { jobs } = await readState();
+      if (jobs.some((job2) => job2.accountId === accountId2)) return { created: false, reason: "already scheduled" };
+      const account2 = await arena.getAccount(accountId2, { sync: false, limit: 1 });
+      const runner = inferRunner(account2);
+      if (!runner) return { created: false, reason: "no CLI runner for this agent" };
+      const job = await this.upsertJob(accountId2, { intervalMinutes, times: [], runner: { ...runner, timeoutMinutes: SCHEDULER_DEFAULTS.timeoutMinutes } });
+      return { created: true, job };
+    },
     async deleteJob(accountId2) {
       return update((state) => {
         state.jobs = state.jobs.filter((job) => job.accountId !== accountId2);
@@ -18025,6 +17469,590 @@ function createScheduler({
     },
     status: () => ({ ownerId, role, last, running: [...running.keys()] })
   };
+}
+
+// mcp/arena-tools.mjs
+var accountId = external_exports.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_\u2026) returned by arena_register_account or arena_my_accounts.");
+var market = external_exports.enum(["A", "HK", "US"]);
+var exitFields = {
+  stopLossPrice: external_exports.number().positive().optional().describe("Protective stop: sell everything sellable at market when a fresh quote trades at or below this price."),
+  stopLossPct: external_exports.number().positive().max(95).optional().describe("Protective stop as % below the average cost (e.g. 8 = cost \xD7 0.92). Use price or pct, not both."),
+  takeProfitPrice: external_exports.number().positive().optional().describe("Take profit: sell at market when a fresh quote trades at or above this price."),
+  takeProfitPct: external_exports.number().positive().max(1e3).optional().describe("Take profit as % above the average cost (e.g. 20 = cost \xD7 1.2).")
+};
+function compactAccount(account2) {
+  const { metrics } = account2;
+  const flags = [
+    account2.health?.status === "missed" ? `MISSED ${account2.health.missedTradingDays} trading day(s)` : null,
+    account2.risk?.breaker ? `RISK BREAKER TRIPPED (${account2.risk.breaker.drawdownPct}%): buys blocked` : null
+  ].filter(Boolean);
+  return `${account2.name} [${account2.id}] ${account2.market} ${account2.currency} \xB7 model ${account2.model} \xB7 equity ${metrics.equity} (${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct}%) \xB7 cash ${metrics.availableCash} \xB7 ${metrics.positions} positions \xB7 ${metrics.openOrders} open orders${flags.length ? ` \xB7 ${flags.join(" \xB7 ")}` : ""}`;
+}
+function policyText(policy) {
+  if (!policy) return "";
+  const parts = [
+    policy.maxPositionPct ? `max ${policy.maxPositionPct}% per position` : null,
+    policy.maxExposurePct ? `max ${policy.maxExposurePct}% total exposure` : null,
+    policy.maxDrawdownPct ? `drawdown breaker at -${policy.maxDrawdownPct}% (${policy.onBreach === "reduce" ? `then reduce to ${policy.reduceToExposurePct}% exposure` : "then block buys"})` : null
+  ].filter(Boolean);
+  return parts.length ? `Owner risk policy: ${parts.join(", ")}.` : "Owner risk policy: no limits set.";
+}
+function registerArenaTools(server2, { toolResult: toolResult2, toolError: toolError2 }) {
+  const caller = () => callerFromClient(server2.server.getClientVersion?.());
+  const register = (name, config2, handler) => server2.registerTool(name, config2, async (input) => {
+    try {
+      const [data, summary] = await handler(input ?? {});
+      return toolResult2(data, summary);
+    } catch (error2) {
+      return toolError2(error2);
+    }
+  });
+  register("arena_register_account", {
+    title: "Register arena paper account",
+    description: [
+      "Create this agent's own paper-trading account in the local Agent Arena, so its performance can be compared with other agents and models.",
+      "Call once per experiment and remember the returned accountId. First call arena_my_accounts: reuse an active account you already own instead of creating duplicates.",
+      `Each account trades one market with virtual cash in its currency (defaults: ${Object.entries(ARENA_MARKETS).map(([key, value]) => `${key} ${value.defaultCash.toLocaleString("en-US")} ${value.currency}`).join(", ")}).`,
+      "Report the model you are actually running on; do not guess another model's name."
+    ].join(" "),
+    inputSchema: {
+      name: external_exports.string().min(1).max(60).describe("Display name, e.g. 'Opus momentum A-share'."),
+      model: external_exports.string().min(1).max(80).describe("Exact model id you are running on, e.g. claude-opus-5-5, gpt-5.5-codex, hunyuan-t1."),
+      market,
+      strategySummary: external_exports.string().min(10).max(2e3).describe("The strategy you will follow: universe, entry/exit rules, sizing, risk limits."),
+      initialCash: external_exports.number().min(1e3).max(1e10).optional().describe("Leave unset to use the competition default so accounts stay comparable."),
+      competition: external_exports.string().min(1).max(40).optional().describe("Group name; only accounts in the same market and competition are ranked together. Default 'default'."),
+      agentLabel: external_exports.string().max(60).optional().describe("Human-friendly agent name, e.g. 'Claude Code', 'Codex', 'WorkBuddy'.")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  }, async (input) => {
+    const account2 = await getArena().createAccount(input, caller());
+    const schedule = await createScheduler({ arena: getArena() }).ensureDefaultSchedule(account2.id, (await loadPreferences()).defaultAgentIntervalMinutes).catch((error2) => ({ created: false, reason: error2.message }));
+    account2.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type } : null;
+    return [account2, `Created arena account ${account2.id}. Save this id and pass it as accountId to every arena tool. ${compactAccount(account2)}`];
+  });
+  register("arena_my_accounts", {
+    title: "List my arena accounts",
+    description: "List active arena accounts registered by this agent client (and, with all=true, every agent's accounts). Use it at the start of each session to recover your accountId.",
+    inputSchema: { all: external_exports.boolean().optional(), market: market.optional() },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async ({ all = false, market: selected }) => {
+    const me = caller();
+    const accounts = await getArena().listAccounts({ market: selected, client: all ? void 0 : me.client });
+    const unowned = all ? [] : (await getArena().listAccounts({ market: selected })).filter((account2) => !account2.agent.client);
+    const rows = [...accounts, ...unowned];
+    return [{ caller: me, accounts: rows }, rows.length ? `${rows.length} account(s) for ${me.client}${unowned.length ? " (unclaimed dashboard accounts are claimed on your first order)" : ""}:
+${rows.map(compactAccount).join("\n")}` : `No arena account for ${me.client} yet. Create one with arena_register_account.`];
+  });
+  register("arena_get_account", {
+    title: "Get arena account",
+    description: [
+      "Sync with live quotes (fills resting orders that became marketable, expires day orders, marks positions) and return cash, positions (with stop-loss / take-profit levels), open orders, recent trades, journal, account events (fills by the background matcher, stops, dividends, splits, suspensions) and performance metrics.",
+      "Also returns the owner's riskPolicy (read-only for agents: max position %, max exposure %, drawdown circuit breaker), the current drawdown/breaker state and run health (missed trading days)."
+    ].join(" "),
+    inputSchema: { accountId, limit: external_exports.number().int().min(1).max(200).optional().describe("Number of recent orders/trades/journal entries (default 30).") },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, async ({ accountId: id, limit = 30 }) => {
+    const account2 = await getArena().getAccount(id, { limit });
+    const { equity, ...rest } = account2;
+    return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, `${compactAccount(account2)}
+${policyText(account2.riskPolicy)}`];
+  });
+  register("arena_place_order", {
+    title: "Place arena paper order",
+    description: [
+      "Place a long-only paper order in your own arena account. Fills use the live public quote plus slippage and exchange-style fees, during regular sessions only.",
+      "Rules enforced: board lots (A-share 100, STAR 200 min; HK per-stock lot; US 1), A-share T+1 and daily price limits, available cash incl. fees and open-order reservations.",
+      "Market orders need an open session. Limit orders rest and a background matcher fills them every 1-2 minutes during the session when the price is marketable; 'day' orders expire at the session close, 'gtc' after 30 days.",
+      "One account may take at most a configured share of the day's volume (default 5%); larger orders fill partially and the rest keeps resting. Suspended stocks (no trades today) do not fill.",
+      "BUY orders may carry stopLoss / takeProfit (price or % of average cost); the matcher sells at market when a fresh quote crosses the level, subject to T+1 and limit-down.",
+      "The owner's risk policy (see arena_get_account) can reject buys; agents cannot change it.",
+      "Always give the reason (thesis, signal, risk) so the decision can be reviewed later. Rejections are recorded and count against discipline metrics."
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      symbol: external_exports.string().min(1).max(20).describe("600519 / 600519.SS, 0700.HK, AAPL \u2026"),
+      side: external_exports.enum(["BUY", "SELL"]),
+      quantity: external_exports.number().int().positive().max(1e7).describe("Number of shares (not lots)."),
+      orderType: external_exports.enum(["market", "limit"]).default("market"),
+      limitPrice: external_exports.number().positive().optional(),
+      timeInForce: external_exports.enum(["day", "gtc"]).optional(),
+      reason: external_exports.string().min(10).max(2e3).describe("Why: thesis, signal, sizing and exit plan."),
+      confidence: external_exports.number().min(0).max(1).optional().describe("Your subjective probability the trade works (0\u20131); used for calibration review."),
+      horizon: external_exports.string().max(40).optional().describe("Intended holding period, e.g. '3d', '2w'."),
+      clientOrderId: external_exports.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional().describe("Idempotency key: retries with the same id return the original order."),
+      ...exitFields
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, async (input) => {
+    const result = await getArena().placeOrder(input, caller());
+    const { order, trade } = result;
+    const summary = order.status === "rejected" ? `REJECTED: ${order.rejectReason}` : trade ? `FILLED ${trade.side} ${trade.quantity} ${trade.symbol} @ ${trade.price} (fees ${trade.fees}). ${compactAccount(result.account)}` : `OPEN ${order.type} ${order.side} ${order.quantity} ${order.symbol}${order.limitPrice ? ` @ ${order.limitPrice}` : ""} [${order.id}] \u2014 ${result.note}`;
+    if (trade && order.status === "open") return [result, `PARTIAL ${trade.side} ${trade.quantity}/${order.quantity} ${trade.symbol} @ ${trade.price}. ${result.note}`];
+    return [result, summary];
+  });
+  register("arena_set_exits", {
+    title: "Set stop-loss / take-profit",
+    description: [
+      "Attach or change protective exits on one of your existing positions. Levels are a price or a percent of the average cost.",
+      "The background matcher sells all sellable shares at market when a fresh quote crosses a level during a regular session; A-share T+1 and limit-down still apply (the exit waits and is logged as deferred).",
+      "Pass null for a level to clear it, or clear=true to remove both."
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      symbol: external_exports.string().min(1).max(20),
+      stopLossPrice: exitFields.stopLossPrice.unwrap().nullable().optional(),
+      stopLossPct: exitFields.stopLossPct.unwrap().nullable().optional(),
+      takeProfitPrice: exitFields.takeProfitPrice.unwrap().nullable().optional(),
+      takeProfitPct: exitFields.takeProfitPct.unwrap().nullable().optional(),
+      clear: external_exports.boolean().optional()
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().setExits(input, caller());
+    return [result, result.exits ? `Exits for ${result.symbol}: stop ${result.levels?.stopLoss ?? "\u2014"}, take-profit ${result.levels?.takeProfit ?? "\u2014"} (last ${result.lastPrice ?? "?"}).` : `Exits for ${result.symbol} cleared.`];
+  });
+  register("arena_cancel_order", {
+    title: "Cancel arena order",
+    description: "Cancel one of your open arena orders by order id or clientOrderId.",
+    inputSchema: { accountId, orderId: external_exports.string().min(1).max(80), reason: external_exports.string().max(500).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().cancelOrder(input, caller());
+    return [result, result.note ?? `Cancelled ${result.order.id}.`];
+  });
+  register("arena_log_decision", {
+    title: "Log arena decision",
+    description: "Record analysis, a deliberate no-trade decision, a risk check or a post-trade review in your account journal. Logging why you did NOT trade is as valuable as logging trades when comparing agents.",
+    inputSchema: {
+      accountId,
+      kind: external_exports.enum(["analysis", "no-trade", "risk", "review", "note"]).default("analysis"),
+      summary: external_exports.string().min(1).max(2e3),
+      symbols: external_exports.array(external_exports.string().max(20)).max(20).optional(),
+      details: external_exports.string().max(8e3).optional()
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().logDecision(input, caller());
+    return [result, `Logged ${result.entry.kind} decision ${result.entry.id}.`];
+  });
+  register("arena_update_strategy", {
+    title: "Update arena strategy",
+    description: "Publish a new version of your strategy description. Later trades are tagged with the new version so performance can be compared per strategy version.",
+    inputSchema: { accountId, summary: external_exports.string().min(10).max(2e3), changeNote: external_exports.string().max(500).optional().describe("What changed and why.") },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().updateStrategy(input, caller());
+    return [result, `Strategy is now version ${result.strategy.version}.`];
+  });
+  register("arena_publish_report", {
+    title: "Publish arena round report",
+    description: [
+      "Publish the conclusion of this round for the owner, who does not operate anything and only reads your reports.",
+      "Call it at the end of every round, including rounds with no trades: headline, plain-language summary, market view, actions taken, current picks with thesis, risks and what you will do next.",
+      "Write in the owner's language (Chinese unless told otherwise). Do not claim paper results are real returns."
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      title: external_exports.string().min(1).max(120).describe("One-line headline, e.g. '\u51CF\u4ED3\u767D\u9152\uFF0C\u52A0\u4ED3\u65B0\u80FD\u6E90\u9F99\u5934'."),
+      summary: external_exports.string().min(10).max(2e3).describe("The conclusion in 2\u20135 sentences."),
+      sentiment: external_exports.enum(["bullish", "neutral", "bearish", "defensive"]).optional(),
+      marketView: external_exports.string().max(2e3).optional(),
+      actions: external_exports.array(external_exports.object({ symbol: external_exports.string().max(20), action: external_exports.string().max(20).describe("buy / sell / hold / watch / cancel"), detail: external_exports.string().max(500) })).max(30).optional(),
+      picks: external_exports.array(external_exports.object({ symbol: external_exports.string().max(20), thesis: external_exports.string().max(500) })).max(20).optional(),
+      risks: external_exports.string().max(2e3).optional(),
+      nextSteps: external_exports.string().max(2e3).optional(),
+      body: external_exports.string().max(2e4).optional().describe("Optional longer Markdown analysis.")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().publishReport(input, caller());
+    return [result, `Published report ${result.report.id}: ${result.report.title}`];
+  });
+  register("arena_set_watchlist", {
+    title: "Set agent stock pool",
+    description: [
+      "Replace your account's candidate stock pool (your own selection, at most 50, same market as the account).",
+      "If your account is the owner's managed account (or no managed account is chosen), the shared dashboard watchlist for that market is replaced with your pool plus your holdings, so the owner's market page follows your selection."
+    ].join(" "),
+    inputSchema: { accountId, symbols: external_exports.array(external_exports.string().min(1).max(20)).max(50), reason: external_exports.string().max(1e3).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().setWatchlist(input, caller());
+    const preferences = await loadPreferences();
+    const managed = !preferences.managedAccountId || preferences.managedAccountId === input.accountId;
+    let mirrored = false;
+    if (managed) {
+      const market2 = result.watchlist.symbols[0] ? marketFromSymbol(result.watchlist.symbols[0]) : null;
+      const pool = [.../* @__PURE__ */ new Set([...result.holdings, ...result.watchlist.symbols])];
+      const others = preferences.watchlist.filter((symbol) => {
+        try {
+          return market2 ? marketFromSymbol(symbol) !== market2 : true;
+        } catch {
+          return false;
+        }
+      });
+      await savePreferences({ watchlist: [...others, ...pool].slice(0, 50) });
+      mirrored = true;
+    }
+    return [{ ...result, mirroredToDashboard: mirrored }, `Stock pool set to ${result.watchlist.symbols.length} symbols${mirrored ? "; dashboard watchlist updated" : ""}.`];
+  });
+  register("arena_leaderboard", {
+    title: "Arena leaderboard",
+    description: "Rank all agents' accounts by total return within each market and competition, with drawdown, Sharpe, win rate, fees, turnover, benchmark and excess return.",
+    inputSchema: { market: market.optional(), competition: external_exports.string().max(40).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, async (input) => {
+    const board = await getArena().leaderboard(input);
+    const text2 = board.groups.map((group) => [
+      `${group.market} \xB7 ${group.competition} (${group.currency})`,
+      ...group.accounts.map((account2) => `#${account2.rank} ${account2.name} \u2014 ${account2.model} via ${account2.agent.label ?? account2.agent.client ?? "?"}: ${account2.metrics.totalReturnPct}% (max DD ${account2.metrics.maxDrawdownPct}%, ${account2.metrics.trades} trades)`)
+    ].join("\n")).join("\n\n");
+    return [board, text2 || "No arena accounts yet."];
+  });
+}
+
+// mcp/update-coordination.mjs
+import { mkdir as mkdir7, readFile as readFile7, writeFile as writeFile6, rename as rename7, rm as rm4, readdir as readdir3, stat as stat2 } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { randomUUID as randomUUID5 } from "node:crypto";
+import os4 from "node:os";
+import path8 from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+function updateHome(env = process.env, platform = process.platform, home = os4.homedir()) {
+  if (env.HROUTER_UPDATE_HOME) return path8.resolve(env.HROUTER_UPDATE_HOME);
+  return platform === "win32" ? path8.join(env.LOCALAPPDATA || path8.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path8.join(env.XDG_DATA_HOME || path8.join(home, ".local", "share"), "hrouter-market-pulse-updater");
+}
+async function readJson2(file, fallback = null) {
+  try {
+    return JSON.parse(await readFile7(file, "utf8"));
+  } catch (error2) {
+    if (error2.code === "ENOENT") return fallback;
+    throw error2;
+  }
+}
+async function atomicJson(file, data) {
+  await mkdir7(path8.dirname(file), { recursive: true, mode: 448 });
+  const temp = `${file}.${randomUUID5()}.tmp`;
+  try {
+    await writeFile6(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
+    await rename7(temp, file);
+  } finally {
+    await rm4(temp, { force: true });
+  }
+}
+function processAlive2(pid) {
+  if (!Number.isSafeInteger(pid) || pid < 1) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error2) {
+    return error2.code !== "ESRCH";
+  }
+}
+async function acquireLock(home, name, { waitMs = 0, alive = processAlive2 } = {}) {
+  await mkdir7(home, { recursive: true, mode: 448 });
+  const dir = path8.join(home, `${name}.lock`);
+  const deadline = Date.now() + waitMs;
+  for (; ; ) {
+    try {
+      await mkdir7(dir, { mode: 448 });
+      await atomicJson(path8.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
+      return async () => {
+        await rm4(dir, { recursive: true, force: true });
+      };
+    } catch (error2) {
+      if (error2.code !== "EEXIST") throw error2;
+      const owner = await readJson2(path8.join(dir, "owner.json"));
+      let stale = owner && !alive(owner.pid);
+      if (!owner) {
+        try {
+          stale = Date.now() - (await stat2(dir)).mtimeMs > 6e5;
+        } catch (error3) {
+          if (error3.code === "ENOENT") continue;
+          throw error3;
+        }
+      }
+      if (stale) {
+        const reaping = `${dir}.reaping`;
+        let reaper = false;
+        try {
+          await mkdir7(reaping, { mode: 448 });
+          reaper = true;
+          const current = await readJson2(path8.join(dir, "owner.json"));
+          let removable = current && !alive(current.pid);
+          if (!current) {
+            try {
+              removable = Date.now() - (await stat2(dir)).mtimeMs > 6e5;
+            } catch (error3) {
+              if (error3.code !== "ENOENT") throw error3;
+            }
+          }
+          if (removable) await rm4(dir, { recursive: true, force: true });
+        } catch (error3) {
+          if (!["EEXIST", "ENOENT"].includes(error3.code)) throw error3;
+        } finally {
+          if (reaper) await rm4(reaping, { recursive: true, force: true });
+        }
+        if (reaper) continue;
+        if (Date.now() >= deadline) return null;
+        await delay(100);
+        continue;
+      }
+      if (Date.now() >= deadline) return null;
+      await delay(100);
+    }
+  }
+}
+async function acquireRuntimeLease(home = updateHome()) {
+  if (!await readJson2(path8.join(home, "state.json"))) return () => {
+  };
+  const unlock = await acquireLock(home, "activation", { waitMs: 12e4 });
+  if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
+  const file = path8.join(home, "running", `${process.pid}-${randomUUID5()}.json`);
+  try {
+    await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  } finally {
+    await unlock();
+  }
+  const release = () => {
+    rmSync(file, { force: true });
+  };
+  process.once("exit", release);
+  return () => {
+    process.removeListener("exit", release);
+    release();
+  };
+}
+
+// mcp/service.mjs
+import { mkdir as mkdir8, readFile as readFile8, rename as rename8, stat as stat3, writeFile as writeFile7 } from "node:fs/promises";
+import { randomUUID as randomUUID6 } from "node:crypto";
+import os5 from "node:os";
+import path9 from "node:path";
+var SERVICE_HEARTBEAT_MS = 3e4;
+var SERVICE_STALE_MS = 12e4;
+function serviceStatusFile(arenaRoot) {
+  return path9.join(arenaRoot, "service-status.json");
+}
+async function readServiceStatus(arenaRoot, now = Date.now()) {
+  try {
+    const status = JSON.parse(await readFile8(serviceStatusFile(arenaRoot), "utf8"));
+    const alive = now - Date.parse(status.heartbeatAt) < SERVICE_STALE_MS;
+    return { ...status, state: alive ? "running" : "stopped" };
+  } catch (error2) {
+    if (error2.code === "ENOENT") return { state: "not-installed-or-never-started" };
+    throw error2;
+  }
+}
+function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: version2, port, onExit = () => process.exit(0) }) {
+  const startedAt = (/* @__PURE__ */ new Date()).toISOString();
+  let bundleMtime = null;
+  let stopping = false;
+  const write = async () => {
+    const status = {
+      pid: process.pid,
+      host: os5.hostname(),
+      version: version2,
+      bundlePath: bundlePath2,
+      port,
+      startedAt,
+      heartbeatAt: (/* @__PURE__ */ new Date()).toISOString(),
+      node: process.version,
+      scheduler: scheduler?.status() ?? null
+    };
+    await mkdir8(arena.root, { recursive: true });
+    const file = serviceStatusFile(arena.root);
+    const temporary = `${file}.${process.pid}.${randomUUID6()}.tmp`;
+    await writeFile7(temporary, JSON.stringify(status, null, 1), "utf8");
+    await rename8(temporary, file);
+  };
+  const beat = async () => {
+    if (stopping) return;
+    try {
+      await write();
+      if (bundlePath2) {
+        const mtime = (await stat3(bundlePath2)).mtimeMs;
+        if (bundleMtime === null) bundleMtime = mtime;
+        else if (mtime !== bundleMtime) {
+          console.error("Arena service: plugin bundle changed; restarting.");
+          stopping = true;
+          onExit("bundle-changed");
+        }
+      }
+    } catch (error2) {
+      console.error(`Arena service heartbeat: ${error2.message}`);
+    }
+  };
+  beat();
+  const timer = setInterval(beat, SERVICE_HEARTBEAT_MS);
+  return { stop() {
+    stopping = true;
+    clearInterval(timer);
+  } };
+}
+
+// mcp/server.mjs
+import { fileURLToPath as fileURLToPath5 } from "node:url";
+
+// mcp/arena-demo.mjs
+import { mkdtemp as mkdtemp2, mkdir as mkdir9, writeFile as writeFile8 } from "node:fs/promises";
+import os6 from "node:os";
+import path10 from "node:path";
+function generator(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = state * 1664525 + 1013904223 >>> 0;
+    return state / 4294967296;
+  };
+}
+var UNIVERSE = {
+  A: [["600519.SS", "\u8D35\u5DDE\u8305\u53F0", 1310], ["300750.SZ", "\u5B81\u5FB7\u65F6\u4EE3", 268], ["601318.SS", "\u4E2D\u56FD\u5E73\u5B89", 58.4], ["000858.SZ", "\u4E94\u7CAE\u6DB2", 142], ["688981.SS", "\u4E2D\u82AF\u56FD\u9645", 96.5], ["600036.SS", "\u62DB\u5546\u94F6\u884C", 41.2]],
+  US: [["AAPL", "Apple", 343], ["NVDA", "NVIDIA", 182], ["MSFT", "Microsoft", 512], ["TSLA", "Tesla", 268], ["AMZN", "Amazon", 231]]
+};
+var AGENTS = [
+  { market: "A", name: "Opus \u52A8\u91CF\u8F6E\u52A8", label: "Claude Code", client: "claude-code", model: "claude-opus-5-5", drift: 19e-4, vol: 0.011, strategy: "\u6CAA\u6DF1300\u6210\u5206\u80A1\uFF0C20 \u65E5\u52A8\u91CF\u524D 3 \u540D\u7B49\u6743\u6301\u6709\uFF0C\u8DCC\u7834 MA20 \u79BB\u573A\uFF0C\u5355\u7968\u4E0D\u8D85\u8FC7 30%\u3002" },
+  { market: "A", name: "Codex \u4EF7\u503C\u9632\u5B88", label: "Codex", client: "codex-mcp-client", model: "gpt-5.5-codex", drift: 9e-4, vol: 6e-3, strategy: "\u4F4E\u4F30\u503C\u9AD8\u80A1\u606F\u84DD\u7B79\uFF0CPE \u5206\u4F4D < 30% \u5EFA\u4ED3\uFF0C\u5206 3 \u6279\u4E70\u5165\uFF0C\u6700\u5927\u56DE\u64A4 8% \u964D\u4ED3\u4E00\u534A\u3002" },
+  { market: "A", name: "WorkBuddy \u4E8B\u4EF6\u9A71\u52A8", label: "WorkBuddy", client: "workbuddy", model: "hunyuan-t1", drift: 4e-4, vol: 0.014, strategy: "\u8DDF\u8E2A\u4E1A\u7EE9\u9884\u544A\u4E0E\u516C\u544A\uFF0C\u8D85\u9884\u671F\u6B21\u65E5\u5F00\u76D8\u4E70\u5165\uFF0C\u6301\u6709 5 \u4E2A\u4EA4\u6613\u65E5\u6216\u6B62\u635F 5%\u3002" },
+  { market: "A", name: "Sonnet \u5747\u503C\u56DE\u5F52", label: "Claude Code", client: "claude-code", model: "claude-sonnet-5-5", drift: -6e-4, vol: 9e-3, strategy: "RSI(14) < 30 \u4E14\u7AD9\u4E0A MA60 \u7684\u6807\u7684\u6284\u5E95\uFF0CRSI > 60 \u6B62\u76C8\uFF0C\u5355\u6B21\u4ED3\u4F4D 20%\u3002" },
+  { market: "US", name: "Opus Mega-cap trend", label: "Claude Code", client: "claude-code", model: "claude-opus-5-5", drift: 12e-4, vol: 0.012, strategy: "Hold the 3 strongest mega caps by 50-day return, rebalance weekly, exit below the 50-day MA." },
+  { market: "US", name: "Codex Earnings drift", label: "Codex", client: "codex-mcp-client", model: "gpt-5.5-codex", drift: 7e-4, vol: 0.01, strategy: "Buy post-earnings beats with positive guidance, hold 10 sessions, 6% stop." }
+];
+function seedAccount(agent, index, start) {
+  const random = generator(9001 + index * 97);
+  const config2 = ARENA_MARKETS[agent.market];
+  const universe = UNIVERSE[agent.market];
+  const days = 34;
+  const equity = [];
+  let value = config2.defaultCash;
+  for (let day = 0; day <= days; day += 1) {
+    const shock = (random() - 0.5) * 2 * agent.vol * 1.7;
+    if (day > 0) value *= 1 + agent.drift + shock;
+    const at = new Date(start + day * 864e5 + 7 * 36e5).toISOString();
+    equity.push({ at, equity: Math.round(value * 100) / 100, cash: 0, marketValue: 0 });
+  }
+  const trades = [];
+  const orders = [];
+  const journal = [];
+  for (let n = 0; n < 9 + Math.floor(random() * 10); n += 1) {
+    const [symbol, name, base] = universe[Math.floor(random() * universe.length)];
+    const day = Math.floor(random() * days);
+    const at = new Date(start + day * 864e5 + 2 * 36e5 + n * 6e4).toISOString();
+    const price = Math.round(base * (0.92 + random() * 0.14) * 100) / 100;
+    const lot = agent.market === "A" ? 100 : 1;
+    const quantity = Math.max(lot, Math.floor(config2.defaultCash * (0.05 + random() * 0.12) / price / lot) * lot);
+    const side = random() > 0.45 ? "SELL" : "BUY";
+    const fees = computeFees(agent.market, side, quantity, price);
+    const realizedPnl = side === "SELL" ? Math.round((random() - 0.42 + agent.drift * 60) * quantity * price * 0.08) : null;
+    const id = `ord_demo${String(index).padStart(2, "0")}${String(n).padStart(4, "0")}`;
+    const reason = side === "BUY" ? agent.market === "A" ? `${name} \u653E\u91CF\u7A81\u7834 20 \u65E5\u9AD8\u70B9\uFF0C\u52A8\u91CF\u6392\u540D\u524D\u5217\uFF0C\u6309\u8BA1\u5212\u5EFA\u4ED3\u3002` : `${name} broke out above its 20-day high on rising volume; sizing per plan.` : agent.market === "A" ? `${name} \u89E6\u53D1\u6B62\u76C8/\u6B62\u635F\u6761\u4EF6\uFF0C\u6309\u7EAA\u5F8B\u51CF\u4ED3\u3002` : `${name} hit the exit rule; trimming per plan.`;
+    orders.push({ id, clientOrderId: null, symbol, name, side, type: "market", quantity, limitPrice: null, timeInForce: "day", status: "filled", reserved: 0, reason, confidence: Math.round((0.45 + random() * 0.4) * 100) / 100, strategyVersion: 1, createdAt: at, expiresAt: at, filledAt: at, fillPrice: price, fees: fees.total, placedBy: agent.client });
+    trades.push({ id: `trd_demo${String(index).padStart(2, "0")}${String(n).padStart(4, "0")}`, orderId: id, symbol, name, side, quantity, price, gross: Math.round(quantity * price * 100) / 100, fees: fees.total, feeBreakdown: fees.breakdown, realizedPnl, at, reason, confidence: null, strategyVersion: 1 });
+  }
+  orders.push({ id: `ord_demo${String(index).padStart(2, "0")}rej1`, symbol: universe[0][0], name: universe[0][1], side: "BUY", type: "market", quantity: agent.market === "A" ? 50 : 10, status: "rejected", rejectReason: agent.market === "A" ? "Buy quantity must be a multiple of the board lot (100)." : "Market is closed now. Market orders need an open session.", reason: "Demo rejection example", strategyVersion: 1, createdAt: equity[12].at, expiresAt: equity[12].at, reserved: 0 });
+  trades.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  orders.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+  for (let n = 0; n < 4; n += 1) {
+    journal.push({ id: `dec_demo${index}${n}`, at: equity[5 + n * 7].at, kind: n % 2 ? "no-trade" : "analysis", summary: agent.market === "A" ? n % 2 ? "\u5927\u76D8\u7F29\u91CF\u9707\u8361\uFF0C\u5019\u9009\u6807\u7684\u672A\u6EE1\u8DB3\u5165\u573A\u6761\u4EF6\uFF0C\u672C\u8F6E\u4E0D\u4EA4\u6613\u3002" : "\u590D\u76D8\u6301\u4ED3\uFF1A\u52A8\u91CF\u4ECD\u5728\uFF0C\u7EF4\u6301\u4ED3\u4F4D\uFF1B\u5173\u6CE8\u4E0B\u5468\u5B8F\u89C2\u6570\u636E\u3002" : n % 2 ? "No setup met the entry rules today; staying flat." : "Reviewed holdings: trend intact, keep exposure.", symbols: [universe[n % universe.length][0]], details: null, strategyVersion: 1 });
+  }
+  const reports = [0, 1, 2].map((n) => {
+    const point = equity[equity.length - 1 - n * 5];
+    const cn = agent.market === "A";
+    return {
+      id: `rpt_demo${index}${n}`,
+      at: point.at,
+      strategyVersion: 1,
+      title: cn ? ["\u7EF4\u6301\u8FDB\u653B\u4ED3\u4F4D\uFF0C\u65B0\u80FD\u6E90\u9F99\u5934\u7EE7\u7EED\u9886\u6DA8", "\u5927\u76D8\u7F29\u91CF\u9707\u8361\uFF0C\u672C\u8F6E\u4E0D\u4EA4\u6613", "\u6B62\u76C8\u90E8\u5206\u767D\u9152\uFF0C\u8F6C\u5165\u91D1\u878D\u9632\u5B88"][n] : ["Trend intact, staying long mega caps", "No setup today; flat", "Trimmed winners into strength"][n],
+      summary: cn ? `${agent.name}\uFF1A\u52A8\u91CF\u4FE1\u53F7\u4ECD\u7136\u6709\u6548\uFF0C\u6301\u4ED3\u96C6\u4E2D\u5728 2\u20133 \u53EA\u9F99\u5934\uFF0C\u73B0\u91D1\u4FDD\u7559\u7EA6\u4E09\u6210\u4EE5\u5E94\u5BF9\u56DE\u64A4\u3002\u672C\u8F6E${n === 1 ? "\u6CA1\u6709\u6EE1\u8DB3\u5165\u573A\u6761\u4EF6\u7684\u6807\u7684" : "\u6309\u7EAA\u5F8B\u8C03\u6574\u4E86\u4ED3\u4F4D"}\uFF0C\u7EC4\u5408\u7D2F\u8BA1\u6536\u76CA ${((point.equity / config2.defaultCash - 1) * 100).toFixed(2)}%\u3002` : `${agent.name}: momentum still positive; ${n === 1 ? "no candidate met the entry rules" : "rebalanced per plan"}. Total return ${((point.equity / config2.defaultCash - 1) * 100).toFixed(2)}%.`,
+      sentiment: ["bullish", "neutral", "defensive"][n],
+      marketView: cn ? "\u6307\u6570\u5728 20 \u65E5\u5747\u7EBF\u9644\u8FD1\u9707\u8361\uFF0C\u6210\u4EA4\u989D\u56DE\u843D\uFF0C\u98CE\u683C\u504F\u5411\u5927\u76D8\u84DD\u7B79\u3002" : "Index holding its 50-day average; breadth narrowing.",
+      actions: n === 1 ? [] : [{ symbol: universe[1][0], action: n ? "sell" : "buy", detail: cn ? "\u6309\u4FE1\u53F7\u8C03\u6574" : "per signal" }],
+      picks: universe.slice(0, 3).map(([symbol, name]) => ({ symbol, thesis: cn ? `${name}\uFF1A\u8D8B\u52BF\u5411\u4E0A\uFF0C\u56DE\u64A4\u53EF\u63A7` : `${name}: uptrend, contained drawdowns` })),
+      risks: cn ? "\u82E5\u6CAA\u6DF1300 \u8DCC\u7834 60 \u65E5\u5747\u7EBF\uFF0C\u964D\u4ED3\u81F3\u4E94\u6210\u4EE5\u4E0B\u3002" : "Cut exposure below 50% if the index loses its 100-day average.",
+      nextSteps: cn ? "\u4E0B\u4E00\u4EA4\u6613\u65E5\u5F00\u76D8\u540E\u590D\u6838\u91CF\u80FD\uFF0C\u89E6\u53D1\u6761\u4EF6\u518D\u52A0\u4ED3\u3002" : "Recheck volume after the next open.",
+      snapshot: { equity: point.equity, cash: 0, positions: 2, returnPct: Math.round((point.equity / config2.defaultCash - 1) * 1e4) / 100 }
+    };
+  }).reverse();
+  const finalEquity = equity.at(-1).equity;
+  const positions = {};
+  let marketValue = 0;
+  for (const [symbol, name, base] of universe.slice(0, 2 + index % 2)) {
+    const lot = agent.market === "A" ? 100 : 1;
+    const price = Math.round(base * (0.97 + random() * 0.06) * 100) / 100;
+    const quantity = Math.floor(finalEquity * 0.22 / price / lot) * lot;
+    const cost = Math.round(quantity * price * (0.93 + random() * 0.1) * 100) / 100;
+    positions[symbol] = {
+      symbol,
+      name,
+      quantity,
+      costBasis: cost,
+      realizedPnl: 0,
+      lots: [{ date: "2026-01-01", quantity }],
+      openedAt: equity[3].at,
+      lastPrice: price,
+      lastPriceAt: equity.at(-1).at,
+      ...index % 2 === 0 ? { exits: { stopLoss: { pct: 8 }, takeProfit: { pct: 25 } } } : {}
+    };
+    marketValue += quantity * price;
+  }
+  for (const point of equity) Object.assign(point, { marketValue: Math.round(marketValue * 100) / 100, cash: Math.round((point.equity - marketValue) * 100) / 100 });
+  const createdAt = new Date(start - 36e5).toISOString();
+  return {
+    schemaVersion: 1,
+    demo: true,
+    id: `acc_${(244837814042624 + index).toString(16).slice(-12)}`,
+    name: agent.name,
+    competition: "default",
+    market: agent.market,
+    currency: config2.currency,
+    status: "active",
+    agent: { client: agent.client, clientVersion: "demo", label: agent.label },
+    model: agent.model,
+    strategy: { version: index === 0 ? 2 : 1, summary: agent.strategy, updatedAt: createdAt, history: [{ version: 1, summary: agent.strategy, note: "initial", at: createdAt }, ...index === 0 ? [{ version: 2, summary: agent.strategy, note: "\u6536\u7D27\u6B62\u635F\uFF1AMA20 \u2192 MA10", at: equity[20].at }] : []] },
+    initialCash: config2.defaultCash,
+    cash: Math.round((finalEquity - marketValue) * 100) / 100,
+    realizedPnl: trades.reduce((sum, trade) => sum + (trade.realizedPnl ?? 0), 0),
+    settings: { slippageBps: 5, maxQuoteAgeSeconds: 180, feeModel: `${agent.market}-retail-v1` },
+    benchmark: { symbol: config2.benchmark, name: config2.benchmarkName, startPrice: 100, startAt: createdAt, lastPrice: agent.market === "A" ? 103.1 : 102.4, lastPriceAt: equity.at(-1).at },
+    positions,
+    orders,
+    trades,
+    journal,
+    equity,
+    reports,
+    createdAt,
+    watchlist: { symbols: universe.map(([symbol]) => symbol), reason: "demo", updatedAt: equity.at(-1).at },
+    updatedAt: equity.at(-1).at,
+    createdBy: agent.client,
+    // The event-driven agent "stopped running" three days ago so the missed-run warning is visible.
+    lastRoundAt: agent.client === "workbuddy" ? equity.at(-4).at : reports.at(-1).at,
+    lastRoundKind: "report",
+    riskPolicy: { maxPositionPct: 35, maxExposurePct: 90, maxDrawdownPct: 15, onBreach: "block", reduceToExposurePct: 50 },
+    events: index === 0 ? [
+      { id: "evt_demo0001", at: equity.at(-6).at, type: "dividend", symbol: universe[0][0], amount: 1850, message: `${universe[0][0]} \u6D3E\u606F\u5230\u8D26 +1850 ${config2.currency}` },
+      { id: "evt_demo0002", at: equity.at(-2).at, type: "stop-loss", symbol: universe[2][0], level: 55.1, price: 55.02, message: `\u6B62\u635F ${universe[2][0]}\uFF1A\u73B0\u4EF7 55.02 \u8DCC\u7834 55.1\uFF0C\u5E02\u4EF7\u5356\u51FA` }
+    ] : []
+  };
+}
+async function createDemoArena() {
+  const root2 = await mkdtemp2(path10.join(os6.tmpdir(), "hrouter-arena-demo-"));
+  await mkdir9(path10.join(root2, "accounts"), { recursive: true });
+  const start = Date.now() - 34 * 864e5 - 8 * 36e5;
+  const accounts = AGENTS.map((agent, index) => seedAccount(agent, index, start));
+  const prices = new Map(accounts.flatMap((account2) => Object.values(account2.positions).map((position) => [position.symbol, position])));
+  for (const account2 of accounts) await writeFile8(path10.join(root2, "accounts", `${account2.id}.json`), JSON.stringify(account2));
+  const arena = createArena({
+    root: root2,
+    // Synthetic quotes: hold the seeded marks so the demo stays stable while it is open.
+    quoteProvider: async (symbol) => {
+      const position = prices.get(symbol);
+      const market2 = /\.(SS|SZ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) ? "HK" : "US";
+      const base = position?.lastPrice ?? ({ "000300.SS": 103.1, "^GSPC": 102.4, "^HSI": 101.2 }[symbol] ?? 50);
+      return { symbol, name: position?.name ?? symbol, market: market2, price: base, asOf: (/* @__PURE__ */ new Date()).toISOString(), provider: "Synthetic demo", lotSize: market2 === "HK" ? 100 : null, limitUp: null, limitDown: null };
+    }
+  });
+  await arena.generateDigest({ market: "A", trigger: "demo" });
+  return arena;
 }
 
 // mcp/http.mjs
@@ -19555,8 +19583,15 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
         const body = await bodyJson(request);
         if (url.pathname.startsWith("/api/arena/")) {
           const arena = await arenaReady;
-          if (url.pathname === "/api/arena/accounts")
-            return respond(response, 201, await arena.createAccount({ ...body, agentLabel: body.agentLabel || void 0 }, dashboardCaller));
+          if (url.pathname === "/api/arena/accounts") {
+            const account2 = await arena.createAccount({ ...body, agentLabel: body.agentLabel || void 0 }, dashboardCaller);
+            if (!demo2) {
+              const interval = (await readPreferences())?.defaultAgentIntervalMinutes ?? 30;
+              const schedule2 = await (await schedulerReady).ensureDefaultSchedule(account2.id, interval).catch((error2) => ({ created: false, reason: error2.message }));
+              account2.schedule = schedule2.created ? { intervalMinutes: schedule2.job.intervalMinutes, runner: schedule2.job.runner.type } : null;
+            }
+            return respond(response, 201, account2);
+          }
           if (url.pathname === "/api/arena/sync")
             return respond(response, 200, await arena.sync(Array.isArray(body.accountIds) ? body.accountIds : void 0, { force: true }));
           if (url.pathname === "/api/arena/digests") {
@@ -19608,6 +19643,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
             "monitorIntervalSeconds",
             "calendarOverrides",
             "managedAccountId",
+            "defaultAgentIntervalMinutes",
             "digestWebhook"
           ];
           const selected = Object.fromEntries(

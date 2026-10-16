@@ -2,6 +2,7 @@
 // workflow runs in Codex, Claude Code, WorkBuddy or any other MCP host.
 import { z } from "zod";
 import { ARENA_MARKETS, callerFromClient, getArena } from "./arena.mjs";
+import { createScheduler } from "./scheduler.mjs";
 import { loadPreferences, marketFromSymbol, savePreferences } from "./core.mjs";
 
 const accountId = z.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_…) returned by arena_register_account or arena_my_accounts.");
@@ -64,6 +65,9 @@ export function registerArenaTools(server, { toolResult, toolError }) {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   }, async (input) => {
     const account = await getArena().createAccount(input, caller());
+    // The owner's default: every agent account repeats a round every N minutes in session.
+    const schedule = await createScheduler({ arena: getArena() }).ensureDefaultSchedule(account.id, (await loadPreferences()).defaultAgentIntervalMinutes).catch((error) => ({ created: false, reason: error.message }));
+    account.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type } : null;
     return [account, `Created arena account ${account.id}. Save this id and pass it as accountId to every arena tool. ${compactAccount(account)}`];
   });
 

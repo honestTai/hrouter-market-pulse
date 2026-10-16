@@ -30,6 +30,7 @@ npm run service:install          # 安装开机自启的常驻服务（macOS Lau
 - **Kimi Code**：使用 `kimi -p` 运行，沿用 Kimi 自己的登录与 `~/.kimi-code/mcp.json` 里登记的本插件（模型如 `kimi-code/k3-256k`，不写前缀会自动补全）。
 - 行情第二数据源与新闻：Yahoo Finance 不可用时自动改用**东方财富**做交叉验证和个股资讯（A 股、港股、美股）；港股东方财富报价有延迟，时间对不上时按单源可用处理而不是冲突。
 - 无头运行只挂载本插件的 MCP 服务，并且只预先批准本插件的工具：Claude 使用 `--strict-mcp-config --allowedTools mcp__hrouter_market_pulse`；Codex 使用只读沙箱和 `default_tools_approval_mode="approve"`，并临时禁用已安装的同名插件以免重复。
+- **默认规则：每个 Agent 账户交易时段内每 30 分钟一轮。** Agent 自己开户（`arena_register_account`）或在面板新建账户时，会按账户所属 Agent 自动创建调度（Codex / Kimi Code / Claude Code / WorkBuddy），模型沿用账户模型；量化策略账户不自动创建。默认间隔由设置 `defaultAgentIntervalMinutes` 控制（默认 30，`0` 关闭，最小 10）。
 - 除了固定时间，也可以设「交易时段内每隔 N 分钟」：代码策略最短 1 分钟，Agent 最短 10 分钟（一轮本身要几分钟、每轮消耗模型额度）；上一轮还在跑时这一次直接跳过，不会排队连跑。推荐分工：Agent 每 15–30 分钟或每天几次负责选股、调策略、设止损；代码策略每 1–5 分钟执行；挂单与止损由后台每 1–2 分钟撮合。
 - 每轮有超时（默认 20 分钟），同一账户不会并发运行；连续 3 轮失败会在面板标红。错过的时段在 90 分钟内会补跑，更晚的直接跳过。
 - 量化策略的写法见 [STRATEGIES.md](STRATEGIES.md)。

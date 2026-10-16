@@ -59,6 +59,9 @@ test("real dashboard creates, lists, edits, archives and deletes accounts", asyn
     assert.equal(managed.body.managedAccountId, id);
     assert.equal((await call("/api/preferences", { managedAccountId: "nope" })).status, 400);
     assert.equal((await call("/api/preferences", { managedAccountId: null })).body.managedAccountId, null);
+    assert.equal(created.body.schedule?.intervalMinutes, 30, "agentLabel Claude Code → claude runner gets the default schedule");
+    assert.equal((await call("/api/preferences", { defaultAgentIntervalMinutes: 5 })).status, 400);
+    assert.equal((await call("/api/preferences", { defaultAgentIntervalMinutes: 0 })).body.defaultAgentIntervalMinutes, 0);
     const invalid = await call("/api/arena/accounts", { name: "x", model: "", market: "US" });
     assert.equal(invalid.status, 400);
   });

@@ -1103,6 +1103,8 @@ export async function loadPreferences() {
     calendarOverrides: saved.calendarOverrides ?? {},
     monitorIntervalSeconds: Math.max(60, Math.min(3600, finite(saved.monitorIntervalSeconds) ?? 300)),
     managedAccountId: typeof saved.managedAccountId === "string" ? saved.managedAccountId : null,
+    // New agent accounts get a repeat-every-N-minutes schedule automatically (0 = off).
+    defaultAgentIntervalMinutes: Number.isInteger(saved.defaultAgentIntervalMinutes) ? saved.defaultAgentIntervalMinutes : 30,
     digestWebhook: saved.digestWebhook && typeof saved.digestWebhook.url === "string" ? saved.digestWebhook : null,
     reportPort: getReportPort(),
     reportDirectory: getStorageDir(),
@@ -1266,10 +1268,13 @@ export function sanitizePreferences(input, current = {}) {
     monitorIntervalSeconds: input.monitorIntervalSeconds ?? current.monitorIntervalSeconds ?? 300,
     // Arena account whose agent manages the owner's portfolio (null = follow the most active account).
     managedAccountId: input.managedAccountId === undefined ? current.managedAccountId ?? null : input.managedAccountId,
+    defaultAgentIntervalMinutes: input.defaultAgentIntervalMinutes === undefined ? current.defaultAgentIntervalMinutes ?? 30 : input.defaultAgentIntervalMinutes,
     // Optional end-of-day arena digest push: generic JSON POST, or WeChat Work / Feishu bot payloads.
     digestWebhook: input.digestWebhook === undefined ? current.digestWebhook ?? null : sanitizeDigestWebhook(input.digestWebhook),
   };
   if (next.managedAccountId !== null && !/^acc_[a-f0-9]{12}$/.test(next.managedAccountId)) throw new Error("managedAccountId must be an arena account id or null.");
+  if (!Number.isInteger(next.defaultAgentIntervalMinutes) || next.defaultAgentIntervalMinutes < 0 || next.defaultAgentIntervalMinutes > 240 || (next.defaultAgentIntervalMinutes > 0 && next.defaultAgentIntervalMinutes < 10))
+    throw new Error("defaultAgentIntervalMinutes must be 0 (off) or a whole number of minutes from 10 to 240.");
   return next;
 }
 

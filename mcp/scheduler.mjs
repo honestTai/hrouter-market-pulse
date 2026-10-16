@@ -202,6 +202,18 @@ function runChild({ command, args, env, cwd, timeoutMs, spawnImpl, tailBytes }) 
   });
 }
 
+// Which CLI runs an account's rounds, inferred from the agent that owns it. Null for strategies or unknown hosts.
+export function inferRunner(account) {
+  const text = `${account.agent?.client ?? ""} ${account.agent?.label ?? ""}`.toLowerCase();
+  if (account.model?.startsWith("strategy:") || text.includes("strategy")) return null;
+  const model = account.model && !account.model.startsWith("strategy:") ? account.model : undefined;
+  if (text.includes("codex") || text.includes("openai")) return { type: "codex", model };
+  if (text.includes("kimi")) return { type: "kimi", model };
+  if (text.includes("workbuddy") || text.includes("codebuddy")) return { type: "workbuddy", model };
+  if (text.includes("claude")) return { type: "claude", model };
+  return null;
+}
+
 export function createScheduler({
   arena, now = arena.now, spawnImpl = spawn, strategyLoader = loadStrategies, nodePath = process.execPath,
   bundlePath = fileURLToPath(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath(import.meta.url) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "server.bundle.mjs"),
@@ -356,6 +368,17 @@ export function createScheduler({
         if (index >= 0) state.jobs[index] = job; else state.jobs.push(job);
         return job;
       });
+    },
+    // Give a new agent account the owner's default repeat schedule, unless it already has one.
+    async ensureDefaultSchedule(accountId, intervalMinutes = 30) {
+      if (!intervalMinutes) return { created: false, reason: "default schedule disabled" };
+      const { jobs } = await readState();
+      if (jobs.some((job) => job.accountId === accountId)) return { created: false, reason: "already scheduled" };
+      const account = await arena.getAccount(accountId, { sync: false, limit: 1 });
+      const runner = inferRunner(account);
+      if (!runner) return { created: false, reason: "no CLI runner for this agent" };
+      const job = await this.upsertJob(accountId, { intervalMinutes, times: [], runner: { ...runner, timeoutMinutes: SCHEDULER_DEFAULTS.timeoutMinutes } });
+      return { created: true, job };
     },
     async deleteJob(accountId) {
       return update((state) => { state.jobs = state.jobs.filter((job) => job.accountId !== accountId); delete state.done[accountId]; return { deleted: accountId }; });

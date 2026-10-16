@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { createArena } from "../mcp/arena.mjs";
 import { createAdvisoryBroker, createPaperBroker, normalizeIntent } from "../mcp/brokers.mjs";
-import { agentInvocation, createScheduler, dueSlots, sanitizeJob } from "../mcp/scheduler.mjs";
+import { agentInvocation, createScheduler, dueSlots, inferRunner, sanitizeJob } from "../mcp/scheduler.mjs";
 import { ordersFromTargets, resolveParams, runStrategyRound } from "../mcp/strategies/index.mjs";
 import maTrend from "../mcp/strategies/ma-trend.mjs";
 import momentum from "../mcp/strategies/momentum-rotation.mjs";
@@ -57,6 +57,25 @@ test("repeat mode fires once per interval inside regular sessions, never at lunc
   assert.deepEqual(dueSlots(strategy, "A", at("15:20"), []), [], "after close");
   const agent = sanitizeJob({ intervalMinutes: 30, times: ["09:45"], runner: { type: "codex" } });
   assert.deepEqual(dueSlots(agent, "A", at("10:05"), ["2026-10-15T09:45"]).map((slot) => slot.key), ["2026-10-15T10:00"]);
+});
+
+test("new agent accounts get the default 30-minute schedule with the right CLI; strategies and opt-out do not", async () => {
+  const { arena, cleanup } = await setup();
+  try {
+    assert.deepEqual(inferRunner({ agent: { client: "kimi-code" }, model: "k3-256k" }), { type: "kimi", model: "k3-256k" });
+    assert.deepEqual(inferRunner({ agent: { client: "codex-mcp-client" }, model: "gpt-6-astra" }), { type: "codex", model: "gpt-6-astra" });
+    assert.equal(inferRunner({ agent: { label: "Quant strategy" }, model: "strategy:ma-trend" }), null);
+    const scheduler = createScheduler({ arena });
+    const kimi = await arena.createAccount({ name: "Kimi", model: "k3-256k", market: "A" }, { client: "kimi-code" });
+    const created = await scheduler.ensureDefaultSchedule(kimi.id, 30);
+    assert.equal(created.created, true);
+    assert.deepEqual([created.job.intervalMinutes, created.job.times, created.job.runner.type, created.job.runner.model], [30, [], "kimi", "k3-256k"]);
+    assert.equal((await scheduler.ensureDefaultSchedule(kimi.id, 30)).reason, "already scheduled");
+    const quant = await arena.createAccount({ name: "Q", model: "strategy:ma-trend", market: "A", agentLabel: "Quant strategy" }, { client: "dashboard" });
+    assert.equal((await scheduler.ensureDefaultSchedule(quant.id, 30)).created, false);
+    const off = await arena.createAccount({ name: "Off", model: "gpt", market: "A" }, { client: "codex-mcp-client" });
+    assert.equal((await scheduler.ensureDefaultSchedule(off.id, 0)).created, false);
+  } finally { await cleanup(); }
 });
 
 test("agent invocations attach only this plugin, pin the data dir and pre-approve only its tools", () => {

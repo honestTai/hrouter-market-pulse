@@ -232,8 +232,15 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
         const body = await bodyJson(request);
         if (url.pathname.startsWith("/api/arena/")) {
           const arena = await arenaReady;
-          if (url.pathname === "/api/arena/accounts")
-            return respond(response, 201, await arena.createAccount({ ...body, agentLabel: body.agentLabel || undefined }, dashboardCaller));
+          if (url.pathname === "/api/arena/accounts") {
+            const account = await arena.createAccount({ ...body, agentLabel: body.agentLabel || undefined }, dashboardCaller);
+            if (!demo) {
+              const interval = (await readPreferences())?.defaultAgentIntervalMinutes ?? 30;
+              const schedule = await (await schedulerReady).ensureDefaultSchedule(account.id, interval).catch((error) => ({ created: false, reason: error.message }));
+              account.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type } : null;
+            }
+            return respond(response, 201, account);
+          }
           if (url.pathname === "/api/arena/sync")
             return respond(response, 200, await arena.sync(Array.isArray(body.accountIds) ? body.accountIds : undefined, { force: true }));
           if (url.pathname === "/api/arena/digests") {
@@ -288,6 +295,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             "monitorIntervalSeconds",
             "calendarOverrides",
             "managedAccountId",
+            "defaultAgentIntervalMinutes",
             "digestWebhook",
           ];
           const selected = Object.fromEntries(

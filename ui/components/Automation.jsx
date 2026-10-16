@@ -42,8 +42,9 @@ export function AutomationPanel({ account }) {
       const job = schedules.jobs.find((entry) => entry.accountId === account.id);
       setForm((current) => current ?? {
         enabled: job?.enabled ?? true,
-        times: (job?.times ?? (job?.intervalMinutes ? [] : DEFAULT_TIMES[account.market].split(", "))).join(", "),
-        intervalMinutes: job?.intervalMinutes ?? "",
+        times: (job?.times ?? []).join(", "),
+        // New agent schedules default to the owner's rule: one round every 30 minutes in session.
+        intervalMinutes: job ? job.intervalMinutes ?? "" : account.model?.startsWith("strategy:") ? "" : 30,
         type: job?.runner.type ?? (account.agent?.client?.startsWith("strategy") ? "strategy" : /codex/i.test(account.agent?.label ?? "") ? "codex" : /workbuddy|codebuddy/i.test(account.agent?.label ?? "") ? "workbuddy" : /kimi/i.test(`${account.agent?.label ?? ""} ${account.agent?.client ?? ""}`) ? "kimi" : "claude"),
         model: job?.runner.model ?? (account.model?.startsWith("strategy:") ? "" : account.model ?? ""),
         timeoutMinutes: job?.runner.timeoutMinutes ?? 20, maxBudgetUsd: job?.runner.maxBudgetUsd ?? "",

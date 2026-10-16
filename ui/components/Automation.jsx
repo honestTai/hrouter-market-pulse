@@ -8,6 +8,7 @@ import { Empty, ErrorNotice } from "./Primitives.jsx";
 const RUNNERS = [
   { id: "claude", zh: "Claude Code（claude -p）", en: "Claude Code (claude -p)" },
   { id: "codex", zh: "Codex（codex exec）", en: "Codex (codex exec)" },
+  { id: "kimi", zh: "Kimi Code（kimi -p）", en: "Kimi Code (kimi -p)" },
   { id: "workbuddy", zh: "WorkBuddy（codebuddy -p）", en: "WorkBuddy (codebuddy -p)" },
   { id: "strategy", zh: "量化策略（代码规则）", en: "Quant strategy (code rules)" },
   { id: "command", zh: "自定义命令", en: "Custom command" },
@@ -42,7 +43,7 @@ export function AutomationPanel({ account }) {
       setForm((current) => current ?? {
         enabled: job?.enabled ?? true,
         times: (job?.times ?? DEFAULT_TIMES[account.market].split(", ")).join(", "),
-        type: job?.runner.type ?? (account.agent?.client?.startsWith("strategy") ? "strategy" : /codex/i.test(account.agent?.label ?? "") ? "codex" : /workbuddy|codebuddy/i.test(account.agent?.label ?? "") ? "workbuddy" : "claude"),
+        type: job?.runner.type ?? (account.agent?.client?.startsWith("strategy") ? "strategy" : /codex/i.test(account.agent?.label ?? "") ? "codex" : /workbuddy|codebuddy/i.test(account.agent?.label ?? "") ? "workbuddy" : /kimi/i.test(`${account.agent?.label ?? ""} ${account.agent?.client ?? ""}`) ? "kimi" : "claude"),
         model: job?.runner.model ?? (account.model?.startsWith("strategy:") ? "" : account.model ?? ""),
         timeoutMinutes: job?.runner.timeoutMinutes ?? 20, maxBudgetUsd: job?.runner.maxBudgetUsd ?? "",
         strategyId: job?.runner.strategyId ?? schedules.strategies[0]?.id ?? "",
@@ -84,7 +85,7 @@ export function AutomationPanel({ account }) {
       <div className="form-field"><label>{t("运行方式", "Runner")}</label><select className="native-select" value={form.type} onChange={set("type")}>{RUNNERS.map((runner) => <option key={runner.id} value={runner.id}>{t(runner.zh, runner.en)}</option>)}</select></div>
       <div className="form-field"><label>{t(`运行时间（${account.market} 当地时间，逗号分隔）`, `Run times (${account.market} local, comma-separated)`)}</label><TextField.Root value={form.times} onChange={set("times")} placeholder="09:45, 14:30" /><small className="muted">{t("只在交易日运行；同组账户建议用相同时间，对比才公平。", "Trading days only; use the same times across a group for a fair comparison.")}</small></div>
       {form.type === "workbuddy" && <div className="form-field full"><Callout.Root color="amber" size="1"><Callout.Text>{t("WorkBuddy 命令行没有独立登录，需要在服务环境里提供 CODEBUDDY_API_KEY。没有 API key 时，请改用 WorkBuddy App 自带的定时任务触发每一轮（提示词见「接入 Agent」）。", "The WorkBuddy CLI has no standalone login and needs CODEBUDDY_API_KEY in the service environment. Without one, trigger rounds from WorkBuddy's own scheduled tasks instead (prompt under Connect agent).")}</Callout.Text></Callout.Root></div>}
-      {form.type !== "strategy" && <div className="form-field"><label>{t("模型（可选）", "Model (optional)")}</label><TextField.Root value={form.model} onChange={set("model")} placeholder={form.type === "codex" ? "gpt-5.5-codex" : form.type === "workbuddy" ? "primary-model" : "claude-opus-5-5"} /></div>}
+      {form.type !== "strategy" && <div className="form-field"><label>{t("模型（可选）", "Model (optional)")}</label><TextField.Root value={form.model} onChange={set("model")} placeholder={form.type === "codex" ? "gpt-5.5-codex" : form.type === "workbuddy" ? "primary-model" : form.type === "kimi" ? "kimi-code/k3-256k" : "claude-opus-5-5"} /></div>}
       {form.type === "claude" && <div className="form-field"><label>{t("单轮费用上限（美元，可选）", "Max cost per round (USD, optional)")}</label><TextField.Root type="number" min="0.1" step="0.1" value={form.maxBudgetUsd} onChange={set("maxBudgetUsd")} /></div>}
       {form.type === "strategy" && <>
         <div className="form-field"><label>{t("策略", "Strategy")}</label><select className="native-select" value={form.strategyId} onChange={(event) => setForm({ ...form, strategyId: event.target.value, params: "{}" })}>{state.strategies.map((entry) => <option key={entry.id} value={entry.id}>{entry.name} · v{entry.version}{entry.origin === "owner" ? t("（自定义）", " (yours)") : ""}</option>)}</select>{strategy && <small className="muted">{strategy.description}</small>}</div>

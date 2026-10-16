@@ -625,6 +625,84 @@ export function crossCheckQuotes(quote, check, options = {}) {
   return { status, priceDifferencePct, timestampSkewSeconds, primaryFreshness, secondaryFreshness };
 }
 
+// East Money: a second independent quote source and a per-stock news feed that stay reachable
+// from mainland networks when Yahoo Finance is blocked or rate-limited.
+const EASTMONEY_QUOTE = "https://push2.eastmoney.com/api/qt/stock/get";
+const EASTMONEY_NEWS = "https://np-listapi.eastmoney.com/comm/web/getListInfo";
+const EASTMONEY_SUGGEST = "https://searchapi.eastmoney.com/api/suggest/get";
+
+export function eastmoneyIds(input) {
+  const symbol = normalizeSymbol(input);
+  if (symbol.startsWith("^")) return [];
+  if (symbol.endsWith(".SS")) return [`1.${symbol.slice(0, -3)}`];
+  if (symbol.endsWith(".SZ")) return [`0.${symbol.slice(0, -3)}`];
+  if (symbol.endsWith(".HK")) return [`116.${symbol.slice(0, -3).padStart(5, "0")}`];
+  const ticker = symbol.replace(/-/g, "_");
+  return ["105", "106", "107"].map((market) => `${market}.${ticker}`); // NASDAQ, NYSE, NYSE American
+}
+
+export function parseEastmoneyQuote(payload, input) {
+  const symbol = normalizeSymbol(input);
+  const market = marketFromSymbol(symbol);
+  const data = payload?.data;
+  const scale = 10 ** (finite(data?.f59) ?? 2);
+  const price = finite(data?.f43) === null ? null : finite(data.f43) / scale;
+  if (!data || !(price > 0)) throw new Error(`东方财富未取得 ${symbol} 行情`);
+  const previousClose = finite(data.f60) === null ? null : finite(data.f60) / scale;
+  return {
+    input: String(input), symbol, market, name: data.f58 ?? symbol,
+    currency: market === "US" ? "USD" : market === "HK" ? "HKD" : "CNY",
+    exchange: "East Money", provider: "East Money", source: "East Money quote API",
+    price, previousClose,
+    change: previousClose ? price - previousClose : null,
+    changePct: previousClose ? (price / previousClose - 1) * 100 : null,
+    asOf: finite(data.f86) ? new Date(finite(data.f86) * 1000).toISOString() : null,
+    dataQuality: { status: "warning", warnings: [] }, indicators: emptyIndicators(), alerts: [], period: "snapshot", history: [],
+  };
+}
+
+const eastmoneyIdCache = new Map();
+
+async function getEastmoneyQuote(input, timeoutMs = 8000) {
+  const symbol = normalizeSymbol(input);
+  let lastError = new Error("no East Money id");
+  // US tickers may list on NASDAQ, NYSE or NYSE American; remember the one that answered.
+  const ids = eastmoneyIdCache.has(symbol) ? [eastmoneyIdCache.get(symbol)] : eastmoneyIds(symbol);
+  for (const secid of ids) {
+    try {
+      const payload = await fetchJson(`${EASTMONEY_QUOTE}?secid=${encodeURIComponent(secid)}&fields=f43,f57,f58,f59,f60,f86`, timeoutMs, false);
+      const quote = parseEastmoneyQuote(payload, symbol);
+      eastmoneyIdCache.set(symbol, secid);
+      return quote;
+    } catch (error) { lastError = error; }
+  }
+  throw lastError;
+}
+
+// Resolve a company name to an East Money security id (e.g. 贵州茅台 → 1.600519).
+async function eastmoneyResolve(query) {
+  try { return eastmoneyIds(query)[0] ?? null; } catch { /* not a symbol; search by name */ }
+  const payload = await fetchJson(`${EASTMONEY_SUGGEST}?input=${encodeURIComponent(query)}&type=14&count=1`, 8000, false);
+  return payload?.QuotationCodeTable?.Data?.[0]?.QuoteID ?? null;
+}
+
+export function parseEastmoneyNews(payload, count) {
+  const rows = payload?.data?.list ?? [];
+  return rows.slice(0, count).map((item) => ({
+    title: item.Art_Title ?? "",
+    publisher: "东方财富 / East Money",
+    publishedAt: item.Art_ShowTime ? zonedLocalToIso((([d, t]) => { const [year, month, day] = d.split("-").map(Number); const [hour, minute, second = 0] = t.split(":").map(Number); return { year, month, day, hour, minute, second }; })(String(item.Art_ShowTime).split(" ")), "Asia/Shanghai") : null,
+    url: item.Art_Url ?? item.Art_OriginUrl ?? null,
+  })).filter((item) => item.title);
+}
+
+async function getEastmoneyNews(query, count) {
+  const secid = await eastmoneyResolve(query);
+  if (!secid) throw new Error(`东方财富未找到 ${query}`);
+  const payload = await fetchJson(`${EASTMONEY_NEWS}?client=web&type=1&mTypeAndCode=${encodeURIComponent(secid)}&pageSize=${count}&pageIndex=1`, 8000, false);
+  return parseEastmoneyNews(payload, count);
+}
+
 export async function getQuote(input, options = {}) {
   const symbol = normalizeSymbol(input);
   const calendarOverrides = options.calendarOverrides ?? (await loadPreferences()).calendarOverrides;
@@ -638,6 +716,10 @@ export async function getQuote(input, options = {}) {
   if (!options.now) normalizedOptions.now = new Date().toISOString();
   const sourceUsable = (result) => result.status === "fulfilled" && !["stale", "future", "unknown-timestamp"].includes(assessQuoteFreshness(result.value, normalizedOptions).status);
   const yahooUsable = sourceUsable(yahooResult), tencentUsable = sourceUsable(tencentResult);
+  // Only when one primary source is missing: ask East Money for an independent cross-check.
+  const [eastmoneyResult] = yahooUsable && tencentUsable || options.eastmoney === false
+    ? [{ status: "rejected", reason: new Error("not needed") }]
+    : await Promise.allSettled([getEastmoneyQuote(symbol)]);
   const quote = yahooUsable ? yahooResult.value : tencentUsable ? tencentResult.value : yahooResult.status === "fulfilled" ? yahooResult.value : tencentResult.status === "fulfilled" ? tencentResult.value : null;
   if (!quote) throw new Error(`行情请求失败：Yahoo Finance: ${yahooResult.reason?.message}; Tencent Finance: ${tencentResult.reason?.message}`);
   if (!quote.history.length) {
@@ -657,6 +739,18 @@ export async function getQuote(input, options = {}) {
     const check = tencentResult.value;
     quote.crossCheck = crossCheckQuotes(quote, check, normalizedOptions);
     quote.source = "Yahoo Finance + Tencent Finance";
+    quote.dataSources.push({ provider: check.provider, role: "cross-check", price: check.price, asOf: check.asOf, freshness: quote.crossCheck.secondaryFreshness });
+  } else if (sourceUsable(eastmoneyResult) && (selectedYahoo || quote === tencentResult.value)) {
+    // Yahoo or Tencent is missing: cross-check the remaining one against East Money instead.
+    const check = eastmoneyResult.value;
+    const missing = selectedYahoo ? tencentResult : yahooResult;
+    const compared = crossCheckQuotes(quote, check, normalizedOptions);
+    // East Money's free HK/US snapshots can lag the realtime primary; a lagging check is not a conflict.
+    quote.crossCheck = compared.status === "time-mismatch"
+      ? { status: "fallback", via: "East Money", error: `East Money quote lags the primary by ${Math.round(compared.timestampSkewSeconds ?? 0)}s`, priceDifferencePct: compared.priceDifferencePct }
+      : { ...compared, via: "East Money" };
+    quote.crossCheck.unavailableSource = { provider: selectedYahoo ? "Tencent Finance" : "Yahoo Finance", error: missing.reason?.message ?? "stale or missing quote time" };
+    quote.source = `${quote.provider} + East Money`;
     quote.dataSources.push({ provider: check.provider, role: "cross-check", price: check.price, asOf: check.asOf, freshness: quote.crossCheck.secondaryFreshness });
   } else {
     const other = selectedYahoo ? tencentResult : yahooResult;
@@ -750,7 +844,7 @@ export async function screenWatchlist(input = {}) {
   const items = await Promise.all(symbols.map(async (symbol) => {
     try {
       const quote = await getQuote(symbol);
-      const news = input.includeNews === false ? [] : await getNews(quote.name || symbol, 3).catch(() => []);
+      const news = input.includeNews === false ? [] : await getNews(quote.name || symbol, 3, { symbol }).catch(() => []);
       const { history, ...facts } = quote;
       return {
         ...facts,
@@ -916,8 +1010,23 @@ export function calculatePositionBudget(input) {
   };
 }
 
-export async function getNews(query, count = 5) {
+export async function getNews(query, count = 5, { symbol } = {}) {
   const boundedCount = Math.max(0, Math.min(10, Number(count) || 5));
+  let yahoo = [];
+  let yahooError = null;
+  try { yahoo = await getYahooNews(query, boundedCount); } catch (error) { yahooError = error; }
+  if (yahoo.length) return yahoo;
+  try {
+    const fallback = await getEastmoneyNews(symbol ?? query, boundedCount);
+    if (fallback.length || !yahooError) return fallback;
+  } catch (error) {
+    if (!yahooError) return [];
+    throw new Error(`新闻源均不可用 / news unavailable: Yahoo ${yahooError.message}; East Money ${error.message}`);
+  }
+  throw yahooError;
+}
+
+async function getYahooNews(query, boundedCount) {
   const url = `${YAHOO_SEARCH}?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=${boundedCount}`;
   const payload = await fetchJson(url);
   const ignoredTokens = new Set(["company", "corporation", "corp", "holdings", "holding", "limited", "ltd", "inc"]);
@@ -1237,7 +1346,7 @@ export async function createMarketReport(input = {}) {
   const items = await Promise.all(symbols.map(async (symbol) => {
     try {
       const quote = await getQuote(symbol, { phase, calendarOverrides: input.calendarOverrides ?? preferences.calendarOverrides });
-      const news = input.includeNews === false ? [] : await getNews(quote.name || symbol, 5).catch(() => []);
+      const news = input.includeNews === false ? [] : await getNews(quote.name || symbol, 5, { symbol }).catch(() => []);
       return {
         ...quote,
         position: portfolioForQuote(positions, quote),

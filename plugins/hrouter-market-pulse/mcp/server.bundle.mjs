@@ -8266,6 +8266,91 @@ function crossCheckQuotes(quote, check2, options = {}) {
   else if (priceDifferencePct !== null) status = priceDifferencePct <= (options.maxPriceDifferencePct ?? 1) ? "matched" : "divergent";
   return { status, priceDifferencePct, timestampSkewSeconds, primaryFreshness, secondaryFreshness };
 }
+var EASTMONEY_QUOTE = "https://push2.eastmoney.com/api/qt/stock/get";
+var EASTMONEY_NEWS = "https://np-listapi.eastmoney.com/comm/web/getListInfo";
+var EASTMONEY_SUGGEST = "https://searchapi.eastmoney.com/api/suggest/get";
+function eastmoneyIds(input) {
+  const symbol = normalizeSymbol(input);
+  if (symbol.startsWith("^")) return [];
+  if (symbol.endsWith(".SS")) return [`1.${symbol.slice(0, -3)}`];
+  if (symbol.endsWith(".SZ")) return [`0.${symbol.slice(0, -3)}`];
+  if (symbol.endsWith(".HK")) return [`116.${symbol.slice(0, -3).padStart(5, "0")}`];
+  const ticker = symbol.replace(/-/g, "_");
+  return ["105", "106", "107"].map((market2) => `${market2}.${ticker}`);
+}
+function parseEastmoneyQuote(payload, input) {
+  const symbol = normalizeSymbol(input);
+  const market2 = marketFromSymbol(symbol);
+  const data = payload?.data;
+  const scale = 10 ** (finite(data?.f59) ?? 2);
+  const price = finite(data?.f43) === null ? null : finite(data.f43) / scale;
+  if (!data || !(price > 0)) throw new Error(`\u4E1C\u65B9\u8D22\u5BCC\u672A\u53D6\u5F97 ${symbol} \u884C\u60C5`);
+  const previousClose = finite(data.f60) === null ? null : finite(data.f60) / scale;
+  return {
+    input: String(input),
+    symbol,
+    market: market2,
+    name: data.f58 ?? symbol,
+    currency: market2 === "US" ? "USD" : market2 === "HK" ? "HKD" : "CNY",
+    exchange: "East Money",
+    provider: "East Money",
+    source: "East Money quote API",
+    price,
+    previousClose,
+    change: previousClose ? price - previousClose : null,
+    changePct: previousClose ? (price / previousClose - 1) * 100 : null,
+    asOf: finite(data.f86) ? new Date(finite(data.f86) * 1e3).toISOString() : null,
+    dataQuality: { status: "warning", warnings: [] },
+    indicators: emptyIndicators(),
+    alerts: [],
+    period: "snapshot",
+    history: []
+  };
+}
+var eastmoneyIdCache = /* @__PURE__ */ new Map();
+async function getEastmoneyQuote(input, timeoutMs = 8e3) {
+  const symbol = normalizeSymbol(input);
+  let lastError = new Error("no East Money id");
+  const ids = eastmoneyIdCache.has(symbol) ? [eastmoneyIdCache.get(symbol)] : eastmoneyIds(symbol);
+  for (const secid of ids) {
+    try {
+      const payload = await fetchJson(`${EASTMONEY_QUOTE}?secid=${encodeURIComponent(secid)}&fields=f43,f57,f58,f59,f60,f86`, timeoutMs, false);
+      const quote = parseEastmoneyQuote(payload, symbol);
+      eastmoneyIdCache.set(symbol, secid);
+      return quote;
+    } catch (error2) {
+      lastError = error2;
+    }
+  }
+  throw lastError;
+}
+async function eastmoneyResolve(query) {
+  try {
+    return eastmoneyIds(query)[0] ?? null;
+  } catch {
+  }
+  const payload = await fetchJson(`${EASTMONEY_SUGGEST}?input=${encodeURIComponent(query)}&type=14&count=1`, 8e3, false);
+  return payload?.QuotationCodeTable?.Data?.[0]?.QuoteID ?? null;
+}
+function parseEastmoneyNews(payload, count) {
+  const rows = payload?.data?.list ?? [];
+  return rows.slice(0, count).map((item) => ({
+    title: item.Art_Title ?? "",
+    publisher: "\u4E1C\u65B9\u8D22\u5BCC / East Money",
+    publishedAt: item.Art_ShowTime ? zonedLocalToIso((([d, t]) => {
+      const [year, month, day] = d.split("-").map(Number);
+      const [hour, minute, second = 0] = t.split(":").map(Number);
+      return { year, month, day, hour, minute, second };
+    })(String(item.Art_ShowTime).split(" ")), "Asia/Shanghai") : null,
+    url: item.Art_Url ?? item.Art_OriginUrl ?? null
+  })).filter((item) => item.title);
+}
+async function getEastmoneyNews(query, count) {
+  const secid = await eastmoneyResolve(query);
+  if (!secid) throw new Error(`\u4E1C\u65B9\u8D22\u5BCC\u672A\u627E\u5230 ${query}`);
+  const payload = await fetchJson(`${EASTMONEY_NEWS}?client=web&type=1&mTypeAndCode=${encodeURIComponent(secid)}&pageSize=${count}&pageIndex=1`, 8e3, false);
+  return parseEastmoneyNews(payload, count);
+}
 async function getQuote(input, options = {}) {
   const symbol = normalizeSymbol(input);
   const calendarOverrides = options.calendarOverrides ?? (await loadPreferences()).calendarOverrides;
@@ -8279,6 +8364,7 @@ async function getQuote(input, options = {}) {
   if (!options.now) normalizedOptions.now = (/* @__PURE__ */ new Date()).toISOString();
   const sourceUsable = (result) => result.status === "fulfilled" && !["stale", "future", "unknown-timestamp"].includes(assessQuoteFreshness(result.value, normalizedOptions).status);
   const yahooUsable = sourceUsable(yahooResult), tencentUsable = sourceUsable(tencentResult);
+  const [eastmoneyResult] = yahooUsable && tencentUsable || options.eastmoney === false ? [{ status: "rejected", reason: new Error("not needed") }] : await Promise.allSettled([getEastmoneyQuote(symbol)]);
   const quote = yahooUsable ? yahooResult.value : tencentUsable ? tencentResult.value : yahooResult.status === "fulfilled" ? yahooResult.value : tencentResult.status === "fulfilled" ? tencentResult.value : null;
   if (!quote) throw new Error(`\u884C\u60C5\u8BF7\u6C42\u5931\u8D25\uFF1AYahoo Finance: ${yahooResult.reason?.message}; Tencent Finance: ${tencentResult.reason?.message}`);
   if (!quote.history.length) {
@@ -8298,6 +8384,14 @@ async function getQuote(input, options = {}) {
     const check2 = tencentResult.value;
     quote.crossCheck = crossCheckQuotes(quote, check2, normalizedOptions);
     quote.source = "Yahoo Finance + Tencent Finance";
+    quote.dataSources.push({ provider: check2.provider, role: "cross-check", price: check2.price, asOf: check2.asOf, freshness: quote.crossCheck.secondaryFreshness });
+  } else if (sourceUsable(eastmoneyResult) && (selectedYahoo || quote === tencentResult.value)) {
+    const check2 = eastmoneyResult.value;
+    const missing = selectedYahoo ? tencentResult : yahooResult;
+    const compared = crossCheckQuotes(quote, check2, normalizedOptions);
+    quote.crossCheck = compared.status === "time-mismatch" ? { status: "fallback", via: "East Money", error: `East Money quote lags the primary by ${Math.round(compared.timestampSkewSeconds ?? 0)}s`, priceDifferencePct: compared.priceDifferencePct } : { ...compared, via: "East Money" };
+    quote.crossCheck.unavailableSource = { provider: selectedYahoo ? "Tencent Finance" : "Yahoo Finance", error: missing.reason?.message ?? "stale or missing quote time" };
+    quote.source = `${quote.provider} + East Money`;
     quote.dataSources.push({ provider: check2.provider, role: "cross-check", price: check2.price, asOf: check2.asOf, freshness: quote.crossCheck.secondaryFreshness });
   } else {
     const other = selectedYahoo ? tencentResult : yahooResult;
@@ -8380,7 +8474,7 @@ async function screenWatchlist(input = {}) {
   const items = await Promise.all(symbols.map(async (symbol) => {
     try {
       const quote = await getQuote(symbol);
-      const news = input.includeNews === false ? [] : await getNews(quote.name || symbol, 3).catch(() => []);
+      const news = input.includeNews === false ? [] : await getNews(quote.name || symbol, 3, { symbol }).catch(() => []);
       const { history, ...facts } = quote;
       return {
         ...facts,
@@ -8541,8 +8635,26 @@ function calculatePositionBudget(input) {
     ]
   };
 }
-async function getNews(query, count = 5) {
+async function getNews(query, count = 5, { symbol } = {}) {
   const boundedCount = Math.max(0, Math.min(10, Number(count) || 5));
+  let yahoo = [];
+  let yahooError = null;
+  try {
+    yahoo = await getYahooNews(query, boundedCount);
+  } catch (error2) {
+    yahooError = error2;
+  }
+  if (yahoo.length) return yahoo;
+  try {
+    const fallback = await getEastmoneyNews(symbol ?? query, boundedCount);
+    if (fallback.length || !yahooError) return fallback;
+  } catch (error2) {
+    if (!yahooError) return [];
+    throw new Error(`\u65B0\u95FB\u6E90\u5747\u4E0D\u53EF\u7528 / news unavailable: Yahoo ${yahooError.message}; East Money ${error2.message}`);
+  }
+  throw yahooError;
+}
+async function getYahooNews(query, boundedCount) {
   const url = `${YAHOO_SEARCH}?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=${boundedCount}`;
   const payload = await fetchJson(url);
   const ignoredTokens = /* @__PURE__ */ new Set(["company", "corporation", "corp", "holdings", "holding", "limited", "ltd", "inc"]);
@@ -8840,7 +8952,7 @@ async function createMarketReport(input = {}) {
   const items = await Promise.all(symbols.map(async (symbol) => {
     try {
       const quote = await getQuote(symbol, { phase, calendarOverrides: input.calendarOverrides ?? preferences.calendarOverrides });
-      const news = input.includeNews === false ? [] : await getNews(quote.name || symbol, 5).catch(() => []);
+      const news = input.includeNews === false ? [] : await getNews(quote.name || symbol, 5, { symbol }).catch(() => []);
       return {
         ...quote,
         position: portfolioForQuote(positions, quote),
@@ -17441,7 +17553,7 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
 }
 
 // mcp/scheduler.mjs
-var RUNNER_TYPES = ["claude", "codex", "workbuddy", "command", "strategy"];
+var RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "command", "strategy"];
 var SCHEDULER_DEFAULTS = Object.freeze({ tickMs: 3e4, leaseMs: 12e4, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6e3, runLogLimit: 300, failureThreshold: 3 });
 var TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 var minuteOf = (time3) => {
@@ -17494,6 +17606,7 @@ function workbuddyConfigDir(env = process.env) {
 }
 function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
+  if (type === "kimi") return onPath("kimi") ?? path10.join(os6.homedir(), ".local", "bin", "kimi");
   if (type === "workbuddy") {
     const bundled = "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy";
     return onPath("codebuddy") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codebuddy");
@@ -17528,6 +17641,15 @@ function agentInvocation({ job, account: account2, prompt, nodePath, bundlePath:
     ];
     const workbuddyEnv = runner.type === "workbuddy" ? { CODEBUDDY_CONFIG_DIR: workbuddyConfigDir(), WORKBUDDY_CONFIG_DIR: workbuddyConfigDir(), CODEBUDDY_FORCE_HEADLESS_BUNDLE: "1" } : {};
     return { command: runner.command || defaultCommand(runner.type), args, env: { ...env, ...workbuddyEnv }, cwd: workDir };
+  }
+  if (runner.type === "kimi") {
+    const model = runner.model ? runner.model.includes("/") ? runner.model : `kimi-code/${runner.model}` : null;
+    const args = ["-p", skillText ? `${skillText}
+
+---
+
+${prompt}` : prompt, "--output-format", "text", ...model ? ["-m", model] : []];
+    return { command: runner.command || defaultCommand("kimi"), args, env, cwd: workDir };
   }
   if (runner.type === "codex") {
     const toml = (value) => JSON.stringify(value);
@@ -19318,7 +19440,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: true ? "1.4.0" : "development",
+            version: true ? "1.4.1" : "development",
             demo: demo2
           });
         if (assets.has(url.pathname)) {
@@ -29770,7 +29892,7 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: true ? "1.4.0" : "development"
+  version: true ? "1.4.1" : "development"
 }, {
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
@@ -29852,10 +29974,9 @@ var calendarSchema = external_exports.record(
       external_exports.object({
         closed: external_exports.boolean().optional(),
         sessions: external_exports.array(
-          external_exports.tuple([
-            external_exports.number().int().min(0).max(1440),
-            external_exports.number().int().min(0).max(1440)
-          ])
+          // [openMinute, closeMinute]. A fixed-length array rather than a tuple: some providers
+          // (e.g. Moonshot / Kimi) reject tuple-style `items: [...]` in tool schemas.
+          external_exports.array(external_exports.number().int().min(0).max(1440)).length(2)
         ).optional()
       })
     ).optional()
@@ -30633,7 +30754,7 @@ if (service2) {
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena,
     scheduler: await dashboard.scheduler,
-    version: true ? "1.4.0" : "development",
+    version: true ? "1.4.1" : "development",
     bundlePath: fileURLToPath5(import.meta.url),
     port: dashboard.address()?.port,
     onExit: () => shutdown()

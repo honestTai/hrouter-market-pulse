@@ -21,7 +21,7 @@ import { roundPrompt } from "./prompts.mjs";
 import { createPaperBroker } from "./brokers.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
-export const RUNNER_TYPES = ["claude", "codex", "workbuddy", "command", "strategy"];
+export const RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "command", "strategy"];
 export const SCHEDULER_DEFAULTS = Object.freeze({ tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3 });
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -77,6 +77,7 @@ export function workbuddyConfigDir(env = process.env) {
 
 export function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
+  if (type === "kimi") return onPath("kimi") ?? path.join(os.homedir(), ".local", "bin", "kimi");
   if (type === "workbuddy") {
     // WorkBuddy ships the CodeBuddy CLI inside its app bundle; its flags mirror Claude Code's.
     const bundled = "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy";
@@ -109,6 +110,13 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
     // CLI login and the app share one configuration.
     const workbuddyEnv = runner.type === "workbuddy" ? { CODEBUDDY_CONFIG_DIR: workbuddyConfigDir(), WORKBUDDY_CONFIG_DIR: workbuddyConfigDir(), CODEBUDDY_FORCE_HEADLESS_BUNDLE: "1" } : {};
     return { command: runner.command || defaultCommand(runner.type), args, env: { ...env, ...workbuddyEnv }, cwd: workDir };
+  }
+  if (runner.type === "kimi") {
+    // Kimi Code reads MCP servers and its OAuth login from ~/.kimi-code; it has no per-run MCP flag,
+    // so the plugin must be registered there. Prompt mode runs tools without asking (and rejects --auto).
+    const model = runner.model ? (runner.model.includes("/") ? runner.model : `kimi-code/${runner.model}`) : null;
+    const args = ["-p", skillText ? `${skillText}\n\n---\n\n${prompt}` : prompt, "--output-format", "text", ...(model ? ["-m", model] : [])];
+    return { command: runner.command || defaultCommand("kimi"), args, env, cwd: workDir };
   }
   if (runner.type === "codex") {
     const toml = (value) => JSON.stringify(value);

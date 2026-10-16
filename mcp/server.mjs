@@ -140,10 +140,9 @@ const calendarSchema = z.record(
           closed: z.boolean().optional(),
           sessions: z
             .array(
-              z.tuple([
-                z.number().int().min(0).max(1440),
-                z.number().int().min(0).max(1440),
-              ]),
+              // [openMinute, closeMinute]. A fixed-length array rather than a tuple: some providers
+              // (e.g. Moonshot / Kimi) reject tuple-style `items: [...]` in tool schemas.
+              z.array(z.number().int().min(0).max(1440)).length(2),
             )
             .optional(),
         }),

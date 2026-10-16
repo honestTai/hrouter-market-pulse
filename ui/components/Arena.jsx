@@ -25,6 +25,7 @@ export function agentKind(account) {
   if (text.includes("claude")) return { key: "claude", label: "Claude Code", mark: "C" };
   if (text.includes("codex") || text.includes("openai")) return { key: "codex", label: "Codex", mark: "X" };
   if (text.includes("workbuddy") || text.includes("codebuddy")) return { key: "workbuddy", label: "WorkBuddy", mark: "W" };
+  if (text.includes("kimi")) return { key: "kimi", label: "Kimi Code", mark: "K" };
   if (text.includes("cursor")) return { key: "cursor", label: "Cursor", mark: "Cu" };
   const label = account.agent?.label || account.agent?.client || "Agent";
   return { key: "other", label, mark: label.slice(0, 1).toUpperCase() };

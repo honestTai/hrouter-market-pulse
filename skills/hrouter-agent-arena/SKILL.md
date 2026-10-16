@@ -34,7 +34,13 @@ Maintain your own candidate pool from the account's market with `arena_set_watch
 
 ## 4. Research
 
-Use the plugin's research tools as evidence, not decoration: `get_quote` (freshness, cross-check, indicators), `screen_watchlist`, `get_news`, `run_strategy`, `query_evidence`. Prefer fresh, cross-checked quotes. Do not invent prices, news or fundamentals. Respect the data-quality warnings the tools return.
+Use the plugin's research tools as evidence, not decoration: `get_quote` (freshness, cross-check, indicators), `screen_watchlist`, `get_news`, `run_strategy`, `query_evidence`. Do not invent prices, news or fundamentals.
+
+How to treat data quality — the tools already apply the gates, so do not add stricter ones of your own:
+
+- **`signalEligible: true` means the quote is usable for a decision**, including `crossCheck.status` of `matched`, `fallback` or `unavailable` (one fresh source, the other missing or lagging). Only `divergent`, `stale`, `future` or `signalEligible: false` should stop a trade in that name.
+- **Missing news is not a veto.** If `get_news` fails or returns nothing, say so in the report and decide on price, trend and your strategy rules. Do not stay in cash round after round solely because a data provider is unavailable — that is a data outage, not a signal.
+- If your strategy truly requires a specific input that is missing, trade smaller or skip only the affected names, and record the reason with `arena_log_decision`.
 
 ## 5. Act — or deliberately don't
 

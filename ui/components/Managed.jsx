@@ -5,6 +5,7 @@ import { useWorkspace } from "../context.jsx";
 import { isNumber } from "../data.mjs";
 import { Empty, SectionHeading } from "./Primitives.jsx";
 import { ReportDialog } from "./Reports.jsx";
+import { Pager, useLocalPage } from "./Paging.jsx";
 import { AgentMark, ConnectDialog, DigestPanel, EquityChart, HealthBadges, ReportCard, Signed, agentKind, relativeTime } from "./Arena.jsx";
 
 const ACTIVITY = { "stop-loss": ["止损", "Stop-loss"], "take-profit": ["止盈", "Take-profit"], "exit-deferred": ["离场等待", "Exit waiting"], dividend: ["派息", "Dividend"], split: ["拆股", "Split"], bonus: ["送转", "Bonus"], suspended: ["停牌", "Suspended"], "risk-breaker": ["熔断", "Breaker"], "risk-reset": ["复位", "Reset"] };
@@ -16,6 +17,10 @@ export function ManagedPortfolioPage() {
   const [connect, setConnect] = useState(false);
   const [report, setReport] = useState(null);
   const { accounts, account, loading, choose } = managed;
+  // Paged in place (hooks run before any early return).
+  const tradePage = useLocalPage(account?.trades ?? [], 8, account?.id);
+  const activityPage = useLocalPage((account?.events ?? []).filter((event) => ACTIVITY[event.type]), 6, account?.id);
+  const olderPage = useLocalPage((account?.reports ?? []).slice(1), 6, account?.id);
   const manual = preferences?.positions?.filter((position) => position.quantity > 0) ?? [];
   const openInArena = () => {
     const url = new URL(window.location.href);
@@ -50,7 +55,7 @@ export function ManagedPortfolioPage() {
   const pool = account.watchlist?.symbols ?? [];
   const health = account.health;
   const policy = account.riskPolicy ?? {};
-  const activity = (account.events ?? []).filter((event) => ACTIVITY[event.type]).slice(0, 6);
+  const activity = activityPage.items;
   const policyParts = [
     policy.maxPositionPct ? t(`单票 ≤ ${policy.maxPositionPct}%`, `≤ ${policy.maxPositionPct}% per stock`) : null,
     policy.maxExposurePct ? t(`总仓位 ≤ ${policy.maxExposurePct}%`, `≤ ${policy.maxExposurePct}% exposure`) : null,
@@ -135,22 +140,23 @@ export function ManagedPortfolioPage() {
     <div className="managed-grid">
       <section className="surface">
         <SectionHeading icon={ListChecks} title={t("最近操作", "Recent trades")} />
-        {account.trades.length ? <ul className="trade-feed">{account.trades.slice(0, 8).map((trade) => <li key={trade.id}>
+        {account.trades.length ? <><ul className="trade-feed">{tradePage.items.map((trade) => <li key={trade.id}>
           <span className={trade.side === "BUY" ? "side buy" : "side sell"}>{trade.side === "BUY" ? t("买入", "Buy") : t("卖出", "Sell")}</span>
-          <div><strong>{trade.name}</strong> <span className="muted small">{trade.symbol} · {number(trade.quantity, 0)} × {number(trade.price, 3)}</span><p className="muted small">{trade.reason}</p></div>
+          <div><strong>{trade.name}</strong> <span className="muted small">{trade.symbol} · {number(trade.quantity, 0)} × {number(trade.price, account.market === "HK" ? 3 : 2)}</span><p className="muted small">{trade.reason}</p></div>
           <span className="trade-feed-side">{isNumber(trade.realizedPnl) ? <Signed value={trade.realizedPnl} suffix="" /> : null}<small className="muted">{date(trade.at)}</small></span>
-        </li>)}</ul> : <Empty compact icon={ListChecks} title={t("还没有成交", "No trades yet")} />}
+        </li>)}</ul><Pager compact total={tradePage.total} page={tradePage.page} pageSize={tradePage.pageSize} onPage={tradePage.setPage} /></> : <Empty compact icon={ListChecks} title={t("还没有成交", "No trades yet")} />}
       </section>
       <section className="surface">
         <SectionHeading icon={Radar} title={t("Agent 股票池", "Agent stock pool")} caption={account.watchlist?.updatedAt ? relativeTime(account.watchlist.updatedAt, t) : null} />
         {pool.length ? <div className="pool"><div className="pool-chips">{pool.map((symbol) => <span key={symbol} className={`pool-chip ${account.positions.some((p) => p.symbol === symbol) ? "held" : ""}`}>{symbol}</span>)}</div>{account.watchlist.reason && <p className="muted small">{account.watchlist.reason}</p>}</div> : <Empty compact icon={Radar} title={t("Agent 尚未设置股票池", "No stock pool yet")} description={t("Agent 用 arena_set_watchlist 维护自己的候选股，市场页的自选会跟随它。", "The agent maintains its candidates with arena_set_watchlist; the market watchlist follows it.")} />}
-        {activity.length > 0 && <>
+        {activityPage.total > 0 && <>
           <SectionHeading icon={Bell} title={t("自动执行记录", "Automatic activity")} caption={t("止盈止损 · 派息拆股 · 停牌 · 熔断", "Stops · dividends · splits · suspensions · breaker")} />
           <ul className="report-history">{activity.map((event) => <li key={event.id}><strong>{t(...ACTIVITY[event.type])}</strong><span className="muted small">{date(event.at)}</span><p className="muted small">{event.message}</p></li>)}</ul>
+          <Pager compact total={activityPage.total} page={activityPage.page} pageSize={activityPage.pageSize} onPage={activityPage.setPage} />
         </>}
         {older.length > 0 && <>
           <SectionHeading icon={FileText} title={t("历史报告", "Earlier reports")} caption={`${older.length}`} />
-          <ul className="report-history">{older.slice(0, 6).map((entry) => <li key={entry.id}><button type="button" className="report-history-item" onClick={() => setReport({ ...entry, account })}><strong>{entry.title}</strong><span className="muted small">{date(entry.at)}</span><p className="muted small">{entry.summary}</p></button></li>)}</ul>{older.length > 6 && <Button size="1" variant="ghost" onClick={() => setView("reports")}>{t(`查看全部 ${reports.length} 份报告`, `All ${reports.length} reports`)}</Button>}
+          <ul className="report-history">{olderPage.items.map((entry) => <li key={entry.id}><button type="button" className="report-history-item" onClick={() => setReport({ ...entry, account })}><strong>{entry.title}</strong><span className="muted small">{date(entry.at)}</span><p className="muted small">{entry.summary}</p></button></li>)}</ul><Pager compact total={olderPage.total} page={olderPage.page} pageSize={olderPage.pageSize} onPage={olderPage.setPage} /><Button size="1" variant="ghost" onClick={() => setView("reports")}>{t("在报告中心搜索与筛选", "Search and filter in Reports")}</Button>
         </>}
       </section>
     </div>

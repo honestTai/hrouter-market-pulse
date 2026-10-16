@@ -846,3 +846,5 @@ html { scrollbar-gutter: stable; }
 .action-tag.action-watch { color: var(--amber-11, #b45309); background: color-mix(in srgb, #f59e0b 14%, transparent); }
 .action-tag.action-cancel { color: var(--muted); background: var(--hover); }
 @media (max-width: 700px) { .report-sections { grid-template-columns: 1fr; grid-template-areas: "view" "actions" "picks" "risks" "next"; } .report-rows li { grid-template-columns: auto minmax(0, 1fr); } .report-rows li .row-detail { grid-column: 1 / -1; } }
+.sync-results { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0 24px 12px; }
+.sync-results .sync-result { margin: 0; }

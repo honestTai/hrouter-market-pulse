@@ -12,7 +12,7 @@ export { roundPrompt };
 import { Empty, ErrorNotice, SectionHeading } from "./Primitives.jsx";
 import { AutomationPanel, ServiceChip } from "./Automation.jsx";
 import { DigestDialog, ReportDialog } from "./Reports.jsx";
-import { DateRange, Pager, SearchField, useDebounced, usePagedList } from "./Paging.jsx";
+import { DateRange, Pager, SearchField, useDebounced, useLocalPage, usePagedList } from "./Paging.jsx";
 
 // Distinct, colour-blind-friendly series colours for overlaying many agents.
 const SERIES = ["#2563eb", "#e8590c", "#0d9488", "#9333ea", "#ca8a04", "#db2777", "#4b5563", "#16a34a", "#0891b2", "#b45309"];
@@ -298,10 +298,15 @@ function Breakdown({ accounts }) {
   </section>;
 }
 
-function LeaderboardTable({ accounts, onOpen, highlighted, onHover }) {
+function LeaderboardTable({ accounts: all, onOpen, highlighted, onHover }) {
   const { t, number } = useWorkspace();
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const filtered = needle ? all.filter((account) => `${account.name} ${account.model} ${account.agent?.label ?? ""} ${account.id}`.toLowerCase().includes(needle)) : all;
+  const paged = useLocalPage(filtered, 20, needle);
+  const accounts = paged.items;
   return <section className="surface">
-    <SectionHeading icon={Trophy} title={t("排行榜", "Leaderboard")} caption={t("按累计收益排序 · 同市场同组别", "Ranked by total return · same market & group")} expandable />
+    <SectionHeading icon={Trophy} title={t("排行榜", "Leaderboard")} caption={t("按累计收益排序 · 同市场同组别", "Ranked by total return · same market & group")} expandable actions={all.length > 5 ? <SearchField value={query} onChange={setQuery} placeholder={t("搜索账户、模型、Agent", "Search account, model, agent")} width={240} /> : null} />
     <div className="table-scroll"><Table.Root size="2" className="arena-table">
       <Table.Header><Table.Row>
         <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
@@ -334,6 +339,8 @@ function LeaderboardTable({ accounts, onOpen, highlighted, onHover }) {
         <Table.Cell><ChevronRight size={16} className="muted" /></Table.Cell>
       </Table.Row>)}</Table.Body>
     </Table.Root></div>
+    {needle && !accounts.length && <Empty compact title={t("没有匹配的账户", "No matching accounts")} />}
+    <Pager total={paged.total} page={paged.page} pageSize={paged.pageSize} onPage={paged.setPage} onPageSize={paged.setPageSize} />
   </section>;
 }
 

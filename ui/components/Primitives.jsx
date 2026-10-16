@@ -54,6 +54,10 @@ export function FullscreenButton() {
   };
   return <Tooltip content={active ? t("退出全屏（Esc）", "Exit fullscreen (Esc)") : t("全屏查看", "Fullscreen")}><IconButton ref={button} type="button" size="1" variant="ghost" color="gray" aria-label={active ? t("退出全屏", "Exit fullscreen") : t("全屏查看", "Fullscreen")} onClick={toggle}>{active ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</IconButton></Tooltip>;
 }
-export function StockMark({ symbol, market, small = false }) {
-  return <span className={`stock-mark ${small ? "small" : ""} market-${market || "US"}`}>{symbol?.replace(/\.(HK|SS|SZ|BJ)$/, "").slice(0, 2) || "—"}</span>;
+// A-share / HK names read better than code prefixes ("00", "60"): use the first character of the
+// Chinese name; US tickers keep their first two letters.
+export function StockMark({ symbol, market, name, small = false }) {
+  const chinese = typeof name === "string" && /[\u4e00-\u9fff]/u.test(name) ? name.replace(/^[*A-Z\s]+/i, "").trim().charAt(0) : "";
+  const label = chinese || symbol?.replace(/\.(HK|SS|SZ|BJ)$/, "").slice(0, 2) || "—";
+  return <span className={`stock-mark ${small ? "small" : ""} market-${market || "US"}`}>{label}</span>;
 }

@@ -2,128 +2,128 @@
 
 # HRouter Market Pulse
 
-**Your quotes, filings, and research notes—in one workspace.**
+**Let your AI agents run a paper portfolio end to end — stock picking, trading and holdings — while you read the reports.**
 
-[中文](README.md) · [English](README.en.md) · [Plugin releases](https://github.com/honestTai/hrouter-market-pulse/releases) · [GitHub](https://github.com/honestTai/hrouter-market-pulse) · [HRouter](https://hrouter.net/home)
+[中文](README.md) · [English](README.en.md) · [Releases](https://github.com/honestTai/hrouter-market-pulse/releases/latest) · [Changelog](CHANGELOG.md) · [HRouter](https://hrouter.net/home)
 
 </div>
 
-Go beyond a price table: review holdings, cross-check quotes, follow alerts and filings, and keep a record of your reasoning.
+A stock-research and paper-trading plugin for **Codex, Claude Code, Kimi Code, WorkBuddy** and any MCP client. China A-shares, Hong Kong and US equities. Everything is stored on your machine, and every agent shares the same records.
 
-**Who it’s for:** Researchers who want verifiable data and AI-assisted workflows for mainland China, Hong Kong, and US equities.
+- **Agent Arena**: one virtual account per agent and model, trading side by side on real quotes under real exchange rules; compare return, drawdown and discipline.
+- **Hands-off**: agents scan the whole market, pick stocks, place orders, set stops and write reports; a resident service runs agents and quant strategies on schedule and publishes an end-of-day digest.
+- **Research workspace**: cross-checked quotes, market scanner, filings evidence, backtests and decision reviews.
 
-The plugin uses the model of whichever agent runs it (**Codex, Claude Code, WorkBuddy** or any MCP client); no separate model service is required. The built-in **Agent Arena** lets different agents and models paper-trade side by side on real quotes with virtual money, compared on return, drawdown and discipline.
+![Agent Arena: overlaid return curves and comparison (synthetic demo data)](docs/images/arena-zh.png)
 
-![English market workbench with clearly labeled synthetic demonstration data](docs/images/dashboard-en.png)
+> Screenshots use the labelled **synthetic data** of `npm run demo`. Paper trading uses virtual money; results are not real returns and not investment advice.
 
 ## Features
 
-- Persistent Chinese / English interface, searchable and sortable watchlists, holdings filters, daily and five-minute charts, volume and explicit indicator periods.
-- Cross-source quote checks with session-aware freshness, historical sample requirements, and stateful alert transitions.
-- Benchmark comparisons, watchlist sector groups, clearly scoped breadth, original-source evidence and announced event dates.
-- Currency-aware position budgets with dated FX inputs, existing holdings, shared cash and aggregate risk constraints.
-- Shared-capital backtests with holding restrictions, costs, adverse slippage, nonfills and company-action handling.
-- Purged walk-forward prediction evaluation, baseline comparisons, programmatic qualification, and an immutable forecast ledger.
-- Decision theses recorded before outcomes, followed by append-only reviews.
-- Agent Arena: one virtual A-share / HK / US account per agent, fills with T+1, price limits, board lots and fees, overlaid return curves, by-model and by-agent comparison, leaderboard and decision journals. [Guide](docs/AGENT_ARENA.md)
+### Agent Arena (paper trading)
 
-## Run it for real: unattended agent / quant paper trading
+| Area | What you get |
+| --- | --- |
+| Many agents, one exchange | Codex, Claude Code, Kimi Code, WorkBuddy and quant strategies each open accounts; ranked per market and group; compare by model or by agent |
+| Real rules | A-share T+1, price limits and board lots (STAR 200 then 1-share steps, Beijing 100 then 1-share steps), HK board lots, US single shares; tick sizes, retail fees, slippage, volume caps, suspensions, dividends and splits |
+| Whole-market picking | `scan_market` ranks the main board, ChiNext, STAR, the Beijing Stock Exchange and ST names (plus HK and US) by turnover, 5-minute speed, main-fund inflow, change, volume ratio and more, and lists hot industry / concept boards and their members |
+| Risk | Per-stock and total exposure caps, drawdown breaker only the owner can reset; stops and targets on every buy, watched every 1–2 minutes |
+| Metrics | Total / day / annualized return, excess vs CSI 300 / HSI / S&P 500, max drawdown, Sharpe, win rate, profit factor, turnover, rejections, attribution by strategy version, small-sample warnings |
+| Reports | A mandatory report every round (conclusion, actions, picks, risks, next steps); end-of-day digests pushed to WeChat Work, Feishu or any webhook |
 
-```bash
-npm ci && npm run build
-npm run service:install        # login service: in-session matching, exits, scheduled agent or strategy rounds, daily digest
-```
+### Unattended operation
 
-Then set each account's Automation (Claude Code / Codex / quant strategy, trading-day run times) and risk policy at <http://127.0.0.1:8780/?view=arena>. See the [Agent Arena guide](docs/AGENT_ARENA.md) and [strategies & execution](docs/STRATEGIES.md). Live trading only has an advice-plus-manual-confirmation hook; no real orders are ever sent automatically.
+| Area | What you get |
+| --- | --- |
+| Resident service | `npm run service:install` (macOS LaunchAgent, Linux systemd user service, Windows logon task); restarts on crash and on plugin updates; keeps running when you quit your agent app |
+| Scheduler | Per account: every N minutes in session plus fixed times; **agents every 15 minutes by default** (minimum 5), code strategies down to 1 minute; 90-minute catch-up, no overlapping runs, hard timeouts |
+| Runners | Claude Code (`claude -p`), Codex (`codex exec`), Kimi Code (`kimi -p`), WorkBuddy, built-in strategies, custom commands; only this plugin's tools are attached |
+| Self-serve news | When the plugin's feeds come up empty, scheduled agents search the web themselves (Claude WebSearch, Codex web search, Kimi's built-in search) instead of stalling |
 
-## Install in Claude Code / WorkBuddy
+### Quant strategies
 
-The same package ships a Claude-format manifest, which both Claude Code and WorkBuddy install directly:
+- A strategy is an ES module that receives the account, its universe, **completed** daily bars only, today's minute bars with VWAP and a market scan, and returns target weights or orders. The runtime turns them into whole-lot orders, sells before buying, never sells T+1-locked shares and is idempotent per run.
+- Built-in examples: `ma-trend`, `momentum-rotation` and `intraday-momentum` (whole-market intraday momentum for 1–5-minute runs). Drop your own into `<data dir>/strategies/*.mjs`. See [STRATEGIES.md](docs/STRATEGIES.md).
+- Execution goes through a broker: `paper` (the arena) or `advisory` (live-market proposals that need human confirmation — **no real order is ever sent**).
 
-```bash
-claude plugin marketplace add honestTai/hrouter-market-pulse
-claude plugin install hrouter-market-pulse@hrouter-market-pulse
-```
+### Dashboard
 
-WorkBuddy: Settings → Plugins → add the marketplace `https://github.com/honestTai/hrouter-market-pulse`, then install and enable hrouter-market-pulse. For other MCP clients (Cursor, Cline, …) run `npm run connect` to print a ready-to-paste config. See the [multi-agent and arena guide](docs/AGENT_ARENA.md).
+| Page | Contents |
+| --- | --- |
+| My portfolio | The agent-managed account: latest conclusion, holdings with buy reasons, stops and targets, recent trades, stock pool, equity curve |
+| Agent Arena | Overlaid curves, comparison, leaderboard; account pages with positions, orders, fills, events, reports, journal, strategy versions, automation and risk settings |
+| Reports | Every agent report and daily digest: search, market / account / stance / date filters, paging, detail view |
+| Market workspace | Watchlist, daily and 5-minute charts, indicators, data checks, alerts, sectors |
+| Evidence, Journal | Filings and financial facts, event calendar, falsifiable theses with append-only reviews |
 
-## Install in Codex (optional automatic updates)
+- **⌘K / Ctrl+K** (or `/`) searches pages, accounts, securities and actions; workspace and per-panel fullscreen.
+- Every long list is **filtered and paged on the server** (search, side, status / type, date range).
+- Chinese and English, light and dark, phone layout; filters and tabs no longer make the page jump.
 
-Requires Node.js 20+ and a Codex CLI / desktop release with plugin support.
+![Report centre (synthetic demo data)](docs/images/reports-zh.png)
 
-The managed installer is available starting with **v1.2.0**; older ZIPs do not contain it.
+<details><summary>More screenshots</summary>
 
-**Recommended:** download the latest stable ZIP from [Releases](https://github.com/honestTai/hrouter-market-pulse/releases/latest), extract it, and run:
+![English market workspace](docs/images/dashboard-en.png)
+![Agent-managed portfolio](docs/images/portfolio-zh.png)
+![Filtered, paged fills](docs/images/account-zh.png)
+![⌘K search](docs/images/palette-zh.png)
+![Dark mode](docs/images/arena-dark.png)
 
-```bash
-node scripts/install.mjs --auto-update
-```
+</details>
 
-This explicitly opts in to a **per-user background updater**. It checks stable releases roughly every six hours, verifies packages, waits for Market Pulse processes to exit before replacing the plugin, and keeps the previous version. No system-wide installs or PATH changes. Omit `--auto-update` for manual updates. Start a new Codex task after installation or an update.
+### Data
 
-Existing marketplace users must first close old plugin tasks and run `node scripts/install.mjs --auto-update --migrate` once. See [automatic updates, disable, rollback, and release instructions](docs/AUTO_UPDATE.md).
+- Quotes: Tencent realtime cross-checked with Yahoo Finance, East Money when Yahoo is unavailable; the fresher source wins for A-shares (Yahoo's A-share quotes lag ~15 minutes). Each quote carries freshness, session and cross-check status; `signalEligible` is the single data gate for trading.
+- News: East Money full-text search first for A-share / HK (companies, themes, policy keywords), Yahoo first for US.
+- Filings: SEC and CNINFO adapters plus raw exchange-announcement import, with sources and first-seen times.
 
-```text
-Use English. Add AAPL, MSFT, and 0700.HK to my watchlist and create an intraday report.
-```
+## Quick start
 
-The ordinary GitHub marketplace method is still supported, but **does not register this project's updater**:
-
-```bash
-codex plugin marketplace add honestTai/hrouter-market-pulse
-codex plugin add hrouter-market-pulse@hrouter-market-pulse
-```
-
-The package includes its MCP server and browser assets. Use the extracted ZIP root as a marketplace, not its nested `plugins/hrouter-market-pulse` directory.
-
-## Run locally
+Node.js 20+.
 
 ```bash
 git clone https://github.com/honestTai/hrouter-market-pulse.git
 cd hrouter-market-pulse
-npm ci
-npm run build
-npm run demo
+npm ci && npm run build
+npm run service:install
 ```
 
-Open [http://127.0.0.1:8787](http://127.0.0.1:8787). Demo data is synthetic; changes stay in memory. Use `npm start` for the real-data dashboard, configure a watchlist, and refresh. Validate with `npm test`, `npm run check`, and `npm run smoke`.
+Open <http://127.0.0.1:8780/?view=arena>, then:
 
-## Coverage and limitations
+1. Install the plugin into your agent (below) and send it the prompt from "Connect agent". It opens an account, picks stocks, trades and reports; a 15-minute in-session schedule is created automatically.
+2. Set risk limits under the account's Settings and, optionally, a push webhook under the daily digest.
+3. From then on, read "My portfolio" and "Reports".
 
-Public quote providers can delay, throttle, or reject requests. This project provides no broker-real-time feed or order execution. Official adapters cover SEC submissions / financial facts and CNINFO announcements. HKEXnews currently uses original-record import. Full-market breadth requires a sourced universe-level input; watchlist breadth is never labeled as the entire market.
+Just looking: `npm run demo` and open <http://127.0.0.1:8787> (synthetic data, nothing saved).
 
-Data failures remain visible. Technical models are experimental and do not establish a future return. Read the [methodology](docs/METHODOLOGY.md) for calendar coverage, execution assumptions, and qualification gates. Watchlists, holdings, evidence, and journals stay in a local storage directory outside the repository; queried symbols are sent to the selected public providers.
+## Install into your agent
 
-## Contributing
+| Agent | Install |
+| --- | --- |
+| Codex | Download the ZIP from [Releases](https://github.com/honestTai/hrouter-market-pulse/releases/latest), unzip and run `node scripts/install.mjs --auto-update` ([details](docs/AUTO_UPDATE.md)); or `codex plugin marketplace add honestTai/hrouter-market-pulse` |
+| Claude Code | `claude plugin marketplace add honestTai/hrouter-market-pulse`, then `claude plugin install hrouter-market-pulse@hrouter-market-pulse` |
+| WorkBuddy | Settings → Plugins → add marketplace `https://github.com/honestTai/hrouter-market-pulse`, install and enable |
+| Kimi Code | Register `node <plugin dir>/mcp/server.bundle.mjs --stdio` in `~/.kimi-code/mcp.json` and copy `skills/` to `~/.kimi-code/skills/` |
+| Other MCP clients | `npm run connect -- cursor` (etc.) prints a config to paste |
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Include timestamps, source identifiers, expected behavior, and a sanitized reproduction. Do not include credentials or brokerage account data.
+All clients share one data directory (`~/.hrouter-market-pulse/HrouterMarketPulse` by default, `%LOCALAPPDATA%\HrouterMarketPulse` on Windows). See [AGENT_ARENA.md](docs/AGENT_ARENA.md).
 
-MIT-licensed project code. TradingView Lightweight Charts and Lucide retain their respective licenses and attributions in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## Boundaries
 
-Official website: [hrouter.net](https://hrouter.net/).
+- **Only paper accounts trade automatically.** Live markets get advisory proposals that a human confirms; there is no real-money execution path. Futu SIMULATE accounts need separate authorization ([PAPER_TRADING.md](docs/PAPER_TRADING.md)).
+- Public quotes can be delayed or rate-limited; missing data is shown as missing, never filled with simulated prices. Simulated fills differ from a broker's.
+- A few days of returns mostly reflect luck; the leaderboard flags small samples. Method and assumptions: [METHODOLOGY.md](docs/METHODOLOGY.md).
 
-## Meet the author & HRouter
+## Development
 
-I’m **honestTai**, the developer and operator behind [HRouter](https://hrouter.net/home). I share practical tools, reusable workflows, skills, and plugins on GitHub.
+```bash
+npm ci
+npm run build
+npm test
+npm run check && npm run smoke
+```
 
-This workflow uses the model of the agent you run it in (Codex, Claude Code, WorkBuddy, …). HRouter is another part of my work: a model-routing service for AI coding and applications.
+React 19 + Radix Themes + Lucide, TradingView Lightweight Charts; everything is bundled locally, no CDN. MIT licensed; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-[Explore HRouter](https://hrouter.net/home) · [More projects](https://github.com/honestTai)
-
-If this project helps your workflow, give it a star and share what you build. Feedback and feature ideas are welcome in Issues.
-
-### Fundamental research
-
-Compare sourced financial results, review falsifiable thesis pillars, and query an evidence-backed event calendar with revision and cancellation history. Missing consensus is never invented. Commercial data subscriptions are not included or enabled. See [workflow contracts and limitations](docs/RESEARCH_WORKFLOWS.md).
-
-### React dashboard development
-
-The dashboard uses **React 19, Radix Themes and Lucide React**, retaining Lightweight Charts for financial charts. Six responsive pages cover markets, holdings, evidence/events, the research journal, the Agent Arena and Futu paper trading, with Chinese/English and light/dark themes. Scripts and styles are bundled locally, without a CDN.
-
-Edit `ui/`, run `npm run build:ui`, then refresh the local dashboard. Run `npm run build` before distribution to update both root and packaged assets. See [React dashboard architecture](docs/REACT_DASHBOARD.md).
-
-### Autonomous agent paper trading
-
-The Paper trading menu connects real market observations to actual Futu OpenD SIMULATE accounts. After explicit UI authorization of strategies, symbols and limits, the agent may independently submit DAY limit orders, cancel plugin orders and reconcile actual holdings through MCP—without per-order confirmation. REAL execution is permanently disabled. Initial execution scope is HK/US stocks, not A-shares, margin or derivatives.
-
-Run `npm run setup:futu` for the optional official SDK in a user-scoped venv. See [setup, safety and measurement boundaries](docs/PAPER_TRADING.md). No invented balances/fills/returns or implicit background trading scheduler.
+Built by **honestTai**, who also runs [HRouter](https://hrouter.net/home), a model-access service for AI coding and apps. The plugin uses the model of the agent you run it in. **Star the project if it helps, and share ideas in [Issues](https://github.com/honestTai/hrouter-market-pulse/issues).**

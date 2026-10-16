@@ -6,13 +6,13 @@
   },
   "metadata": {
     "description": "A-share, Hong Kong and US quotes, evidence, strategies, leakage-aware backtests, risk planning and a multi-agent paper-trading arena.",
-    "version": "1.5.0"
+    "version": "1.6.0"
   },
   "plugins": [
     {
       "name": "hrouter-market-pulse",
       "source": "./plugins/hrouter-market-pulse",
-      "version": "1.5.0",
+      "version": "1.6.0",
       "description": "Bilingual A-share, Hong Kong and US market workbench with verified quotes, portfolio risk, evidence, research validation and a multi-agent paper-trading arena.",
       "author": {
         "name": "Hrouter"

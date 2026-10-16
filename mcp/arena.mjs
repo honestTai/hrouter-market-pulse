@@ -18,6 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { getCorporateActions, getStorageDir, getTradeQuote, loadPreferences, marketFromSymbol, normalizeSymbol } from "./core.mjs";
 import { getInstrumentRules, getMarketSession, localMarketTime, marketLocalToIso } from "./market-rules.mjs";
+import { inDateRange, matchesText, paginate } from "./paging.mjs";
 
 export const ARENA_MARKETS = {
   A: { currency: "CNY", defaultCash: 1000000, benchmark: "000300.SS", benchmarkName: "沪深300 / CSI 300" },
@@ -1026,6 +1027,30 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           "Short track records are noisy: check tradingDays, closedTrades and sampleWarning before concluding one agent is better.",
         ],
       };
+    },
+
+    // One page of an account's history with filters, newest first. kind: orders | trades | journal |
+    // events | reports. type = order status, journal kind, event type or report sentiment.
+    async history(id, kind, { offset = 0, limit = 20, q = "", side, type, symbol, from, to } = {}) {
+      const account = await load(id);
+      const timeZone = { A: "Asia/Shanghai", HK: "Asia/Hong_Kong", US: "America/New_York" }[account.market] ?? "UTC";
+      const sources = {
+        orders: [account.orders, (row) => row.createdAt, (row) => [row.symbol, row.name, row.reason, row.rejectReason], (row) => row.status],
+        trades: [account.trades, (row) => row.at, (row) => [row.symbol, row.name, row.reason], (row) => row.trigger ?? "manual"],
+        journal: [account.journal, (row) => row.at, (row) => [row.summary, row.details, ...(row.symbols ?? [])], (row) => row.kind],
+        events: [(account.events ?? []).map(({ dedupe, ...event }) => event), (row) => row.at, (row) => [row.symbol, row.message], (row) => row.type],
+        reports: [account.reports ?? [], (row) => row.at, (row) => [row.title, row.summary, row.marketView, ...(row.actions ?? []).map((entry) => entry.symbol), ...(row.picks ?? []).map((entry) => entry.symbol)], (row) => row.sentiment],
+      };
+      if (!sources[kind]) throw new ArenaError(`Unknown history kind "${kind}".`);
+      const [rows, atOf, textOf, typeOf] = sources[kind];
+      const needle = String(q ?? "").toLowerCase();
+      const filtered = [...rows].reverse().filter((row) => (!side || row.side === side)
+        && (!type || typeOf(row) === type)
+        && (!symbol || row.symbol === symbol || (row.symbols ?? []).includes(symbol))
+        && inDateRange(atOf(row), { from, to }, timeZone)
+        && matchesText(needle, ...textOf(row)));
+      const facets = { types: [...new Set(rows.map(typeOf).filter(Boolean))], symbols: [...new Set(rows.map((row) => row.symbol).filter(Boolean))].slice(0, 200) };
+      return { kind, accountId: id, ...paginate(filtered, { offset, limit }), facets, all: rows.length };
     },
 
     async getAccount(id, { sync: shouldSync = true, limit = 50 } = {}) {

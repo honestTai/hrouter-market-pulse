@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Dialog, DropdownMenu, IconButton, Select, Theme, Tooltip } from "@radix-ui/themes";
-import { ArrowUpRight, Bot, BookOpen, BriefcaseBusiness, CandlestickChart, CheckCircle2, ChevronRight, Cloud, FileCheck2, FlaskConical, Globe2, Maximize2, Menu, Minimize2, Moon, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Trophy, TriangleAlert, X } from "lucide-react";
+import { ArrowUpRight, Bot, BookOpen, BriefcaseBusiness, CandlestickChart, CheckCircle2, ChevronRight, Cloud, FileCheck2, FileText, FlaskConical, Globe2, Maximize2, Menu, Minimize2, Moon, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Trophy, TriangleAlert, X } from "lucide-react";
 import { WorkspaceContext, useWorkspace } from "./context.jsx";
 import { api, array, collectEvidence, holdingsFor, readStorage, writeStorage } from "./data.mjs";
 import { MarketPage } from "./components/MarketBoard.jsx";
@@ -8,6 +8,7 @@ import { EvidencePage, JournalPage } from "./components/ResearchPanels.jsx";
 import { PaperTradingPage } from "./components/PaperTrading.jsx";
 import { ArenaPage } from "./components/Arena.jsx";
 import { ManagedPortfolioPage } from "./components/Managed.jsx";
+import { ReportsPage } from "./components/Reports.jsx";
 import { Editor } from "./components/Editors.jsx";
 import { ErrorNotice } from "./components/Primitives.jsx";
 import { CommandPalette } from "./components/CommandPalette.jsx";
@@ -18,6 +19,7 @@ const views = [
   { id: "evidence", group: "research", icon: FileCheck2, labels: ["证据与事件", "Evidence & events"], keywords: "公告 新闻 事件 news filings zj" },
   { id: "journal", group: "research", icon: BookOpen, labels: ["研究记录", "Research journal"], keywords: "决策 复盘 decisions review yj" },
   { id: "arena", group: "trading", icon: Trophy, labels: ["Agent 竞技场", "Agent arena"], keywords: "排行榜 模拟盘 自动运行 日报 leaderboard automation digest jjc" },
+  { id: "reports", group: "trading", icon: FileText, labels: ["报告中心", "Reports"], keywords: "报告 日报 收盘 复盘 digest report bg rb" },
   { id: "paper", group: "trading", icon: Bot, labels: ["富途模拟盘", "Futu paper account"], keywords: "futu opend 富途 ft" },
 ];
 const groups = [
@@ -30,6 +32,7 @@ const subtitles = {
   evidence: ["从原始资料出发，区分事实、事件和推断。", "Start from original sources. Separate facts, events and interpretation."],
   journal: ["保存当时的理由，持续用新证据检验。", "Preserve what you believed then, and keep testing it against new evidence."],
   arena: ["让 Claude Code、Codex、WorkBuddy 等 Agent 用各自的模型同场模拟交易，横向比较收益、回撤与交易纪律。", "Claude Code, Codex, WorkBuddy and other agents paper-trade side by side; compare return, drawdown and discipline."],
+  reports: ["每个 Agent 每轮的结论报告和每天的收盘日报，都可以在这里检索、筛选和查看详情。", "Every round report from every agent and every end-of-day digest: search, filter and read in full."],
   paper: ["可选：通过本机富途 OpenD 在真实的富途模拟账户中执行受限额约束的委托。", "Optional: bounded orders in an actual Futu SIMULATE account through local OpenD."],
 };
 
@@ -112,7 +115,7 @@ function Header() {
       <span className="public-data-label"><Cloud size={14} />{report.demo ? t("合成演示数据", "Synthetic demo") : t("公开行情 · 可能延迟", "Public quotes · may be delayed")}</span>
       <div className="topbar-divider" />
       <Tooltip content={fullscreen ? t("退出全屏（Esc）", "Exit fullscreen (Esc)") : t("全屏查看", "Fullscreen")}>
-        <IconButton variant="ghost" color="gray" aria-label={fullscreen ? t("退出全屏", "Exit fullscreen") : t("全屏", "Fullscreen")} aria-pressed={fullscreen} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</IconButton>
+        <IconButton className="fullscreen-toggle" variant="ghost" color="gray" aria-label={fullscreen ? t("退出全屏", "Exit fullscreen") : t("全屏", "Fullscreen")} aria-pressed={fullscreen} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</IconButton>
       </Tooltip>
       <Tooltip content={appearance === "light" ? t("切换深色模式", "Switch to dark mode") : t("切换浅色模式", "Switch to light mode")}>
         <IconButton variant="ghost" color="gray" aria-label={t("切换主题", "Toggle theme")} onClick={() => setAppearance(appearance === "light" ? "dark" : "light")}>{appearance === "light" ? <Moon size={17} /> : <Sun size={17} />}</IconButton>
@@ -159,6 +162,7 @@ function CurrentPage() {
   if (view === "evidence") return <EvidencePage />;
   if (view === "journal") return <JournalPage />;
   if (view === "arena") return <ArenaPage />;
+  if (view === "reports") return <ReportsPage />;
   if (view === "paper") return <PaperTradingPage />;
   return <MarketPage />;
 }

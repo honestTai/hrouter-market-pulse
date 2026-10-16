@@ -113,3 +113,38 @@ test("demo dashboard shows run health, risk policy and a seeded digest", async (
     assert.equal((await call("/api/arena/digests", { send: true })).status, 409);
   });
 });
+
+test("dashboard lists are paged and filtered on the server", async () => {
+  await withServer({ demo: true }, async (call) => {
+    const board = await call("/api/arena/leaderboard");
+    const account = board.body.groups.find((group) => group.market === "A").accounts[0];
+    const detail = (await call(`/api/arena/accounts/${account.id}`)).body;
+    const history = (kind, query = "") => call(`/api/arena/accounts/${account.id}/history?kind=${kind}${query}`);
+    const first = await history("trades", "&limit=2");
+    assert.equal(first.status, 200);
+    assert.equal(first.body.items.length, Math.min(2, detail.trades.length));
+    assert.equal(first.body.total, detail.trades.length);
+    assert.equal(first.body.items[0].id, detail.trades[0].id, "newest first");
+    const second = await history("trades", "&limit=2&offset=2");
+    assert.notEqual(second.body.items[0]?.id, first.body.items[0].id);
+    const buys = await history("trades", "&side=BUY&limit=200");
+    assert.ok(buys.body.items.every((trade) => trade.side === "BUY"));
+    assert.equal(buys.body.total, detail.trades.filter((trade) => trade.side === "BUY").length);
+    const symbol = detail.trades[0].symbol;
+    const searched = await history("trades", `&q=${encodeURIComponent(symbol.toLowerCase())}&limit=200`);
+    assert.ok(searched.body.total > 0 && searched.body.items.every((trade) => `${trade.symbol} ${trade.name} ${trade.reason}`.toLowerCase().includes(symbol.toLowerCase())));
+    const kinds = await history("journal", "&limit=200");
+    const kind = kinds.body.facets.types[0];
+    assert.ok((await history("journal", `&type=${kind}&limit=200`)).body.items.every((entry) => entry.kind === kind));
+    assert.equal((await history("trades", "&from=2099-01-01")).body.total, 0, "date range filters");
+    assert.equal((await history("nope")).status, 400);
+    const reports = await call("/api/arena/reports?limit=1");
+    assert.equal(reports.status, 200);
+    assert.ok(reports.body.reports.length <= 1);
+    assert.ok(reports.body.total >= reports.body.reports.length);
+    assert.ok(Array.isArray(reports.body.accounts));
+    const digests = await call("/api/arena/digests?limit=5&offset=0");
+    assert.equal(digests.status, 200);
+    assert.equal(typeof digests.body.total, "number");
+  });
+});

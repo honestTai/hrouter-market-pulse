@@ -91,7 +91,10 @@ lucide-react/dist/esm/icons/chart-line.mjs:
 lucide-react/dist/esm/icons/chart-no-axes-combined.mjs:
 lucide-react/dist/esm/icons/check.mjs:
 lucide-react/dist/esm/icons/chevron-down.mjs:
+lucide-react/dist/esm/icons/chevron-left.mjs:
 lucide-react/dist/esm/icons/chevron-right.mjs:
+lucide-react/dist/esm/icons/chevrons-left.mjs:
+lucide-react/dist/esm/icons/chevrons-right.mjs:
 lucide-react/dist/esm/icons/circle-alert.mjs:
 lucide-react/dist/esm/icons/circle-check.mjs:
 lucide-react/dist/esm/icons/circle-dollar-sign.mjs:

@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Badge, Button, Callout, Switch, Table, TextArea, TextField, Tooltip } from "@radix-ui/themes";
+import { Badge, Button, Callout, Select, Switch, Table, TextArea, TextField, Tooltip } from "@radix-ui/themes";
 import { CircleAlert, Clock3, Play, Power, Save, Server, Trash2 } from "lucide-react";
 import { useWorkspace } from "../context.jsx";
 import { api } from "../data.mjs";
 import { Empty, ErrorNotice } from "./Primitives.jsx";
+import { DateRange, Pager, usePagedList } from "./Paging.jsx";
 
 const RUNNERS = [
   { id: "claude", zh: "Claude Code（claude -p）", en: "Claude Code (claude -p)" },
@@ -30,15 +31,18 @@ export function ServiceChip({ service }) {
 export function AutomationPanel({ account }) {
   const { t, date, notify, language } = useWorkspace();
   const [state, setState] = useState(null);
-  const [runs, setRuns] = useState([]);
+  const [runStatus, setRunStatus] = useState("all");
+  const [runRange, setRunRange] = useState({ from: "", to: "" });
+  const runList = usePagedList(`/api/arena/runs/${account.id}`, { status: runStatus, from: runRange.from, to: runRange.to }, { itemsKey: "runs", refreshMs: 15000 });
+  const runs = runList.items;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [form, setForm] = useState(null);
   const load = useCallback(async () => {
     try {
-      const [schedules, history] = await Promise.all([api("/api/arena/schedules"), api(`/api/arena/runs/${account.id}`)]);
+      const schedules = await api("/api/arena/schedules");
       setState(schedules);
-      setRuns(history.runs ?? []);
+      runList.reload();
       const job = schedules.jobs.find((entry) => entry.accountId === account.id);
       setForm((current) => current ?? {
         enabled: job?.enabled ?? true,
@@ -110,7 +114,12 @@ export function AutomationPanel({ account }) {
       {job && <Button variant="soft" color="red" onClick={remove} loading={busy === "delete"}><Trash2 size={15} />{t("删除定时", "Remove schedule")}</Button>}
     </div>
     <p className="muted small"><Power size={12} /> {t("自定义策略：把 .mjs 文件放进 ", "Custom strategies: put .mjs files in ")}<code>{state.strategyDir}</code>{t("，格式见 docs/STRATEGIES.md。", "; see docs/STRATEGIES.md.")}</p>
-    <h4 className="automation-heading">{t("运行记录", "Run log")}</h4>
+    <div className="automation-heading-row"><h4 className="automation-heading">{t("运行记录", "Run log")}</h4>
+      <div className="history-filters inline">
+        <Select.Root size="1" value={runStatus} onValueChange={setRunStatus}><Select.Trigger variant="surface" aria-label={t("状态", "Status")} /><Select.Content><Select.Item value="all">{t("全部状态", "Any status")}</Select.Item>{Object.entries(STATUS).map(([key, [zh, en]]) => <Select.Item key={key} value={key}>{t(zh, en)}</Select.Item>)}</Select.Content></Select.Root>
+        <DateRange from={runRange.from} to={runRange.to} onChange={setRunRange} />
+      </div>
+    </div>
     {runs.length ? <div className="table-scroll"><Table.Root size="1">
       <Table.Header><Table.Row><Table.ColumnHeaderCell>{t("开始", "Started")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("方式", "Runner")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("状态", "Status")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell align="right">{t("耗时", "Duration")}</Table.ColumnHeaderCell><Table.ColumnHeaderCell>{t("结果", "Result")}</Table.ColumnHeaderCell></Table.Row></Table.Header>
       <Table.Body>{runs.map((run) => { const [zh, en, color] = STATUS[run.status] ?? [run.status, run.status, "gray"]; const seconds = run.durationMs ? Math.round(run.durationMs / 1000) : run.finishedAt ? Math.round((Date.parse(run.finishedAt) - Date.parse(run.startedAt)) / 1000) : null; return <Table.Row key={run.id}>
@@ -121,6 +130,7 @@ export function AutomationPanel({ account }) {
         <Table.Cell className="reason-cell">{run.error ? <span className="loss">{run.error}</span> : run.orders ? run.orders.map((order) => `${order.side} ${order.symbol} ${order.quantity} ${order.status}`).join(" · ") || t("无订单", "no orders") : null}
           {(run.stdoutTail || run.stderrTail) && <details><summary>{t("输出", "Output")}</summary><pre className="run-output">{[run.stdoutTail, run.stderrTail].filter(Boolean).join("\n---\n")}</pre></details>}</Table.Cell>
       </Table.Row>; })}</Table.Body>
-    </Table.Root></div> : <Empty compact icon={Clock3} title={t("还没有运行记录", "No runs yet")} />}
+    </Table.Root></div> : <Empty compact icon={Clock3} title={runStatus !== "all" || runRange.from || runRange.to ? t("没有匹配的运行记录", "No matching runs") : t("还没有运行记录", "No runs yet")} />}
+    <Pager total={runList.total} page={runList.page} pageSize={runList.pageSize} onPage={runList.setPage} onPageSize={runList.setPageSize} loading={runList.loading} />
   </div>;
 }

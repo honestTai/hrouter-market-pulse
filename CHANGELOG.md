@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.0 — report centre, paging and filters everywhere, dashboard polish
+
+- Report centre (new page): every agent round report and every end-of-day digest, with search, market / account / stance / date filters, server-side paging and a detail pane. Deep links (`?view=reports&report=…`, `&tab=digests&digest=…`).
+- Report and digest detail dialogs from "My portfolio", the account page and the digest panel. Digest detail: totals, best account of the day and a per-account breakdown that expands into fills, latest report and warnings.
+- Account history tabs (orders, fills, events, reports, journal) and the automation run log are filtered (search, buy / sell, status / origin / kind, date range with presets) and paged on the server (`GET /api/arena/accounts/:id/history`, paged `/api/arena/reports`, `/api/arena/digests`, `/api/arena/runs/:id`). Evidence and research journal pages are paged too.
+- Polish: compact report cards with "read full report"; intraday time labels on equity curves; prices with market decimals (A / US 2, HK 3); no chart watermark; stock badges use the company's first character; overview cards fill the row; long model names truncate; mobile top bar fits.
+
 ## 1.5.0 — whole-market stock picking, self-serve news, faster cadence, smoother dashboard
 
 - `scan_market` MCP tool: rank the whole market by change, turnover value, turnover rate, volume ratio, 5-minute speed, main-fund inflow, amplitude or market cap; every A-share board (main, ChiNext, STAR, Beijing Stock Exchange, ST names), HK and US; industry / concept board rankings with leaders and board members.

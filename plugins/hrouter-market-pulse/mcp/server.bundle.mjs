@@ -15073,6 +15073,33 @@ import { randomBytes, randomUUID as randomUUID3 } from "node:crypto";
 import { mkdir as mkdir5, readdir, readFile as readFile5, rename as rename5, rm as rm2, stat, writeFile as writeFile4 } from "node:fs/promises";
 import os2 from "node:os";
 import path5 from "node:path";
+
+// mcp/paging.mjs
+var PAGE_DEFAULTS = Object.freeze({ limit: 20, maxLimit: 200 });
+function pageParams(searchParams) {
+  const number5 = (name, fallback) => {
+    const value = Number(searchParams.get(name));
+    return Number.isFinite(value) ? value : fallback;
+  };
+  return {
+    offset: Math.max(0, Math.floor(number5("offset", 0))),
+    limit: Math.min(PAGE_DEFAULTS.maxLimit, Math.max(1, Math.floor(number5("limit", PAGE_DEFAULTS.limit)))),
+    q: (searchParams.get("q") ?? "").trim().toLowerCase().slice(0, 100),
+    from: /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get("from") ?? "") ? searchParams.get("from") : null,
+    to: /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get("to") ?? "") ? searchParams.get("to") : null
+  };
+}
+function inDateRange(at, { from, to }, timeZone = "Asia/Shanghai") {
+  if (!from && !to) return true;
+  const day = new Date(at).toLocaleDateString("en-CA", { timeZone });
+  return (!from || day >= from) && (!to || day <= to);
+}
+function paginate(rows, { offset = 0, limit = PAGE_DEFAULTS.limit } = {}) {
+  return { items: rows.slice(offset, offset + limit), total: rows.length, offset, limit };
+}
+var matchesText = (q, ...values) => !q || values.some((value) => String(value ?? "").toLowerCase().includes(q));
+
+// mcp/arena.mjs
 var ARENA_MARKETS = {
   A: { currency: "CNY", defaultCash: 1e6, benchmark: "000300.SS", benchmarkName: "\u6CAA\u6DF1300 / CSI 300" },
   HK: { currency: "HKD", defaultCash: 1e6, benchmark: "^HSI", benchmarkName: "\u6052\u751F\u6307\u6570 / Hang Seng" },
@@ -16103,6 +16130,25 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
           "Short track records are noisy: check tradingDays, closedTrades and sampleWarning before concluding one agent is better."
         ]
       };
+    },
+    // One page of an account's history with filters, newest first. kind: orders | trades | journal |
+    // events | reports. type = order status, journal kind, event type or report sentiment.
+    async history(id, kind, { offset = 0, limit = 20, q = "", side, type, symbol, from, to } = {}) {
+      const account2 = await load(id);
+      const timeZone = { A: "Asia/Shanghai", HK: "Asia/Hong_Kong", US: "America/New_York" }[account2.market] ?? "UTC";
+      const sources = {
+        orders: [account2.orders, (row) => row.createdAt, (row) => [row.symbol, row.name, row.reason, row.rejectReason], (row) => row.status],
+        trades: [account2.trades, (row) => row.at, (row) => [row.symbol, row.name, row.reason], (row) => row.trigger ?? "manual"],
+        journal: [account2.journal, (row) => row.at, (row) => [row.summary, row.details, ...row.symbols ?? []], (row) => row.kind],
+        events: [(account2.events ?? []).map(({ dedupe, ...event }) => event), (row) => row.at, (row) => [row.symbol, row.message], (row) => row.type],
+        reports: [account2.reports ?? [], (row) => row.at, (row) => [row.title, row.summary, row.marketView, ...(row.actions ?? []).map((entry) => entry.symbol), ...(row.picks ?? []).map((entry) => entry.symbol)], (row) => row.sentiment]
+      };
+      if (!sources[kind]) throw new ArenaError(`Unknown history kind "${kind}".`);
+      const [rows, atOf, textOf, typeOf] = sources[kind];
+      const needle = String(q ?? "").toLowerCase();
+      const filtered = [...rows].reverse().filter((row) => (!side || row.side === side) && (!type || typeOf(row) === type) && (!symbol || row.symbol === symbol || (row.symbols ?? []).includes(symbol)) && inDateRange(atOf(row), { from, to }, timeZone) && matchesText(needle, ...textOf(row)));
+      const facets = { types: [...new Set(rows.map(typeOf).filter(Boolean))], symbols: [...new Set(rows.map((row) => row.symbol).filter(Boolean))].slice(0, 200) };
+      return { kind, accountId: id, ...paginate(filtered, { offset, limit }), facets, all: rows.length };
     },
     async getAccount(id, { sync: shouldSync = true, limit = 50 } = {}) {
       if (shouldSync) await sync([id]).catch(() => {
@@ -19745,6 +19791,23 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           }), matcher: await matcherStatus(arena), service: demo2 ? { state: "demo" } : await readServiceStatus(arena.root) });
         }
         if (url.pathname === "/api/arena/matcher") return respond(response, 200, await matcherStatus(await arenaReady));
+        if (url.pathname === "/api/arena/reports") {
+          const arena = await arenaReady;
+          const paging = pageParams(url.searchParams);
+          const market2 = url.searchParams.get("market"), accountId2 = url.searchParams.get("account"), sentiment = url.searchParams.get("sentiment");
+          const summaries = await arena.listAccounts({ status: url.searchParams.get("archived") === "1" ? "all" : "active" });
+          const rows = [];
+          for (const summary of summaries) {
+            const account2 = await arena.getAccount(summary.id, { sync: false, limit: 500 });
+            const owner = { id: account2.id, name: account2.name, model: account2.model, market: account2.market, currency: account2.currency, agent: account2.agent };
+            for (const report of account2.reports ?? []) rows.push({ ...report, account: owner });
+          }
+          rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+          const filtered = rows.filter((report) => (!market2 || market2 === "all" || report.account.market === market2) && (!accountId2 || accountId2 === "all" || report.account.id === accountId2) && (!sentiment || sentiment === "all" || report.sentiment === sentiment) && inDateRange(report.at, paging) && matchesText(paging.q, report.title, report.summary, report.marketView, report.account.name, report.account.model, ...(report.actions ?? []).map((entry) => entry.symbol), ...(report.picks ?? []).map((entry) => entry.symbol)));
+          const page = paginate(filtered, paging);
+          const accounts = [...new Map(rows.map((report) => [report.account.id, report.account])).values()];
+          return respond(response, 200, { demo: demo2, reports: page.items, total: page.total, offset: page.offset, limit: page.limit, all: rows.length, accounts });
+        }
         if (url.pathname === "/api/arena/schedules") {
           const arena = await arenaReady;
           const scheduler = await schedulerReady;
@@ -19760,11 +19823,26 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           });
         }
         const runs = url.pathname.match(/^\/api\/arena\/runs\/(acc_[a-f0-9]{12})$/);
-        if (runs) return respond(response, 200, { runs: await (await schedulerReady).listRuns({ accountId: runs[1], limit: 50 }) });
+        if (runs) {
+          const paging = pageParams(url.searchParams);
+          const status = url.searchParams.get("status");
+          const rows = (await (await schedulerReady).listRuns({ accountId: runs[1], limit: 300 })).filter((run2) => (!status || run2.status === status) && inDateRange(run2.startedAt ?? run2.at, paging));
+          const page = paginate(rows, paging);
+          return respond(response, 200, { runs: page.items, total: page.total, offset: page.offset, limit: page.limit });
+        }
         if (url.pathname === "/api/arena/digests") {
-          const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+          const paging = pageParams(url.searchParams);
+          const market2 = url.searchParams.get("market");
           const webhook = (await readPreferences())?.digestWebhook ?? null;
-          return respond(response, 200, { demo: demo2, digests: await (await arenaReady).listDigests({ limit }), webhook: webhook ? { format: webhook.format, enabled: webhook.enabled, host: new URL(webhook.url).host } : null });
+          const rows = (await (await arenaReady).listDigests({ limit: 400 })).filter((digest) => (!market2 || market2 === "all" || !digest.market || digest.market === market2) && inDateRange(digest.at, paging) && matchesText(paging.q, digest.title, digest.headline, ...(digest.accounts ?? []).map((row) => row.name)));
+          const page = paginate(rows, paging);
+          return respond(response, 200, { demo: demo2, digests: page.items, total: page.total, offset: page.offset, limit: page.limit, webhook: webhook ? { format: webhook.format, enabled: webhook.enabled, host: new URL(webhook.url).host } : null });
+        }
+        const history = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/history$/);
+        if (history) {
+          const paging = pageParams(url.searchParams);
+          const side = ["BUY", "SELL"].includes(url.searchParams.get("side")) ? url.searchParams.get("side") : void 0;
+          return respond(response, 200, await (await arenaReady).history(history[1], url.searchParams.get("kind"), { ...paging, side, type: url.searchParams.get("type") || void 0, symbol: url.searchParams.get("symbol") || void 0 }));
         }
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {
@@ -19786,7 +19864,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: true ? "1.5.0" : "development",
+            version: true ? "1.6.0" : "development",
             demo: demo2
           });
         if (assets.has(url.pathname)) {
@@ -30246,7 +30324,7 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: true ? "1.5.0" : "development"
+  version: true ? "1.6.0" : "development"
 }, {
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
@@ -31135,7 +31213,7 @@ if (service2) {
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena,
     scheduler: await dashboard.scheduler,
-    version: true ? "1.5.0" : "development",
+    version: true ? "1.6.0" : "development",
     bundlePath: fileURLToPath5(import.meta.url),
     port: dashboard.address()?.port,
     onExit: () => shutdown()

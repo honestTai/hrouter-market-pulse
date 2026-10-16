@@ -1546,13 +1546,19 @@ export function parseTencentMinutes(payload, code, market) {
   const node = payload?.data?.[code]?.data;
   const rows = node?.data ?? [];
   const date = String(node?.date ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
-  const volumeUnit = market === "A" ? 100 : 1;
-  let previousVolume = 0;
+  // Volume is in 100-share lots for most A-shares but in shares for STAR / some boards: infer the
+  // unit from the last row (turnover ÷ raw volume is ~100× the price when volume is in lots).
+  const [, lastPrice, lastVolume, lastAmount] = String(rows.at(-1) ?? "").split(" ").map(Number);
+  const volumeUnit = market !== "A" ? 1 : lastAmount > 0 && lastVolume > 0 ? (lastAmount / lastVolume > lastPrice * 20 ? 100 : 1) : 100;
+  let previousVolume = 0, estimatedAmount = 0;
   return rows.map((line) => {
     const [time, price, cumVolume, cumAmount] = String(line).split(" ");
     const volume = Number(cumVolume) * volumeUnit;
-    const amount = Number(cumAmount);
-    const bar = { time: `${time.slice(0, 2)}:${time.slice(2, 4)}`, date: date || null, price: Number(price), volume: Math.max(0, volume - previousVolume), cumVolume: volume, vwap: volume > 0 && amount > 0 ? amount / volume : Number(price) };
+    const delta = Math.max(0, volume - previousVolume);
+    // Some feeds (Beijing) omit turnover: estimate it from each minute's price × volume.
+    estimatedAmount += delta * Number(price);
+    const amount = Number(cumAmount) > 0 ? Number(cumAmount) : estimatedAmount;
+    const bar = { time: `${time.slice(0, 2)}:${time.slice(2, 4)}`, date: date || null, price: Number(price), volume: delta, cumVolume: volume, vwap: volume > 0 && amount > 0 ? amount / volume : Number(price) };
     previousVolume = volume;
     return bar;
   }).filter((bar) => Number.isFinite(bar.price) && bar.price > 0);

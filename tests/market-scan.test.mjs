@@ -52,6 +52,11 @@ test("East Money keyword news search and Tencent minute bars parse", () => {
   assert.equal(bars.length, 2);
   assert.deepEqual([bars[0].time, bars[0].date, bars[0].volume, bars[1].volume], ["09:30", "2026-10-15", 408000, 1030100]);
   assert.ok(Math.abs(bars[1].vwap - 403514361.85 / 1438100) < 1e-9);
+  // STAR minute volume is in shares (turnover ÷ volume ≈ price); Beijing omits turnover.
+  const star = parseTencentMinutes({ data: { sh688825: { data: { data: ["0930 45.00 1000 45000.00", "0931 46.00 3000 137000.00"] } } } }, "sh688825", "A");
+  assert.deepEqual([star[1].cumVolume, star[1].vwap.toFixed(2)], [3000, "45.67"]);
+  const bse = parseTencentMinutes({ data: { bj920690: { data: { data: ["0930 10.00 10 0.00", "0931 12.00 30 0.00"] } } } }, "bj920690", "A");
+  assert.deepEqual([bse[1].cumVolume, bse[1].vwap.toFixed(2)], [3000, "11.33"]);
 });
 
 test("target weights never sell T+1-locked A-share shares", () => {

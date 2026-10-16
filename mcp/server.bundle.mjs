@@ -9146,13 +9146,16 @@ function parseTencentMinutes(payload, code, market2) {
   const node = payload?.data?.[code]?.data;
   const rows = node?.data ?? [];
   const date3 = String(node?.date ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
-  const volumeUnit = market2 === "A" ? 100 : 1;
-  let previousVolume = 0;
+  const [, lastPrice, lastVolume, lastAmount] = String(rows.at(-1) ?? "").split(" ").map(Number);
+  const volumeUnit = market2 !== "A" ? 1 : lastAmount > 0 && lastVolume > 0 ? lastAmount / lastVolume > lastPrice * 20 ? 100 : 1 : 100;
+  let previousVolume = 0, estimatedAmount = 0;
   return rows.map((line) => {
     const [time3, price, cumVolume, cumAmount] = String(line).split(" ");
     const volume = Number(cumVolume) * volumeUnit;
-    const amount = Number(cumAmount);
-    const bar = { time: `${time3.slice(0, 2)}:${time3.slice(2, 4)}`, date: date3 || null, price: Number(price), volume: Math.max(0, volume - previousVolume), cumVolume: volume, vwap: volume > 0 && amount > 0 ? amount / volume : Number(price) };
+    const delta = Math.max(0, volume - previousVolume);
+    estimatedAmount += delta * Number(price);
+    const amount = Number(cumAmount) > 0 ? Number(cumAmount) : estimatedAmount;
+    const bar = { time: `${time3.slice(0, 2)}:${time3.slice(2, 4)}`, date: date3 || null, price: Number(price), volume: delta, cumVolume: volume, vwap: volume > 0 && amount > 0 ? amount / volume : Number(price) };
     previousVolume = volume;
     return bar;
   }).filter((bar) => Number.isFinite(bar.price) && bar.price > 0);

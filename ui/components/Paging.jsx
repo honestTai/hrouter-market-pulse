@@ -68,7 +68,8 @@ function pageList(page, pages) {
 export function Pager({ total, page, pageSize, onPage, onPageSize, loading = false, compact = false }) {
   const { t } = useWorkspace();
   const pages = Math.max(1, Math.ceil(total / pageSize));
-  if (!total) return null;
+  // One page that fits the smallest page size: no pager, just the list.
+  if (!total || (pages === 1 && total <= Math.min(pageSize, PAGE_SIZES[0]))) return null;
   const start = (page - 1) * pageSize + 1, end = Math.min(total, page * pageSize);
   return <nav className={`pager ${compact ? "compact" : ""} ${loading ? "loading" : ""}`} aria-label={t("分页", "Pagination")}>
     <span className="pager-range muted small">{t(`第 ${start}–${end} 条，共 ${total} 条`, `${start}–${end} of ${total}`)}</span>

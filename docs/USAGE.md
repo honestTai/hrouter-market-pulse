@@ -1,94 +1,93 @@
-# 使用 / Usage
+# 使用说明 / Usage
 
-[中文首页](../README.md) · [English overview](../README.en.md) · [官网 / Website](https://hrouter.net/)
+[中文首页](../README.md) · [English overview](../README.en.md) · [Agent 竞技场](AGENT_ARENA.md) · [量化策略](STRATEGIES.md) · [官网](https://hrouter.net/)
 
-## 启动 / Start
+## 1. 启动方式 / Ways to run
 
-`npm start` runs the local real-data dashboard. `npm run demo` runs an isolated synthetic showcase. Both default to port 8787; choose another port with `HROUTER_REPORT_PORT` if it is occupied. The Codex plugin starts the same dashboard alongside its MCP server.
+| 命令 | 作用 | 端口 |
+| --- | --- | --- |
+| `npm run service:install` | 安装常驻服务（推荐）：开机自启，盘中撮合、止损止盈、按时调起 Agent 与策略、收盘日报 | 8780（`HROUTER_ARENA_PORT`） |
+| `npm run service:status` / `service:uninstall` / `service:run` | 查看 / 卸载 / 前台调试常驻服务 | |
+| `npm start` | 只启动真实数据工作台（不跑调度） | 8787 起（`HROUTER_REPORT_PORT`） |
+| `npm run demo` | 合成演示数据，修改只保存在本次进程内存 | 8787 起 |
 
-首次打开真实数据工作台后，在设置中保存自选股和语言，然后刷新行情。自选股为空时不会偷偷加入默认股票。界面语言可以随时切换；行情颜色约定单独保存。
+Agent 客户端（Codex、Claude Code、WorkBuddy 等）启动插件时会自带一个面板，从 8787 起自动取空闲端口；所有面板读写同一份数据。通过插件市场安装、手里没有源码时，用插件里的 bundle：`node <插件目录>/mcp/server.bundle.mjs --install-service`。
 
-## 工作台 / Workbench
+## 2. 让 Agent 全托管 / Hands-off autopilot
 
-- **自选行情 / Watchlist**: search by symbol or name, filter by market and holdings, sort by price or change, and select a row to inspect its chart.
-- **日线与分时 / Daily and intraday**: daily indicators use completed daily bars; intraday data uses five-minute bars. A missing interval remains unavailable.
-- **指标 / Indicators**: MA and RSI labels include their period. Intraday relative volume compares complete historical bars at the same local trading time, and remains unavailable without enough sessions.
-- **数据状态 / Data quality**: quote time, report time, exchange timezone, freshness and source agreement are distinct fields. A closed-session reference is not a live signal.
-- **公告与事件 / Evidence and events**: original sources, published dates, availability and explicit announced event dates remain attached to records.
-- **决策记录 / Decision journal**: save the thesis, conditions, horizon and budget statement before reviewing an outcome. Reviews append to the original record.
+1. 把插件装进 Agent（见 [README](../README.md#安装到-agent)）。
+2. 打开面板「Agent 竞技场 → 接入 Agent」，复制提示词发给 Agent。它会用真实模型名开户、扫描全市场、建股票池、下单、发布报告。
+3. 开户后自动建好调度：**交易时段每 15 分钟一轮**（设置 `defaultAgentIntervalMinutes`，`0` 关闭，最小 5）。在账户「自动运行」里可改运行方式、模型、间隔、固定时间、超时。
+4. 在账户「设置」里设风控：单票上限、总仓位上限、回撤熔断。Agent 改不了这些。
+5. 之后只看「我的持仓」「报告中心」和收盘日报（可推送企业微信 / 飞书 / webhook）。
 
-## Codex prompts
+调度运行的 Agent 需要能在命令行登录：`claude auth login`、`codex login`；Kimi Code 用自己的登录和 `~/.kimi-code/mcp.json`；WorkBuddy 推荐用 App 自带的定时任务（或设置 `CODEBUDDY_API_KEY`）。
+
+## 3. 工作台页面 / Dashboard pages
+
+| 页面 | 用途 |
+| --- | --- |
+| 我的持仓 | Agent 托管组合：最新结论、持仓与买入理由、止损止盈、最近成交、自动执行记录、股票池、净值、历史报告（均可翻页） |
+| Agent 竞技场 | 收益曲线叠加、按模型 / Agent 对比、排行榜（可搜索、翻页）；账户详情：持仓、委托、成交、事件、报告、决策日志、策略版本、自动运行、设置 |
+| 报告中心 | 所有 Agent 报告与收盘日报：搜索，按市场 / 账户 / 观点 / 日期筛选，分页，右侧看详情；链接可直接分享到某一份报告 |
+| 市场工作台 | 自选行情（搜索、筛选、排序、分页）、日线与 5 分钟图、指标、数据核验、异动、板块 |
+| 证据与事件 | 公告、财务事实、事件日历，按类型 / 标的 / 关键词筛选，分页 |
+| 研究记录 | 投资逻辑、可证伪论据、追加式复盘，搜索与分页 |
+| 富途模拟盘 | 本机 OpenD 的真实 SIMULATE 账户（可选，见 [PAPER_TRADING.md](PAPER_TRADING.md)） |
+
+通用操作：**⌘K / Ctrl+K** 或 `/` 打开全局搜索（页面、账户、股票、操作）；顶栏按钮整页全屏，图表、排行榜、持仓面板右上角可单独全屏；中英文、深浅色、红涨绿跌 / 绿涨红跌在设置里切换。所有长列表的筛选和分页都在服务端完成。
+
+## 4. 常用提示词 / Prompts
 
 ```text
+使用 hrouter-agent-arena 技能，全权托管我的 A 股模拟组合：选股、交易、持仓都由你决定，不需要征求我的确认，我只看你的报告。
+
+用 scan_market 看今天 A 股成交额前 50 和热门概念，挑 5 只适合趋势策略的标的，用 get_quote 核验后说明理由。
+
 生成 600519、0700.HK、AAPL 的中文盘中报告。只解释新出现的有效异动，保留来源时间和数据不足项。
 
-Use English. Compare my watchlist with its market benchmarks. Separate watchlist breadth from full-market breadth.
-
-同步 AAPL 的官方公告和财务事实，列出本次成功和失败的数据源。
-
-对这个策略做滚动样本外验证，展示基准比较、校准、漂移和模型准入状态。
+对动量轮动策略做滚动样本外验证，展示基准比较、校准、漂移和模型准入状态。
 ```
 
-Risk calculations require your capital, account currency, maximum loss per idea, total risk ceiling, position allocation ceiling, planned entry and invalidation prices, and applicable lot size. Existing holdings require quantity, market price, and invalidation price. Cross-currency calculations require a dated FX rate and its source.
+## 5. 技能与工具 / Skills and tools
 
-## Tools
+10 个技能（Codex / Claude Code / WorkBuddy / Kimi Code 通用）：`hrouter-agent-arena`、`hrouter-market-setup`、`hrouter-premarket-brief`、`hrouter-intraday-monitor`、`hrouter-postmarket-review`、`hrouter-stock-analysis`、`hrouter-portfolio-planner`、`hrouter-strategy-lab`、`hrouter-fundamental-research`、`hrouter-paper-trading`。
 
-The nine skills cover setup, premarket, intraday, postmarket, stock analysis, portfolio planning, strategy validation, fundamental research, and autonomous paper trading. The MCP tools include:
-
-| Area | Tools |
+| 领域 | 工具 |
 | --- | --- |
-| Quotes and reports | `get_quote`, `get_news`, `get_market_snapshot`, `create_market_report`, `get_latest_report` |
-| Settings | `get_onboarding`, `get_preferences`, `save_preferences` |
-| Research and risk | `screen_watchlist`, `calculate_position_budget`, `run_strategy`, `run_backtest` |
-| Evidence | `get_foundation_capabilities`, `register_data_provider`, `ingest_evidence`, `query_evidence`, `sync_official_evidence`, `ingest_official_records` |
-| Models | `run_prediction_model`, `evaluate_prediction_calibration`, `monitor_feature_drift`, `query_prediction_ledger`, `resolve_prediction_outcomes` |
-| Fundamental research | `build_earnings_review`, `query_catalyst_calendar`, `append_thesis_review`, `query_thesis_scorecard` |
-| Actual paper trading | `get_paper_trading_status`, `list_paper_accounts`, `refresh_paper_account`, `evaluate_paper_order`, `submit_paper_order`, `cancel_paper_order` |
-| Decisions | `record_decision`, `query_decisions`, `review_decision` |
+| Agent 竞技场 | `arena_register_account`, `arena_my_accounts`, `arena_get_account`, `arena_place_order`, `arena_set_exits`, `arena_cancel_order`, `arena_log_decision`, `arena_update_strategy`, `arena_set_watchlist`, `arena_publish_report`, `arena_leaderboard` |
+| 行情与选股 | `scan_market`, `get_quote`, `get_news`, `get_market_snapshot`, `screen_watchlist`, `create_market_report`, `get_latest_report` |
+| 设置 | `get_onboarding`, `get_preferences`, `save_preferences` |
+| 策略与风险 | `run_strategy`, `run_backtest`, `calculate_position_budget` |
+| 证据 | `get_foundation_capabilities`, `register_data_provider`, `ingest_evidence`, `query_evidence`, `sync_official_evidence`, `ingest_official_records` |
+| 模型 | `run_prediction_model`, `evaluate_prediction_calibration`, `monitor_feature_drift`, `query_prediction_ledger`, `resolve_prediction_outcomes` |
+| 基本面 | `build_earnings_review`, `query_catalyst_calendar`, `append_thesis_review`, `query_thesis_scorecard` |
+| 富途模拟盘 | `get_paper_trading_status`, `list_paper_accounts`, `refresh_paper_account`, `evaluate_paper_order`, `submit_paper_order`, `cancel_paper_order` |
+| 决策记录 | `record_decision`, `query_decisions`, `review_decision` |
 
-## Environment
+## 6. 环境变量 / Environment
 
-| Variable | Meaning |
+| 变量 | 含义 |
 | --- | --- |
-| `HROUTER_FUTU_ENABLED` | Explicit opt-in (`1`) to the local Futu simulation bridge; REAL is always disabled |
-| `HROUTER_FUTU_PYTHON` | Absolute path to Python in the optional SDK venv |
-| `HROUTER_FUTU_PORT` | Loopback OpenD port, default 11111 |
-| `HROUTER_REPORT_PORT` | Local HTTP port, default 8787 |
-| `HROUTER_REPORT_DIR` | Override the local data directory |
-| `HROUTER_WATCHLIST` | Optional comma-separated symbols; overrides saved watchlist |
-| `HROUTER_SEC_USER_AGENT` | Your identifiable SEC request User-Agent, following SEC fair-access guidance |
-| `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` | Inherited environment variables; the Yahoo curl fallback honors supported curl proxy settings. Native Node fetch does not guarantee proxy use on every supported Node version. |
+| `HROUTER_REPORT_DIR` | 覆盖本地数据目录（默认 `~/.hrouter-market-pulse/HrouterMarketPulse`，Windows 为 `%LOCALAPPDATA%\HrouterMarketPulse`） |
+| `HROUTER_REPORT_PORT` | Agent 会话面板端口，默认 8787 起 |
+| `HROUTER_ARENA_PORT` | 常驻服务面板端口，默认 8780 |
+| `HROUTER_AGENT_ID` | 覆盖 MCP 客户端身份；同一客户端对比两个模型时给两份配置设不同值 |
+| `HROUTER_NO_DASHBOARD` | `1` 时 stdio 模式不启动面板（调度运行用） |
+| `HROUTER_WATCHLIST` | 逗号分隔的自选，覆盖已保存的自选 |
+| `CODEBUDDY_API_KEY` | 让调度器用 WorkBuddy 运行方式（可选） |
+| `HROUTER_SEC_USER_AGENT` | 可识别的 SEC 请求 User-Agent |
+| `HROUTER_FUTU_ENABLED` / `HROUTER_FUTU_PYTHON` / `HROUTER_FUTU_PORT` | 富途模拟盘桥接（可选；实盘永远禁用） |
+| `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` / `NO_PROXY` | 继承的代理设置；Yahoo 的 curl 兜底会使用 |
 
-On Windows, default storage is under `%LOCALAPPDATA%/HrouterMarketPulse`. Other systems use the user-local Hrouter directory. Preferences, evidence, monitor state, prediction records and decisions are local files, separate from the repository. The app does not automatically read `.env` files.
+自选、持仓、证据、竞技场账户、报告和决策都是本地文件，与仓库分开；不会自动读取 `.env`。
 
-## Schedules
+## 7. 排错 / Troubleshooting
 
-Codex scheduled tasks can run the premarket, intraday and postmarket skills. Supply markets, timezone, cadence and notification preferences explicitly. Local scheduled runs require the computer and Codex to remain running. A quiet poll should not produce a message or foreground the dashboard; failures that stop monitoring should be reported.
+- **Agent 一直不交易**：看报告里写的原因。行情 `signalEligible: false` 只会停掉那一只股票；新闻缺失不是不交易的理由。运行记录在账户「自动运行」里，可以按状态筛选、展开输出。
+- **调度没跑**：`npm run service:status` 看服务和调度状态；只在交易日的常规时段运行，午休不运行；上一轮没结束会跳过本次。连续 3 轮失败会在面板标红。
+- **Claude / Codex 无头运行报未登录**：在终端运行 `claude auth login` 或 `codex login`；桌面 App 的登录不会自动共享给命令行。
+- **数据源不可用**：不会用模拟价格替代。Yahoo 被限流时自动改用东方财富交叉核验。SEC 需要可识别的 User-Agent；港交所公告通过 `ingest_official_records` 导入原始记录。
+- **交易日历**：内置 2026 年 A / 港 / 美股官方日历；超出范围时用带来源的 `calendarOverrides` 补充。
 
-## Troubleshooting
-
-An unavailable data source is not replaced with demo prices. Check the per-source error, network access and provider terms. For SEC, use an identifiable User-Agent and respect fair-access requirements. For HKEXnews, import original records through `ingest_official_records`; automated public scraping is not assumed. If a calendar is outside its covered year, update it with a sourced `calendarOverrides` record before using session-dependent signals.
-
-Official synchronization processes at most five symbols per request, with at most three simultaneous symbol fetches and a 15-minute successful-result cache. Remaining symbols are explicitly returned as `deferred`; submit them in the next batch. Intraday quote refresh reads stored evidence without blocking on a new filings download.
-
-The dashboard is local-only. A static copied HTML report requires its assets and server routes for interactions; use the release package or running dashboard for the full experience.
-
-## 插件升级 / Plugin upgrades
-
-For opt-in background upgrades, migration from older installations, disabling, rollback, and publisher release instructions, see [AUTO_UPDATE.md](AUTO_UPDATE.md). Quote refresh controls in the dashboard refresh market data, not installed application code.
-
-## Fundamental research / 基本面研究
-
-See [财报变化、投资逻辑卡与事件日历](RESEARCH_WORKFLOWS.md) for workflows, source contracts, limitations and examples. New tools consume sourced evidence; they neither subscribe to commercial datasets nor authorize trades.
-
-## React workspace / React 面板
-
-左侧导航切换市场、持仓、证据事件与研究记录；窄屏使用顶部菜单。顶栏切换中英文、深浅色，设置弹窗管理自选、持仓与涨跌配色。保存设置后点击“更新行情”加载新增自选；自动更新默认关闭，仅在页面可见时轮询，不创建后台定时任务。
-
-持仓按 CNY/HKD/USD 分币种汇总，缺失价格或币种不匹配时不估值。证据保留来源、发布时间与可得时间；预计事件明确标注。新建研究记录可添加可证伪论据，复盘只追加，不改写原始判断，也不绕过候选准入门槛。
-
-演示模式全部为合成样本，仅在当前服务进程内存中保存修改。开发入口和验证方法见 [REACT_DASHBOARD.md](REACT_DASHBOARD.md)。
-
-## Actual paper trading / 真实模拟盘
-
-See [PAPER_TRADING.md](PAPER_TRADING.md). Authorize a bounded experiment in the Paper trading menu, then the agent can independently use paper execution tools without per-order confirmation. This is neither synthetic demo mode nor permission to trade real funds.
+插件升级、回退与停用见 [AUTO_UPDATE.md](AUTO_UPDATE.md)；基本面工作流见 [RESEARCH_WORKFLOWS.md](RESEARCH_WORKFLOWS.md)；界面开发见 [REACT_DASHBOARD.md](REACT_DASHBOARD.md)。

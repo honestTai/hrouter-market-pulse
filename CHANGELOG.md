@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.2 — paging on every list, refreshed docs
+
+- "My portfolio" pages its recent fills, automatic activity and earlier reports; the leaderboard gets search and paging; the market watchlist pages after sorting. Pagers hide when everything fits on one page.
+- Futu page no longer shows a stray currency placeholder; evidence sync results wrap inline.
+- Rewritten USAGE, REACT_DASHBOARD and launch notes (zh / en) for the arena, scheduler, report centre and paging.
+
 ## 1.6.1 — clearer report layout
 
 - Full reports show each part as its own panel: market view, actions (one row per stock with colour-coded buy / sell / hold / watch / cancel tags and per-type counts), picks, risks and next steps.

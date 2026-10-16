@@ -44,6 +44,21 @@ test("job validation and slots only fire on trading days, once, inside the catch
   assert.deepEqual(dueSlots(job, "A", "2026-10-15T05:00:00Z", []), [], "13:00 is too late for 09:45 and too early for 14:30");
 });
 
+test("repeat mode fires once per interval inside regular sessions, never at lunch, with agent minimums", () => {
+  const strategy = sanitizeJob({ intervalMinutes: 5, runner: { type: "strategy", strategyId: "ma-trend" } });
+  assert.deepEqual(strategy.times, []);
+  assert.throws(() => sanitizeJob({ intervalMinutes: 5, runner: { type: "kimi" } }), /at least 10 minutes/);
+  assert.throws(() => sanitizeJob({ runner: { type: "kimi" } }), /run time or a repeat interval/);
+  const at = (local) => new Date(Date.parse(`2026-10-15T${local}:00+08:00`)).toISOString();
+  assert.deepEqual(dueSlots(strategy, "A", at("09:37"), []).map((slot) => slot.key), ["2026-10-15T09:35"]);
+  assert.deepEqual(dueSlots(strategy, "A", at("09:37"), ["2026-10-15T09:35"]), []);
+  assert.deepEqual(dueSlots(strategy, "A", at("12:10"), []), [], "lunch break");
+  assert.deepEqual(dueSlots(strategy, "A", at("13:02"), []).map((slot) => slot.key), ["2026-10-15T13:00"]);
+  assert.deepEqual(dueSlots(strategy, "A", at("15:20"), []), [], "after close");
+  const agent = sanitizeJob({ intervalMinutes: 30, times: ["09:45"], runner: { type: "codex" } });
+  assert.deepEqual(dueSlots(agent, "A", at("10:05"), ["2026-10-15T09:45"]).map((slot) => slot.key), ["2026-10-15T10:00"]);
+});
+
 test("agent invocations attach only this plugin, pin the data dir and pre-approve only its tools", () => {
   const job = { runner: { type: "codex", model: "gpt-5.5-codex", timeoutMinutes: 5 } };
   const codex = agentInvocation({ job, account: { id: "acc_000000000001" }, prompt: "go", nodePath: "/n", bundlePath: "/b.mjs", skillText: null, workDir: "/w", identity: "codex-x", dataDir: "/data" });

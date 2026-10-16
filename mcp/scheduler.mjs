@@ -22,7 +22,7 @@ import { createPaperBroker } from "./brokers.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
 export const RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "command", "strategy"];
-export const SCHEDULER_DEFAULTS = Object.freeze({ tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3 });
+export const SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 10, tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3 });
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const minuteOf = (time) => { const [, h, m] = time.match(TIME); return Number(h) * 60 + Number(m); };
@@ -36,6 +36,14 @@ export function sanitizeJob(input, current = {}) {
     const times = [...new Set(input.times.map((time) => String(time).trim()))];
     for (const time of times) if (!TIME.test(time)) throw new ArenaError(`Invalid time "${time}"; use 24-hour HH:MM in the market's local time.`);
     job.times = times.sort();
+  }
+  if (input.intervalMinutes !== undefined) {
+    if (input.intervalMinutes === null || input.intervalMinutes === "" || input.intervalMinutes === 0) delete job.intervalMinutes;
+    else {
+      const interval = Number(input.intervalMinutes);
+      if (!Number.isInteger(interval) || interval < 1 || interval > 240) throw new ArenaError("intervalMinutes must be a whole number of minutes between 1 and 240.");
+      job.intervalMinutes = interval;
+    }
   }
   if (input.runner !== undefined) {
     const runner = input.runner ?? {};
@@ -59,7 +67,11 @@ export function sanitizeJob(input, current = {}) {
     }
     job.runner = next;
   }
-  if (!job.times?.length) throw new ArenaError("Give at least one run time.");
+  // An agent round itself takes minutes, so agents repeat at most every 10 minutes; code strategies every minute.
+  if (job.intervalMinutes && job.runner && job.runner.type !== "strategy" && job.intervalMinutes < SCHEDULER_DEFAULTS.minAgentIntervalMinutes)
+    throw new ArenaError(`Agent rounds take several minutes; use an interval of at least ${SCHEDULER_DEFAULTS.minAgentIntervalMinutes} minutes (code strategies may run every minute).`);
+  job.times ??= [];
+  if (!job.times.length && !job.intervalMinutes) throw new ArenaError("Give at least one run time or a repeat interval.");
   if (!job.runner) throw new ArenaError("Give a runner.");
   return job;
 }
@@ -143,14 +155,26 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
 }
 
 // Slots of a job that are due now: a trading day, the slot time has passed, within the catch-up window, not yet run.
+const hhmm = (minute) => `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+
 export function dueSlots(job, market, at, done, catchUpMinutes = SCHEDULER_DEFAULTS.catchUpMinutes) {
   const session = getMarketSession(market, at);
   if (session.status === "closed") return [];
-  return job.times.filter((time) => {
+  const fixed = (job.times ?? []).filter((time) => {
     const slot = minuteOf(time);
     const key = `${session.date}T${time}`;
     return session.minute >= slot && session.minute - slot <= catchUpMinutes && !done.includes(key);
   }).map((time) => ({ time, key: `${session.date}T${time}`, date: session.date }));
+  // Repeat mode: one slot per interval inside each regular-session segment (never during lunch breaks).
+  if (job.intervalMinutes && session.status === "open") {
+    const segment = session.sessions.find(([start, end]) => session.minute >= start && session.minute < end);
+    if (segment) {
+      const slotStart = segment[0] + Math.floor((session.minute - segment[0]) / job.intervalMinutes) * job.intervalMinutes;
+      const key = `${session.date}T${hhmm(slotStart)}`;
+      if (!done.includes(key) && !fixed.some((slot) => slot.key === key)) fixed.push({ time: hhmm(slotStart), key, date: session.date, repeat: true });
+    }
+  }
+  return fixed;
 }
 
 function runChild({ command, args, env, cwd, timeoutMs, spawnImpl, tailBytes }) {
@@ -285,10 +309,17 @@ export function createScheduler({
       try { account = await arena.getAccount(job.accountId, { sync: false, limit: 1 }); } catch { continue; }
       if (account.status !== "active") continue;
       const slots = dueSlots(job, account.market, at, done[job.accountId] ?? [], catchUpMinutes);
-      if (!slots.length || running.has(job.accountId)) continue;
+      if (!slots.length) continue;
+      if (running.has(job.accountId)) {
+        // A repeat slot that arrives while the previous round is still going is skipped, not queued,
+        // so slow rounds never chain back-to-back.
+        const skipped = slots.filter((slot) => slot.repeat);
+        if (skipped.length) await update((state) => { state.done[job.accountId] = [...(state.done[job.accountId] ?? []), ...skipped.map((slot) => slot.key)].slice(-600); });
+        continue;
+      }
       // Mark every due slot before launching so a crash or a second leader never double-runs it.
       await update((state) => {
-        state.done[job.accountId] = [...(state.done[job.accountId] ?? []), ...slots.map((slot) => slot.key)].slice(-100);
+        state.done[job.accountId] = [...(state.done[job.accountId] ?? []), ...slots.map((slot) => slot.key)].slice(-600);
       });
       started.push(job.accountId);
       execute(job, { slot: slots.at(-1).key }).catch((error) => onError(error));

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1 — clearer report layout
+
+- Full reports show each part as its own panel: market view, actions (one row per stock with colour-coded buy / sell / hold / watch / cancel tags and per-type counts), picks, risks and next steps.
+
 ## 1.6.0 — report centre, paging and filters everywhere, dashboard polish
 
 - Report centre (new page): every agent round report and every end-of-day digest, with search, market / account / stance / date filters, server-side paging and a detail pane. Deep links (`?view=reports&report=…`, `&tab=digests&digest=…`).

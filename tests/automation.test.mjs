@@ -59,6 +59,10 @@ test("agent invocations attach only this plugin, pin the data dir and pre-approv
   assert.match(workbuddy.command, /codebuddy/);
   assert.ok(workbuddy.args.includes("--strict-mcp-config") && !workbuddy.args.includes("--max-budget-usd"));
   assert.equal(workbuddy.env.CODEBUDDY_FORCE_HEADLESS_BUNDLE, "1");
+  const kimi = agentInvocation({ job: { runner: { type: "kimi", model: "k3-256k", timeoutMinutes: 5 } }, account: { id: "acc_000000000001" }, prompt: "go", nodePath: "/n", bundlePath: "/b.mjs", skillText: null, workDir: "/w", identity: "kimi-code", dataDir: "/data" });
+  assert.match(kimi.command, /kimi$/);
+  assert.deepEqual(kimi.args.slice(2), ["--output-format", "text", "-m", "kimi-code/k3-256k"]);
+  assert.equal(kimi.env.HROUTER_AGENT_ID, "kimi-code");
   assert.match(workbuddy.env.WORKBUDDY_CONFIG_DIR, /\.workbuddy$/);
 });
 

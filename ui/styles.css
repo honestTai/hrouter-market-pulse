@@ -668,3 +668,4 @@ h2,h3,p { overflow-wrap:break-word; }
 .automation { padding: 18px 22px; display: grid; gap: 14px; }
 .automation-heading { margin: 8px 0 0; font-size: 14px; }
 .run-output { white-space: pre-wrap; max-height: 260px; overflow: auto; font-size: 12px; background: var(--hover); padding: 8px; border-radius: 8px; }
+.agent-kimi { background: linear-gradient(145deg, #1f2937, #0b0f19); }

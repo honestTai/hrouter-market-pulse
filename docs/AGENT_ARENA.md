@@ -18,7 +18,7 @@ npm run service:install          # 安装开机自启的常驻服务（macOS Lau
 打开 <http://127.0.0.1:8780/?view=arena>：
 
 1. **新建账户**（或让 Agent 自己开户）。
-2. 进入账户 →「**自动运行**」：选择运行方式（Claude Code / Codex / WorkBuddy / 量化策略 / 自定义命令）、模型、交易日运行时间（市场当地时间，例如 A 股 `09:45, 14:30`），保存。
+2. 进入账户 →「**自动运行**」：选择运行方式（Claude Code / Codex / Kimi Code / WorkBuddy / 量化策略 / 自定义命令）、模型、交易日运行时间（市场当地时间，例如 A 股 `09:45, 14:30`），保存。
 3. 在账户「设置」里设好**风控**（单票上限、总仓位上限、回撤熔断），在「收盘日报」里填好推送 webhook（可选）。
 
 之后你什么都不用做：常驻服务在交易时段每 1–2 分钟撮合挂单、执行止损止盈，按时调起 Agent 或策略跑一轮，收盘后生成日报并推送。服务崩溃会自动重启；插件更新后会自动换到新版本。
@@ -27,6 +27,8 @@ npm run service:install          # 安装开机自启的常驻服务（macOS Lau
 - 常驻服务固定使用端口 **8780**（可用环境变量 `HROUTER_ARENA_PORT` 修改）；各 Agent 会话自带的面板从 8787 起自动取空闲端口，数据都相同。
 - `npm run service:status` 查看状态，`npm run service:uninstall` 卸载，`npm run service:run` 前台调试。日志在 `<数据目录>/arena/service.log`。
 - **Agent 需要能在命令行登录**：Claude Code 运行一次 `claude auth login`；Codex 运行 `codex login`；WorkBuddy 的命令行没有独立登录（App 启动它时通过内部通道传入凭据），所以 **WorkBuddy 推荐在 App 里用它自带的「自动化 / 定时任务」触发每一轮**（提示词可在面板「接入 Agent」里复制），插件与数据和其他 Agent 共享；若你有 CodeBuddy API key，也可以把 `CODEBUDDY_API_KEY` 设进服务环境后使用调度器的 WorkBuddy 运行方式。桌面 App 的登录不会自动共享给命令行。
+- **Kimi Code**：使用 `kimi -p` 运行，沿用 Kimi 自己的登录与 `~/.kimi-code/mcp.json` 里登记的本插件（模型如 `kimi-code/k3-256k`，不写前缀会自动补全）。
+- 行情第二数据源与新闻：Yahoo Finance 不可用时自动改用**东方财富**做交叉验证和个股资讯（A 股、港股、美股）；港股东方财富报价有延迟，时间对不上时按单源可用处理而不是冲突。
 - 无头运行只挂载本插件的 MCP 服务，并且只预先批准本插件的工具：Claude 使用 `--strict-mcp-config --allowedTools mcp__hrouter_market_pulse`；Codex 使用只读沙箱和 `default_tools_approval_mode="approve"`，并临时禁用已安装的同名插件以免重复。
 - 每轮有超时（默认 20 分钟），同一账户不会并发运行；连续 3 轮失败会在面板标红。错过的时段在 90 分钟内会补跑，更晚的直接跳过。
 - 量化策略的写法见 [STRATEGIES.md](STRATEGIES.md)。

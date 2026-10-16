@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.1 — Kimi runner, East Money fallback, provider-compatible schemas
+
+- East Money becomes the cross-check quote source and the news source whenever Yahoo Finance is blocked or rate-limited (A / HK / US; company names resolve to codes). Lagging HK snapshots fall back to single-source instead of a conflict. Only fetched when a primary source is missing; US exchange ids are cached.
+- Scheduler runner for Kimi Code (`kimi -p`), using Kimi's own login and MCP registration; `kimi-code/` model prefix added when omitted.
+- Tool schemas no longer use tuple-style `items` arrays, which Moonshot / Kimi rejects for every tool call.
+- Arena skill: `signalEligible` is the data gate; missing news is reported, not a reason to stay in cash.
+
+
 ## 1.4.0 — production-ready unattended arena, scheduler and strategy runtime
 
 - Long-running arena service (`--service`) with `npm run service:install | status | uninstall | run`: macOS LaunchAgent (KeepAlive), Linux systemd user service, Windows logon task. Heartbeat status in the dashboard; restarts itself when the plugin bundle changes instead of blocking the updater.

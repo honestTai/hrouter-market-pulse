@@ -1,6 +1,6 @@
 {
   "name": "hrouter-market-pulse",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Bilingual A/HK/US market research workbench and multi-agent paper-trading arena for Codex, Claude Code, WorkBuddy and any MCP host",
   "homepage": "https://hrouter.net/",
   "license": "MIT",

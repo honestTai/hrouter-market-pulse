@@ -818,3 +818,31 @@ html { scrollbar-gutter: stable; }
 @media (max-width: 900px) { .report-index-column { border-right: 0; border-bottom: 1px solid var(--line); } .date-range { flex-wrap: wrap; } }
 .breadcrumb strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 600px) { .search-trigger kbd, .fullscreen-toggle { display: none !important; } .search-trigger.compact { padding: 6px 8px; } .topbar-actions { gap: 8px; } }
+
+/* ── Report sections: each block reads as its own panel ── */
+.report-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "view view" "actions actions" "picks risks" "next next"; gap: 12px; border-top: 0; padding-top: 0; margin-top: 16px; }
+.report-section { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--paper); min-width: 0; }
+.report-section.view { grid-area: view; background: color-mix(in srgb, var(--blue-a2, #2563eb10) 100%, var(--paper)); border-color: color-mix(in srgb, #2563eb 18%, var(--line)); }
+.report-section.actions { grid-area: actions; }
+.report-section.picks { grid-area: picks; }
+.report-section.risks { grid-area: risks; background: color-mix(in srgb, var(--amber-a2, #f59e0b10) 100%, var(--paper)); border-color: color-mix(in srgb, #f59e0b 25%, var(--line)); }
+.report-section.next { grid-area: next; background: var(--canvas); }
+.report-sections:not(:has(.picks)) .report-section.risks, .report-sections:not(:has(.risks)) .report-section.picks { grid-column: 1 / -1; }
+.report-section h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 13px; font-weight: 650; color: var(--ink); letter-spacing: 0; }
+.report-section h4 svg { color: var(--muted); }
+.report-section.view h4 svg { color: #2563eb; }
+.report-section.risks h4 svg { color: var(--amber-11, #b45309); }
+.section-counts { margin-left: auto; display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.section-counts .action-tag { margin: 0; }
+.report-section p { margin: 0; font-size: 13.5px; line-height: 1.7; }
+.report-rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.report-rows li { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 4px 10px; align-items: baseline; padding: 8px 0; border-top: 1px dashed var(--line); font-size: 13.5px; line-height: 1.6; }
+.report-rows li:first-child { border-top: 0; padding-top: 2px; }
+.report-section.picks .report-rows li { grid-template-columns: auto minmax(0, 1fr); }
+.row-symbol { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row-detail { color: var(--ink); min-width: 0; }
+.action-tag { line-height: 20px; }
+.action-tag.action-hold { color: #2563eb; background: color-mix(in srgb, #2563eb 10%, transparent); }
+.action-tag.action-watch { color: var(--amber-11, #b45309); background: color-mix(in srgb, #f59e0b 14%, transparent); }
+.action-tag.action-cancel { color: var(--muted); background: var(--hover); }
+@media (max-width: 700px) { .report-sections { grid-template-columns: 1fr; grid-template-areas: "view" "actions" "picks" "risks" "next"; } .report-rows li { grid-template-columns: auto minmax(0, 1fr); } .report-rows li .row-detail { grid-column: 1 / -1; } }

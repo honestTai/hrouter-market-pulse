@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Callout, Dialog, IconButton, SegmentedControl, Select, Table, Tabs, TextArea, TextField, Tooltip } from "@radix-ui/themes";
 import {
-  Activity, ArrowLeft, Clock3, Bell, Bot, Check, ChevronRight, CircleAlert, ClipboardCopy, Cpu, Crown, FileText, FlaskConical, History, Layers,
-  LineChart, ListChecks, Newspaper, NotebookPen, Plug, Plus, RefreshCw, ScrollText, Send, Settings2, ShieldAlert, Trophy, Users, Wallet, X,
+  Activity, ArrowLeft, ArrowRight, Clock3, Compass, Bell, Bot, Check, ChevronRight, CircleAlert, ClipboardCopy, Cpu, Crown, FileText, FlaskConical, History, Layers,
+  LineChart, ListChecks, Newspaper, NotebookPen, Plug, Plus, RefreshCw, ScrollText, Send, Settings2, ShieldAlert, Star, Trophy, Users, Wallet, X,
 } from "lucide-react";
 import { createChart, ColorType, LineSeries, AreaSeries } from "lightweight-charts";
 import { useWorkspace } from "../context.jsx";
@@ -455,11 +455,12 @@ export function ReportCard({ report, featured = false, compact = false, full = f
     </header>
     <p className="report-summary">{report.summary}</p>
     {(report.marketView || report.actions?.length || report.picks?.length || report.risks || report.nextSteps) && <div className="report-sections">
-      {report.marketView && <section><h4>{t("市场判断", "Market view")}</h4><p>{report.marketView}</p></section>}
-      {report.actions?.length > 0 && <section><h4>{t("本轮操作", "Actions")}</h4><ul>{report.actions.map((entry, index) => <li key={index}><span className={`action-tag action-${entry.action}`}>{t(...(ACTION[entry.action] ?? [entry.action, entry.action]))}</span><strong>{entry.symbol}</strong> {entry.detail}</li>)}</ul></section>}
-      {report.picks?.length > 0 && <section><h4>{t("看好标的", "Picks")}</h4><ul>{report.picks.map((entry, index) => <li key={index}><strong>{entry.symbol}</strong> {entry.thesis}</li>)}</ul></section>}
-      {report.risks && <section><h4>{t("风险", "Risks")}</h4><p>{report.risks}</p></section>}
-      {report.nextSteps && <section><h4>{t("下一步", "Next")}</h4><p>{report.nextSteps}</p></section>}
+      {report.marketView && <section className="report-section view"><h4><Compass size={14} />{t("市场判断", "Market view")}</h4><p>{report.marketView}</p></section>}
+      {report.actions?.length > 0 && <section className="report-section actions"><h4><ListChecks size={14} />{t("本轮操作", "Actions")}<span className="section-counts">{Object.entries(report.actions.reduce((counts, entry) => ({ ...counts, [entry.action]: (counts[entry.action] ?? 0) + 1 }), {})).map(([action, count]) => <span key={action} className={`action-tag action-${action}`}>{t(...(ACTION[action] ?? [action, action]))} {count}</span>)}</span></h4>
+        <ul className="report-rows">{report.actions.map((entry, index) => <li key={index}><span className={`action-tag action-${entry.action}`}>{t(...(ACTION[entry.action] ?? [entry.action, entry.action]))}</span><strong className="row-symbol">{entry.symbol}</strong><span className="row-detail">{entry.detail}</span></li>)}</ul></section>}
+      {report.picks?.length > 0 && <section className="report-section picks"><h4><Star size={14} />{t("看好标的", "Picks")}</h4><ul className="report-rows">{report.picks.map((entry, index) => <li key={index}><strong className="row-symbol">{entry.symbol}</strong><span className="row-detail">{entry.thesis}</span></li>)}</ul></section>}
+      {report.risks && <section className="report-section risks"><h4><ShieldAlert size={14} />{t("风险", "Risks")}</h4><p>{report.risks}</p></section>}
+      {report.nextSteps && <section className="report-section next"><h4><ArrowRight size={14} />{t("下一步", "Next")}</h4><p>{report.nextSteps}</p></section>}
     </div>}
     {report.body && <details className="report-body" open={full || undefined}><summary>{t("完整分析", "Full analysis")}</summary><pre>{report.body}</pre></details>}
   </article>;

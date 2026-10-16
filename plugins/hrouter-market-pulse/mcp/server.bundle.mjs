@@ -19864,7 +19864,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: true ? "1.6.0" : "development",
+            version: true ? "1.6.1" : "development",
             demo: demo2
           });
         if (assets.has(url.pathname)) {
@@ -30324,7 +30324,7 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: true ? "1.6.0" : "development"
+  version: true ? "1.6.1" : "development"
 }, {
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
@@ -31213,7 +31213,7 @@ if (service2) {
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena,
     scheduler: await dashboard.scheduler,
-    version: true ? "1.6.0" : "development",
+    version: true ? "1.6.1" : "development",
     bundlePath: fileURLToPath5(import.meta.url),
     port: dashboard.address()?.port,
     onExit: () => shutdown()

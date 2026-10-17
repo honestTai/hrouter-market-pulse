@@ -95,7 +95,7 @@ test("agent invocations attach only this plugin, pin the data dir and pre-approv
   assert.equal(workbuddy.env.CODEBUDDY_FORCE_HEADLESS_BUNDLE, "1");
   const kimi = agentInvocation({ job: { runner: { type: "kimi", model: "k3-256k", timeoutMinutes: 5 } }, account: { id: "acc_000000000001" }, prompt: "go", nodePath: "/n", bundlePath: "/b.mjs", skillText: null, workDir: "/w", identity: "kimi-code", dataDir: "/data" });
   assert.match(kimi.command, /kimi$/);
-  assert.deepEqual(kimi.args.slice(2), ["--output-format", "text", "-m", "kimi-code/k3-256k"]);
+  assert.deepEqual(kimi.args.slice(2), ["--output-format", "stream-json", "-m", "kimi-code/k3-256k"]);
   assert.equal(kimi.env.HROUTER_AGENT_ID, "kimi-code");
   assert.match(workbuddy.env.WORKBUDDY_CONFIG_DIR, /\.workbuddy$/);
 });
@@ -111,7 +111,7 @@ test("target weights become lot-sized orders, sells before buys", () => {
 test("strategy rounds trade through the paper broker, never see unfinished bars, and report", async () => {
   const { arena, cleanup } = await setup();
   try {
-    const account = await arena.createAccount({ name: "MA", model: "strategy:ma-trend", market: "A" }, { client: "dashboard" });
+    const account = await arena.createAccount({ name: "MA", model: "strategy:ma-trend", market: "A", limits: { minCashPct: null } }, { client: "dashboard" });
     const broker = createPaperBroker({ arena, accountId: account.id, caller: { client: "strategy-ma-trend" } });
     let sawUnfinished = false;
     const round = await runStrategyRound({
@@ -149,10 +149,10 @@ test("scheduler runs agent CLIs on time, logs output, prevents double runs and e
     const tick = await scheduler.tick();
     assert.deepEqual(tick.started, [account.id]);
     assert.deepEqual((await scheduler.tick()).started, [], "same slot never runs twice");
-    for (let wait = 0; wait < 50 && !(await scheduler.listRuns({ accountId: account.id })).length; wait += 1) await new Promise((resolve) => setTimeout(resolve, 100));
+    for (let wait = 0; wait < 50 && !(await scheduler.listRuns({ accountId: account.id })).some((entry) => entry.status !== "running"); wait += 1) await new Promise((resolve) => setTimeout(resolve, 100));
     const [run] = await scheduler.listRuns({ accountId: account.id });
     assert.equal(run.status, "no-round", "exit 0 but the agent never logged a round");
-    assert.match(run.stdoutTail, /agent saw: 使用 hrouter-agent/);
+    assert.match(run.stdoutTail, /agent saw: ## 系统规则/);
     assert.equal(run.slot, "2026-10-15T09:45");
     await scheduler.upsertJob(account.id, { times: ["09:45"], runner: { type: "command", command: process.execPath, args: [script, "fail", "{prompt}"], timeoutMinutes: 1 } });
     const failed = await (await scheduler.runNow(account.id)).wait();
@@ -172,7 +172,7 @@ test("strategy jobs run in-process through the scheduler", async () => {
   const clock = { value: "2026-10-15T01:46:00.000Z" };
   const { arena, cleanup } = await setup(clock);
   try {
-    const account = await arena.createAccount({ name: "Quant", model: "strategy:ma-trend", market: "A" }, { client: "dashboard" });
+    const account = await arena.createAccount({ name: "Quant", model: "strategy:ma-trend", market: "A", limits: { minCashPct: null } }, { client: "dashboard" });
     const scheduler = createScheduler({ arena, now: () => clock.value, strategyDeps: { historyProvider: async (symbol) => history(symbol), quoteProvider: async (symbol) => ({ price: prices[symbol] }) } });
     await assert.rejects(scheduler.upsertJob(account.id, { times: ["09:45"], runner: { type: "strategy", strategyId: "nope" } }), /Unknown strategy/);
     await scheduler.upsertJob(account.id, { times: ["09:45"], runner: { type: "strategy", strategyId: "ma-trend", params: { universe: ["600519.SS", "300750.SZ"] } } });

@@ -18,3 +18,42 @@ ${id ? `我的竞技场账户是 ${id}，只操作这个账户。` : "先调用 
 2. 查看账户与开盘状态，用 get_quote / get_news 做研究；插件拿不到新闻时自己联网搜索，不能因为数据缺失停摆。符合条件就果断下单并写明理由（看多理由、看空理由、止损位）；不满足条件就记录 no-trade 决策。
 3. 每轮结束必须调用 arena_publish_report 发布报告：标题、结论、操作、看好标的、风险和下一步。不要向我提问。`;
 }
+
+// The full prompt a scheduled round sends, in a fixed order the owner can preview:
+// system rules → global prompt → market prompt → trader prompt → hard limits → instructions → task.
+// (The skill text travels separately as the system prompt.)
+export function buildRoundPrompt({ account, language = "zh-CN", prompts = {}, limits = "", instructions = [], mode = "rounds", strategy = null, reviewMinutes = null, trigger = null, starter = null }) {
+  const en = language === "en";
+  const sections = [];
+  const push = (title, body) => { if (String(body ?? "").trim()) sections.push(`## ${title}\n${String(body).trim()}`); };
+  push(en ? "Rules" : "系统规则", en
+    ? `Trade only arena account ${account.id}. Paper money with real quotes: never call results real returns. If data is unavailable, say so; never invent prices or news.`
+    : `只操作竞技场账户 ${account.id}。这是虚拟资金、真实行情的模拟盘：不能把结果说成真实收益。数据拿不到就如实说拿不到，不能编价格或新闻。`);
+  push(en ? "Owner prompt (all traders)" : "前置提示词 · 全局", prompts.global);
+  push(en ? "Owner prompt (this market)" : "前置提示词 · 本市场", prompts.market);
+  push(en ? "Owner prompt (this trader)" : "前置提示词 · 本交易员", account.prompt);
+  push(en ? "Hard limits" : "硬性边界", limits);
+  if (instructions.length) push(en ? "Owner instructions in force" : "主人的指令（有效期内，每次都要遵守，并在报告里回应执行情况）", instructions.map((entry) => `- ${entry.text}${entry.expiresAt ? (en ? ` (until ${entry.expiresAt.slice(0, 10)})` : `（有效到 ${entry.expiresAt.slice(0, 10)}）`) : ""}`).join("\n"));
+  if (mode === "director") {
+    const every = reviewMinutes ? (en ? `every ${reviewMinutes} minutes` : `每 ${reviewMinutes} 分钟一次`) : "";
+    const strategyLine = strategy
+      ? (en ? `Your code strategy ${strategy.id} v${strategy.version} runs automatically every ${strategy.intervalMinutes} minutes without tokens.` : `你的代码策略 ${strategy.id} v${strategy.version} 每 ${strategy.intervalMinutes} 分钟自动执行，不花 token。`)
+      : (en ? `You have no code strategy yet: write one with arena_write_strategy (it is backtested and dry-run before going live) and set how often it runs.${starter ? ` You may start from the template's starter strategy: arena_get_starter_strategy id ${starter}.` : ""}` : `你还没有代码策略：先用 arena_write_strategy 写一个（上线前会自动回测和空跑），并定好执行频率。${starter ? `可以从模板的起始策略改起：用 arena_get_starter_strategy 读取 ${starter}。` : ""}`);
+    push(en ? "This review" : "本次复查", en ? [
+      `You are the trader (the director) of this account and decide everything yourself; do not ask me. This is a review ${every}${trigger ? ` (woken early: ${trigger})` : ""}.`,
+      strategyLine,
+      "1. arena_get_account: positions, the strategy's recent fills and any orders the limits rejected. Look at the market with scan_market / get_quote / get_news when useful.",
+      "2. Decide: keep as is / change parameters or code with arena_write_strategy / change cadence with arena_set_cadence / trade directly with arena_place_order when judgement beats the code.",
+      "3. Only when something changed (strategy, orders, settings) publish arena_publish_report; otherwise log one no-trade line with arena_log_decision.",
+    ].join("\n") : [
+      `你是这个账户的交易员（主控），一切自己决定，不要问我。这是一次复查（${every}）${trigger ? `，提前叫醒原因：${trigger}` : ""}。`,
+      strategyLine,
+      "1. 用 arena_get_account 看持仓、策略这段时间的成交、被边界拦下的订单；需要时用 scan_market / get_quote / get_news 看市场。",
+      "2. 决定：保持现状 / 用 arena_write_strategy 改参数或代码 / 用 arena_set_cadence 改执行频率或复查间隔 / 判断比代码更好时直接用 arena_place_order 下单。",
+      "3. 有变化（改了策略、下了单、改了设置）才用 arena_publish_report 写报告；没变化就用 arena_log_decision 记一句 no-trade 理由。",
+    ].join("\n"));
+  } else {
+    push(en ? "This round" : "本轮任务", roundPrompt({ account, language }));
+  }
+  return sections.join("\n\n");
+}

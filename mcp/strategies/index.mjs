@@ -196,7 +196,8 @@ export async function runStrategyRound({ strategy, params: rawParams, broker, no
     try {
       const response = await broker.placeOrder({
         ...order, ...(order.side === "BUY" ? output.exits ?? {} : {}),
-        reason: order.reason || `${strategy.id} v${strategy.version}`,
+        // Short strategy reasons are prefixed with the strategy and version so every order stays reviewable.
+        reason: String(order.reason ?? "").trim().length >= 10 ? order.reason : `${strategy.name ?? strategy.id} v${strategy.version}${order.reason ? `：${order.reason}` : "：按策略调仓"}`,
         clientOrderId: runId ? `${runId}-${index}`.slice(0, 64) : undefined,
       });
       const placed = response.order ?? response.proposal;

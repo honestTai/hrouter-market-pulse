@@ -500,7 +500,18 @@ export function parseTencentQuote(payload, input) {
     lotSize: market === "HK" && Number.isInteger(finite(fields[60])) && finite(fields[60]) > 0 ? finite(fields[60]) : null,
     limitUp: market === "A" && finite(fields[47]) > 0 ? finite(fields[47]) : null,
     limitDown: market === "A" && finite(fields[48]) > 0 ? finite(fields[48]) : null,
+    // Five-level order book (fields 9–18 bids, 19–28 asks: price, size). A-share sizes are in lots of 100.
+    ...orderBook(fields, market),
   };
+}
+
+function orderBook(fields, market) {
+  const unit = market === "A" ? 100 : 1;
+  const side = (start) => Array.from({ length: 5 }, (_, level) => ({ price: finite(fields[start + level * 2]), size: finite(fields[start + level * 2 + 1]) }))
+    .filter((entry) => entry.price > 0).map((entry) => ({ price: entry.price, size: entry.size > 0 ? entry.size * unit : null }));
+  const bids = side(9);
+  const asks = side(19);
+  return { bid: bids[0]?.price ?? null, ask: asks[0]?.price ?? null, bids, asks };
 }
 
 async function getTencentQuote(input, timeoutMs = 15000) {

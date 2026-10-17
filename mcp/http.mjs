@@ -3,6 +3,10 @@ import { getPaperService } from "./paper.mjs";
 import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
 import { createDemoArena } from "./arena-demo.mjs";
 import { createScheduler } from "./scheduler.mjs";
+import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
+import { loadLibrary, skillBody, starterStrategyCode, templateDefaults } from "./skill-library.mjs";
+import { checkEnvironment } from "./env-check.mjs";
+import { getMarketSession } from "./market-rules.mjs";
 import { readServiceStatus } from "./service.mjs";
 import { describeStrategy, loadStrategies } from "./strategies/index.mjs";
 import { createServer } from "node:http";
@@ -32,17 +36,7 @@ import { queryEvidence } from "./foundation.mjs";
 import { buildThesisScorecard, projectCatalystCalendar } from "./research.mjs";
 
 const assets = new Map([
-  ["/assets/dashboard.js", ["dashboard.js", "text/javascript; charset=utf-8"]],
-  ["/assets/dashboard.css", ["dashboard.css", "text/css; charset=utf-8"]],
-  ["/assets/dashboard.js.LEGAL.txt", ["dashboard.js.LEGAL.txt", "text/plain; charset=utf-8"]],
-  [
-    "/assets/vendor/lightweight-charts.js",
-    ["vendor/lightweight-charts.js", "text/javascript; charset=utf-8"],
-  ],
-  [
-    "/assets/vendor/lucide.js",
-    ["vendor/lucide.js", "text/javascript; charset=utf-8"],
-  ],
+  ["/assets/vendor/LICENSE-lightweight-charts", ["vendor/LICENSE-lightweight-charts", "text/plain; charset=utf-8"]],
 ]);
 const assetRoot = new URL("../assets/", import.meta.url);
 const jsonType = "application/json; charset=utf-8";
@@ -107,6 +101,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
     return runScheduler && !demo ? scheduler.start() : scheduler;
   });
   let refreshedAt = 0;
+  let envCache = null;
   const server = createServer(async (request, response) => {
     try {
       const host = request.headers.host;
@@ -182,6 +177,45 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           const side = ["BUY", "SELL"].includes(url.searchParams.get("side")) ? url.searchParams.get("side") : undefined;
           return respond(response, 200, await (await arenaReady).history(history[1], url.searchParams.get("kind"), { ...paging, side, type: url.searchParams.get("type") || undefined, symbol: url.searchParams.get("symbol") || undefined }));
         }
+        if (url.pathname === "/api/arena/pools") return respond(response, 200, { pools: await (await schedulerReady).listPools() });
+        if (url.pathname === "/api/arena/usage") return respond(response, 200, await (await schedulerReady).usage({ since: url.searchParams.get("since") || undefined }));
+        const runEvents = url.pathname.match(/^\/api\/arena\/run-events\/(run_[a-f0-9]{12})$/);
+        if (runEvents) return respond(response, 200, await (await schedulerReady).runEvents(runEvents[1]));
+        // Live run events for this process's scheduler (the service); other views poll run-events.
+        if (url.pathname === "/api/events") {
+          const scheduler = await schedulerReady;
+          response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", Connection: "keep-alive" });
+          response.write(`event: hello\ndata: ${JSON.stringify({ at: new Date().toISOString(), scheduler: scheduler.status().role })}\n\n`);
+          const unsubscribe = scheduler.subscribe((message) => response.write(`event: ${message.type}\ndata: ${JSON.stringify(message)}\n\n`));
+          const heartbeat = setInterval(() => response.write(": ping\n\n"), 20000);
+          request.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
+          return;
+        }
+        if (url.pathname === "/api/markets") {
+          const at = new Date().toISOString();
+          // Next regular open for markets that are not trading now (scan forward minute-by-hour).
+          const nextOpen = (market) => { for (let hour = 0; hour <= 24 * 10; hour += 0.25) { const probe = new Date(Date.now() + hour * 3600000).toISOString(); if (getMarketSession(market, probe).status === "open") return probe; } return null; };
+          return respond(response, 200, Object.fromEntries(["A", "HK", "US"].map((market) => { const session = getMarketSession(market, at); return [market, { status: session.status, date: session.date, minute: session.minute, verified: session.verified, nextOpenAt: session.status === "open" ? null : nextOpen(market) }]; })));
+        }
+        if (url.pathname === "/api/library") return respond(response, 200, await loadLibrary());
+        if (url.pathname === "/api/env") {
+          if (!envCache || Date.now() - envCache.at > 60000 || url.searchParams.get("fresh") === "1") envCache = { at: Date.now(), value: await checkEnvironment({ arena: await arenaReady, scheduler: await schedulerReady }) };
+          return respond(response, 200, { demo, ...envCache.value });
+        }
+        const librarySkill = url.pathname.match(/^\/api\/library\/(skills|strategies)\/([a-z0-9-]{2,60})$/);
+        if (librarySkill) return respond(response, 200, librarySkill[1] === "skills" ? { id: librarySkill[2], body: await skillBody(librarySkill[2]) } : { id: librarySkill[2], code: await starterStrategyCode(librarySkill[2]) });
+        const strategyRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/strategy$/);
+        if (strategyRead) {
+          const store = createTraderStrategyStore((await arenaReady).root);
+          const version = Number(url.searchParams.get("version")) || undefined;
+          const [meta, current] = await Promise.all([store.meta(strategyRead[1]), store.code(strategyRead[1], version).catch(() => null)]);
+          return respond(response, 200, { strategyId: traderStrategyId(strategyRead[1]), ...meta, code: current?.code ?? null, version: current?.version ?? null });
+        }
+        const promptPreview = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/prompt-preview$/);
+        if (promptPreview) return respond(response, 200, await (await schedulerReady).previewPrompt(promptPreview[1]));
+        const settingsRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/settings$/);
+        if (settingsRead) return respond(response, 200, { demo, ...(await (await arenaReady).getSettings(settingsRead[1])) });
+        if (url.pathname === "/api/workbench/settings") return respond(response, 200, { demo, ...(await (await arenaReady).workbenchSettings()) });
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {
           const arena = await arenaReady;
@@ -242,8 +276,22 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             demo ? demoReport : JSON.parse(await loadReport(id, "json")),
           );
         }
+        // Workbench UI bundle (Vite build): only known file types under /assets/app/, no traversal.
+        if (url.pathname.startsWith("/assets/app/")) {
+          const rest = url.pathname.slice("/assets/app/".length);
+          const types = { js: "text/javascript; charset=utf-8", css: "text/css; charset=utf-8", woff2: "font/woff2", woff: "font/woff", svg: "image/svg+xml", png: "image/png", txt: "text/plain; charset=utf-8" };
+          const extension = rest.split(".").at(-1);
+          if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\.[a-z0-9]+$/.test(rest) || rest.includes("..") || !types[extension]) return respond(response, 404, { error: "Not found" });
+          try {
+            const body = await readFile(fileURLToPath(new URL(`app/${rest}`, assetRoot)));
+            response.writeHead(200, { "Content-Type": types[extension], "Cache-Control": rest.startsWith("files/") ? "public, max-age=31536000, immutable" : "no-cache", "X-Content-Type-Options": "nosniff", "Content-Length": body.length });
+            return response.end(body);
+          } catch { return respond(response, 404, { error: "Not found" }); }
+        }
+        // Client-side routes of the workbench all get the same HTML shell.
+        const workbenchRoute = /^\/(traders(\/acc_[a-f0-9]{12})?|arena|market|research|reports|strategies|skills|schedule|settings)\/?$/.test(url.pathname);
         if (
-          url.pathname === "/" ||
+          url.pathname === "/" || workbenchRoute ||
           /^\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)
         ) {
           try {
@@ -251,7 +299,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
               ? demoReport
               : JSON.parse(
                   await loadReport(
-                    url.pathname === "/"
+                    url.pathname === "/" || workbenchRoute
                       ? "latest"
                       : url.pathname.split("/").at(-1),
                     "json",
@@ -279,11 +327,20 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
         if (url.pathname.startsWith("/api/arena/")) {
           const arena = await arenaReady;
           if (url.pathname === "/api/arena/accounts") {
-            const account = await arena.createAccount({ ...body, agentLabel: body.agentLabel || undefined }, dashboardCaller);
+            const defaults = await templateDefaults(body.template, body);
+            const account = await arena.createAccount({ ...body, ...defaults, agentLabel: body.agentLabel || undefined }, dashboardCaller);
             if (!demo) {
-              const interval = (await readPreferences())?.defaultAgentIntervalMinutes ?? 15;
-              const schedule = await (await schedulerReady).ensureDefaultSchedule(account.id, interval).catch((error) => ({ created: false, reason: error.message }));
-              account.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type } : null;
+              const scheduler = await schedulerReady;
+              const interval = Number(body.reviewMinutes) || defaults.cadence?.reviewMinutes || (await readPreferences())?.defaultAgentIntervalMinutes || 10;
+              let schedule = { created: false };
+              if (body.runner && body.runner.type !== "strategy") {
+                // The owner chose the agent (and backup) in the new-trader flow.
+                schedule = { created: true, job: await scheduler.upsertJob(account.id, { intervalMinutes: interval, times: [], mode: "director", runner: { timeoutMinutes: 20, ...body.runner }, ...(body.backup ? { backup: body.backup } : {}) }) };
+              } else if (defaults.builtinStrategy || body.runner?.type === "strategy") {
+                const strategyId = body.runner?.strategyId ?? defaults.starterStrategy;
+                schedule = { created: true, job: await scheduler.upsertJob(account.id, { intervalMinutes: defaults.cadence?.strategyMinutes ?? 5, times: [], runner: { type: "strategy", strategyId, params: body.runner?.params ?? {}, timeoutMinutes: 5 } }) };
+              } else schedule = await scheduler.ensureDefaultSchedule(account.id, interval).catch((error) => ({ created: false, reason: error.message }));
+              account.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type, mode: schedule.job.mode ?? null } : null;
             }
             return respond(response, 201, account);
           }
@@ -300,21 +357,46 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             }
             return respond(response, 201, digest);
           }
-          const schedule = url.pathname.match(/^\/api\/arena\/schedules\/(acc_[a-f0-9]{12})(\/delete|\/run)?$/);
+          const rollback = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/strategy\/rollback$/);
+          if (rollback) return respond(response, 200, await rollbackTraderStrategy({ arena, scheduler: await schedulerReady, store: createTraderStrategyStore(arena.root), accountId: rollback[1], version: body.version, caller: dashboardCaller }));
+          const pool = url.pathname.match(/^\/api\/arena\/pools\/([a-z0-9:._/-]{1,200})\/clear$/);
+          if (pool) return respond(response, 200, await (await schedulerReady).clearPool(decodeURIComponent(pool[1])));
+          const instruction = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/instructions(?:\/(ins_[a-f0-9]{12})\/revoke)?$/);
+          if (instruction) return respond(response, 200, instruction[2]
+            ? await arena.revokeInstruction(instruction[1], instruction[2], dashboardCaller)
+            : await arena.addInstruction(instruction[1], { text: body.text, days: body.days ?? 3 }, dashboardCaller));
+          const schedule = url.pathname.match(/^\/api\/arena\/schedules\/(acc_[a-f0-9]{12})(\/delete|\/run|\/resume|\/cadence)?$/);
           if (schedule) {
             const scheduler = await schedulerReady;
             if (schedule[2] === "/delete") return respond(response, 200, await scheduler.deleteJob(schedule[1]));
+            if (schedule[2] === "/resume") return respond(response, 200, await scheduler.resumeJob(schedule[1]));
+            if (schedule[2] === "/cadence") return respond(response, 200, await scheduler.setCadence(schedule[1], body, dashboardCaller));
             if (schedule[2] === "/run") {
               if (demo) return respond(response, 409, { error: "演示模式不运行 Agent 或策略 / Demo mode does not run agents or strategies." });
-              const started = await scheduler.runNow(schedule[1]);
+              const started = await scheduler.runNow(schedule[1], { lane: body.lane === "strategy" ? "strategy" : "primary" });
               started.wait?.().catch((error) => console.error(`Arena run: ${error.message}`));
               return respond(response, 202, { status: started.status, reason: started.reason ?? null });
             }
             return respond(response, 200, await scheduler.upsertJob(schedule[1], body));
           }
+          const settings = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/(limits|prompt|locks|requests\/(req_[a-f0-9]{12}))$/);
+          if (settings) {
+            const [, id, action, requestId] = settings;
+            if (action === "limits") return respond(response, 200, await arena.setLimits({ accountId: id, limits: body.limits, reason: body.reason }, dashboardCaller));
+            if (action === "prompt") return respond(response, 200, await arena.setPrompt({ accountId: id, prompt: body.prompt, reason: body.reason }, dashboardCaller));
+            if (action === "locks") return respond(response, 200, await arena.setLocks(id, body.locks, dashboardCaller));
+            return respond(response, 200, await arena.resolveRequest(id, requestId, body, dashboardCaller));
+          }
           const update = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})(\/delete)?$/);
           if (update) return respond(response, 200, update[2] ? await arena.deleteAccount(update[1]) : await arena.updateAccount(update[1], body));
           return respond(response, 404, { error: "Unknown arena action" });
+        }
+        if (url.pathname.startsWith("/api/workbench")) {
+          const arena = await arenaReady;
+          if (url.pathname === "/api/workbench/fees") return respond(response, 200, await arena.setFees({ market: body.market, fees: body.fees, reason: body.reason }, dashboardCaller));
+          if (url.pathname === "/api/workbench/prompts") return respond(response, 200, await arena.setWorkbenchPrompt({ scope: body.scope, prompt: body.prompt, reason: body.reason }, dashboardCaller));
+          if (url.pathname === "/api/workbench/settings") return respond(response, 200, await arena.updateWorkbench(body, dashboardCaller));
+          return respond(response, 404, { error: "Unknown workbench action" });
         }
         if (url.pathname.startsWith("/api/paper/")) {
           if (demo) return respond(response, 409, { error: "演示模式不连接模拟账户。请启动真实数据面板 / Use the real-data dashboard; no synthetic trading fallback." });

@@ -3260,8 +3260,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path13) {
-      let input = path13;
+    function removeDotSegments(path17) {
+      let input = path17;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3670,8 +3670,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path13 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path13 && path13 !== "/" ? path13 : void 0;
+        const path17 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path17 && path17 !== "/" ? path17 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -7214,23 +7214,23 @@ __export(arena_service_exports, {
   serviceEnvironment: () => serviceEnvironment,
   servicePlan: () => servicePlan
 });
-import { execFile as execFile2, spawn as spawn3 } from "node:child_process";
-import { existsSync as existsSync2 } from "node:fs";
-import { mkdir as mkdir11, rm as rm5, writeFile as writeFile10 } from "node:fs/promises";
+import { execFile as execFile2, spawn as spawn5 } from "node:child_process";
+import { existsSync as existsSync3 } from "node:fs";
+import { mkdir as mkdir13, rm as rm5, writeFile as writeFile12 } from "node:fs/promises";
 import os7 from "node:os";
-import path12 from "node:path";
-import { fileURLToPath as fileURLToPath4 } from "node:url";
+import path16 from "node:path";
+import { fileURLToPath as fileURLToPath5 } from "node:url";
 import { promisify as promisify2 } from "node:util";
 function bundlePath() {
-  const self = fileURLToPath4(import.meta.url);
+  const self = fileURLToPath5(import.meta.url);
   if (self.endsWith("server.bundle.mjs")) return self;
-  const packaged = path12.join(root, "plugins", "hrouter-market-pulse", "mcp", "server.bundle.mjs");
-  return existsSync2(packaged) ? packaged : path12.join(root, "mcp", "server.bundle.mjs");
+  const packaged = path16.join(root, "plugins", "hrouter-market-pulse", "mcp", "server.bundle.mjs");
+  return existsSync3(packaged) ? packaged : path16.join(root, "mcp", "server.bundle.mjs");
 }
 function storageDir(home = os7.homedir()) {
-  if (process.env.HROUTER_REPORT_DIR) return path12.resolve(process.env.HROUTER_REPORT_DIR);
-  const base = process.env.LOCALAPPDATA || (process.platform === "win32" ? path12.join(home, "AppData", "Local") : path12.join(home, ".hrouter-market-pulse"));
-  return path12.join(base, "HrouterMarketPulse");
+  if (process.env.HROUTER_REPORT_DIR) return path16.resolve(process.env.HROUTER_REPORT_DIR);
+  const base = process.env.LOCALAPPDATA || (process.platform === "win32" ? path16.join(home, "AppData", "Local") : path16.join(home, ".hrouter-market-pulse"));
+  return path16.join(base, "HrouterMarketPulse");
 }
 function serviceEnvironment(env = process.env) {
   const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA", "CODEBUDDY_API_KEY"];
@@ -7240,9 +7240,9 @@ function serviceEnvironment(env = process.env) {
 }
 function servicePlan({ platform = process.platform, home = os7.homedir(), node = process.execPath, bundle = bundlePath(), env = serviceEnvironment(), uid = process.getuid?.() } = {}) {
   const args = [bundle, "--service"];
-  const log = path12.join(storageDir(home), "arena", "service.log");
+  const log = path16.join(storageDir(home), "arena", "service.log");
   if (platform === "darwin") {
-    const file = path12.join(home, "Library", "LaunchAgents", `${SERVICE_NAME}.plist`);
+    const file = path16.join(home, "Library", "LaunchAgents", `${SERVICE_NAME}.plist`);
     const content = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -7264,7 +7264,7 @@ function servicePlan({ platform = process.platform, home = os7.homedir(), node =
     };
   }
   if (platform === "linux") {
-    const file = path12.join(home, ".config", "systemd", "user", `${SERVICE_NAME}.service`);
+    const file = path16.join(home, ".config", "systemd", "user", `${SERVICE_NAME}.service`);
     const content = `[Unit]
 Description=Hrouter Market Pulse Agent Arena service
 After=network-online.target
@@ -7323,18 +7323,18 @@ async function health(port) {
 async function main(argv = process.argv.slice(2)) {
   const action = argv[0] ?? "status";
   if (action === "run") {
-    const child = spawn3(process.execPath, [bundlePath(), "--service"], { stdio: "inherit", env: { ...process.env, ...serviceEnvironment() } });
+    const child = spawn5(process.execPath, [bundlePath(), "--service"], { stdio: "inherit", env: { ...process.env, ...serviceEnvironment() } });
     child.on("exit", (code) => process.exit(code ?? 0));
     return;
   }
   const plan = servicePlan();
-  if (!existsSync2(bundlePath())) throw new Error("Build first: npm ci && npm run build");
+  if (!existsSync3(bundlePath())) throw new Error("Build first: npm ci && npm run build");
   if (action === "install") {
-    await mkdir11(path12.dirname(plan.log), { recursive: true });
+    await mkdir13(path16.dirname(plan.log), { recursive: true });
     for (const [command, args] of plan.disable) await exec(command, args, { allowFailure: true });
     for (const file of plan.files) {
-      await mkdir11(path12.dirname(file.path), { recursive: true });
-      await writeFile10(file.path, file.content, { mode: 384 });
+      await mkdir13(path16.dirname(file.path), { recursive: true });
+      await writeFile12(file.path, file.content, { mode: 384 });
     }
     for (const [command, args] of plan.enable) await exec(command, args);
     const port = serviceEnvironment().HROUTER_REPORT_PORT;
@@ -7356,7 +7356,7 @@ async function main(argv = process.argv.slice(2)) {
   if (action === "status") {
     const port = serviceEnvironment().HROUTER_REPORT_PORT;
     const manager = await exec(...plan.status, { allowFailure: true });
-    const installed = plan.files.length ? plan.files.every((file) => existsSync2(file.path)) : Boolean(manager.trim());
+    const installed = plan.files.length ? plan.files.every((file) => existsSync3(file.path)) : Boolean(manager.trim());
     console.log(JSON.stringify({ kind: plan.kind, installed, managerRunning: /state = running|Active: active|State\s*:\s*Running/i.test(manager), log: plan.log, health: await health(port) }, null, 2));
     return;
   }
@@ -7368,11 +7368,11 @@ var init_arena_service = __esm({
     init_update_scheduler();
     SERVICE_NAME = "net.hrouter.market-pulse.arena";
     run = promisify2(execFile2);
-    root = path12.resolve(path12.dirname(fileURLToPath4(import.meta.url)), "..");
+    root = path16.resolve(path16.dirname(fileURLToPath5(import.meta.url)), "..");
     xml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     ps = (value) => `'${String(value).replaceAll("'", "''")}'`;
     unit = (value) => `"${String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%").replaceAll("$", "$$$$")}"`;
-    if (process.argv[1] && path12.resolve(process.argv[1]) === fileURLToPath4(import.meta.url) && !fileURLToPath4(import.meta.url).endsWith("server.bundle.mjs")) {
+    if (process.argv[1] && path16.resolve(process.argv[1]) === fileURLToPath5(import.meta.url) && !fileURLToPath5(import.meta.url).endsWith("server.bundle.mjs")) {
       main().catch((error2) => {
         console.error(error2.message);
         process.exit(1);
@@ -7660,15 +7660,15 @@ function buildReportHtml(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta name="description" content="Hrouter Market Pulse: A-share, Hong Kong and US market research workspace.">
-  <title>Hrouter Market Pulse</title>
+  <meta name="description" content="HRouter \u80A1\u7968\u5DE5\u4F5C\u53F0\uFF1A\u672C\u673A\u8FD0\u884C\u7684\u591A Agent \u4EA4\u6613\u5458\u5DE5\u4F5C\u53F0\uFF0CA \u80A1\u3001\u6E2F\u80A1\u3001\u7F8E\u80A1\u6A21\u62DF\u76D8\u4E0E\u7814\u7A76\u3002">
+  <title>HRouter \u80A1\u7968\u5DE5\u4F5C\u53F0</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/assets/dashboard.css">
-  <script defer src="/assets/dashboard.js"></script>
+  <link rel="stylesheet" href="/assets/app/app.css">
+  <script type="module" src="/assets/app/app.js"></script>
 </head>
 <body>
   <script id="report-data" type="application/json">${safeJson(report)}</script>
-  <div id="app"><div class="boot"><strong>Hrouter Market Pulse</strong><progress aria-label="Loading"></progress></div></div>
+  <div id="app"><div style="font:14px system-ui;padding:40px;color:#6b7180">HRouter \u80A1\u7968\u5DE5\u4F5C\u53F0 \xB7 \u52A0\u8F7D\u4E2D\u2026</div></div>
   <noscript>JavaScript is required / \u8BF7\u542F\u7528 JavaScript</noscript>
 </body>
 </html>`;
@@ -8140,8 +8140,17 @@ function parseTencentQuote(payload, input) {
     // Exchange microstructure published by Tencent: HK board lot (field 60) and A-share daily price limits (47/48).
     lotSize: market2 === "HK" && Number.isInteger(finite(fields[60])) && finite(fields[60]) > 0 ? finite(fields[60]) : null,
     limitUp: market2 === "A" && finite(fields[47]) > 0 ? finite(fields[47]) : null,
-    limitDown: market2 === "A" && finite(fields[48]) > 0 ? finite(fields[48]) : null
+    limitDown: market2 === "A" && finite(fields[48]) > 0 ? finite(fields[48]) : null,
+    // Five-level order book (fields 9–18 bids, 19–28 asks: price, size). A-share sizes are in lots of 100.
+    ...orderBook(fields, market2)
   };
+}
+function orderBook(fields, market2) {
+  const unit2 = market2 === "A" ? 100 : 1;
+  const side = (start) => Array.from({ length: 5 }, (_, level) => ({ price: finite(fields[start + level * 2]), size: finite(fields[start + level * 2 + 1]) })).filter((entry) => entry.price > 0).map((entry) => ({ price: entry.price, size: entry.size > 0 ? entry.size * unit2 : null }));
+  const bids = side(9);
+  const asks = side(19);
+  return { bid: bids[0]?.price ?? null, ask: asks[0]?.price ?? null, bids, asks };
 }
 async function getTencentQuote(input, timeoutMs = 15e3) {
   const symbol = normalizeSymbol(input);
@@ -9808,8 +9817,8 @@ function ruleMatches(value, rule) {
 }
 function normalizeStrategy(strategy2 = {}) {
   const name = String(strategy2.name ?? "").trim();
-  const version2 = String(strategy2.version ?? "").trim();
-  if (!name || !version2) throw new Error("strategy name \u548C version \u4E0D\u80FD\u4E3A\u7A7A");
+  const version3 = String(strategy2.version ?? "").trim();
+  if (!name || !version3) throw new Error("strategy name \u548C version \u4E0D\u80FD\u4E3A\u7A7A");
   const rules = (strategy2.rules ?? []).map((rule, index) => {
     if (!isStrategyFeature(rule.feature)) throw new Error(`\u89C4\u5219 ${index + 1} \u4F7F\u7528\u4E86\u4E0D\u652F\u6301\u7684 feature: ${rule.feature}`);
     if (!STRATEGY_OPERATORS.has(rule.operator)) throw new Error(`\u89C4\u5219 ${index + 1} \u4F7F\u7528\u4E86\u4E0D\u652F\u6301\u7684 operator: ${rule.operator}`);
@@ -9830,7 +9839,7 @@ function normalizeStrategy(strategy2 = {}) {
   if (!rules.length || rules.length > 50) throw new Error("strategy rules \u5FC5\u987B\u5305\u542B 1-50 \u6761\u89C4\u5219");
   return {
     name,
-    version: version2,
+    version: version3,
     baseScore: finite2(strategy2.baseScore) ?? 0,
     minimumScore: finite2(strategy2.minimumScore) ?? 1,
     rules
@@ -11505,8 +11514,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path13, errorMaps, issueData } = params;
-  const fullPath = [...path13, ...issueData.path || []];
+  const { data, path: path17, errorMaps, issueData } = params;
+  const fullPath = [...path17, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -11622,11 +11631,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path13, key) {
+  constructor(parent, value, path17, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path13;
+    this._path = path17;
     this._key = key;
   }
   get path() {
@@ -12005,11 +12014,11 @@ function datetimeRegex(args) {
   regex = `${regex}(${opts.join("|")})`;
   return new RegExp(`^${regex}$`);
 }
-function isValidIP(ip, version2) {
-  if ((version2 === "v4" || !version2) && ipv4Regex.test(ip)) {
+function isValidIP(ip, version3) {
+  if ((version3 === "v4" || !version3) && ipv4Regex.test(ip)) {
     return true;
   }
-  if ((version2 === "v6" || !version2) && ipv6Regex.test(ip)) {
+  if ((version3 === "v6" || !version3) && ipv6Regex.test(ip)) {
     return true;
   }
   return false;
@@ -12036,11 +12045,11 @@ function isValidJWT(jwt, alg) {
     return false;
   }
 }
-function isValidCidr(ip, version2) {
-  if ((version2 === "v4" || !version2) && ipv4CidrRegex.test(ip)) {
+function isValidCidr(ip, version3) {
+  if ((version3 === "v4" || !version3) && ipv4CidrRegex.test(ip)) {
     return true;
   }
-  if ((version2 === "v6" || !version2) && ipv6CidrRegex.test(ip)) {
+  if ((version3 === "v6" || !version3) && ipv6CidrRegex.test(ip)) {
     return true;
   }
   return false;
@@ -15069,10 +15078,10 @@ var coerce = {
 var NEVER = INVALID;
 
 // mcp/arena.mjs
-import { randomBytes, randomUUID as randomUUID3 } from "node:crypto";
-import { mkdir as mkdir5, readdir, readFile as readFile5, rename as rename5, rm as rm2, stat, writeFile as writeFile4 } from "node:fs/promises";
+import { randomBytes as randomBytes2, randomUUID as randomUUID4 } from "node:crypto";
+import { mkdir as mkdir6, readdir, readFile as readFile6, rename as rename6, rm as rm2, stat as stat2, writeFile as writeFile5 } from "node:fs/promises";
 import os2 from "node:os";
-import path5 from "node:path";
+import path6 from "node:path";
 
 // mcp/paging.mjs
 var PAGE_DEFAULTS = Object.freeze({ limit: 20, maxLimit: 200 });
@@ -15099,6 +15108,291 @@ function paginate(rows, { offset = 0, limit = PAGE_DEFAULTS.limit } = {}) {
 }
 var matchesText = (q, ...values) => !q || values.some((value) => String(value ?? "").toLowerCase().includes(q));
 
+// mcp/trader-settings.mjs
+import { randomBytes, randomUUID as randomUUID3 } from "node:crypto";
+import { mkdir as mkdir5, readFile as readFile5, rename as rename5, stat, writeFile as writeFile4 } from "node:fs/promises";
+import path5 from "node:path";
+var round4 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
+var finite4 = (value) => typeof value === "number" && Number.isFinite(value);
+var shortId = (prefix) => `${prefix}_${randomBytes(6).toString("hex")}`;
+var SettingsError = class extends Error {
+  constructor(message, code = "invalid_request", status = 400) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
+};
+var BOARD_OPTIONS = ["st", "star", "chinext", "bse"];
+var LIMIT_SPECS = {
+  minCashPct: { type: "pct", min: 0, max: 95, zh: "\u4FDD\u7559\u73B0\u91D1", en: "Keep cash", hint: "\u73B0\u91D1\u4F4E\u4E8E\u603B\u8D44\u4EA7\u8FD9\u4E2A\u6BD4\u4F8B\u65F6\u4E0D\u80FD\u4E70\u5165" },
+  maxPositions: { type: "int", min: 1, max: 200, zh: "\u6700\u591A\u6301\u6709\u51E0\u53EA", en: "Max holdings", hint: "\u5230\u4E0A\u9650\u540E\u53EA\u80FD\u5356\uFF0C\u6216\u5728\u5DF2\u6709\u6301\u4ED3\u4E0A\u52A0" },
+  maxPositionPct: { type: "pct", min: 1, max: 100, zh: "\u5355\u53EA\u6700\u5927\u4ED3\u4F4D", en: "Max per position", hint: "\u5355\u53EA\u5E02\u503C\u5360\u603B\u8D44\u4EA7\u7684\u4E0A\u9650" },
+  maxExposurePct: { type: "pct", min: 1, max: 100, zh: "\u603B\u4ED3\u4F4D\u4E0A\u9650", en: "Max exposure", hint: "\u6240\u6709\u6301\u4ED3\u5E02\u503C\u5408\u8BA1\u7684\u4E0A\u9650" },
+  maxNewPerDay: { type: "int", min: 1, max: 100, zh: "\u6BCF\u5929\u6700\u591A\u65B0\u5F00\u51E0\u53EA", en: "New positions per day", hint: "\u9632\u6B62\u4E00\u5929\u6362\u624B\u8FC7\u591A" },
+  maxOrdersPerDay: { type: "int", min: 1, max: 500, zh: "\u6BCF\u5929\u6700\u591A\u51E0\u7B14\u4E70\u5355", en: "Buy orders per day", hint: "\u9632\u6B62\u6765\u56DE\u6298\u817E\uFF1B\u5356\u51FA\u4E0D\u53D7\u9650" },
+  maxRiskPerTradePct: { type: "pct", min: 0.1, max: 20, zh: "\u5355\u7B14\u6700\u5927\u98CE\u9669", en: "Max risk per trade", hint: "\uFF08\u4E70\u5165\u4EF7 \u2212 \u6B62\u635F\u4EF7\uFF09\xD7 \u80A1\u6570 \xF7 \u603B\u8D44\u4EA7\uFF1B\u5F00\u4E86\u4E4B\u540E\u4E70\u5355\u5FC5\u987B\u5E26\u6B62\u635F" },
+  cooldownDays: { type: "int", min: 1, max: 30, zh: "\u5356\u51FA\u540E\u51B7\u5374", en: "Re-buy cooldown", hint: "\u5356\u51FA\u540E\u591A\u5C11\u5929\u5185\u4E0D\u80FD\u518D\u4E70\u56DE\u540C\u4E00\u53EA" },
+  excludeBoards: { type: "boards", zh: "\u7981\u6B62\u8303\u56F4", en: "Excluded boards", hint: "ST\u3001\u79D1\u521B\u677F\u3001\u521B\u4E1A\u677F\u3001\u5317\u4EA4\u6240" },
+  minPrice: { type: "number", min: 0.01, max: 1e5, zh: "\u6700\u4F4E\u80A1\u4EF7", en: "Min price", hint: "\u80A1\u4EF7\u4F4E\u4E8E\u8FD9\u4E2A\u6570\u4E0D\u4E70" },
+  maxChangePct: { type: "number", min: 0, max: 30, zh: "\u4E0D\u8FFD\u6DA8", en: "No chasing", hint: "\u5F53\u65E5\u6DA8\u5E45\u8D85\u8FC7\u8FD9\u4E2A\u6BD4\u4F8B\u4E0D\u4E70" },
+  maxDrawdownPct: { type: "pct", min: 1, max: 90, zh: "\u56DE\u64A4\u7194\u65AD", en: "Drawdown breaker", hint: "\u4ECE\u6700\u9AD8\u70B9\u56DE\u64A4\u8D85\u8FC7\u8FD9\u4E2A\u6BD4\u4F8B\uFF0C\u505C\u6B62\u65B0\u4E70\u5165" }
+};
+var LIMIT_KEYS = Object.keys(LIMIT_SPECS);
+var DEFAULT_LIMITS = Object.freeze({ ...Object.fromEntries(LIMIT_KEYS.map((key) => [key, null])), onBreach: "block", reduceToExposurePct: 50 });
+var NEW_ACCOUNT_LIMITS = Object.freeze({ ...DEFAULT_LIMITS, minCashPct: 20 });
+function sanitizeLimits(input = {}, current = {}) {
+  const next = { ...DEFAULT_LIMITS, ...current };
+  for (const key of Object.keys(input)) {
+    if (!(key in LIMIT_SPECS) && !["onBreach", "reduceToExposurePct", "updatedAt"].includes(key)) throw new SettingsError(`Unknown limit "${key}". Known: ${LIMIT_KEYS.join(", ")}.`);
+  }
+  for (const [key, spec] of Object.entries(LIMIT_SPECS)) {
+    if (input[key] === void 0) continue;
+    const raw = input[key];
+    if (raw === null || raw === "" || Array.isArray(raw) && !raw.length) {
+      next[key] = null;
+      continue;
+    }
+    if (spec.type === "boards") {
+      if (!Array.isArray(raw) || raw.some((board) => !BOARD_OPTIONS.includes(board))) throw new SettingsError(`${key} must be a list of ${BOARD_OPTIONS.join(", ")}.`);
+      next[key] = [...new Set(raw)];
+      continue;
+    }
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < spec.min || value > spec.max || spec.type === "int" && !Number.isInteger(value))
+      throw new SettingsError(`${key} must be ${spec.type === "int" ? "a whole number" : "a number"} between ${spec.min} and ${spec.max}, or empty to disable.`);
+    next[key] = spec.type === "int" ? value : round4(value, 2);
+  }
+  if (input.reduceToExposurePct !== void 0) {
+    const value = input.reduceToExposurePct === null || input.reduceToExposurePct === "" ? DEFAULT_LIMITS.reduceToExposurePct : Number(input.reduceToExposurePct);
+    if (!Number.isFinite(value) || value < 0 || value > 100) throw new SettingsError("reduceToExposurePct must be between 0 and 100, or empty to disable.");
+    next.reduceToExposurePct = round4(value, 2);
+  }
+  if (input.onBreach !== void 0) {
+    if (!["block", "reduce"].includes(input.onBreach)) throw new SettingsError("onBreach must be block or reduce.");
+    next.onBreach = input.onBreach;
+  }
+  return next;
+}
+var boardOf2 = (symbol, quote) => {
+  if (/ST/i.test(quote?.name ?? "")) return "st";
+  const board = getInstrumentRules(symbol).board;
+  return { STAR: "star", ChiNext: "chinext", BSE: "bse" }[board] ?? null;
+};
+var BOARD_LABELS = { st: "ST", star: "\u79D1\u521B\u677F", chinext: "\u521B\u4E1A\u677F", bse: "\u5317\u4EA4\u6240" };
+function dayOf(at, market2) {
+  return localMarketTime(at, market2)?.date ?? String(at).slice(0, 10);
+}
+function todayActivity(account2, now) {
+  const today = dayOf(now, account2.market);
+  const ordersToday = account2.orders.filter((order) => dayOf(order.createdAt, account2.market) === today && order.status !== "rejected" && !order.trigger);
+  const opened = new Set(Object.values(account2.positions).filter((position) => dayOf(position.openedAt, account2.market) === today).map((position) => position.symbol));
+  for (const order of account2.orders) if (order.status === "open" && order.side === "BUY" && !account2.positions[order.symbol]) opened.add(order.symbol);
+  return { today, ordersToday: ordersToday.length, newToday: opened };
+}
+function limitViolation(account2, limits, value, { symbol, addValue, quantity, price, stopPrice, quote, now, pending }) {
+  if (value.equity <= 0) return null;
+  const held = Boolean(account2.positions[symbol]);
+  const pendingBuys = pending.filter((order) => order.side === "BUY");
+  const label = (key) => `\u8FB9\u754C\u300C${LIMIT_SPECS[key].zh}\u300D`;
+  if (finite4(limits.minCashPct)) {
+    const reserved = pendingBuys.reduce((sum, order) => sum + order.reserved, 0);
+    const cashAfter = account2.cash - reserved - addValue;
+    const pct = cashAfter / value.equity * 100;
+    if (pct < limits.minCashPct - 1e-9) {
+      const room = Math.max(0, account2.cash - reserved - value.equity * limits.minCashPct / 100);
+      return `${label("minCashPct")}\uFF1A\u4E70\u5165\u540E\u73B0\u91D1\u53EA\u5269 ${round4(pct, 1)}%\uFF0C\u4F4E\u4E8E\u4FDD\u7559\u7684 ${limits.minCashPct}%\uFF08\u73B0\u5728\u6700\u591A\u8FD8\u80FD\u4E70\u7EA6 ${round4(room)} ${account2.currency}\uFF09\u3002`;
+    }
+  }
+  if (finite4(limits.maxPositions) && !held && !pendingBuys.some((order) => order.symbol === symbol)) {
+    const count = (/* @__PURE__ */ new Set([...Object.keys(account2.positions), ...pendingBuys.map((order) => order.symbol)])).size;
+    if (count >= limits.maxPositions) return `${label("maxPositions")}\uFF1A\u5DF2\u7ECF\u6301\u6709\u6216\u6302\u5355 ${count} \u53EA\uFF0C\u4E0A\u9650 ${limits.maxPositions} \u53EA\uFF1B\u5148\u5356\u51FA\u4E00\u53EA\u518D\u4E70\u65B0\u7684\u3002`;
+  }
+  const activity = todayActivity(account2, now);
+  if (finite4(limits.maxNewPerDay) && !held && !activity.newToday.has(symbol) && activity.newToday.size >= limits.maxNewPerDay)
+    return `${label("maxNewPerDay")}\uFF1A\u4ECA\u5929\u5DF2\u7ECF\u65B0\u5F00 ${activity.newToday.size} \u53EA\uFF0C\u4E0A\u9650 ${limits.maxNewPerDay} \u53EA\u3002`;
+  if (finite4(limits.maxOrdersPerDay) && activity.ordersToday >= limits.maxOrdersPerDay)
+    return `${label("maxOrdersPerDay")}\uFF1A\u4ECA\u5929\u5DF2\u7ECF\u4E0B\u4E86 ${activity.ordersToday} \u7B14\uFF0C\u4E0A\u9650 ${limits.maxOrdersPerDay} \u7B14\u3002`;
+  if (finite4(limits.maxRiskPerTradePct)) {
+    if (!finite4(stopPrice)) return `${label("maxRiskPerTradePct")}\uFF1A\u5F00\u4E86\u5355\u7B14\u98CE\u9669\u4E0A\u9650\uFF0C\u4E70\u5355\u5FC5\u987B\u5E26\u6B62\u635F\uFF08stopLossPct \u6216 stopLossPrice\uFF09\u3002`;
+    const risk = Math.max(0, (price - stopPrice) * quantity) / value.equity * 100;
+    if (risk > limits.maxRiskPerTradePct + 1e-9) return `${label("maxRiskPerTradePct")}\uFF1A\u8FD9\u7B14\u6700\u591A\u4E8F ${round4(risk, 2)}% \u7684\u603B\u8D44\u4EA7\uFF0C\u4E0A\u9650 ${limits.maxRiskPerTradePct}%\u3002`;
+  }
+  if (finite4(limits.cooldownDays)) {
+    const lastSell = [...account2.trades].reverse().find((trade) => trade.symbol === symbol && trade.side === "SELL");
+    if (lastSell) {
+      const days = (Date.parse(`${dayOf(now, account2.market)}T00:00:00Z`) - Date.parse(`${dayOf(lastSell.at, account2.market)}T00:00:00Z`)) / 864e5;
+      if (days < limits.cooldownDays) return `${label("cooldownDays")}\uFF1A${symbol} \u5728 ${dayOf(lastSell.at, account2.market)} \u5356\u51FA\uFF0C${limits.cooldownDays} \u5929\u5185\u4E0D\u80FD\u4E70\u56DE\u3002`;
+    }
+  }
+  if (Array.isArray(limits.excludeBoards) && limits.excludeBoards.length) {
+    const board = boardOf2(symbol, quote);
+    if (board && limits.excludeBoards.includes(board)) return `${label("excludeBoards")}\uFF1A${symbol} \u5C5E\u4E8E${BOARD_LABELS[board]}\uFF0C\u5728\u7981\u6B62\u8303\u56F4\u91CC\u3002`;
+  }
+  if (finite4(limits.minPrice) && finite4(quote?.price) && quote.price < limits.minPrice)
+    return `${label("minPrice")}\uFF1A${symbol} \u73B0\u4EF7 ${quote.price}\uFF0C\u4F4E\u4E8E ${limits.minPrice}\u3002`;
+  if (finite4(limits.maxChangePct) && finite4(quote?.changePct) && quote.changePct > limits.maxChangePct)
+    return `${label("maxChangePct")}\uFF1A${symbol} \u4ECA\u5929\u5DF2\u7ECF\u6DA8\u4E86 ${round4(quote.changePct, 2)}%\uFF0C\u8D85\u8FC7 ${limits.maxChangePct}%\u3002`;
+  return null;
+}
+function limitStatus(account2, limits, value, now) {
+  const pending = account2.orders.filter((order) => order.status === "open");
+  const reserved = pending.filter((order) => order.side === "BUY").reduce((sum, order) => sum + order.reserved, 0);
+  const cashPct = value.equity > 0 ? round4((account2.cash - reserved) / value.equity * 100, 2) : 0;
+  const activity = todayActivity(account2, now);
+  const holdings = (/* @__PURE__ */ new Set([...Object.keys(account2.positions), ...pending.filter((order) => order.side === "BUY").map((order) => order.symbol)])).size;
+  const status = { cashPct, holdings, newToday: activity.newToday.size, ordersToday: activity.ordersToday, active: LIMIT_KEYS.filter((key) => limits[key] !== null && limits[key] !== void 0 && !(Array.isArray(limits[key]) && !limits[key].length)) };
+  if (finite4(limits.minCashPct)) status.buyableValue = round4(Math.max(0, account2.cash - reserved - value.equity * limits.minCashPct / 100));
+  else status.buyableValue = round4(Math.max(0, account2.cash - reserved));
+  if (finite4(limits.maxPositions)) status.positionsLeft = Math.max(0, limits.maxPositions - holdings);
+  if (finite4(limits.maxNewPerDay)) status.newLeftToday = Math.max(0, limits.maxNewPerDay - activity.newToday.size);
+  if (finite4(limits.maxOrdersPerDay)) status.ordersLeftToday = Math.max(0, limits.maxOrdersPerDay - activity.ordersToday);
+  return status;
+}
+function limitsText(limits, status) {
+  const parts = [];
+  for (const key of LIMIT_KEYS) {
+    const value = limits[key];
+    if (value === null || value === void 0 || Array.isArray(value) && !value.length) continue;
+    const spec = LIMIT_SPECS[key];
+    const shown = Array.isArray(value) ? value.map((board) => BOARD_LABELS[board]).join("\u3001") : spec.type === "pct" || key === "maxChangePct" ? `${value}%` : key === "cooldownDays" ? `${value} \u5929` : String(value);
+    parts.push(`${spec.zh} ${shown}`);
+  }
+  const room = status ? [`\u73B0\u91D1 ${status.cashPct}%`, `\u8FD8\u80FD\u4E70\u7EA6 ${status.buyableValue}`, ...status.positionsLeft !== void 0 ? [`\u8FD8\u80FD\u518D\u5F00 ${status.positionsLeft} \u53EA`] : [], ...status.newLeftToday !== void 0 ? [`\u4ECA\u5929\u8FD8\u80FD\u65B0\u5F00 ${status.newLeftToday} \u53EA`] : []] : [];
+  return parts.length ? `\u786C\u6027\u8FB9\u754C\uFF08\u7CFB\u7EDF\u5728\u4E0B\u5355\u524D\u68C0\u67E5\uFF0C\u8D85\u4E86\u4F1A\u88AB\u62D2\uFF09\uFF1A${parts.join("\uFF1B")}\u3002${room.length ? `\u5F53\u524D\uFF1A${room.join("\uFF0C")}\u3002` : ""}` : "\u786C\u6027\u8FB9\u754C\uFF1A\u90FD\u6CA1\u5F00\u3002";
+}
+var DEFAULT_FEES = Object.freeze({
+  A: { commissionRate: 25e-5, minCommission: 5, waiveMinimum: false, stampDutyRate: 5e-4, transferFeeRate: 1e-5 },
+  HK: { commissionRate: 3e-4, minCommission: 3, waiveMinimum: false, stampDutyRate: 1e-3, tradingFeeRate: 565e-7, sfcLevyRate: 27e-6, frcLevyRate: 15e-7, settlementRate: 2e-5, settlementMin: 2, settlementMax: 100 },
+  US: { perShare: 5e-3, minCommission: 1, maxCommissionPct: 1, secFeeRate: 278e-7, tafPerShare: 166e-6, tafMax: 8.3 }
+});
+var FEE_RANGES = {
+  commissionRate: [0, 0.01],
+  minCommission: [0, 100],
+  stampDutyRate: [0, 0.01],
+  transferFeeRate: [0, 1e-3],
+  tradingFeeRate: [0, 1e-3],
+  sfcLevyRate: [0, 1e-3],
+  frcLevyRate: [0, 1e-3],
+  settlementRate: [0, 1e-3],
+  settlementMin: [0, 100],
+  settlementMax: [0, 1e3],
+  perShare: [0, 0.1],
+  maxCommissionPct: [0, 5],
+  secFeeRate: [0, 1e-3],
+  tafPerShare: [0, 0.01],
+  tafMax: [0, 100]
+};
+function sanitizeFees(market2, input = {}, current = DEFAULT_FEES[market2]) {
+  if (!DEFAULT_FEES[market2]) throw new SettingsError("market must be A, HK or US.");
+  const next = { ...DEFAULT_FEES[market2], ...current };
+  for (const [key, raw] of Object.entries(input)) {
+    if (!(key in DEFAULT_FEES[market2])) throw new SettingsError(`Unknown ${market2} fee "${key}". Known: ${Object.keys(DEFAULT_FEES[market2]).join(", ")}.`);
+    if (key === "waiveMinimum") {
+      next[key] = Boolean(raw);
+      continue;
+    }
+    const value = Number(raw);
+    const [low, high] = FEE_RANGES[key];
+    if (!Number.isFinite(value) || value < low || value > high) throw new SettingsError(`${key} must be between ${low} and ${high}.`);
+    next[key] = value;
+  }
+  return next;
+}
+function computeFees(market2, side, quantity, price, schedule = DEFAULT_FEES[market2]) {
+  const fee = { ...DEFAULT_FEES[market2], ...schedule };
+  const value = quantity * price;
+  const parts = {};
+  const clamp3 = (amount, low, high) => Math.min(high, Math.max(low, amount));
+  if (market2 === "A") {
+    parts.commission = fee.waiveMinimum ? value * fee.commissionRate : Math.max(fee.minCommission, value * fee.commissionRate);
+    parts.stampDuty = side === "SELL" ? value * fee.stampDutyRate : 0;
+    parts.transferFee = value * fee.transferFeeRate;
+  } else if (market2 === "HK") {
+    parts.commission = fee.waiveMinimum ? value * fee.commissionRate : Math.max(fee.minCommission, value * fee.commissionRate);
+    parts.stampDuty = Math.ceil(value * fee.stampDutyRate);
+    parts.tradingFee = value * fee.tradingFeeRate;
+    parts.sfcLevy = value * fee.sfcLevyRate;
+    parts.frcLevy = value * fee.frcLevyRate;
+    parts.settlement = clamp3(value * fee.settlementRate, fee.settlementMin, fee.settlementMax);
+  } else {
+    parts.commission = clamp3(quantity * fee.perShare, fee.minCommission, value * fee.maxCommissionPct / 100);
+    parts.secFee = side === "SELL" ? value * fee.secFeeRate : 0;
+    parts.taf = side === "SELL" ? Math.min(quantity * fee.tafPerShare, fee.tafMax) : 0;
+  }
+  const breakdown = Object.fromEntries(Object.entries(parts).filter(([, amount]) => amount > 0).map(([key, amount]) => [key, round4(amount)]));
+  return { total: round4(Object.values(breakdown).reduce((sum, amount) => sum + amount, 0)), breakdown };
+}
+var DEFAULT_WORKBENCH_SETTINGS = Object.freeze({
+  schemaVersion: 1,
+  fees: DEFAULT_FEES,
+  prompts: { global: "", A: "", HK: "", US: "" },
+  maxConcurrentAgents: 4,
+  defaultReviewMinutes: 10,
+  locks: {},
+  changeLog: []
+});
+var PROMPT_LIMIT = 4e3;
+var CHANGE_LOG_LIMIT = 500;
+function changeEntry({ key, from, to, by, reason, at }) {
+  return { id: shortId("chg"), at, key, from: from ?? null, to: to ?? null, by, reason: reason ? String(reason).slice(0, 500) : null };
+}
+function appendChange(target, entry) {
+  target.changeLog = [...target.changeLog ?? [], entry].slice(-CHANGE_LOG_LIMIT);
+  return entry;
+}
+function changedBy(caller) {
+  if (!caller?.client || caller.client === "dashboard") return { kind: "owner", via: "ui" };
+  if (caller.client === "system") return { kind: "system", via: "system" };
+  return { kind: "agent", via: caller.via ?? "mcp", client: caller.client };
+}
+var isOwner = (caller) => !caller?.client || caller.client === "dashboard";
+function createWorkbenchSettings(root2, now = () => (/* @__PURE__ */ new Date()).toISOString()) {
+  const file = path5.join(root2, "settings.json");
+  let cache2 = null;
+  async function read() {
+    try {
+      const info = await stat(file);
+      if (cache2 && cache2.mtimeMs === info.mtimeMs) return cache2.value;
+      const saved = JSON.parse(await readFile5(file, "utf8"));
+      const value = {
+        ...DEFAULT_WORKBENCH_SETTINGS,
+        ...saved,
+        fees: Object.fromEntries(Object.keys(DEFAULT_FEES).map((market2) => [market2, { ...DEFAULT_FEES[market2], ...saved.fees?.[market2] }])),
+        prompts: { ...DEFAULT_WORKBENCH_SETTINGS.prompts, ...saved.prompts },
+        locks: saved.locks ?? {}
+      };
+      cache2 = { mtimeMs: info.mtimeMs, value };
+      return value;
+    } catch (error2) {
+      if (error2.code === "ENOENT") return structuredClone(DEFAULT_WORKBENCH_SETTINGS);
+      throw error2;
+    }
+  }
+  async function write(value) {
+    await mkdir5(root2, { recursive: true });
+    const temporary = `${file}.${process.pid}.${randomUUID3()}.tmp`;
+    await writeFile4(temporary, JSON.stringify(value, null, 1), "utf8");
+    await rename5(temporary, file);
+    cache2 = null;
+  }
+  return {
+    read,
+    // Apply a change under the caller's lock (arena.withLock). Locked keys reject non-owners.
+    async change(mutate, caller) {
+      const current = await read();
+      const next = structuredClone(current);
+      const result = await mutate(next, { by: changedBy(caller), at: now(), owner: isOwner(caller) });
+      await write(next);
+      return result ?? next;
+    }
+  };
+}
+function sanitizePrompt(text2) {
+  const value = String(text2 ?? "");
+  if (value.length > PROMPT_LIMIT) throw new SettingsError(`Prompt must be at most ${PROMPT_LIMIT} characters.`);
+  return value.trim();
+}
+
 // mcp/arena.mjs
 var ARENA_MARKETS = {
   A: { currency: "CNY", defaultCash: 1e6, benchmark: "000300.SS", benchmarkName: "\u6CAA\u6DF1300 / CSI 300" },
@@ -15113,15 +15407,15 @@ var LOCK_WAIT_MS = 2e4;
 var SUSPENSION_GRACE_MINUTES = 5;
 var CORPORATE_ACTION_RETRY_MS = 36e5;
 var DEFAULT_MAX_VOLUME_PCT = 5;
-var DEFAULT_RISK_POLICY = Object.freeze({ maxPositionPct: null, maxExposurePct: null, maxDrawdownPct: null, onBreach: "block", reduceToExposurePct: 50 });
+var ACCOUNT_SCHEMA_VERSION = 2;
 var MATCHER_DEFAULTS = Object.freeze({ intervalMs: 9e4, jitterMs: 15e3, leaseMs: 3e5, digestWindowMs: 18 * 36e5, webhookAttempts: 3 });
-var round4 = (value, digits = 2) => {
+var round5 = (value, digits = 2) => {
   const factor = 10 ** digits;
   return Math.round((value + Number.EPSILON) * factor) / factor;
 };
-var finite4 = (value) => typeof value === "number" && Number.isFinite(value);
+var finite5 = (value) => typeof value === "number" && Number.isFinite(value);
 var clamp2 = (value, low, high) => Math.min(high, Math.max(low, value));
-var shortId = (prefix) => `${prefix}_${randomBytes(6).toString("hex")}`;
+var shortId2 = (prefix) => `${prefix}_${randomBytes2(6).toString("hex")}`;
 function normalizeTradeSymbol(input) {
   const raw = String(input ?? "").trim().toUpperCase();
   const hk = raw.match(/^(?:HK)?0*(\d{1,5})(?:\.HK)?$/);
@@ -15138,28 +15432,12 @@ var ArenaError = class extends Error {
     this.status = status;
   }
 };
-function computeFees(market2, side, quantity, price) {
-  const value = quantity * price;
-  const parts = {};
-  if (market2 === "A") {
-    parts.commission = Math.max(5, value * 25e-5);
-    parts.stampDuty = side === "SELL" ? value * 5e-4 : 0;
-    parts.transferFee = value * 1e-5;
-  } else if (market2 === "HK") {
-    parts.commission = Math.max(3, value * 3e-4);
-    parts.stampDuty = Math.ceil(value * 1e-3);
-    parts.tradingFee = value * 565e-7;
-    parts.sfcLevy = value * 27e-6;
-    parts.frcLevy = value * 15e-7;
-    parts.settlement = clamp2(value * 2e-5, 2, 100);
-  } else {
-    parts.commission = clamp2(quantity * 5e-3, 1, value * 0.01);
-    parts.secFee = side === "SELL" ? value * 278e-7 : 0;
-    parts.taf = side === "SELL" ? Math.min(quantity * 166e-6, 8.3) : 0;
-  }
-  const breakdown = Object.fromEntries(Object.entries(parts).filter(([, amount]) => amount > 0).map(([key, amount]) => [key, round4(amount)]));
-  return { total: round4(Object.values(breakdown).reduce((sum, amount) => sum + amount, 0)), breakdown };
+var feeSchedules = /* @__PURE__ */ new WeakMap();
+var scheduleOf = (account2) => feeSchedules.get(account2) ?? DEFAULT_FEES[account2.market];
+function computeFees2(market2, side, quantity, price, schedule) {
+  return computeFees(market2, side, quantity, price, schedule);
 }
+var accountFees = (account2, side, quantity, price) => computeFees(account2.market, side, quantity, price, scheduleOf(account2));
 function tickSize(market2, price) {
   if (market2 === "HK") {
     const table = [[0.25, 1e-3], [0.5, 5e-3], [10, 0.01], [20, 0.02], [100, 0.05], [200, 0.1], [500, 0.2], [1e3, 0.5], [2e3, 1], [5e3, 2]];
@@ -15172,7 +15450,7 @@ function alignToTick(market2, price, direction) {
   const tick = tickSize(market2, price);
   const units = price / tick;
   const aligned = (direction === "up" ? Math.ceil(units - 1e-9) : Math.floor(units + 1e-9)) * tick;
-  return round4(aligned, tick < 0.01 ? 4 : 3);
+  return round5(aligned, tick < 0.01 ? 4 : 3);
 }
 function lotRules(account2, symbol, quote) {
   const rules = getInstrumentRules(symbol);
@@ -15203,36 +15481,53 @@ function tradability(account2, quote, now = (/* @__PURE__ */ new Date()).toISOSt
   const ageSeconds = (Date.parse(now) - Date.parse(quote.asOf)) / 1e3;
   const maxAge = account2.settings?.maxQuoteAgeSeconds ?? 180;
   if (!Number.isFinite(ageSeconds)) return { ok: false, reason: "quote-time-unknown", session };
-  if (ageSeconds > maxAge) return { ok: false, reason: "quote-stale", ageSeconds: round4(ageSeconds, 0), session };
+  if (ageSeconds > maxAge) return { ok: false, reason: "quote-stale", ageSeconds: round5(ageSeconds, 0), session };
   if (ageSeconds < -60) return { ok: false, reason: "quote-in-future", session };
   if (localMarketTime(quote.asOf, account2.market)?.date !== session.date) return { ok: false, reason: "quote-other-session", session };
-  return { ok: true, ageSeconds: round4(Math.max(0, ageSeconds), 0), session, calendarVerified: session.verified };
+  return { ok: true, ageSeconds: round5(Math.max(0, ageSeconds), 0), session, calendarVerified: session.verified };
 }
-function executionPrice(account2, order, quote) {
+function bookPrice(quote, side, quantity) {
+  const levels = (side === "BUY" ? quote?.asks : quote?.bids) ?? [];
+  const touch = side === "BUY" ? quote?.ask : quote?.bid;
+  if (!finite5(touch) || touch <= 0) return { price: quote.price, basis: "last" };
+  if (!levels.length || !finite5(quantity) || quantity <= 0 || levels.some((level) => !finite5(level.size))) return { price: touch, basis: side === "BUY" ? "ask" : "bid" };
+  let remaining = quantity, cost = 0;
+  for (const level of levels) {
+    const take = Math.min(remaining, level.size);
+    cost += take * level.price;
+    remaining -= take;
+    if (remaining <= 0) break;
+  }
+  if (remaining > 0) cost += remaining * levels.at(-1).price;
+  return { price: cost / quantity, basis: levels.length > 1 && quantity > levels[0].size ? "book" : side === "BUY" ? "ask" : "bid" };
+}
+function executionPrice(account2, order, quote, quantity = order.quantity - (order.filledQuantity ?? 0)) {
   const slip = (account2.settings?.slippageBps ?? 5) / 1e4;
   const market2 = account2.market;
   if (order.side === "BUY") {
-    if (market2 === "A" && finite4(quote.limitUp) && quote.price >= quote.limitUp - 1e-9) return { price: null, blocked: "limit-up" };
-    let price2 = alignToTick(market2, quote.price * (1 + slip), "up");
-    if (market2 === "A" && finite4(quote.limitUp)) price2 = Math.min(price2, quote.limitUp);
+    if (market2 === "A" && finite5(quote.limitUp) && quote.price >= quote.limitUp - 1e-9 && !(quote.ask > 0)) return { price: null, blocked: "limit-up" };
+    const book2 = bookPrice(quote, "BUY", quantity);
+    let price2 = alignToTick(market2, book2.price * (1 + slip), "up");
+    if (market2 === "A" && finite5(quote.limitUp)) price2 = Math.min(price2, quote.limitUp);
     if (order.type === "limit") {
-      if (quote.price > order.limitPrice + 1e-9) return { price: null, blocked: "limit-not-reached" };
+      if (book2.price > order.limitPrice + 1e-9) return { price: null, blocked: "limit-not-reached" };
       price2 = Math.min(price2, order.limitPrice);
     }
-    return { price: price2 };
+    return { price: price2, basis: book2.basis };
   }
-  if (market2 === "A" && finite4(quote.limitDown) && quote.price <= quote.limitDown + 1e-9) return { price: null, blocked: "limit-down" };
-  let price = alignToTick(market2, quote.price * (1 - slip), "down");
-  if (market2 === "A" && finite4(quote.limitDown)) price = Math.max(price, quote.limitDown);
+  if (market2 === "A" && finite5(quote.limitDown) && quote.price <= quote.limitDown + 1e-9 && !(quote.bid > 0)) return { price: null, blocked: "limit-down" };
+  const book = bookPrice(quote, "SELL", quantity);
+  let price = alignToTick(market2, book.price * (1 - slip), "down");
+  if (market2 === "A" && finite5(quote.limitDown)) price = Math.max(price, quote.limitDown);
   if (order.type === "limit") {
-    if (quote.price < order.limitPrice - 1e-9) return { price: null, blocked: "limit-not-reached" };
+    if (book.price < order.limitPrice - 1e-9) return { price: null, blocked: "limit-not-reached" };
     price = Math.max(price, order.limitPrice);
   }
-  return { price };
+  return { price, basis: book.basis };
 }
 function dayVolumeShares(quote) {
   const volume = quote?.volumeShares ?? quote?.volume;
-  return finite4(volume) && volume >= 0 ? volume : null;
+  return finite5(volume) && volume >= 0 ? volume : null;
 }
 function suspensionStatus(account2, quote, now) {
   if (!quote || quote.error) return null;
@@ -15251,7 +15546,7 @@ function fillQuantity(account2, order, quote, now) {
   const remaining = remainingQuantity(order);
   const pct = account2.settings?.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT;
   const volume = dayVolumeShares(quote);
-  if (volume === null || !finite4(pct) || pct >= 100) return { quantity: remaining, capped: false, volume };
+  if (volume === null || !finite5(pct) || pct >= 100) return { quantity: remaining, capped: false, volume };
   const today = localMarketTime(now, account2.market)?.date;
   const used = account2.trades.filter((trade) => trade.symbol === order.symbol && localMarketTime(trade.at, account2.market)?.date === today).reduce((sum, trade) => sum + trade.quantity, 0);
   const allowed = Math.max(0, Math.floor(volume * pct / 100) - used);
@@ -15270,10 +15565,10 @@ function normalizeExits(input = {}, { allowClear = false } = {}) {
     }
     if (price !== void 0 && price !== null && pct !== void 0 && pct !== null) throw new ArenaError(`Give ${priceKey} or ${pctKey}, not both.`);
     if (price !== void 0 && price !== null) {
-      if (!finite4(price) || price <= 0) throw new ArenaError(`${priceKey} must be a positive price.`);
+      if (!finite5(price) || price <= 0) throw new ArenaError(`${priceKey} must be a positive price.`);
       exits[key] = { price };
     } else if (pct !== void 0 && pct !== null) {
-      if (!finite4(pct) || pct <= 0 || pct > maxPct) throw new ArenaError(`${pctKey} must be between 0 and ${maxPct} (percent of the average cost).`);
+      if (!finite5(pct) || pct <= 0 || pct > maxPct) throw new ArenaError(`${pctKey} must be between 0 and ${maxPct} (percent of the average cost).`);
       exits[key] = { pct };
     }
   }
@@ -15283,74 +15578,76 @@ function exitLevels(position) {
   const exits = position?.exits;
   if (!exits || !position.quantity) return null;
   const averageCost = position.costBasis / position.quantity;
-  const resolve = (spec, direction) => !spec ? null : finite4(spec.price) ? spec.price : finite4(spec.pct) ? round4(averageCost * (1 + direction * spec.pct / 100), 4) : null;
+  const resolve = (spec, direction) => !spec ? null : finite5(spec.price) ? spec.price : finite5(spec.pct) ? round5(averageCost * (1 + direction * spec.pct / 100), 4) : null;
   const levels = { stopLoss: resolve(exits.stopLoss, -1), takeProfit: resolve(exits.takeProfit, 1) };
   return levels.stopLoss === null && levels.takeProfit === null ? null : levels;
 }
+function stopFrom(exits, reference) {
+  if (!exits?.stopLoss) return null;
+  if (finite5(exits.stopLoss.price)) return exits.stopLoss.price;
+  return finite5(exits.stopLoss.pct) && finite5(reference) ? reference * (1 - exits.stopLoss.pct / 100) : null;
+}
+function migrateAccount(account2, at) {
+  if ((account2.schemaVersion ?? 1) >= ACCOUNT_SCHEMA_VERSION) return account2;
+  const before = account2.riskPolicy?.minCashPct ?? null;
+  account2.riskPolicy = { ...DEFAULT_LIMITS, ...account2.riskPolicy, minCashPct: before ?? NEW_ACCOUNT_LIMITS.minCashPct };
+  account2.prompt ??= "";
+  account2.locks ??= {};
+  account2.requests ??= [];
+  if (before === null) appendChange(account2, changeEntry({ key: "minCashPct", from: null, to: account2.riskPolicy.minCashPct, by: { kind: "system", via: "upgrade" }, reason: "\u5347\u7EA7\u5230\u65B0\u7248\u672C\u65F6\u8865\u4E0A\u9ED8\u8BA4\u8FB9\u754C\uFF1A\u4FDD\u7559\u73B0\u91D1 20%", at }));
+  account2.schemaVersion = ACCOUNT_SCHEMA_VERSION;
+  return account2;
+}
 function sanitizeRiskPolicy(input = {}, current = {}) {
-  const next = { ...DEFAULT_RISK_POLICY, ...current };
-  const pct = (key, low, high) => {
-    if (input[key] === void 0) return;
-    if (input[key] === null || input[key] === "") {
-      next[key] = key === "reduceToExposurePct" ? DEFAULT_RISK_POLICY.reduceToExposurePct : null;
-      return;
-    }
-    const value = Number(input[key]);
-    if (!Number.isFinite(value) || value < low || value > high) throw new ArenaError(`${key} must be between ${low} and ${high}, or empty to disable.`);
-    next[key] = round4(value, 2);
-  };
-  pct("maxPositionPct", 1, 100);
-  pct("maxExposurePct", 1, 100);
-  pct("maxDrawdownPct", 1, 90);
-  pct("reduceToExposurePct", 0, 100);
-  if (input.onBreach !== void 0) {
-    if (!["block", "reduce"].includes(input.onBreach)) throw new ArenaError("onBreach must be block or reduce.");
-    next.onBreach = input.onBreach;
+  try {
+    return sanitizeLimits(input, current);
+  } catch (error2) {
+    throw new ArenaError(error2.message, error2.code, error2.status);
   }
-  return next;
 }
 function openOrders(account2) {
   return account2.orders.filter((order) => order.status === "open");
 }
 function reservedCash(account2, excludeOrderId) {
-  return round4(openOrders(account2).filter((order) => order.side === "BUY" && order.id !== excludeOrderId).reduce((sum, order) => sum + order.reserved, 0));
+  return round5(openOrders(account2).filter((order) => order.side === "BUY" && order.id !== excludeOrderId).reduce((sum, order) => sum + order.reserved, 0));
 }
 function addEvent(account2, at, event, dedupe) {
   account2.events ??= [];
   if (dedupe && account2.events.slice(-300).some((entry2) => entry2.dedupe === dedupe)) return null;
-  const entry = { id: shortId("evt"), at, ...event, ...dedupe ? { dedupe } : {} };
+  const entry = { id: shortId2("evt"), at, ...event, ...dedupe ? { dedupe } : {} };
   account2.events.push(entry);
   if (account2.events.length > LIMITS.events) account2.events = account2.events.slice(-LIMITS.events);
   return entry;
 }
-var riskPolicyOf = (account2) => ({ ...DEFAULT_RISK_POLICY, ...account2.riskPolicy });
+var riskPolicyOf = (account2) => ({ ...DEFAULT_LIMITS, ...account2.riskPolicy });
 function drawdownState(account2, equityNow = valuation(account2).equity) {
   const since = account2.risk?.resetAt ? Date.parse(account2.risk.resetAt) : -Infinity;
   const points = account2.equity.filter((point) => Date.parse(point.at) >= since).map((point) => point.equity);
   const peak = Math.max(equityNow, ...points, ...account2.risk?.resetAt ? [account2.risk.resetEquity ?? equityNow] : [account2.initialCash]);
-  return { peakEquity: round4(peak), equity: equityNow, drawdownPct: peak > 0 ? round4((equityNow / peak - 1) * 100, 2) : 0 };
+  return { peakEquity: round5(peak), equity: equityNow, drawdownPct: peak > 0 ? round5((equityNow / peak - 1) * 100, 2) : 0 };
 }
-function riskViolation(account2, symbol, addValue, excludeOrderId) {
+function riskViolation(account2, symbol, addValue, excludeOrderId, details = null) {
   const policy = riskPolicyOf(account2);
   if (account2.risk?.breaker) return `Owner risk policy: drawdown circuit breaker tripped at ${account2.risk.breaker.drawdownPct}% on ${account2.risk.breaker.trippedAt}; new buys are blocked until the owner resets it in the dashboard.`;
   const value = valuation(account2);
   if (value.equity <= 0) return null;
-  if (finite4(policy.maxDrawdownPct)) {
+  if (finite5(policy.maxDrawdownPct)) {
     const { drawdownPct } = drawdownState(account2, value.equity);
     if (drawdownPct <= -policy.maxDrawdownPct) return `Owner risk policy: drawdown ${drawdownPct}% breaches the ${policy.maxDrawdownPct}% circuit breaker; new buys are blocked.`;
   }
   const pending = openOrders(account2).filter((order) => order.side === "BUY" && order.id !== excludeOrderId);
-  if (finite4(policy.maxPositionPct)) {
+  if (finite5(policy.maxPositionPct)) {
     const held = value.positions.find((position) => position.symbol === symbol)?.marketValue ?? 0;
     const resting = pending.filter((order) => order.symbol === symbol).reduce((sum, order) => sum + order.reserved, 0);
     const pct = (held + resting + addValue) / value.equity * 100;
-    if (pct > policy.maxPositionPct + 1e-9) return `Owner risk policy: ${symbol} would be ${round4(pct, 1)}% of equity, above the ${policy.maxPositionPct}% single-position limit.`;
+    if (pct > policy.maxPositionPct + 1e-9) return `Owner risk policy: ${symbol} would be ${round5(pct, 1)}% of equity, above the ${policy.maxPositionPct}% single-position limit.`;
   }
-  if (finite4(policy.maxExposurePct)) {
+  if (finite5(policy.maxExposurePct)) {
     const resting = pending.reduce((sum, order) => sum + order.reserved, 0);
     const pct = (value.marketValue + resting + addValue) / value.equity * 100;
-    if (pct > policy.maxExposurePct + 1e-9) return `Owner risk policy: total exposure would be ${round4(pct, 1)}% of equity, above the ${policy.maxExposurePct}% limit.`;
+    if (pct > policy.maxExposurePct + 1e-9) return `Owner risk policy: total exposure would be ${round5(pct, 1)}% of equity, above the ${policy.maxExposurePct}% limit.`;
   }
+  if (details) return limitViolation(account2, details.atFill ? { ...policy, maxOrdersPerDay: null } : policy, value, { symbol, addValue, pending, ...details });
   return null;
 }
 function sellableQuantity(account2, symbol, now = (/* @__PURE__ */ new Date()).toISOString(), excludeOrderId) {
@@ -15361,29 +15658,43 @@ function sellableQuantity(account2, symbol, now = (/* @__PURE__ */ new Date()).t
   const pending = openOrders(account2).filter((order) => order.side === "SELL" && order.symbol === symbol && order.id !== excludeOrderId).reduce((sum, order) => sum + remainingQuantity(order), 0);
   return Math.max(0, settled - pending);
 }
-function applyFill(account2, order, price, quote, now, quantity = remainingQuantity(order)) {
-  const fees = computeFees(account2.market, order.side, quantity, price);
-  const gross = round4(quantity * price);
+function quoteSnapshot(quote) {
+  return { price: quote.price ?? null, bid: quote.bid ?? null, ask: quote.ask ?? null, asOf: quote.asOf ?? null, source: quote.provider ?? quote.source ?? null, changePct: finite5(quote.changePct) ? round5(quote.changePct, 2) : null };
+}
+function minutePricesBetween(bars2, market2, since, at) {
+  if (!bars2?.length) return [];
+  const now = localMarketTime(at, market2);
+  const from = localMarketTime(since, market2);
+  if (!now) return [];
+  const fromMinute = from?.date === now.date ? from.minute : -1;
+  return bars2.filter((bar) => !bar.date || bar.date === now.date).map((bar) => {
+    const [h, m] = String(bar.time ?? "").split(":").map(Number);
+    return { minute: h * 60 + m, price: bar.price };
+  }).filter((bar) => Number.isFinite(bar.minute) && finite5(bar.price) && bar.minute > fromMinute && bar.minute < now.minute).map((bar) => bar.price);
+}
+function applyFill(account2, order, price, quote, now, quantity = remainingQuantity(order), basis = null) {
+  const fees = accountFees(account2, order.side, quantity, price);
+  const gross = round5(quantity * price);
   const tradeDate = localMarketTime(now, account2.market).date;
   let position = account2.positions[order.symbol];
   let realizedPnl = null;
   if (order.side === "BUY") {
     position ??= { symbol: order.symbol, name: quote?.name ?? order.name ?? order.symbol, quantity: 0, costBasis: 0, realizedPnl: 0, lots: [], openedAt: now };
-    position.costBasis = round4(position.costBasis + gross + fees.total);
+    position.costBasis = round5(position.costBasis + gross + fees.total);
     position.quantity += quantity;
     const lot = position.lots.find((entry) => entry.date === tradeDate);
     if (lot) lot.quantity += quantity;
     else position.lots.push({ date: tradeDate, quantity });
     if (order.exits) position.exits = { ...position.exits, ...order.exits };
-    account2.cash = round4(account2.cash - gross - fees.total);
+    account2.cash = round5(account2.cash - gross - fees.total);
     account2.positions[order.symbol] = position;
   } else {
     const averageCost = position.costBasis / position.quantity;
     const releasedCost = averageCost * quantity;
-    realizedPnl = round4(gross - fees.total - releasedCost);
-    position.costBasis = round4(position.costBasis - releasedCost);
+    realizedPnl = round5(gross - fees.total - releasedCost);
+    position.costBasis = round5(position.costBasis - releasedCost);
     position.quantity -= quantity;
-    position.realizedPnl = round4(position.realizedPnl + realizedPnl);
+    position.realizedPnl = round5(position.realizedPnl + realizedPnl);
     let remaining = quantity;
     for (const lot of position.lots) {
       const used = Math.min(lot.quantity, remaining);
@@ -15391,8 +15702,8 @@ function applyFill(account2, order, price, quote, now, quantity = remainingQuant
       remaining -= used;
     }
     position.lots = position.lots.filter((lot) => lot.quantity > 0);
-    account2.cash = round4(account2.cash + gross - fees.total);
-    account2.realizedPnl = round4((account2.realizedPnl ?? 0) + realizedPnl);
+    account2.cash = round5(account2.cash + gross - fees.total);
+    account2.realizedPnl = round5((account2.realizedPnl ?? 0) + realizedPnl);
     if (position.quantity <= 0) {
       account2.closedPositions = [...account2.closedPositions ?? [], { symbol: position.symbol, name: position.name, realizedPnl: position.realizedPnl, openedAt: position.openedAt, closedAt: now }].slice(-500);
       delete account2.positions[order.symbol];
@@ -15405,14 +15716,14 @@ function applyFill(account2, order, price, quote, now, quantity = remainingQuant
   const remainingBefore = remainingQuantity(order);
   const filledBefore = order.filledQuantity ?? 0;
   order.filledQuantity = filledBefore + quantity;
-  order.fillPrice = round4(((order.fillPrice ?? 0) * filledBefore + price * quantity) / order.filledQuantity, 4);
-  order.fees = round4((order.fees ?? 0) + fees.total);
+  order.fillPrice = round5(((order.fillPrice ?? 0) * filledBefore + price * quantity) / order.filledQuantity, 4);
+  order.fees = round5((order.fees ?? 0) + fees.total);
   order.fills = (order.fills ?? 0) + 1;
-  order.fillQuote = quote ? { price: quote.price, asOf: quote.asOf, source: quote.provider ?? quote.source } : null;
+  order.fillQuote = quote ? quoteSnapshot(quote) : null;
   if (order.filledQuantity >= order.quantity) Object.assign(order, { status: "filled", filledAt: now, reserved: 0 });
-  else Object.assign(order, { partiallyFilledAt: now, reserved: round4(order.reserved * (remainingBefore - quantity) / remainingBefore) });
+  else Object.assign(order, { partiallyFilledAt: now, reserved: round5(order.reserved * (remainingBefore - quantity) / remainingBefore) });
   const trade = {
-    id: shortId("trd"),
+    id: shortId2("trd"),
     orderId: order.id,
     symbol: order.symbol,
     name: account2.positions[order.symbol]?.name ?? quote?.name ?? order.symbol,
@@ -15428,7 +15739,10 @@ function applyFill(account2, order, price, quote, now, quantity = remainingQuant
     confidence: order.confidence ?? null,
     strategyVersion: order.strategyVersion,
     ...order.trigger ? { trigger: order.trigger } : {},
-    ...order.fills > 1 || order.status === "open" ? { partial: true } : {}
+    ...order.fills > 1 || order.status === "open" ? { partial: true } : {},
+    // Where the price came from, so every fill can be traced back to real market data.
+    fillBasis: basis,
+    quote: quote ? quoteSnapshot(quote) : null
   };
   account2.trades.push(trade);
   if (account2.trades.length > LIMITS.trades) account2.trades = account2.trades.slice(-LIMITS.trades);
@@ -15436,27 +15750,27 @@ function applyFill(account2, order, price, quote, now, quantity = remainingQuant
 }
 function valuation(account2) {
   const positions = Object.values(account2.positions).map((position) => {
-    const price = finite4(position.lastPrice) ? position.lastPrice : position.costBasis / position.quantity;
-    const marketValue2 = round4(price * position.quantity);
+    const price = finite5(position.lastPrice) ? position.lastPrice : position.costBasis / position.quantity;
+    const marketValue2 = round5(price * position.quantity);
     const averageCost = position.quantity ? position.costBasis / position.quantity : 0;
     return {
       ...position,
-      averageCost: round4(averageCost, 4),
+      averageCost: round5(averageCost, 4),
       marketValue: marketValue2,
       exitLevels: exitLevels(position),
-      unrealizedPnl: round4(marketValue2 - position.costBasis),
-      unrealizedPnlPct: position.costBasis > 0 ? round4((marketValue2 / position.costBasis - 1) * 100, 2) : null
+      unrealizedPnl: round5(marketValue2 - position.costBasis),
+      unrealizedPnlPct: position.costBasis > 0 ? round5((marketValue2 / position.costBasis - 1) * 100, 2) : null
     };
   });
-  const marketValue = round4(positions.reduce((sum, position) => sum + position.marketValue, 0));
-  const equity = round4(account2.cash + marketValue);
+  const marketValue = round5(positions.reduce((sum, position) => sum + position.marketValue, 0));
+  const equity = round5(account2.cash + marketValue);
   return {
     equity,
     cash: account2.cash,
     marketValue,
     reservedCash: reservedCash(account2),
-    availableCash: round4(account2.cash - reservedCash(account2)),
-    positions: positions.map((position) => ({ ...position, weightPct: equity > 0 ? round4(position.marketValue / equity * 100, 2) : 0 })).sort((a, b) => b.marketValue - a.marketValue)
+    availableCash: round5(account2.cash - reservedCash(account2)),
+    positions: positions.map((position) => ({ ...position, weightPct: equity > 0 ? round5(position.marketValue / equity * 100, 2) : 0 })).sort((a, b) => b.marketValue - a.marketValue)
   };
 }
 function recordEquity(account2, now, force = false) {
@@ -15491,16 +15805,16 @@ function computeMetrics(account2, { benchmarkPrice = null, now = (/* @__PURE__ *
     const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
     const variance = returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / (returns.length - 1);
     const deviation = Math.sqrt(variance);
-    volatilityPct = round4(deviation * Math.sqrt(252) * 100, 2);
-    sharpe = deviation > 0 ? round4(mean / deviation * Math.sqrt(252), 2) : null;
+    volatilityPct = round5(deviation * Math.sqrt(252) * 100, 2);
+    sharpe = deviation > 0 ? round5(mean / deviation * Math.sqrt(252), 2) : null;
   }
-  const sells = account2.trades.filter((trade) => trade.side === "SELL" && finite4(trade.realizedPnl));
+  const sells = account2.trades.filter((trade) => trade.side === "SELL" && finite5(trade.realizedPnl));
   const wins = sells.filter((trade) => trade.realizedPnl > 0);
   const losses = sells.filter((trade) => trade.realizedPnl < 0);
   const grossWin = wins.reduce((sum, trade) => sum + trade.realizedPnl, 0);
   const grossLoss = Math.abs(losses.reduce((sum, trade) => sum + trade.realizedPnl, 0));
-  const totalReturnPct = round4((value.equity / initial - 1) * 100, 2);
-  const benchmarkReturnPct = finite4(benchmarkPrice) && finite4(account2.benchmark?.startPrice) && account2.benchmark.startPrice > 0 ? round4((benchmarkPrice / account2.benchmark.startPrice - 1) * 100, 2) : null;
+  const totalReturnPct = round5((value.equity / initial - 1) * 100, 2);
+  const benchmarkReturnPct = finite5(benchmarkPrice) && finite5(account2.benchmark?.startPrice) && account2.benchmark.startPrice > 0 ? round5((benchmarkPrice / account2.benchmark.startPrice - 1) * 100, 2) : null;
   const days = Math.max(0, (Date.parse(now) - Date.parse(account2.createdAt)) / 864e5);
   const today = localMarketTime(now, account2.market)?.date;
   const previousClose = [...daily.entries()].filter(([date3]) => date3 < today).at(-1)?.[1] ?? initial;
@@ -15509,10 +15823,10 @@ function computeMetrics(account2, { benchmarkPrice = null, now = (/* @__PURE__ *
     const key = trade.strategyVersion ?? 1;
     const entry = byVersion.get(key) ?? { version: key, trades: 0, closedTrades: 0, wins: 0, realizedPnl: 0, fees: 0 };
     entry.trades += 1;
-    entry.fees = round4(entry.fees + trade.fees);
-    if (finite4(trade.realizedPnl)) {
+    entry.fees = round5(entry.fees + trade.fees);
+    if (finite5(trade.realizedPnl)) {
       entry.closedTrades += 1;
-      entry.realizedPnl = round4(entry.realizedPnl + trade.realizedPnl);
+      entry.realizedPnl = round5(entry.realizedPnl + trade.realizedPnl);
       if (trade.realizedPnl > 0) entry.wins += 1;
     }
     byVersion.set(key, entry);
@@ -15522,38 +15836,40 @@ function computeMetrics(account2, { benchmarkPrice = null, now = (/* @__PURE__ *
     cash: value.cash,
     marketValue: value.marketValue,
     availableCash: value.availableCash,
-    totalPnl: round4(value.equity - initial),
+    totalPnl: round5(value.equity - initial),
     totalReturnPct,
-    todayReturnPct: previousClose > 0 ? round4((value.equity / previousClose - 1) * 100, 2) : null,
-    annualizedReturnPct: days >= 30 ? round4(((value.equity / initial) ** (365 / days) - 1) * 100, 2) : null,
-    maxDrawdownPct: round4(maxDrawdownPct, 2),
+    todayReturnPct: previousClose > 0 ? round5((value.equity / previousClose - 1) * 100, 2) : null,
+    annualizedReturnPct: days >= 30 ? round5(((value.equity / initial) ** (365 / days) - 1) * 100, 2) : null,
+    maxDrawdownPct: round5(maxDrawdownPct, 2),
     volatilityPct,
     sharpe,
     benchmarkSymbol: account2.benchmark?.symbol ?? null,
     benchmarkReturnPct,
-    excessReturnPct: benchmarkReturnPct === null ? null : round4(totalReturnPct - benchmarkReturnPct, 2),
-    realizedPnl: round4(account2.realizedPnl ?? 0),
-    unrealizedPnl: round4(value.positions.reduce((sum, p) => sum + p.unrealizedPnl, 0)),
-    exposurePct: value.equity > 0 ? round4(value.marketValue / value.equity * 100, 2) : 0,
+    excessReturnPct: benchmarkReturnPct === null ? null : round5(totalReturnPct - benchmarkReturnPct, 2),
+    realizedPnl: round5(account2.realizedPnl ?? 0),
+    unrealizedPnl: round5(value.positions.reduce((sum, p) => sum + p.unrealizedPnl, 0)),
+    exposurePct: value.equity > 0 ? round5(value.marketValue / value.equity * 100, 2) : 0,
     positions: value.positions.length,
     trades: account2.trades.length,
     closedTrades: sells.length,
-    winRatePct: sells.length ? round4(wins.length / sells.length * 100, 1) : null,
-    profitFactor: grossLoss > 0 ? round4(grossWin / grossLoss, 2) : null,
-    averageWin: wins.length ? round4(grossWin / wins.length) : null,
-    averageLoss: losses.length ? round4(-grossLoss / losses.length) : null,
-    feesPaid: round4(account2.trades.reduce((sum, trade) => sum + trade.fees, 0)),
-    dividendIncome: round4(account2.dividendIncome ?? 0),
-    turnover: initial > 0 ? round4(account2.trades.reduce((sum, trade) => sum + trade.gross, 0) / initial, 2) : 0,
+    winRatePct: sells.length ? round5(wins.length / sells.length * 100, 1) : null,
+    profitFactor: grossLoss > 0 ? round5(grossWin / grossLoss, 2) : null,
+    averageWin: wins.length ? round5(grossWin / wins.length) : null,
+    averageLoss: losses.length ? round5(-grossLoss / losses.length) : null,
+    feesPaid: round5(account2.trades.reduce((sum, trade) => sum + trade.fees, 0)),
+    dividendIncome: round5(account2.dividendIncome ?? 0),
+    turnover: initial > 0 ? round5(account2.trades.reduce((sum, trade) => sum + trade.gross, 0) / initial, 2) : 0,
     ordersPlaced: account2.orders.length,
     ordersRejected: account2.orders.filter((order) => order.status === "rejected").length,
+    todayFills: account2.trades.filter((trade) => localMarketTime(trade.at, account2.market)?.date === today).length,
+    todayRejected: account2.orders.filter((order) => order.status === "rejected" && localMarketTime(order.closedAt ?? order.createdAt, account2.market)?.date === today).length,
     openOrders: openOrders(account2).length,
     decisionsLogged: account2.journal.length,
     reportsPublished: (account2.reports ?? []).length,
-    daysActive: round4(days, 1),
+    daysActive: round5(days, 1),
     tradingDays: closes.length - 1,
     sampleWarning: closes.length < 6 ? "fewer-than-5-trading-days" : sells.length < 10 ? "fewer-than-10-closed-trades" : null,
-    byStrategyVersion: [...byVersion.values()].map((entry) => ({ ...entry, winRatePct: entry.closedTrades ? round4(entry.wins / entry.closedTrades * 100, 1) : null }))
+    byStrategyVersion: [...byVersion.values()].map((entry) => ({ ...entry, winRatePct: entry.closedTrades ? round5(entry.wins / entry.closedTrades * 100, 1) : null }))
   };
 }
 var addDays = (date3, days) => new Date(Date.parse(`${date3}T12:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
@@ -15601,32 +15917,34 @@ function processAlive(pid) {
     return error2.code === "EPERM";
   }
 }
-function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
-  const accountDir = path5.join(root2, "accounts");
-  const digestDir = path5.join(root2, "digests");
-  const lockDir = path5.join(root2, ".lock");
-  const leaseFile = path5.join(root2, "matcher-lease.json");
-  const statusFile = path5.join(root2, "matcher-status.json");
+function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
+  const accountDir = path6.join(root2, "accounts");
+  const digestDir = path6.join(root2, "digests");
+  const lockDir = path6.join(root2, ".lock");
+  const leaseFile = path6.join(root2, "matcher-lease.json");
+  const statusFile = path6.join(root2, "matcher-status.json");
+  const workbench = createWorkbenchSettings(root2, now);
   const quoteCache = /* @__PURE__ */ new Map();
+  const minuteCache = /* @__PURE__ */ new Map();
   const actionCache = /* @__PURE__ */ new Map();
   const lastSync = /* @__PURE__ */ new Map();
   async function withLock(task) {
-    await mkdir5(root2, { recursive: true });
+    await mkdir6(root2, { recursive: true });
     const started = Date.now();
     for (; ; ) {
       try {
-        await mkdir5(lockDir);
-        await writeFile4(path5.join(lockDir, "owner.json"), JSON.stringify({ pid: process.pid, at: Date.now() }));
+        await mkdir6(lockDir);
+        await writeFile5(path6.join(lockDir, "owner.json"), JSON.stringify({ pid: process.pid, at: Date.now() }));
         break;
       } catch (error2) {
         if (error2.code !== "EEXIST") throw error2;
         let stale = false;
         try {
-          const owner = JSON.parse(await readFile5(path5.join(lockDir, "owner.json"), "utf8"));
+          const owner = JSON.parse(await readFile6(path6.join(lockDir, "owner.json"), "utf8"));
           stale = Date.now() - owner.at > LOCK_STALE_MS || !processAlive(owner.pid);
         } catch {
           try {
-            stale = Date.now() - (await stat(lockDir)).mtimeMs > 5e3;
+            stale = Date.now() - (await stat2(lockDir)).mtimeMs > 5e3;
           } catch {
             stale = false;
           }
@@ -15649,23 +15967,28 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
   }
   const accountPath = (id) => {
     if (!/^acc_[a-f0-9]{12}$/.test(id ?? "")) throw new ArenaError(`Invalid account id: ${id}`, "invalid_account");
-    return path5.join(accountDir, `${id}.json`);
+    return path6.join(accountDir, `${id}.json`);
   };
+  async function prepare(account2) {
+    migrateAccount(account2, now());
+    feeSchedules.set(account2, (await workbench.read()).fees[account2.market] ?? DEFAULT_FEES[account2.market]);
+    return account2;
+  }
   async function load(id) {
     try {
-      return JSON.parse(await readFile5(accountPath(id), "utf8"));
+      return await prepare(JSON.parse(await readFile6(accountPath(id), "utf8")));
     } catch (error2) {
       if (error2.code === "ENOENT") throw new ArenaError(`Account ${id} not found. Call arena_my_accounts or arena_register_account.`, "not_found", 404);
       throw error2;
     }
   }
   async function save(account2) {
-    await mkdir5(accountDir, { recursive: true });
+    await mkdir6(accountDir, { recursive: true });
     account2.updatedAt = now();
     const file = accountPath(account2.id);
-    const temporary = `${file}.${process.pid}.${randomUUID3()}.tmp`;
-    await writeFile4(temporary, JSON.stringify(account2, null, 1), "utf8");
-    await rename5(temporary, file);
+    const temporary = `${file}.${process.pid}.${randomUUID4()}.tmp`;
+    await writeFile5(temporary, JSON.stringify(account2, null, 1), "utf8");
+    await rename6(temporary, file);
   }
   async function loadAll() {
     let names = [];
@@ -15677,15 +16000,15 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
     const accounts = [];
     for (const name of names.filter((entry) => /^acc_[a-f0-9]{12}\.json$/.test(entry))) {
       try {
-        accounts.push(JSON.parse(await readFile5(path5.join(accountDir, name), "utf8")));
+        accounts.push(await prepare(JSON.parse(await readFile6(path6.join(accountDir, name), "utf8"))));
       } catch {
       }
     }
     return accounts.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
   }
   async function quote(symbol, { fresh = false } = {}) {
-    const cached2 = quoteCache.get(symbol);
-    if (!fresh && cached2 && Date.now() - cached2.fetchedAt < quoteCacheMs) return cached2.value;
+    const cached3 = quoteCache.get(symbol);
+    if (!fresh && cached3 && Date.now() - cached3.fetchedAt < quoteCacheMs) return cached3.value;
     const value = await quoteProvider(symbol);
     quoteCache.set(symbol, { value, fetchedAt: Date.now() });
     return value;
@@ -15740,18 +16063,18 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         account2.appliedCorporateActions = [...account2.appliedCorporateActions, key].slice(-LIMITS.appliedActions);
         const entitled = entitledQuantity(account2, position, action.date);
         if (entitled <= 0) continue;
-        if (action.type === "dividend" && finite4(action.cashPerShare) && action.cashPerShare > 0) {
+        if (action.type === "dividend" && finite5(action.cashPerShare) && action.cashPerShare > 0) {
           if (action.currency && action.currency !== account2.currency) {
             addEvent(account2, at, { type: "corporate-action-skipped", symbol, exDate: action.date, message: `${symbol} dividend paid in ${action.currency}, not ${account2.currency}; not credited.` });
             continue;
           }
-          const amount = round4(entitled * action.cashPerShare);
-          account2.cash = round4(account2.cash + amount);
-          account2.dividendIncome = round4((account2.dividendIncome ?? 0) + amount);
-          position.dividends = round4((position.dividends ?? 0) + amount);
+          const amount = round5(entitled * action.cashPerShare);
+          account2.cash = round5(account2.cash + amount);
+          account2.dividendIncome = round5((account2.dividendIncome ?? 0) + amount);
+          position.dividends = round5((position.dividends ?? 0) + amount);
           const event = addEvent(account2, at, { type: "dividend", symbol, exDate: action.date, quantity: entitled, cashPerShare: action.cashPerShare, amount, message: `${symbol} dividend ${action.cashPerShare}/share on ${entitled} shares: +${amount} ${account2.currency}.` });
           events.push({ type: "dividend", symbol, amount, eventId: event.id });
-        } else if (["split", "bonus"].includes(action.type) && finite4(action.ratio) && action.ratio > 0 && Math.abs(action.ratio - 1) > 1e-9) {
+        } else if (["split", "bonus"].includes(action.type) && finite5(action.ratio) && action.ratio > 0 && Math.abs(action.ratio - 1) > 1e-9) {
           const before = position.quantity;
           let extra = Math.floor(entitled * action.ratio) - entitled;
           if (before + extra <= 0) extra = -before + 1;
@@ -15766,11 +16089,11 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
           if (eligible[0]) eligible[0].quantity += extra - assigned;
           else position.lots.push({ date: action.date, quantity: extra });
           position.lots = position.lots.filter((lot) => lot.quantity > 0);
-          if (position.lastPrice && (localMarketTime(position.lastPriceAt, account2.market)?.date ?? "") < action.date) position.lastPrice = round4(position.lastPrice / action.ratio, 4);
-          for (const exit of ["stopLoss", "takeProfit"]) if (finite4(position.exits?.[exit]?.price)) position.exits[exit].price = round4(position.exits[exit].price / action.ratio, 4);
+          if (position.lastPrice && (localMarketTime(position.lastPriceAt, account2.market)?.date ?? "") < action.date) position.lastPrice = round5(position.lastPrice / action.ratio, 4);
+          for (const exit of ["stopLoss", "takeProfit"]) if (finite5(position.exits?.[exit]?.price)) position.exits[exit].price = round5(position.exits[exit].price / action.ratio, 4);
           for (const order of openOrders(account2).filter((entry) => entry.symbol === symbol))
             Object.assign(order, { status: "cancelled", closedAt: at, reserved: 0, cancelReason: `${action.type} ${action.ratio}:1 on ${action.date} changed the share basis; re-enter the order.` });
-          const event = addEvent(account2, at, { type: action.type, symbol, exDate: action.date, ratio: action.ratio, quantityBefore: before, quantityAfter: position.quantity, message: `${symbol} ${action.type === "split" ? "split" : "bonus shares"} \xD7${action.ratio}: ${before} \u2192 ${position.quantity} shares; average cost ${round4(position.costBasis / position.quantity, 4)}.` });
+          const event = addEvent(account2, at, { type: action.type, symbol, exDate: action.date, ratio: action.ratio, quantityBefore: before, quantityAfter: position.quantity, message: `${symbol} ${action.type === "split" ? "split" : "bonus shares"} \xD7${action.ratio}: ${before} \u2192 ${position.quantity} shares; average cost ${round5(position.costBasis / position.quantity, 4)}.` });
           events.push({ type: action.type, symbol, ratio: action.ratio, eventId: event.id });
         }
       }
@@ -15779,7 +16102,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
   function protectiveOrder(account2, { symbol, quantity, trigger, reason, at, extra = {} }) {
     const session = getMarketSession(account2.market, at);
     const order = {
-      id: shortId("ord"),
+      id: shortId2("ord"),
       clientOrderId: null,
       symbol,
       name: account2.positions[symbol]?.name ?? symbol,
@@ -15806,7 +16129,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
   }
   function evaluateBreaker(account2, quoteMap, at, events) {
     const policy = riskPolicyOf(account2);
-    if (!finite4(policy.maxDrawdownPct) || account2.risk?.breaker) return;
+    if (!finite5(policy.maxDrawdownPct) || account2.risk?.breaker) return;
     const state = drawdownState(account2);
     if (state.drawdownPct > -policy.maxDrawdownPct) return;
     account2.risk = { ...account2.risk, breaker: { trippedAt: at, drawdownPct: state.drawdownPct, peakEquity: state.peakEquity, equity: state.equity, action: policy.onBreach } };
@@ -15830,14 +16153,18 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       events.push({ type: "risk-reduce", orderId: order.id, symbol: position.symbol, quantity });
     }
   }
-  function triggerExits(account2, quoteMap, at, events) {
+  function triggerExits(account2, quoteMap, at, events, minuteMap = null) {
     const today = localMarketTime(at, account2.market)?.date;
     for (const position of Object.values(account2.positions)) {
       const levels = exitLevels(position);
       const observed = quoteMap.get(position.symbol);
       if (!levels || !observed || observed.error || !tradability(account2, observed, at).ok) continue;
       if (openOrders(account2).some((order2) => order2.symbol === position.symbol && order2.trigger)) continue;
-      const trigger = levels.stopLoss !== null && observed.price <= levels.stopLoss + 1e-9 ? "stop-loss" : levels.takeProfit !== null && observed.price >= levels.takeProfit - 1e-9 ? "take-profit" : null;
+      const minutes = minutePricesBetween(minuteMap?.get(position.symbol), account2.market, position.exitCheckedAt ?? position.openedAt, at);
+      if (minuteMap?.has(position.symbol)) position.exitCheckedAt = at;
+      const low = Math.min(observed.price, ...minutes);
+      const high = Math.max(observed.price, ...minutes);
+      const trigger = levels.stopLoss !== null && low <= levels.stopLoss + 1e-9 ? "stop-loss" : levels.takeProfit !== null && high >= levels.takeProfit - 1e-9 ? "take-profit" : null;
       if (!trigger) continue;
       const level = trigger === "stop-loss" ? levels.stopLoss : levels.takeProfit;
       const defer = (why, message) => {
@@ -15849,7 +16176,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         defer("suspended", `${trigger} for ${position.symbol} at ${level} waits: trading looks suspended (${suspended}).`);
         continue;
       }
-      if (account2.market === "A" && finite4(observed.limitDown) && observed.price <= observed.limitDown + 1e-9) {
+      if (account2.market === "A" && finite5(observed.limitDown) && observed.price <= observed.limitDown + 1e-9) {
         defer("limit-down", `${trigger} for ${position.symbol} at ${level} waits: the stock is locked limit-down.`);
         continue;
       }
@@ -15872,7 +16199,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       events.push({ type: trigger, orderId: order.id, symbol: position.symbol, quantity: sellable, level });
     }
   }
-  function settle(account2, quoteMap, at, actionMap) {
+  function settle(account2, quoteMap, at, actionMap, minuteMap = null) {
     const events = [];
     applyCorporateActions(account2, actionMap, at, events);
     for (const order of openOrders(account2)) {
@@ -15883,23 +16210,23 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
     }
     for (const position of Object.values(account2.positions)) {
       const observed = quoteMap.get(position.symbol);
-      if (observed && !observed.error && finite4(observed.price)) {
+      if (observed && !observed.error && finite5(observed.price)) {
         position.lastPrice = observed.price;
         position.lastPriceAt = observed.asOf ?? at;
         position.name = position.name === position.symbol ? observed.name ?? position.name : position.name;
       }
     }
     const benchmark = quoteMap.get(account2.benchmark?.symbol);
-    if (benchmark && !benchmark.error && finite4(benchmark.price)) {
+    if (benchmark && !benchmark.error && finite5(benchmark.price)) {
       account2.benchmark.lastPrice = benchmark.price;
       account2.benchmark.lastPriceAt = benchmark.asOf ?? at;
-      if (!finite4(account2.benchmark.startPrice)) {
+      if (!finite5(account2.benchmark.startPrice)) {
         account2.benchmark.startPrice = benchmark.price;
         account2.benchmark.startAt = at;
       }
     }
     evaluateBreaker(account2, quoteMap, at, events);
-    triggerExits(account2, quoteMap, at, events);
+    triggerExits(account2, quoteMap, at, events, minuteMap);
     const today = localMarketTime(at, account2.market)?.date;
     for (const order of openOrders(account2)) {
       const observed = quoteMap.get(order.symbol);
@@ -15911,7 +16238,14 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         if (event) events.push({ type: "suspended", symbol: order.symbol, why: suspended });
         continue;
       }
-      const execution = executionPrice(account2, order, observed);
+      let execution = executionPrice(account2, order, observed);
+      if (execution.price === null && execution.blocked === "limit-not-reached" && order.type === "limit") {
+        const prices = minutePricesBetween(minuteMap?.get(order.symbol), account2.market, order.minuteCheckedAt ?? order.createdAt, at);
+        const tick = tickSize(account2.market, order.limitPrice);
+        const through = order.side === "BUY" ? prices.some((price) => price < order.limitPrice - tick / 2) : prices.some((price) => price > order.limitPrice + tick / 2);
+        if (through) execution = { price: order.limitPrice, basis: "minute-trade-through" };
+      }
+      if (minuteMap?.has(order.symbol)) order.minuteCheckedAt = at;
       if (execution.price === null) {
         order.lastBlock = execution.blocked;
         continue;
@@ -15926,12 +16260,12 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         continue;
       }
       if (order.side === "BUY") {
-        const cost = liquidity.quantity * execution.price + computeFees(account2.market, "BUY", liquidity.quantity, execution.price).total;
+        const cost = liquidity.quantity * execution.price + accountFees(account2, "BUY", liquidity.quantity, execution.price).total;
         if (cost > account2.cash - reservedCash(account2, order.id) + 1e-6) {
           Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Insufficient cash at fill time." });
           continue;
         }
-        const violation = riskViolation(account2, order.symbol, cost, order.id);
+        const violation = riskViolation(account2, order.symbol, cost, order.id, { quantity: liquidity.quantity, price: execution.price, stopPrice: stopFrom(order.exits, execution.price), quote: observed, now: at, atFill: true });
         if (violation) {
           Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: violation });
           events.push({ type: "risk-rejected", orderId: order.id, symbol: order.symbol });
@@ -15939,27 +16273,45 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         }
       }
       delete order.lastBlock;
-      const trade = applyFill(account2, order, execution.price, observed, at, liquidity.quantity);
+      const trade = applyFill(account2, order, execution.price, observed, at, liquidity.quantity, execution.basis);
       events.push({ type: order.status === "open" ? "partial" : "filled", orderId: order.id, tradeId: trade.id, symbol: order.symbol, side: order.side, quantity: liquidity.quantity, price: execution.price, ...order.trigger ? { trigger: order.trigger } : {} });
     }
     if (account2.status === "active") recordEquity(account2, at);
     return events;
+  }
+  async function minutesFor(symbols) {
+    const result = /* @__PURE__ */ new Map();
+    if (!intradayProvider) return result;
+    await Promise.all([...new Set(symbols)].map(async (symbol) => {
+      const cached3 = minuteCache.get(symbol);
+      if (cached3 && Date.now() - cached3.fetchedAt < 55e3) {
+        result.set(symbol, cached3.bars);
+        return;
+      }
+      try {
+        const { bars: bars2 } = await intradayProvider(symbol);
+        minuteCache.set(symbol, { bars: bars2, fetchedAt: Date.now() });
+        result.set(symbol, bars2);
+      } catch {
+      }
+    }));
+    return result;
   }
   async function corporateActionsFor(symbols) {
     const result = /* @__PURE__ */ new Map();
     if (!corporateActionProvider) return result;
     await Promise.all([...new Set(symbols)].map(async (symbol) => {
       const day = localMarketTime(now(), marketFromSymbol(symbol))?.date;
-      const cached2 = actionCache.get(symbol);
-      if (cached2 && cached2.day === day && (cached2.ok || Date.now() - cached2.fetchedAt < CORPORATE_ACTION_RETRY_MS)) {
-        result.set(symbol, cached2.actions);
+      const cached3 = actionCache.get(symbol);
+      if (cached3 && cached3.day === day && (cached3.ok || Date.now() - cached3.fetchedAt < CORPORATE_ACTION_RETRY_MS)) {
+        result.set(symbol, cached3.actions);
         return;
       }
       try {
         const actions = await corporateActionProvider(symbol);
         actionCache.set(symbol, { day, actions: Array.isArray(actions) ? actions : [], ok: true, fetchedAt: Date.now() });
       } catch {
-        actionCache.set(symbol, { day, actions: cached2?.actions ?? [], ok: false, fetchedAt: Date.now() });
+        actionCache.set(symbol, { day, actions: cached3?.actions ?? [], ok: false, fetchedAt: Date.now() });
       }
       result.set(symbol, actionCache.get(symbol).actions);
     }));
@@ -15972,13 +16324,14 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
     const symbols = targets.flatMap((account2) => [...Object.keys(account2.positions), ...openOrders(account2).map((order) => order.symbol), account2.benchmark?.symbol].filter(Boolean));
     const quoteMap = await quotes(symbols, { fresh: force });
     const actionMap = await corporateActionsFor(targets.flatMap((account2) => Object.keys(account2.positions)));
+    const minuteMap = await minutesFor(targets.flatMap((account2) => getMarketSession(account2.market, now()).status === "open" ? [...openOrders(account2).filter((order) => order.type === "limit").map((order) => order.symbol), ...Object.values(account2.positions).filter((position) => position.exits).map((position) => position.symbol)] : []));
     const events = [];
     await withLock(async () => {
       for (const target of targets) {
         const account2 = await load(target.id);
         if (account2.status !== "active") continue;
         const at = now();
-        events.push(...settle(account2, quoteMap, at, actionMap).map((event) => ({ ...event, accountId: account2.id })));
+        events.push(...settle(account2, quoteMap, at, actionMap, minuteMap).map((event) => ({ ...event, accountId: account2.id })));
         await save(account2);
         lastSync.set(account2.id, Date.now());
       }
@@ -15990,8 +16343,8 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
     for (const point of [{ at: account2.createdAt, equity: account2.initialCash }, ...account2.equity]) {
       daily.set(localMarketTime(point.at, account2.market)?.date ?? point.at.slice(0, 10), point);
     }
-    const points = [...daily.values()].slice(-180).map((point) => ({ at: point.at, returnPct: round4((point.equity / account2.initialCash - 1) * 100, 3) }));
-    points.push({ at: now(), returnPct: round4((equityNow / account2.initialCash - 1) * 100, 3) });
+    const points = [...daily.values()].slice(-180).map((point) => ({ at: point.at, returnPct: round5((point.equity / account2.initialCash - 1) * 100, 3) }));
+    points.push({ at: now(), returnPct: round5((equityNow / account2.initialCash - 1) * 100, 3) });
     return points;
   }
   function publicAccount(account2, { detail = false, limit = 50 } = {}) {
@@ -16030,10 +16383,17 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       latestReport: account2.reports?.length ? (({ id, at: at2, title, summary: summary2, sentiment }) => ({ id, at: at2, title, summary: summary2, sentiment }))(account2.reports.at(-1)) : null,
       watchlist: account2.watchlist ?? null,
       riskPolicy: riskPolicyOf(account2),
+      limits: riskPolicyOf(account2),
+      limitStatus: limitStatus(account2, riskPolicyOf(account2), value, at),
       risk,
       health: health2,
       lastRoundAt: health2.lastRoundAt,
-      alerts
+      alerts,
+      template: account2.template ?? null,
+      skills: account2.skills ?? null,
+      pendingRequests: (account2.requests ?? []).filter((request) => request.status === "pending").length,
+      instructions: activeInstructions(account2, at),
+      prompt: account2.prompt ?? ""
     };
     if (!detail) return summary;
     return {
@@ -16047,10 +16407,44 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       strategyHistory: account2.strategy.history,
       closedPositions: (account2.closedPositions ?? []).slice(-limit).reverse(),
       lotOverrides: account2.lotOverrides ?? {},
+      locks: account2.locks ?? {},
+      requests: (account2.requests ?? []).slice(-50).reverse(),
+      changeLog: (account2.changeLog ?? []).slice(-limit).reverse(),
       reports: (account2.reports ?? []).slice(-limit).reverse(),
       events: (account2.events ?? []).slice(-limit).reverse().map(({ dedupe, ...event }) => event)
     };
   }
+  function wrapSettings(task) {
+    try {
+      return task();
+    } catch (error2) {
+      if (error2 instanceof SettingsError) throw new ArenaError(error2.message, error2.code, error2.status);
+      throw error2;
+    }
+  }
+  const sanitizeRiskText = (text2) => wrapSettings(() => sanitizePrompt(text2));
+  function applyLimitChanges(account2, input, by, at, reason) {
+    const before = riskPolicyOf(account2);
+    const next = sanitizeRiskPolicy(input, before);
+    const applied = [];
+    for (const key of Object.keys(input)) {
+      if (JSON.stringify(before[key] ?? null) === JSON.stringify(next[key] ?? null)) continue;
+      appendChange(account2, changeEntry({ key, from: before[key] ?? null, to: next[key] ?? null, by, reason, at }));
+      applied.push({ key, from: before[key] ?? null, to: next[key] ?? null });
+    }
+    account2.riskPolicy = { ...next, updatedAt: at };
+    return applied;
+  }
+  function fileRequest(account2, { key, to, reason, by, at }) {
+    account2.requests ??= [];
+    for (const request2 of account2.requests) if (request2.status === "pending" && request2.key === key) Object.assign(request2, { status: "superseded", resolvedAt: at });
+    const from = key === "prompt" ? account2.prompt ?? "" : riskPolicyOf(account2)[key] ?? null;
+    const request = { id: shortId2("req"), at, key, from, to: to ?? null, reason: reason ? String(reason).slice(0, 500) : null, by, status: "pending" };
+    account2.requests = [...account2.requests, request].slice(-100);
+    addEvent(account2, at, { type: "change-request", key, message: `Agent asked to change locked "${key}" from ${JSON.stringify(from)} to ${JSON.stringify(to)}.` });
+    return request;
+  }
+  const activeInstructions = (account2, at) => (account2.instructions ?? []).filter((entry) => entry.status === "active" && Date.parse(entry.expiresAt) > Date.parse(at));
   function markRound(account2, kind, at = now()) {
     account2.lastRoundAt = at;
     account2.lastRoundKind = kind;
@@ -16066,12 +16460,12 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       if (!name || name.length > 60) throw new ArenaError("name is required (at most 60 characters).");
       if (!model || model.length > 80) throw new ArenaError("model is required (e.g. claude-opus-5-5, gpt-5.5-codex). Report the model you are actually running on.");
       const initialCash = input.initialCash ?? config2.defaultCash;
-      if (!finite4(initialCash) || initialCash < 1e3 || initialCash > 1e10) throw new ArenaError("initialCash must be between 1,000 and 10,000,000,000.");
+      if (!finite5(initialCash) || initialCash < 1e3 || initialCash > 1e10) throw new ArenaError("initialCash must be between 1,000 and 10,000,000,000.");
       const competition = String(input.competition ?? "default").trim().slice(0, 40) || "default";
       const at = now();
       const account2 = {
-        schemaVersion: 1,
-        id: shortId("acc"),
+        schemaVersion: ACCOUNT_SCHEMA_VERSION,
+        id: shortId2("acc"),
         name,
         competition,
         market: market2,
@@ -16080,24 +16474,30 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         agent: { client: caller.client && caller.client !== "dashboard" ? caller.client : input.agentClient ?? null, clientVersion: caller.clientVersion ?? null, label: String(input.agentLabel ?? input.agentClient ?? caller.client ?? "").slice(0, 60) || null },
         model,
         strategy: { version: 1, summary: String(input.strategySummary ?? "").slice(0, 2e3), updatedAt: at, history: [{ version: 1, summary: String(input.strategySummary ?? "").slice(0, 2e3), note: "initial", at }] },
-        initialCash: round4(initialCash),
-        cash: round4(initialCash),
+        initialCash: round5(initialCash),
+        cash: round5(initialCash),
         realizedPnl: 0,
         settings: { slippageBps: clamp2(input.slippageBps ?? 5, 0, 100), maxQuoteAgeSeconds: clamp2(input.maxQuoteAgeSeconds ?? 180, 30, 900), maxVolumePct: clamp2(input.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT, 0.1, 100), feeModel: `${market2}-retail-v1` },
-        riskPolicy: { ...DEFAULT_RISK_POLICY },
+        riskPolicy: input.limits ? sanitizeRiskPolicy(input.limits, NEW_ACCOUNT_LIMITS) : { ...NEW_ACCOUNT_LIMITS },
+        prompt: input.prompt ? sanitizePrompt(input.prompt) : "",
+        locks: {},
+        requests: [],
+        changeLog: [],
+        ...input.template ? { template: String(input.template).slice(0, 60) } : {},
+        ...Array.isArray(input.skills) ? { skills: input.skills.filter((id) => /^[a-z0-9-]{2,60}$/.test(id)).slice(0, 20) } : {},
         benchmark: { symbol: config2.benchmark, name: config2.benchmarkName, startPrice: null, startAt: null },
         positions: {},
         orders: [],
         trades: [],
         journal: [],
-        equity: [{ at, equity: round4(initialCash), cash: round4(initialCash), marketValue: 0 }],
+        equity: [{ at, equity: round5(initialCash), cash: round5(initialCash), marketValue: 0 }],
         createdAt: at,
         updatedAt: at,
         createdBy: caller.client ?? "dashboard"
       };
       try {
         const benchmark = await quote(config2.benchmark);
-        if (finite4(benchmark.price)) Object.assign(account2.benchmark, { startPrice: benchmark.price, startAt: at, lastPrice: benchmark.price, lastPriceAt: benchmark.asOf });
+        if (finite5(benchmark.price)) Object.assign(account2.benchmark, { startPrice: benchmark.price, startAt: at, lastPrice: benchmark.price, lastPriceAt: benchmark.asOf });
       } catch {
       }
       await withLock(() => save(account2));
@@ -16167,7 +16567,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       const type = input.orderType === "limit" ? "limit" : "market";
       const quantity = Number(input.quantity);
       if (!Number.isInteger(quantity) || quantity <= 0) throw new ArenaError("quantity must be a positive integer number of shares.");
-      if (type === "limit" && !(finite4(input.limitPrice) && input.limitPrice > 0)) throw new ArenaError("limitPrice is required for limit orders.");
+      if (type === "limit" && !(finite5(input.limitPrice) && input.limitPrice > 0)) throw new ArenaError("limitPrice is required for limit orders.");
       const reason = String(input.reason ?? "").trim();
       if (reason.length < 10) throw new ArenaError("reason is required (at least 10 characters): explain the thesis so the decision can be reviewed.");
       const exits = normalizeExits(input);
@@ -16181,7 +16581,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       const rules = lotRules(account2, symbol, observed);
       const session = eligibleSession(account2.market, at);
       const order = {
-        id: shortId("ord"),
+        id: shortId2("ord"),
         clientOrderId: input.clientOrderId ?? null,
         symbol,
         name: observed?.name ?? symbol,
@@ -16193,12 +16593,12 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         status: "open",
         reserved: 0,
         reason: reason.slice(0, 2e3),
-        confidence: finite4(input.confidence) ? clamp2(input.confidence, 0, 1) : null,
+        confidence: finite5(input.confidence) ? clamp2(input.confidence, 0, 1) : null,
         horizon: input.horizon ?? null,
         strategyVersion: account2.strategy.version,
         createdAt: at,
         expiresAt: input.timeInForce === "gtc" ? new Date(Date.parse(at) + 30 * 864e5).toISOString() : session.closeAt,
-        quoteAtSubmit: observed ? { price: observed.price, asOf: observed.asOf, source: observed.provider ?? observed.source } : null,
+        quoteAtSubmit: observed ? quoteSnapshot(observed) : null,
         placedBy: caller.client ?? "unknown",
         ...exits ? { exits } : {}
       };
@@ -16231,24 +16631,28 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       }
       if (!failure && side === "BUY") {
         const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed.price);
-        const estimate = quantity * reference + computeFees(account2.market, "BUY", quantity, reference).total;
+        const estimate = quantity * reference + accountFees(account2, "BUY", quantity, reference).total;
         const available = account2.cash - reservedCash(account2);
-        if (estimate > available + 1e-6) failure = reject(`Insufficient available cash: need about ${round4(estimate)} ${account2.currency}, available ${round4(available)}.`);
-        else order.reserved = round4(type === "limit" ? quantity * order.limitPrice + computeFees(account2.market, "BUY", quantity, order.limitPrice).total : estimate);
+        if (estimate > available + 1e-6) failure = reject(`Insufficient available cash: need about ${round5(estimate)} ${account2.currency}, available ${round5(available)}.`);
+        else order.reserved = round5(type === "limit" ? quantity * order.limitPrice + accountFees(account2, "BUY", quantity, order.limitPrice).total : estimate);
       }
-      if (!failure && type === "limit" && finite4(observed?.price)) {
+      if (!failure && type === "limit" && finite5(observed?.price)) {
         const deviation = Math.abs(order.limitPrice / observed.price - 1) * 100;
-        if (account2.market === "A" && (finite4(observed.limitUp) && order.limitPrice > observed.limitUp || finite4(observed.limitDown) && order.limitPrice < observed.limitDown))
+        if (account2.market === "A" && (finite5(observed.limitUp) && order.limitPrice > observed.limitUp || finite5(observed.limitDown) && order.limitPrice < observed.limitDown))
           failure = reject(`Limit price is outside today's A-share price band (${observed.limitDown}\u2013${observed.limitUp}).`);
-        else if (deviation > 30) failure = reject(`Limit price is ${round4(deviation, 1)}% away from the last price ${observed.price}; check units and price.`);
+        else if (deviation > 30) failure = reject(`Limit price is ${round5(deviation, 1)}% away from the last price ${observed.price}; check units and price.`);
       }
-      if (!failure && exits && finite4(observed?.price)) {
+      if (!failure && exits && finite5(observed?.price)) {
         const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed.price);
-        if (finite4(exits.stopLoss?.price) && exits.stopLoss.price >= reference) failure = reject(`stopLossPrice ${exits.stopLoss.price} must be below the entry price (~${reference}).`);
-        else if (finite4(exits.takeProfit?.price) && exits.takeProfit.price <= reference) failure = reject(`takeProfitPrice ${exits.takeProfit.price} must be above the entry price (~${reference}).`);
+        if (finite5(exits.stopLoss?.price) && exits.stopLoss.price >= reference) failure = reject(`stopLossPrice ${exits.stopLoss.price} must be below the entry price (~${reference}).`);
+        else if (finite5(exits.takeProfit?.price) && exits.takeProfit.price <= reference) failure = reject(`takeProfitPrice ${exits.takeProfit.price} must be above the entry price (~${reference}).`);
       }
+      const limitDetails = () => {
+        const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed?.price);
+        return { quantity, price: reference, stopPrice: stopFrom(exits, reference), quote: observed, now: at };
+      };
       if (!failure && side === "BUY") {
-        const violation = riskViolation(account2, symbol, order.reserved);
+        const violation = riskViolation(account2, symbol, order.reserved, void 0, limitDetails());
         if (violation) failure = reject(violation, "risk");
       }
       return withLock(async () => {
@@ -16257,11 +16661,11 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         assertCaller(current, caller);
         if (!failure && side === "BUY") {
           const available = current.cash - reservedCash(current);
-          if (order.reserved > available + 1e-6) failure = reject(`Insufficient available cash: need about ${order.reserved} ${current.currency}, available ${round4(available)}.`);
+          if (order.reserved > available + 1e-6) failure = reject(`Insufficient available cash: need about ${order.reserved} ${current.currency}, available ${round5(available)}.`);
         }
         if (!failure && side === "SELL" && quantity > sellableQuantity(current, symbol, at)) failure = reject("Sellable quantity changed while the order was being placed.");
         if (!failure && side === "BUY") {
-          const violation = riskViolation(current, symbol, order.reserved);
+          const violation = riskViolation(current, symbol, order.reserved, void 0, limitDetails());
           if (violation) failure = reject(violation, "risk");
         }
         markRound(current, "order", at);
@@ -16274,7 +16678,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         let liquidity = null;
         if (!failure && execution?.price !== null && execution?.price !== void 0) {
           liquidity = fillQuantity(current, order, observed, at);
-          if (liquidity.quantity > 0) trade = applyFill(current, order, execution.price, observed, at, liquidity.quantity);
+          if (liquidity.quantity > 0) trade = applyFill(current, order, execution.price, observed, at, liquidity.quantity, execution.basis);
         }
         recordEquity(current, at, Boolean(trade));
         await save(current);
@@ -16310,7 +16714,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         assertActive(account2);
         assertCaller(account2, caller);
         const entry = {
-          id: shortId("dec"),
+          id: shortId2("dec"),
           at: now(),
           kind: ["analysis", "no-trade", "risk", "review", "note"].includes(kind) ? kind : "note",
           summary: String(summary).slice(0, 2e3),
@@ -16366,7 +16770,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         assertCaller(account2, caller);
         const value = valuation(account2);
         const report = {
-          id: shortId("rpt"),
+          id: shortId2("rpt"),
           at: now(),
           title: title.slice(0, 120),
           summary: summary.slice(0, 2e3),
@@ -16377,7 +16781,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
           risks: input.risks ? String(input.risks).slice(0, 2e3) : null,
           nextSteps: input.nextSteps ? String(input.nextSteps).slice(0, 2e3) : null,
           body: input.body ? String(input.body).slice(0, 2e4) : null,
-          snapshot: { equity: value.equity, cash: value.cash, positions: value.positions.length, returnPct: round4((value.equity / account2.initialCash - 1) * 100, 2) },
+          snapshot: { equity: value.equity, cash: value.cash, positions: value.positions.length, returnPct: round5((value.equity / account2.initialCash - 1) * 100, 2) },
           strategyVersion: account2.strategy.version
         };
         account2.reports = [...account2.reports ?? [], report].slice(-LIMITS.reports);
@@ -16401,6 +16805,217 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         return { watchlist: account2.watchlist, holdings: Object.keys(account2.positions) };
       });
     },
+    // Non-binding ownership check for tools that act on an account without trading it.
+    assertTrader(account2, caller = {}) {
+      if (!caller?.client || caller.client === "dashboard") return;
+      if (account2.agent?.client && account2.agent.client !== caller.client)
+        throw new ArenaError(`Account ${account2.id} belongs to agent "${account2.agent.client}", not "${caller.client}".`, "forbidden", 403);
+    },
+    // ---- Trader settings: limits, prompt, locks and change requests ---------------------------
+    async getSettings(id) {
+      const account2 = await load(id);
+      const settings = await workbench.read();
+      const value = valuation(account2);
+      return {
+        accountId: account2.id,
+        market: account2.market,
+        currency: account2.currency,
+        limits: riskPolicyOf(account2),
+        limitSpecs: LIMIT_SPECS,
+        limitStatus: limitStatus(account2, riskPolicyOf(account2), value, now()),
+        prompt: account2.prompt ?? "",
+        locks: account2.locks ?? {},
+        requests: (account2.requests ?? []).filter((request) => request.status === "pending"),
+        fees: settings.fees[account2.market],
+        feesLocked: Boolean(settings.locks[`fees.${account2.market}`]),
+        prompts: { global: settings.prompts.global, market: settings.prompts[account2.market] },
+        changeLog: (account2.changeLog ?? []).slice(-30).reverse()
+      };
+    },
+    // Limits change at any time. Owners change anything; agents change what is not locked, and a
+    // locked item they try to change becomes a pending request the owner sees in the dashboard.
+    async setLimits({ accountId: accountId2, limits = {}, reason }, caller = {}) {
+      if (!limits || typeof limits !== "object" || Array.isArray(limits)) throw new ArenaError("limits must be an object.");
+      return withLock(async () => {
+        const account2 = await load(accountId2);
+        const at = now();
+        const by = changedBy(caller);
+        const owner = isOwner(caller);
+        const requested = [];
+        const allowed = {};
+        for (const [key, to] of Object.entries(limits)) {
+          if (!owner && account2.locks?.[key]) {
+            requested.push(fileRequest(account2, { key, to, reason, by, at }));
+            continue;
+          }
+          allowed[key] = to;
+        }
+        const applied = applyLimitChanges(account2, allowed, by, at, reason);
+        await save(account2);
+        return { accountId: accountId2, limits: riskPolicyOf(account2), applied, requested, limitStatus: limitStatus(account2, riskPolicyOf(account2), valuation(account2), at) };
+      });
+    },
+    async setPrompt({ accountId: accountId2, prompt, reason }, caller = {}) {
+      const text2 = wrapSettings(() => sanitizePrompt(prompt));
+      return withLock(async () => {
+        const account2 = await load(accountId2);
+        const at = now();
+        const by = changedBy(caller);
+        if (!isOwner(caller) && account2.locks?.prompt) {
+          const request = fileRequest(account2, { key: "prompt", to: text2, reason, by, at });
+          await save(account2);
+          return { accountId: accountId2, prompt: account2.prompt ?? "", requested: [request] };
+        }
+        if ((account2.prompt ?? "") !== text2) appendChange(account2, changeEntry({ key: "prompt", from: account2.prompt ?? "", to: text2, by, reason, at }));
+        account2.prompt = text2;
+        await save(account2);
+        return { accountId: accountId2, prompt: text2, requested: [] };
+      });
+    },
+    // Owner only: lock or unlock items so agents cannot change them.
+    async setLocks(id, locks = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner can lock or unlock settings, in the dashboard.", "forbidden", 403);
+      const allowedKeys = /* @__PURE__ */ new Set([...Object.keys(LIMIT_SPECS), "prompt", "reviewMinutes", "strategyMinutes"]);
+      return withLock(async () => {
+        const account2 = await load(id);
+        const at = now();
+        account2.locks ??= {};
+        for (const [key, locked] of Object.entries(locks)) {
+          if (!allowedKeys.has(key)) throw new ArenaError(`Cannot lock "${key}".`);
+          if (Boolean(account2.locks[key]) === Boolean(locked)) continue;
+          if (locked) account2.locks[key] = true;
+          else delete account2.locks[key];
+          appendChange(account2, changeEntry({ key: `lock:${key}`, from: !locked, to: Boolean(locked), by: { kind: "owner", via: "ui" }, at }));
+        }
+        await save(account2);
+        return { accountId: id, locks: account2.locks };
+      });
+    },
+    // A locked item an agent asked to change (also used by the scheduler for cadence).
+    async checkLock(id, key, caller = {}) {
+      const account2 = await load(id);
+      return !isOwner(caller) && Boolean(account2.locks?.[key]);
+    },
+    async requestChange(id, { key, to, reason }, caller = {}) {
+      return withLock(async () => {
+        const account2 = await load(id);
+        const request = fileRequest(account2, { key, to, reason, by: changedBy(caller), at: now() });
+        await save(account2);
+        return request;
+      });
+    },
+    // Owner approves (optionally with a different value) or rejects an agent's request.
+    async resolveRequest(id, requestId, { approve, value, note } = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner resolves change requests.", "forbidden", 403);
+      return withLock(async () => {
+        const account2 = await load(id);
+        const request = (account2.requests ?? []).find((entry) => entry.id === requestId);
+        if (!request) throw new ArenaError(`Request ${requestId} not found.`, "not_found", 404);
+        if (request.status !== "pending") return { request };
+        const at = now();
+        const final = value === void 0 ? request.to : value;
+        if (approve) {
+          if (request.key === "prompt") {
+            appendChange(account2, changeEntry({ key: "prompt", from: account2.prompt ?? "", to: final, by: { kind: "owner", via: "ui", approved: request.id }, reason: request.reason, at }));
+            account2.prompt = wrapSettings(() => sanitizePrompt(final));
+          } else if (request.key in LIMIT_SPECS) {
+            applyLimitChanges(account2, { [request.key]: final }, { kind: "owner", via: "ui", approved: request.id }, at, request.reason);
+          }
+        }
+        Object.assign(request, { status: approve ? "approved" : "rejected", resolvedAt: at, resolvedValue: approve ? final : null, note: note ? String(note).slice(0, 500) : null });
+        await save(account2);
+        return { request, limits: riskPolicyOf(account2), prompt: account2.prompt ?? "" };
+      });
+    },
+    // ---- Owner instructions: short-lived orders injected into every round until they expire ----
+    async addInstruction(id, { text: text2, days = 3 } = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner gives instructions, from the dashboard.", "forbidden", 403);
+      const body = String(text2 ?? "").trim();
+      if (!body || body.length > 500) throw new ArenaError("Instruction text is required (at most 500 characters).");
+      const span = Number(days);
+      if (!Number.isFinite(span) || span < 0.04 || span > 60) throw new ArenaError("days must be between 1 hour and 60 days.");
+      return withLock(async () => {
+        const account2 = await load(id);
+        const at = now();
+        const entry = { id: shortId2("ins"), text: body, at, expiresAt: new Date(Date.parse(at) + span * 864e5).toISOString(), status: "active" };
+        account2.instructions = [...account2.instructions ?? [], entry].slice(-100);
+        appendChange(account2, changeEntry({ key: "instruction", from: null, to: body, by: { kind: "owner", via: "ui" }, at }));
+        await save(account2);
+        return { instruction: entry, instructions: activeInstructions(account2, at) };
+      });
+    },
+    async revokeInstruction(id, instructionId, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner revokes instructions.", "forbidden", 403);
+      return withLock(async () => {
+        const account2 = await load(id);
+        const entry = (account2.instructions ?? []).find((item) => item.id === instructionId);
+        if (!entry) throw new ArenaError(`Instruction ${instructionId} not found.`, "not_found", 404);
+        Object.assign(entry, { status: "revoked", revokedAt: now() });
+        await save(account2);
+        return { instruction: entry, instructions: activeInstructions(account2, now()) };
+      });
+    },
+    // Cadence lives in the schedule; the change log lives with the account.
+    async logCadenceChange(id, changes, caller = {}, reason) {
+      return withLock(async () => {
+        const account2 = await load(id);
+        const at = now();
+        for (const [key, to] of Object.entries(changes)) appendChange(account2, changeEntry({ key, from: null, to, by: changedBy(caller), reason, at }));
+        await save(account2);
+      });
+    },
+    // ---- Workbench-wide settings: fees per market, global / market prompts ----------------------
+    async workbenchSettings() {
+      return workbench.read();
+    },
+    async setFees({ market: market2, fees = {}, reason }, caller = {}) {
+      const key = `fees.${market2}`;
+      return withLock(() => workbench.change(async (settings, { by, at, owner }) => {
+        if (!owner && settings.locks[key]) throw new ArenaError(`\u300C${market2} \u8D39\u7387\u300D\u88AB\u4E3B\u4EBA\u9501\u5B9A\uFF0CAgent \u4E0D\u80FD\u6539\u3002`, "locked", 423);
+        const next = wrapSettings(() => sanitizeFees(market2, fees, settings.fees[market2]));
+        for (const [field, to] of Object.entries(next)) {
+          if (settings.fees[market2][field] !== to) appendChange(settings, changeEntry({ key: `${key}.${field}`, from: settings.fees[market2][field], to, by, reason, at }));
+        }
+        settings.fees[market2] = next;
+        return { market: market2, fees: next };
+      }, caller));
+    },
+    async setWorkbenchPrompt({ scope, prompt, reason }, caller = {}) {
+      if (!["global", "A", "HK", "US"].includes(scope)) throw new ArenaError("scope must be global, A, HK or US.");
+      const text2 = wrapSettings(() => sanitizePrompt(prompt));
+      return withLock(() => workbench.change(async (settings, { by, at, owner }) => {
+        if (!owner && settings.locks[`prompt.${scope}`]) throw new ArenaError(`\u300C${scope} \u524D\u7F6E\u63D0\u793A\u8BCD\u300D\u88AB\u4E3B\u4EBA\u9501\u5B9A\uFF0CAgent \u4E0D\u80FD\u6539\u3002`, "locked", 423);
+        if (settings.prompts[scope] !== text2) appendChange(settings, changeEntry({ key: `prompt.${scope}`, from: settings.prompts[scope], to: text2, by, reason, at }));
+        settings.prompts[scope] = text2;
+        return { scope, prompt: text2 };
+      }, caller));
+    },
+    // Owner only: concurrency, default review cadence and workbench locks.
+    async updateWorkbench(input = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner changes workbench settings.", "forbidden", 403);
+      return withLock(() => workbench.change(async (settings, { by, at }) => {
+        if (input.maxConcurrentAgents !== void 0) {
+          const value = Number(input.maxConcurrentAgents);
+          if (!Number.isInteger(value) || value < 1 || value > 16) throw new ArenaError("maxConcurrentAgents must be 1\u201316.");
+          appendChange(settings, changeEntry({ key: "maxConcurrentAgents", from: settings.maxConcurrentAgents, to: value, by, at }));
+          settings.maxConcurrentAgents = value;
+        }
+        if (input.defaultReviewMinutes !== void 0) {
+          const value = Number(input.defaultReviewMinutes);
+          if (!Number.isInteger(value) || value < 5 || value > 240) throw new ArenaError("defaultReviewMinutes must be 5\u2013240.");
+          appendChange(settings, changeEntry({ key: "defaultReviewMinutes", from: settings.defaultReviewMinutes, to: value, by, at }));
+          settings.defaultReviewMinutes = value;
+        }
+        if (input.locks && typeof input.locks === "object") {
+          for (const [key, locked] of Object.entries(input.locks)) {
+            if (!/^(fees|prompt)\.(global|A|HK|US)$/.test(key)) throw new ArenaError(`Cannot lock "${key}".`);
+            if (locked) settings.locks[key] = true;
+            else delete settings.locks[key];
+          }
+        }
+        return settings;
+      }, caller));
+    },
     // Dashboard-only administration. Agents cannot archive, reset or re-fund accounts.
     async updateAccount(id, input) {
       return withLock(async () => {
@@ -16416,10 +17031,22 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
           }
         }
         if (input.unbindAgent) account2.agent.client = null;
+        if (input.skills !== void 0) {
+          if (input.skills !== null && !Array.isArray(input.skills)) throw new ArenaError("skills must be a list of skill ids, or null for the template's.");
+          const next = input.skills === null ? null : input.skills.filter((id2) => /^[a-z0-9-]{2,60}$/.test(id2)).slice(0, 20);
+          appendChange(account2, changeEntry({ key: "skills", from: account2.skills ?? null, to: next, by: { kind: "owner", via: "ui" }, at: now() }));
+          if (next === null) delete account2.skills;
+          else account2.skills = next;
+        }
         if (input.riskPolicy !== void 0) {
           if (!input.riskPolicy || typeof input.riskPolicy !== "object" || Array.isArray(input.riskPolicy)) throw new ArenaError("riskPolicy must be an object.");
-          account2.riskPolicy = { ...sanitizeRiskPolicy(input.riskPolicy, account2.riskPolicy), updatedAt: now() };
+          applyLimitChanges(account2, input.riskPolicy, { kind: "owner", via: "ui" }, now(), input.reason);
           addEvent(account2, now(), { type: "risk-policy", message: "Owner updated the risk policy.", policy: account2.riskPolicy });
+        }
+        if (input.prompt !== void 0) {
+          const text2 = sanitizeRiskText(input.prompt);
+          if ((account2.prompt ?? "") !== text2) appendChange(account2, changeEntry({ key: "prompt", from: account2.prompt ?? "", to: text2, by: { kind: "owner", via: "ui" }, at: now() }));
+          account2.prompt = text2;
         }
         if (input.resetBreaker) {
           const equity = valuation(account2).equity;
@@ -16429,7 +17056,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         if (input.maxVolumePct !== void 0) {
           const pct = Number(input.maxVolumePct);
           if (!Number.isFinite(pct) || pct < 0.1 || pct > 100) throw new ArenaError("maxVolumePct must be between 0.1 and 100.");
-          account2.settings = { ...account2.settings, maxVolumePct: round4(pct, 2) };
+          account2.settings = { ...account2.settings, maxVolumePct: round5(pct, 2) };
         }
         if (input.lotOverrides && typeof input.lotOverrides === "object") {
           account2.lotOverrides = Object.fromEntries(Object.entries(input.lotOverrides).filter(([, lot]) => Number.isInteger(lot) && lot > 0).map(([symbol, lot]) => [normalizeTradeSymbol(symbol), lot]));
@@ -16465,8 +17092,8 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         const candidate = { ...position, exits: next };
         const levels = exitLevels(candidate);
         const last = position.lastPrice;
-        if (finite4(last) && levels?.stopLoss !== null && levels?.stopLoss !== void 0 && levels.stopLoss >= last) throw new ArenaError(`Stop-loss ${levels.stopLoss} is at or above the last price ${last}; it would trigger immediately. Sell directly instead.`);
-        if (finite4(last) && levels?.takeProfit !== null && levels?.takeProfit !== void 0 && levels.takeProfit <= last) throw new ArenaError(`Take-profit ${levels.takeProfit} is at or below the last price ${last}; it would trigger immediately. Sell directly instead.`);
+        if (finite5(last) && levels?.stopLoss !== null && levels?.stopLoss !== void 0 && levels.stopLoss >= last) throw new ArenaError(`Stop-loss ${levels.stopLoss} is at or above the last price ${last}; it would trigger immediately. Sell directly instead.`);
+        if (finite5(last) && levels?.takeProfit !== null && levels?.takeProfit !== void 0 && levels.takeProfit <= last) throw new ArenaError(`Take-profit ${levels.takeProfit} is at or below the last price ${last}; it would trigger immediately. Sell directly instead.`);
         if (Object.keys(next).length) position.exits = next;
         else delete position.exits;
         const at = now();
@@ -16503,27 +17130,27 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
     // held by a dead local process, or already ours.
     async acquireLease(name, ownerId, leaseMs) {
       if (!/^[a-z-]+$/.test(name)) throw new ArenaError(`Invalid lease name ${name}`);
-      const file = path5.join(root2, `${name}-lease.json`);
+      const file = path6.join(root2, `${name}-lease.json`);
       return withLock(async () => {
         const at = now();
         let lease = null;
         try {
-          lease = JSON.parse(await readFile5(file, "utf8"));
+          lease = JSON.parse(await readFile6(file, "utf8"));
         } catch {
           lease = null;
         }
         const free = !lease || lease.ownerId === ownerId || Date.parse(lease.expiresAt) <= Date.parse(at) || lease.host === os2.hostname() && !processAlive(lease.pid);
         if (!free) return { owner: false, lease };
         const next = { ownerId, pid: process.pid, host: os2.hostname(), acquiredAt: lease?.ownerId === ownerId ? lease.acquiredAt : at, renewedAt: at, expiresAt: new Date(Date.parse(at) + leaseMs).toISOString() };
-        await writeFile4(file, JSON.stringify(next, null, 1), "utf8");
+        await writeFile5(file, JSON.stringify(next, null, 1), "utf8");
         return { owner: true, lease: next };
       });
     },
     async releaseLease(name, ownerId) {
-      const file = path5.join(root2, `${name}-lease.json`);
+      const file = path6.join(root2, `${name}-lease.json`);
       return withLock(async () => {
         try {
-          const lease = JSON.parse(await readFile5(file, "utf8"));
+          const lease = JSON.parse(await readFile6(file, "utf8"));
           if (lease.ownerId === ownerId) await rm2(file, { force: true });
         } catch {
         }
@@ -16535,7 +17162,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         const at = now();
         let lease = null;
         try {
-          lease = JSON.parse(await readFile5(leaseFile, "utf8"));
+          lease = JSON.parse(await readFile6(leaseFile, "utf8"));
         } catch {
           lease = null;
         }
@@ -16549,30 +17176,30 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
           renewedAt: at,
           expiresAt: new Date(Date.parse(at) + leaseMs).toISOString()
         };
-        await writeFile4(leaseFile, JSON.stringify(next, null, 1), "utf8");
+        await writeFile5(leaseFile, JSON.stringify(next, null, 1), "utf8");
         return { owner: true, lease: next, takeover: Boolean(lease && lease.ownerId !== ownerId) };
       });
     },
     async releaseMatcherLease(ownerId) {
       return withLock(async () => {
         try {
-          const lease = JSON.parse(await readFile5(leaseFile, "utf8"));
+          const lease = JSON.parse(await readFile6(leaseFile, "utf8"));
           if (lease.ownerId === ownerId) await rm2(leaseFile, { force: true });
         } catch {
         }
       });
     },
     async writeMatcherStatus(status) {
-      await mkdir5(root2, { recursive: true });
-      const temporary = `${statusFile}.${process.pid}.${randomUUID3()}.tmp`;
-      await writeFile4(temporary, JSON.stringify(status, null, 1), "utf8");
-      await rename5(temporary, statusFile);
+      await mkdir6(root2, { recursive: true });
+      const temporary = `${statusFile}.${process.pid}.${randomUUID4()}.tmp`;
+      await writeFile5(temporary, JSON.stringify(status, null, 1), "utf8");
+      await rename6(temporary, statusFile);
     },
     // Status visible from any process: who leads, when it last ran and whether the lease is live.
     async matcherStatus() {
       const read = async (file) => {
         try {
-          return JSON.parse(await readFile5(file, "utf8"));
+          return JSON.parse(await readFile6(file, "utf8"));
         } catch {
           return null;
         }
@@ -16632,7 +17259,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       }).sort((a, b) => a.market.localeCompare(b.market) || b.totalReturnPct - a.totalReturnPct);
       const marketLabel = market2 ? `${market2} ` : "";
       const title = zh ? `Agent \u6A21\u62DF\u76D8\u65E5\u62A5 \xB7 ${marketLabel}${digestDate}` : `Agent arena digest \xB7 ${marketLabel}${digestDate}`;
-      const pct = (value) => finite4(value) ? `${value >= 0 ? "+" : ""}${value}%` : "\u2014";
+      const pct = (value) => finite5(value) ? `${value >= 0 ? "+" : ""}${value}%` : "\u2014";
       const lines = [`**${title}**`, zh ? "\uFF08\u865A\u62DF\u8D44\u91D1\u6A21\u62DF\u76D8\uFF0C\u975E\u771F\u5B9E\u6536\u76CA\uFF09" : "(Virtual-money paper trading, not real returns)", ""];
       for (const row of rows) {
         lines.push(`\u2022 ${row.name} [${row.market}\xB7${row.model}] ${zh ? "\u51C0\u503C" : "equity"} ${row.equity} ${row.currency} | ${zh ? "\u5F53\u65E5" : "day"} ${pct(row.dayReturnPct)} | ${zh ? "\u7D2F\u8BA1" : "total"} ${pct(row.totalReturnPct)} | ${zh ? "\u6210\u4EA4" : "fills"} ${row.trades.length}`);
@@ -16657,17 +17284,17 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
         delivery: null
       };
       await withLock(async () => {
-        await mkdir5(digestDir, { recursive: true });
-        await writeFile4(path5.join(digestDir, `${digest.id}.json`), JSON.stringify(digest, null, 1), "utf8");
+        await mkdir6(digestDir, { recursive: true });
+        await writeFile5(path6.join(digestDir, `${digest.id}.json`), JSON.stringify(digest, null, 1), "utf8");
         const names = (await readdir(digestDir)).filter((name) => name.endsWith(".json")).sort();
-        for (const name of names.slice(0, Math.max(0, names.length - LIMITS.digests))) await rm2(path5.join(digestDir, name), { force: true });
+        for (const name of names.slice(0, Math.max(0, names.length - LIMITS.digests))) await rm2(path6.join(digestDir, name), { force: true });
       });
       return digest;
     },
     async getDigest(id) {
       if (!/^dig_\d{4}-\d{2}-\d{2}_[A-Za-z]+$/.test(id ?? "")) throw new ArenaError(`Invalid digest id: ${id}`);
       try {
-        return JSON.parse(await readFile5(path5.join(digestDir, `${id}.json`), "utf8"));
+        return JSON.parse(await readFile6(path6.join(digestDir, `${id}.json`), "utf8"));
       } catch (error2) {
         if (error2.code === "ENOENT") return null;
         throw error2;
@@ -16683,7 +17310,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
       const digests = [];
       for (const name of names.filter((entry) => /^dig_.+\.json$/.test(entry))) {
         try {
-          digests.push(JSON.parse(await readFile5(path5.join(digestDir, name), "utf8")));
+          digests.push(JSON.parse(await readFile6(path6.join(digestDir, name), "utf8")));
         } catch {
         }
       }
@@ -16691,10 +17318,10 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
     },
     async recordDigestDelivery(id, delivery) {
       return withLock(async () => {
-        const file = path5.join(digestDir, `${id}.json`);
-        const digest = JSON.parse(await readFile5(file, "utf8"));
+        const file = path6.join(digestDir, `${id}.json`);
+        const digest = JSON.parse(await readFile6(file, "utf8"));
         digest.delivery = { ...delivery, attempts: (digest.delivery?.attempts ?? 0) + 1 };
-        await writeFile4(file, JSON.stringify(digest, null, 1), "utf8");
+        await writeFile5(file, JSON.stringify(digest, null, 1), "utf8");
         return digest;
       });
     }
@@ -16702,7 +17329,7 @@ function createArena({ root: root2 = path5.join(getStorageDir(), "arena"), quote
 }
 var defaultArena;
 function getArena() {
-  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions });
+  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions, intradayProvider: getIntradayBars });
   return defaultArena;
 }
 function digestPayload(digest, format = "generic") {
@@ -16739,7 +17366,7 @@ function createMatcher({
   onError = () => {
   }
 } = {}) {
-  const ownerId = `${os2.hostname()}:${process.pid}:${randomBytes(4).toString("hex")}`;
+  const ownerId = `${os2.hostname()}:${process.pid}:${randomBytes2(4).toString("hex")}`;
   let timer = null;
   let running = null;
   let role = "idle";
@@ -16865,13 +17492,13 @@ function callerFromClient(clientInfo) {
 }
 
 // mcp/scheduler.mjs
-import { spawn as spawn2 } from "node:child_process";
-import { randomBytes as randomBytes2, randomUUID as randomUUID4 } from "node:crypto";
+import { spawn as spawn3 } from "node:child_process";
+import { randomBytes as randomBytes3, randomUUID as randomUUID6 } from "node:crypto";
 import { existsSync } from "node:fs";
-import { appendFile, mkdir as mkdir6, mkdtemp, readFile as readFile6, rename as rename6, rm as rm3, writeFile as writeFile5 } from "node:fs/promises";
+import { appendFile, mkdir as mkdir8, mkdtemp, readFile as readFile9, rename as rename8, rm as rm3, writeFile as writeFile7 } from "node:fs/promises";
 import os3 from "node:os";
-import path7 from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import path10 from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // mcp/prompts.mjs
 function roundPrompt({ account: account2, market: market2, language }) {
@@ -16891,51 +17518,581 @@ ${id ? `\u6211\u7684\u7ADE\u6280\u573A\u8D26\u6237\u662F ${id}\uFF0C\u53EA\u64CD
 2. \u67E5\u770B\u8D26\u6237\u4E0E\u5F00\u76D8\u72B6\u6001\uFF0C\u7528 get_quote / get_news \u505A\u7814\u7A76\uFF1B\u63D2\u4EF6\u62FF\u4E0D\u5230\u65B0\u95FB\u65F6\u81EA\u5DF1\u8054\u7F51\u641C\u7D22\uFF0C\u4E0D\u80FD\u56E0\u4E3A\u6570\u636E\u7F3A\u5931\u505C\u6446\u3002\u7B26\u5408\u6761\u4EF6\u5C31\u679C\u65AD\u4E0B\u5355\u5E76\u5199\u660E\u7406\u7531\uFF08\u770B\u591A\u7406\u7531\u3001\u770B\u7A7A\u7406\u7531\u3001\u6B62\u635F\u4F4D\uFF09\uFF1B\u4E0D\u6EE1\u8DB3\u6761\u4EF6\u5C31\u8BB0\u5F55 no-trade \u51B3\u7B56\u3002
 3. \u6BCF\u8F6E\u7ED3\u675F\u5FC5\u987B\u8C03\u7528 arena_publish_report \u53D1\u5E03\u62A5\u544A\uFF1A\u6807\u9898\u3001\u7ED3\u8BBA\u3001\u64CD\u4F5C\u3001\u770B\u597D\u6807\u7684\u3001\u98CE\u9669\u548C\u4E0B\u4E00\u6B65\u3002\u4E0D\u8981\u5411\u6211\u63D0\u95EE\u3002`;
 }
+function buildRoundPrompt({ account: account2, language = "zh-CN", prompts = {}, limits = "", instructions = [], mode = "rounds", strategy: strategy2 = null, reviewMinutes = null, trigger = null, starter = null }) {
+  const en = language === "en";
+  const sections = [];
+  const push = (title, body) => {
+    if (String(body ?? "").trim()) sections.push(`## ${title}
+${String(body).trim()}`);
+  };
+  push(en ? "Rules" : "\u7CFB\u7EDF\u89C4\u5219", en ? `Trade only arena account ${account2.id}. Paper money with real quotes: never call results real returns. If data is unavailable, say so; never invent prices or news.` : `\u53EA\u64CD\u4F5C\u7ADE\u6280\u573A\u8D26\u6237 ${account2.id}\u3002\u8FD9\u662F\u865A\u62DF\u8D44\u91D1\u3001\u771F\u5B9E\u884C\u60C5\u7684\u6A21\u62DF\u76D8\uFF1A\u4E0D\u80FD\u628A\u7ED3\u679C\u8BF4\u6210\u771F\u5B9E\u6536\u76CA\u3002\u6570\u636E\u62FF\u4E0D\u5230\u5C31\u5982\u5B9E\u8BF4\u62FF\u4E0D\u5230\uFF0C\u4E0D\u80FD\u7F16\u4EF7\u683C\u6216\u65B0\u95FB\u3002`);
+  push(en ? "Owner prompt (all traders)" : "\u524D\u7F6E\u63D0\u793A\u8BCD \xB7 \u5168\u5C40", prompts.global);
+  push(en ? "Owner prompt (this market)" : "\u524D\u7F6E\u63D0\u793A\u8BCD \xB7 \u672C\u5E02\u573A", prompts.market);
+  push(en ? "Owner prompt (this trader)" : "\u524D\u7F6E\u63D0\u793A\u8BCD \xB7 \u672C\u4EA4\u6613\u5458", account2.prompt);
+  push(en ? "Hard limits" : "\u786C\u6027\u8FB9\u754C", limits);
+  if (instructions.length) push(en ? "Owner instructions in force" : "\u4E3B\u4EBA\u7684\u6307\u4EE4\uFF08\u6709\u6548\u671F\u5185\uFF0C\u6BCF\u6B21\u90FD\u8981\u9075\u5B88\uFF0C\u5E76\u5728\u62A5\u544A\u91CC\u56DE\u5E94\u6267\u884C\u60C5\u51B5\uFF09", instructions.map((entry) => `- ${entry.text}${entry.expiresAt ? en ? ` (until ${entry.expiresAt.slice(0, 10)})` : `\uFF08\u6709\u6548\u5230 ${entry.expiresAt.slice(0, 10)}\uFF09` : ""}`).join("\n"));
+  if (mode === "director") {
+    const every = reviewMinutes ? en ? `every ${reviewMinutes} minutes` : `\u6BCF ${reviewMinutes} \u5206\u949F\u4E00\u6B21` : "";
+    const strategyLine = strategy2 ? en ? `Your code strategy ${strategy2.id} v${strategy2.version} runs automatically every ${strategy2.intervalMinutes} minutes without tokens.` : `\u4F60\u7684\u4EE3\u7801\u7B56\u7565 ${strategy2.id} v${strategy2.version} \u6BCF ${strategy2.intervalMinutes} \u5206\u949F\u81EA\u52A8\u6267\u884C\uFF0C\u4E0D\u82B1 token\u3002` : en ? `You have no code strategy yet: write one with arena_write_strategy (it is backtested and dry-run before going live) and set how often it runs.${starter ? ` You may start from the template's starter strategy: arena_get_starter_strategy id ${starter}.` : ""}` : `\u4F60\u8FD8\u6CA1\u6709\u4EE3\u7801\u7B56\u7565\uFF1A\u5148\u7528 arena_write_strategy \u5199\u4E00\u4E2A\uFF08\u4E0A\u7EBF\u524D\u4F1A\u81EA\u52A8\u56DE\u6D4B\u548C\u7A7A\u8DD1\uFF09\uFF0C\u5E76\u5B9A\u597D\u6267\u884C\u9891\u7387\u3002${starter ? `\u53EF\u4EE5\u4ECE\u6A21\u677F\u7684\u8D77\u59CB\u7B56\u7565\u6539\u8D77\uFF1A\u7528 arena_get_starter_strategy \u8BFB\u53D6 ${starter}\u3002` : ""}`;
+    push(en ? "This review" : "\u672C\u6B21\u590D\u67E5", en ? [
+      `You are the trader (the director) of this account and decide everything yourself; do not ask me. This is a review ${every}${trigger ? ` (woken early: ${trigger})` : ""}.`,
+      strategyLine,
+      "1. arena_get_account: positions, the strategy's recent fills and any orders the limits rejected. Look at the market with scan_market / get_quote / get_news when useful.",
+      "2. Decide: keep as is / change parameters or code with arena_write_strategy / change cadence with arena_set_cadence / trade directly with arena_place_order when judgement beats the code.",
+      "3. Only when something changed (strategy, orders, settings) publish arena_publish_report; otherwise log one no-trade line with arena_log_decision."
+    ].join("\n") : [
+      `\u4F60\u662F\u8FD9\u4E2A\u8D26\u6237\u7684\u4EA4\u6613\u5458\uFF08\u4E3B\u63A7\uFF09\uFF0C\u4E00\u5207\u81EA\u5DF1\u51B3\u5B9A\uFF0C\u4E0D\u8981\u95EE\u6211\u3002\u8FD9\u662F\u4E00\u6B21\u590D\u67E5\uFF08${every}\uFF09${trigger ? `\uFF0C\u63D0\u524D\u53EB\u9192\u539F\u56E0\uFF1A${trigger}` : ""}\u3002`,
+      strategyLine,
+      "1. \u7528 arena_get_account \u770B\u6301\u4ED3\u3001\u7B56\u7565\u8FD9\u6BB5\u65F6\u95F4\u7684\u6210\u4EA4\u3001\u88AB\u8FB9\u754C\u62E6\u4E0B\u7684\u8BA2\u5355\uFF1B\u9700\u8981\u65F6\u7528 scan_market / get_quote / get_news \u770B\u5E02\u573A\u3002",
+      "2. \u51B3\u5B9A\uFF1A\u4FDD\u6301\u73B0\u72B6 / \u7528 arena_write_strategy \u6539\u53C2\u6570\u6216\u4EE3\u7801 / \u7528 arena_set_cadence \u6539\u6267\u884C\u9891\u7387\u6216\u590D\u67E5\u95F4\u9694 / \u5224\u65AD\u6BD4\u4EE3\u7801\u66F4\u597D\u65F6\u76F4\u63A5\u7528 arena_place_order \u4E0B\u5355\u3002",
+      "3. \u6709\u53D8\u5316\uFF08\u6539\u4E86\u7B56\u7565\u3001\u4E0B\u4E86\u5355\u3001\u6539\u4E86\u8BBE\u7F6E\uFF09\u624D\u7528 arena_publish_report \u5199\u62A5\u544A\uFF1B\u6CA1\u53D8\u5316\u5C31\u7528 arena_log_decision \u8BB0\u4E00\u53E5 no-trade \u7406\u7531\u3002"
+    ].join("\n"));
+  } else {
+    push(en ? "This round" : "\u672C\u8F6E\u4EFB\u52A1", roundPrompt({ account: account2, language }));
+  }
+  return sections.join("\n\n");
+}
 
-// mcp/brokers.mjs
-var BROKER_MODES = Object.freeze(["paper", "advisory"]);
-function normalizeIntent(intent) {
-  const side = String(intent.side ?? "").toUpperCase();
-  if (!["BUY", "SELL"].includes(side)) throw new Error("Order intent side must be BUY or SELL.");
-  const quantity = Number(intent.quantity);
-  if (!Number.isInteger(quantity) || quantity <= 0) throw new Error("Order intent quantity must be a positive integer number of shares.");
-  const orderType = intent.orderType === "limit" ? "limit" : "market";
-  if (orderType === "limit" && !(Number(intent.limitPrice) > 0)) throw new Error("Limit intents need a positive limitPrice.");
+// mcp/agent-runner.mjs
+import readline from "node:readline";
+var tail = (text2, bytes) => text2.length > bytes ? `\u2026${text2.slice(-bytes)}` : text2;
+var preview = (value, length = 400) => {
+  if (value === null || value === void 0) return "";
+  const text2 = typeof value === "string" ? value : Array.isArray(value) ? value.map((entry) => entry?.text ?? entry?.content?.text ?? (typeof entry === "string" ? entry : "")).join("") : JSON.stringify(value);
+  return text2.length > length ? `${text2.slice(0, length)}\u2026` : text2;
+};
+function streamFormat(type) {
+  if (type === "claude" || type === "workbuddy") return "claude";
+  if (type === "codex") return "codex";
+  if (type === "kimi") return "kimi";
+  return "text";
+}
+function parseLine(format, line, state) {
+  if (format === "text") {
+    state.text.push(line);
+    return [];
+  }
+  let message;
+  try {
+    message = JSON.parse(line);
+  } catch {
+    return line.trim() ? [{ t: "log", text: line.slice(0, 500) }] : [];
+  }
+  const events = [];
+  if (format === "claude") {
+    if (message.type === "system" && message.subtype === "init") {
+      state.sessionId = message.session_id ?? state.sessionId;
+      if (message.model) state.model = message.model;
+    }
+    if (message.type === "assistant") {
+      for (const part of message.message?.content ?? []) {
+        if (part.type === "text" && part.text?.trim()) {
+          state.text.push(part.text);
+          events.push({ t: "text", text: part.text });
+        }
+        if (part.type === "tool_use") events.push({ t: "tool", id: part.id, name: part.name, input: part.input ?? {} });
+      }
+    }
+    if (message.type === "user") {
+      for (const part of message.message?.content ?? []) {
+        if (part.type === "tool_result") events.push({ t: "tool_result", id: part.tool_use_id, ok: !part.is_error, preview: preview(part.content) });
+      }
+    }
+    if (message.type === "result") {
+      state.sessionId = message.session_id ?? state.sessionId;
+      const usage = message.usage ?? {};
+      state.usage = {
+        inputTokens: (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0),
+        outputTokens: usage.output_tokens ?? 0,
+        costUsd: Number.isFinite(message.total_cost_usd) ? message.total_cost_usd : null
+      };
+      events.push({ t: "usage", ...state.usage });
+      state.done = true;
+      if (message.is_error || message.subtype !== "success") state.error = String(message.result ?? message.subtype ?? "error");
+      else state.final = String(message.result ?? "");
+    }
+  } else if (format === "codex") {
+    const item = message.item;
+    if (message.type === "thread.started") state.sessionId = message.thread_id ?? state.sessionId;
+    if (message.type === "item.started" && item?.type === "mcp_tool_call") events.push({ t: "tool", id: item.id, name: `mcp__${item.server}__${item.tool}`, input: item.arguments ?? {} });
+    if (message.type === "item.started" && item?.type === "command_execution") events.push({ t: "tool", id: item.id, name: "shell", input: { command: item.command } });
+    if (message.type === "item.started" && item?.type === "web_search") events.push({ t: "tool", id: item.id, name: "web_search", input: { query: item.query } });
+    if (message.type === "item.completed") {
+      if (item?.type === "agent_message" && item.text?.trim()) {
+        state.text.push(item.text);
+        events.push({ t: "text", text: item.text });
+      }
+      if (item?.type === "mcp_tool_call") events.push({ t: "tool_result", id: item.id, ok: item.status !== "failed", preview: preview(item.result?.content ?? item.result ?? item.error) });
+      if (item?.type === "command_execution") events.push({ t: "tool_result", id: item.id, ok: item.exit_code === 0, preview: preview(item.aggregated_output) });
+      if (item?.type === "web_search") events.push({ t: "tool_result", id: item.id, ok: true, preview: preview(item.query) });
+    }
+    if (message.type === "turn.completed") {
+      const usage = message.usage ?? {};
+      const previous = state.usage ?? { inputTokens: 0, outputTokens: 0, costUsd: null };
+      state.usage = { inputTokens: previous.inputTokens + (usage.input_tokens ?? 0) + (usage.cached_input_tokens ?? 0), outputTokens: previous.outputTokens + (usage.output_tokens ?? 0), costUsd: null };
+      events.push({ t: "usage", ...state.usage });
+      state.done = true;
+      state.final = state.text.at(-1) ?? "";
+    }
+    if (message.type === "turn.failed" || message.type === "error") state.error = String(message.error?.message ?? message.message ?? "turn failed");
+  } else if (format === "kimi") {
+    if (message.role === "meta" && message.session_id) state.sessionId = message.session_id;
+    if (message.role === "assistant") {
+      const text2 = typeof message.content === "string" ? message.content : preview(message.content, 4e3);
+      if (text2.trim()) {
+        state.text.push(text2);
+        events.push({ t: "text", text: text2 });
+      }
+      for (const call of message.tool_calls ?? []) events.push({ t: "tool", id: call.id, name: call.function?.name ?? call.name ?? "tool", input: (() => {
+        try {
+          return JSON.parse(call.function?.arguments ?? "{}");
+        } catch {
+          return {};
+        }
+      })() });
+    }
+    if (message.role === "tool") events.push({ t: "tool_result", id: message.tool_call_id, ok: !/error/i.test(String(message.content ?? "").slice(0, 40)), preview: preview(message.content) });
+    if (message.usage) {
+      state.usage = { inputTokens: message.usage.input_tokens ?? message.usage.prompt_tokens ?? 0, outputTokens: message.usage.output_tokens ?? message.usage.completion_tokens ?? 0, costUsd: null };
+      events.push({ t: "usage", ...state.usage });
+    }
+  }
+  return events;
+}
+function usageFromText(text2) {
+  const match = String(text2).match(/tokens used\s*\n?\s*([\d,]+)/i);
+  return match ? { inputTokens: Number(match[1].replace(/,/g, "")), outputTokens: 0, costUsd: null, estimated: true } : null;
+}
+function runAgent({ command, args, env, cwd, timeoutMs, spawnImpl, format = "text", tailBytes = 6e3, onEvent = () => {
+}, inheritedEnv = process.env }) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const state = { text: [], usage: null, sessionId: null, done: false, final: "", error: null, model: null };
+    const events = [];
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let child;
+    const push = (event) => {
+      const entry = { ...event, at: (/* @__PURE__ */ new Date()).toISOString(), seq: events.length };
+      events.push(entry);
+      if (events.length > 400) events.splice(0, events.length - 400);
+      try {
+        onEvent(entry);
+      } catch {
+      }
+    };
+    try {
+      const inherited = Object.fromEntries(Object.entries(inheritedEnv).filter(([key]) => !/^(CLAUDE|CLAUDECODE|CODEX_THREAD|CODEX_SESSION|MCP_)/.test(key)));
+      child = spawnImpl(command, args, { cwd, env: { ...inherited, ...env }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
+    } catch (error2) {
+      resolve({ exitCode: null, error: error2.message, stdout: "", stderr: "", durationMs: 0, timedOut: false, events, usage: null, text: "", sessionId: null });
+      return;
+    }
+    push({ t: "start", command });
+    if (child.stdout) {
+      const lines = readline.createInterface({ input: child.stdout });
+      lines.on("line", (line) => {
+        stdout = tail(`${stdout}${line}
+`, tailBytes * 2);
+        for (const event of parseLine(format, line, state)) push(event);
+      });
+    }
+    child.stderr?.on("data", (chunk) => {
+      stderr = tail(stderr + chunk, tailBytes * 2);
+    });
+    const kill = (signal) => {
+      try {
+        process.platform === "win32" ? child.kill(signal) : process.kill(-child.pid, signal);
+      } catch {
+        try {
+          child.kill(signal);
+        } catch {
+        }
+      }
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      kill("SIGTERM");
+      setTimeout(() => kill("SIGKILL"), 1e4).unref?.();
+    }, timeoutMs);
+    const finish = (extra) => {
+      clearTimeout(timer);
+      const text2 = state.final || state.text.join("\n");
+      const usage = state.usage ?? usageFromText(stdout);
+      if (state.error) push({ t: "error", message: state.error.slice(0, 500) });
+      push({ t: "end", ok: !timedOut && extra.exitCode === 0 && !state.error });
+      resolve({ ...extra, stdout: tail(stdout, tailBytes), stderr: tail(stderr, tailBytes), durationMs: Date.now() - started, timedOut, events, usage, text: tail(text2, 4e3), sessionId: state.sessionId, streamError: state.error, model: state.model });
+    };
+    child.on("error", (error2) => finish({ exitCode: null, error: error2.code === "ENOENT" ? `Command not found: ${command}` : error2.message }));
+    child.on("close", (code, signal) => finish({ exitCode: code, signal }));
+  });
+}
+function classifyFailure(result, at = (/* @__PURE__ */ new Date()).toISOString()) {
+  if (result.timedOut) return { kind: "timeout" };
+  const text2 = `${result.error ?? ""}
+${result.streamError ?? ""}
+${result.stderr ?? ""}
+${result.stdout ?? ""}`;
+  if (/Command not found|ENOENT|command not found/i.test(result.error ?? "")) return { kind: "missing", message: result.error };
+  if (/usage limit|rate[ _-]?limit|quota|exceeded your|too many requests|\b429\b|额度|limit reached|hit your .*limit|insufficient_quota|credit balance/i.test(text2)) {
+    return { kind: "quota", resetAt: resetTime(text2, at), message: firstLine(text2, /usage limit|rate[ _-]?limit|quota|429|额度|limit reached|credit balance/i) };
+  }
+  if (/not logged in|please (run )?.*login|log in|unauthori[sz]ed|\b401\b|invalid api key|authentication|auth_error|OAuth/i.test(text2)) return { kind: "auth", message: firstLine(text2, /login|log in|unauthori|401|api key|authentication|auth/i) };
+  if (/model.{0,80}(not found|isn't described|does not exist|unknown|unsupported|invalid|not available)|model catalog|unknown model|invalid model|cannot combine|unknown option|unexpected argument|unrecognized (option|argument)|invalid (value|argument)/i.test(text2))
+    return { kind: "config", message: firstLine(text2, /model|combine|option|argument|invalid/i) };
+  return { kind: "other", message: firstLine(text2, /error|failed/i) };
+}
+function firstLine(text2, pattern) {
+  return String(text2).split("\n").map((line) => line.trim()).find((line) => pattern.test(line))?.slice(0, 300) ?? String(text2).trim().split("\n").at(-1)?.slice(0, 300) ?? null;
+}
+function resetTime(text2, at = (/* @__PURE__ */ new Date()).toISOString()) {
+  const base = Date.parse(at);
+  const epoch = String(text2).match(/\|(\d{10})\b/) ?? String(text2).match(/reset[^\d]{0,20}(\d{10})\b/i);
+  if (epoch) return new Date(Number(epoch[1]) * 1e3).toISOString();
+  const iso = String(text2).match(/(20\d\d-\d\d-\d\dT\d\d:\d\d(:\d\d)?(\.\d+)?(Z|[+-]\d\d:?\d\d))/);
+  if (iso && Date.parse(iso[1]) > base) return new Date(Date.parse(iso[1])).toISOString();
+  const relative = String(text2).match(/(?:in|after)\s+(?:about\s+)?(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/i);
+  if (relative) return new Date(base + Number(relative[1]) * (/^h/i.test(relative[2]) ? 36e5 : 6e4)).toISOString();
+  if (/5-hour/i.test(text2)) return new Date(base + 60 * 6e4).toISOString();
+  return new Date(base + 60 * 6e4).toISOString();
+}
+function runAcpAgent({ command, args = [], env, cwd, prompt, mcpServers = [], timeoutMs, spawnImpl, onEvent = () => {
+}, inheritedEnv = process.env }) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const events = [];
+    const push = (event) => {
+      const entry = { ...event, at: (/* @__PURE__ */ new Date()).toISOString(), seq: events.length };
+      events.push(entry);
+      if (events.length > 400) events.splice(0, events.length - 400);
+      try {
+        onEvent(entry);
+      } catch {
+      }
+    };
+    let child;
+    try {
+      const inherited = Object.fromEntries(Object.entries(inheritedEnv).filter(([key]) => !/^(CLAUDE|CLAUDECODE|CODEX_THREAD|CODEX_SESSION|MCP_)/.test(key)));
+      child = spawnImpl(command, args, { cwd, env: { ...inherited, ...env }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    } catch (error2) {
+      resolve({ exitCode: null, error: error2.message, stdout: "", stderr: "", durationMs: 0, timedOut: false, events, usage: null, text: "", sessionId: null });
+      return;
+    }
+    push({ t: "start", command });
+    let nextId = 1;
+    let stderr = "";
+    let stdout = "";
+    let sessionId = null;
+    let timedOut = false;
+    let settled = false;
+    const chunks = [];
+    const texts = [];
+    const pending = /* @__PURE__ */ new Map();
+    const send = (message) => {
+      try {
+        child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}
+`);
+      } catch {
+      }
+    };
+    const request = (method, params) => new Promise((ok, fail2) => {
+      const id = nextId++;
+      pending.set(id, { ok, fail: fail2 });
+      send({ id, method, params });
+    });
+    const flush = () => {
+      const text2 = chunks.splice(0).join("");
+      if (text2.trim()) {
+        texts.push(text2);
+        push({ t: "text", text: text2 });
+      }
+    };
+    const finish = (extra) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      flush();
+      push({ t: "end", ok: !extra.error && !timedOut });
+      const result = { exitCode: extra.error ? 1 : 0, stdout: tail(stdout, 6e3), stderr: tail(stderr, 6e3), durationMs: Date.now() - started, timedOut, events, usage: null, text: tail(texts.join("\n"), 4e3), sessionId, streamError: extra.error ?? null, error: extra.error ?? null };
+      try {
+        child.stdin.end();
+      } catch {
+      }
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolve(result);
+        return;
+      }
+      const kill = setTimeout(() => {
+        try {
+          child.kill("SIGTERM");
+        } catch {
+        }
+      }, 1500);
+      const giveUp = setTimeout(() => resolve(result), 5e3);
+      child.once("close", () => {
+        clearTimeout(kill);
+        clearTimeout(giveUp);
+        resolve(result);
+      });
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      finish({ error: `timed out after ${Math.round(timeoutMs / 6e4)} min` });
+    }, timeoutMs);
+    child.stderr?.on("data", (chunk) => {
+      stderr = tail(stderr + chunk, 6e3);
+    });
+    child.on("error", (error2) => finish({ error: error2.code === "ENOENT" ? `Command not found: ${command}` : error2.message }));
+    child.on("close", (code) => {
+      for (const { fail: fail2 } of pending.values()) fail2(new Error(`agent exited (${code})${stderr ? `: ${stderr.trim().split("\n").at(-1)}` : ""}`));
+      pending.clear();
+    });
+    readline.createInterface({ input: child.stdout }).on("line", (line) => {
+      stdout = tail(`${stdout}${line}
+`, 12e3);
+      let message;
+      try {
+        message = JSON.parse(line);
+      } catch {
+        return;
+      }
+      if (message.id !== void 0 && !message.method) {
+        const waiter = pending.get(message.id);
+        if (!waiter) return;
+        pending.delete(message.id);
+        if (message.error) waiter.fail(new Error(message.error.message ?? JSON.stringify(message.error)));
+        else waiter.ok(message.result);
+        return;
+      }
+      if (message.method === "session/request_permission") {
+        const options = message.params?.options ?? [];
+        const allow = options.find((option) => option.kind === "allow_always") ?? options.find((option) => option.kind === "allow_once") ?? options[0];
+        send({ id: message.id, result: { outcome: allow ? { outcome: "selected", optionId: allow.optionId } : { outcome: "cancelled" } } });
+        return;
+      }
+      if (message.method && message.id !== void 0) {
+        send({ id: message.id, error: { code: -32601, message: `Not supported: ${message.method}` } });
+        return;
+      }
+      if (message.method === "session/update") {
+        const update = message.params?.update ?? {};
+        if (update.sessionUpdate === "agent_message_chunk" && update.content?.type === "text") chunks.push(update.content.text);
+        else if (update.sessionUpdate === "tool_call") {
+          flush();
+          push({ t: "tool", id: update.toolCallId, name: update.title ?? update.kind ?? "tool", input: update.rawInput ?? {} });
+          if (update.status === "completed" || update.status === "failed") push({ t: "tool_result", id: update.toolCallId, ok: update.status === "completed", preview: preview(update.content) });
+        } else if (update.sessionUpdate === "tool_call_update" && (update.status === "completed" || update.status === "failed"))
+          push({ t: "tool_result", id: update.toolCallId, ok: update.status === "completed", preview: preview(update.content ?? update.rawOutput) });
+      }
+    });
+    (async () => {
+      try {
+        await request("initialize", { protocolVersion: 1, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false } });
+        const session = await request("session/new", { cwd, mcpServers });
+        sessionId = session?.sessionId ?? null;
+        const result = await request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] });
+        finish(result?.stopReason === "refusal" ? { error: "agent refused" } : {});
+      } catch (error2) {
+        finish({ error: error2.message });
+      }
+    })();
+  });
+}
+
+// mcp/trader-strategies.mjs
+import { mkdir as mkdir7, readFile as readFile7, rename as rename7, writeFile as writeFile6 } from "node:fs/promises";
+import { randomUUID as randomUUID5 } from "node:crypto";
+import path8 from "node:path";
+
+// mcp/strategy-sandbox.mjs
+import { spawn as spawn2 } from "node:child_process";
+var STRATEGY_CODE_LIMIT = 6e4;
+var FORBIDDEN = [
+  [/\bimport\s*[\s({*"']/, "\u4E0D\u80FD import \u6A21\u5757\uFF1A\u7B56\u7565\u53EA\u80FD\u7528 ctx \u63D0\u4F9B\u7684\u6570\u636E"],
+  [/\brequire\s*\(/, "\u4E0D\u80FD require \u6A21\u5757"],
+  [/\bprocess\b/, "\u4E0D\u80FD\u8BBF\u95EE process"],
+  [/\bglobalThis\b|\bwindow\b|\bself\b/, "\u4E0D\u80FD\u8BBF\u95EE\u5168\u5C40\u5BF9\u8C61"],
+  [/\beval\s*\(|\bFunction\s*\(|\bconstructor\b/, "\u4E0D\u80FD\u52A8\u6001\u6267\u884C\u4EE3\u7801"],
+  [/\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b/, "\u4E0D\u80FD\u81EA\u5DF1\u8054\u7F51\uFF1A\u7528 ctx.history / ctx.quote / ctx.scan \u62FF\u6570\u636E"]
+];
+function prepareStrategyCode(code) {
+  const source = String(code ?? "");
+  if (!source.trim()) throw new Error("\u7B56\u7565\u4EE3\u7801\u662F\u7A7A\u7684\u3002");
+  if (source.length > STRATEGY_CODE_LIMIT) throw new Error(`\u7B56\u7565\u4EE3\u7801\u592A\u957F\uFF08\u6700\u591A ${STRATEGY_CODE_LIMIT} \u5B57\u7B26\uFF09\u3002`);
+  const exports = source.match(/\bexport\s+default\b/g) ?? [];
+  if (exports.length !== 1) throw new Error("\u7B56\u7565\u4EE3\u7801\u5FC5\u987B\u6709\u4E14\u53EA\u6709\u4E00\u4E2A export default { id, version, params, run(ctx) }\u3002");
+  for (const [pattern, reason] of FORBIDDEN) if (pattern.test(source.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, ""))) throw new Error(reason);
+  return source.replace(/\bexport\s+default\b/, "var __strategy__ =");
+}
+var CHILD = String.raw`
+const vm = require("node:vm");
+let strategy = null;
+let seq = 0;
+const pending = new Map();
+const send = (message) => process.send(message);
+const call = (fn, args) => new Promise((resolve, reject) => { const id = ++seq; pending.set(id, { resolve, reject }); send({ type: "call", id, fn, args }); });
+const sma = (values, length) => values.length >= length ? values.slice(-length).reduce((sum, value) => sum + value, 0) / length : null;
+process.on("message", async (message) => {
+  if (message.type === "result") {
+    const waiter = pending.get(message.id);
+    if (!waiter) return;
+    pending.delete(message.id);
+    if (message.ok) waiter.resolve(message.value); else waiter.reject(new Error(message.error));
+    return;
+  }
+  if (message.type === "load") {
+    try {
+      const context = vm.createContext({
+        Math, Date, JSON, Number, String, Boolean, Array, Object, Map, Set, Promise, Error, RangeError, TypeError, isFinite, isNaN, parseFloat, parseInt,
+        console: { log: (...parts) => send({ type: "log", message: parts.map(String).join(" ").slice(0, 500) }) },
+      }, { codeGeneration: { strings: false, wasm: false } });
+      vm.runInContext(message.code + "\n;this.__strategy__ = __strategy__;", context, { timeout: 2000, filename: "strategy.mjs" });
+      strategy = context.__strategy__;
+      if (!strategy || typeof strategy.run !== "function") throw new Error("策略必须 export default { id, run(ctx) }。");
+      send({ type: "loaded", meta: JSON.parse(JSON.stringify({ id: strategy.id, name: strategy.name, version: strategy.version, description: strategy.description, markets: strategy.markets, params: strategy.params })) });
+    } catch (error) { send({ type: "loaded", error: String(error && error.message || error) }); }
+    return;
+  }
+  if (message.type === "run") {
+    const spec = message.ctx;
+    const ctx = {
+      ...spec,
+      history: (symbol, options) => call("history", [symbol, options]),
+      quote: (symbol) => call("quote", [symbol]),
+      intraday: (symbol) => call("intraday", [symbol]),
+      scan: (options) => call("scan", [options]),
+      sellable: (symbol) => (message.sellable || {})[symbol] || 0,
+      log: (text) => send({ type: "log", message: String(text).slice(0, 500) }),
+      indicators: { sma },
+    };
+    try {
+      const output = await strategy.run(ctx);
+      send({ type: "done", id: message.id, value: JSON.parse(JSON.stringify(output == null ? {} : output)) });
+    } catch (error) { send({ type: "done", id: message.id, error: String(error && error.message || error) }); }
+  }
+});
+`;
+function permissionFlag() {
+  const [major, minor] = process.versions.node.split(".").map(Number);
+  return major > 22 || major === 22 && minor >= 13 ? "--permission" : "--experimental-permission";
+}
+async function openSandbox(code, { loadTimeoutMs = 1e4, onLog = () => {
+} } = {}) {
+  const script = prepareStrategyCode(code);
+  const child = spawn2(process.execPath, [permissionFlag(), "--max-old-space-size=256", "-e", CHILD], { env: {}, stdio: ["ignore", "ignore", "pipe", "ipc"], windowsHide: true });
+  let stderr = "";
+  child.stderr?.on("data", (chunk) => {
+    stderr = `${stderr}${chunk}`.slice(-2e3);
+  });
+  let handlers = null;
+  let finish = null;
+  let closed = false;
+  const exited = new Promise((resolve) => child.on("exit", (code2, signal) => {
+    closed = true;
+    resolve({ code: code2, signal });
+    finish?.({ error: `\u7B56\u7565\u8FDB\u7A0B\u9000\u51FA\u4E86\uFF08${signal ?? code2}\uFF09${stderr ? `\uFF1A${stderr.trim().split("\n").at(-1)}` : ""}` });
+  }));
+  child.on("message", async (message) => {
+    if (message.type === "log") {
+      onLog(message.message);
+      return;
+    }
+    if (message.type === "done") {
+      finish?.(message);
+      return;
+    }
+    if (message.type === "call") {
+      try {
+        const fn = handlers?.[message.fn];
+        if (typeof fn !== "function") throw new Error(`ctx.${message.fn} \u4E0D\u53EF\u7528`);
+        const value = await fn(...message.args ?? []);
+        if (!closed) child.send({ type: "result", id: message.id, ok: true, value: value === void 0 ? null : JSON.parse(JSON.stringify(value)) });
+      } catch (error2) {
+        if (!closed) child.send({ type: "result", id: message.id, ok: false, error: error2.message });
+      }
+    }
+  });
+  const meta = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error("\u52A0\u8F7D\u7B56\u7565\u8D85\u65F6\u3002"));
+    }, loadTimeoutMs);
+    child.once("message", function first(message) {
+      if (message.type !== "loaded") {
+        child.once("message", first);
+        return;
+      }
+      clearTimeout(timer);
+      if (message.error) {
+        child.kill("SIGKILL");
+        reject(new Error(`\u7B56\u7565\u52A0\u8F7D\u5931\u8D25\uFF1A${message.error}`));
+      } else resolve(message.meta);
+    });
+    child.send({ type: "load", code: script });
+  });
+  let runs = 0;
   return {
-    symbol: normalizeTradeSymbol(intent.symbol),
-    side,
-    quantity,
-    orderType,
-    limitPrice: orderType === "limit" ? Number(intent.limitPrice) : void 0,
-    timeInForce: intent.timeInForce === "gtc" ? "gtc" : "day",
-    reason: String(intent.reason ?? "").slice(0, 2e3),
-    confidence: Number.isFinite(intent.confidence) ? intent.confidence : void 0,
-    horizon: intent.horizon,
-    clientOrderId: intent.clientOrderId,
-    ...["stopLossPct", "stopLossPrice", "takeProfitPct", "takeProfitPrice"].reduce((exits, key) => Number.isFinite(intent[key]) ? { ...exits, [key]: intent[key] } : exits, {})
+    meta,
+    // ctxSpec: plain data (now, market, account, params, universe); calls: history / quote / intraday / scan.
+    run(ctxSpec, calls, { timeoutMs = 6e4, sellable = {} } = {}) {
+      if (closed) return Promise.reject(new Error("\u7B56\u7565\u8FDB\u7A0B\u5DF2\u7ECF\u5173\u95ED\u3002"));
+      handlers = calls;
+      return new Promise((resolve, reject) => {
+        const id = ++runs;
+        const timer = setTimeout(() => {
+          finish = null;
+          child.kill("SIGKILL");
+          reject(new Error(`\u7B56\u7565\u8FD0\u884C\u8D85\u8FC7 ${Math.round(timeoutMs / 1e3)} \u79D2\uFF0C\u5DF2\u5F3A\u5236\u7ED3\u675F\u3002`));
+        }, timeoutMs);
+        finish = (message) => {
+          if (message.id !== void 0 && message.id !== id) return;
+          clearTimeout(timer);
+          finish = null;
+          if (message.error) reject(new Error(message.error));
+          else resolve(message.value);
+        };
+        child.send({ type: "run", id, ctx: JSON.parse(JSON.stringify(ctxSpec)), sellable });
+      });
+    },
+    async close() {
+      if (!closed) child.kill("SIGKILL");
+      await exited;
+    }
   };
 }
-function createPaperBroker({ arena, accountId: accountId2, caller }) {
+function sandboxedStrategy({ id, code, meta = {}, market: market2 }) {
   return {
-    mode: "paper",
-    accountId: accountId2,
-    account: (options) => arena.getAccount(accountId2, options),
-    quote: (symbol) => getTradeQuote(symbol),
-    async placeOrder(intent) {
-      const order = normalizeIntent(intent);
-      return arena.placeOrder({ accountId: accountId2, ...order }, caller);
-    },
-    cancelOrder: (orderId, reason) => arena.cancelOrder({ accountId: accountId2, orderId, reason }, caller),
-    logDecision: (entry) => arena.logDecision({ accountId: accountId2, ...entry }, caller),
-    publishReport: (report) => arena.publishReport({ accountId: accountId2, ...report }, caller),
-    setExits: (input) => arena.setExits({ accountId: accountId2, ...input }, caller),
-    touchRound: (kind) => arena.touchRound(accountId2, kind, caller)
+    id,
+    name: meta.name ?? id,
+    version: meta.version ?? "1.0.0",
+    markets: market2 ? [market2] : meta.markets ?? ["A", "HK", "US"],
+    params: meta.params ?? {},
+    description: meta.description ?? "",
+    origin: "agent",
+    async run(ctx) {
+      const logs = [];
+      const sandbox = await openSandbox(code, { onLog: (message) => {
+        logs.push(message);
+        ctx.log(message);
+      } });
+      try {
+        const sellable = Object.fromEntries((ctx.account.positions ?? []).map((position) => [position.symbol, ctx.sellable(position.symbol)]));
+        return await sandbox.run(
+          { now: ctx.now, market: ctx.market, account: ctx.account, params: ctx.params, universe: ctx.universe },
+          { history: ctx.history, quote: ctx.quote, intraday: ctx.intraday, scan: ctx.scan },
+          { sellable }
+        );
+      } finally {
+        await sandbox.close();
+      }
+    }
   };
 }
 
 // mcp/strategies/index.mjs
 import { readdir as readdir2 } from "node:fs/promises";
-import path6 from "node:path";
+import path7 from "node:path";
 import { pathToFileURL } from "node:url";
 
 // mcp/strategies/ma-trend.mjs
@@ -17120,7 +18277,7 @@ function validateStrategy(module, origin = "builtin") {
   if (!ID.test(strategy2.id ?? "")) throw new Error(`Strategy id "${strategy2.id}" must be 2\u201341 lowercase letters, digits or dashes.`);
   return { name: strategy2.id, version: "0.0.0", markets: ["A", "HK", "US"], params: {}, description: "", ...strategy2, origin };
 }
-async function loadStrategies({ dir = path6.join(getStorageDir(), "strategies") } = {}) {
+async function loadStrategies({ dir = path7.join(getStorageDir(), "strategies") } = {}) {
   const strategies = new Map(BUILTIN_STRATEGIES.map((strategy2) => [strategy2.id, validateStrategy(strategy2)]));
   const errors = [];
   let names = [];
@@ -17131,7 +18288,7 @@ async function loadStrategies({ dir = path6.join(getStorageDir(), "strategies") 
   }
   for (const name of names.filter((entry) => entry.endsWith(".mjs"))) {
     try {
-      const file = path6.join(dir, name);
+      const file = path7.join(dir, name);
       const strategy2 = validateStrategy(await import(`${pathToFileURL(file).href}?v=${Date.now()}`), file);
       strategies.set(strategy2.id, strategy2);
     } catch (error2) {
@@ -17141,8 +18298,8 @@ async function loadStrategies({ dir = path6.join(getStorageDir(), "strategies") 
   return { strategies, errors, dir };
 }
 function describeStrategy(strategy2) {
-  const { id, name, version: version2, markets, params, description, origin } = strategy2;
-  return { id, name, version: version2, markets, params, description, origin: origin === "builtin" ? "builtin" : "owner" };
+  const { id, name, version: version3, markets, params, description, origin } = strategy2;
+  return { id, name, version: version3, markets, params, description, origin: origin === "builtin" ? "builtin" : "owner" };
 }
 function resolveParams(strategy2, input = {}) {
   const params = {};
@@ -17274,7 +18431,8 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
       const response = await broker.placeOrder({
         ...order,
         ...order.side === "BUY" ? output.exits ?? {} : {},
-        reason: order.reason || `${strategy2.id} v${strategy2.version}`,
+        // Short strategy reasons are prefixed with the strategy and version so every order stays reviewable.
+        reason: String(order.reason ?? "").trim().length >= 10 ? order.reason : `${strategy2.name ?? strategy2.id} v${strategy2.version}${order.reason ? `\uFF1A${order.reason}` : "\uFF1A\u6309\u7B56\u7565\u8C03\u4ED3"}`,
         clientOrderId: runId ? `${runId}-${index}`.slice(0, 64) : void 0
       });
       const placed = response.order ?? response.proposal;
@@ -17301,15 +18459,420 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
   return { strategyId: strategy2.id, version: strategy2.version, params, startedAt, finishedAt: now(), orders: results, logs, notes: output.notes ?? null };
 }
 
+// mcp/trader-strategies.mjs
+var round6 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
+var finite6 = (value) => typeof value === "number" && Number.isFinite(value);
+var BENCHMARKS = { A: "000300.SS", HK: "^HSI", US: "^GSPC" };
+var traderStrategyId = (accountId2) => `trader-${String(accountId2).replace(/^acc_/, "")}`;
+var accountOfStrategy = (strategyId) => /^trader-[a-f0-9]{12}$/.test(strategyId ?? "") ? `acc_${strategyId.slice(7)}` : null;
+function createTraderStrategyStore(root2, now = () => (/* @__PURE__ */ new Date()).toISOString()) {
+  const dirOf = (accountId2) => {
+    if (!/^acc_[a-f0-9]{12}$/.test(accountId2 ?? "")) throw new Error(`Invalid account id: ${accountId2}`);
+    return path8.join(root2, "trader-strategies", accountId2);
+  };
+  async function meta(accountId2) {
+    try {
+      return JSON.parse(await readFile7(path8.join(dirOf(accountId2), "meta.json"), "utf8"));
+    } catch (error2) {
+      if (error2.code === "ENOENT") return { accountId: accountId2, live: null, versions: [] };
+      throw error2;
+    }
+  }
+  async function saveMeta(accountId2, value) {
+    await mkdir7(dirOf(accountId2), { recursive: true });
+    const file = path8.join(dirOf(accountId2), "meta.json");
+    const temporary = `${file}.${process.pid}.${randomUUID5()}.tmp`;
+    await writeFile6(temporary, JSON.stringify(value, null, 1), "utf8");
+    await rename7(temporary, file);
+  }
+  return {
+    meta,
+    async code(accountId2, version3) {
+      const info = await meta(accountId2);
+      const target = version3 ?? info.live;
+      if (!target) return null;
+      return { version: target, code: await readFile7(path8.join(dirOf(accountId2), `v${target}.mjs`), "utf8"), entry: info.versions.find((entry) => entry.version === target) ?? null };
+    },
+    async addVersion(accountId2, { code, changeNote, by, params = {}, intervalMinutes = null, universe = null }) {
+      const info = await meta(accountId2);
+      const version3 = (info.versions.at(-1)?.version ?? 0) + 1;
+      await mkdir7(dirOf(accountId2), { recursive: true });
+      await writeFile6(path8.join(dirOf(accountId2), `v${version3}.mjs`), code, "utf8");
+      const entry = { version: version3, at: now(), by, changeNote: changeNote ? String(changeNote).slice(0, 500) : null, params, intervalMinutes, universe, status: "checking", lines: String(code).split("\n").length };
+      info.versions.push(entry);
+      await saveMeta(accountId2, info);
+      return entry;
+    },
+    async updateVersion(accountId2, version3, patch) {
+      const info = await meta(accountId2);
+      const entry = info.versions.find((item) => item.version === version3);
+      if (!entry) throw new Error(`Version ${version3} not found.`);
+      Object.assign(entry, patch);
+      if (patch.status === "live") {
+        for (const other of info.versions) if (other.version !== version3 && other.status === "live") other.status = "retired";
+        info.live = version3;
+      }
+      await saveMeta(accountId2, info);
+      return entry;
+    },
+    // The live version as a strategy the runtime can execute (sandboxed), or null.
+    async resolve(strategyId, market2) {
+      const accountId2 = accountOfStrategy(strategyId);
+      if (!accountId2) return null;
+      const current = await this.code(accountId2);
+      if (!current) return null;
+      return { ...sandboxedStrategy({ id: strategyId, code: current.code, meta: current.entry?.meta ?? {}, market: market2 }), version: String(current.version), codeVersion: current.version };
+    }
+  };
+}
+async function backtestCode({ code, market: market2, universe, params = {}, sessions = 120, initialCash, minCashPct = null, fees = DEFAULT_FEES[market2], slippageBps = 5, historyProvider = getHistoricalQuote }) {
+  if (!universe?.length) return { ok: false, error: "\u56DE\u6D4B\u9700\u8981\u80A1\u7968\u6C60\uFF1A\u5728 universe \u91CC\u7ED9\u51FA\u80A1\u7968\uFF0C\u6216\u8005\u5148\u7528 arena_set_watchlist \u8BBE\u597D\u80A1\u7968\u6C60\u3002" };
+  const symbols = [...new Set(universe)].slice(0, 40);
+  const histories = /* @__PURE__ */ new Map();
+  const missing = [];
+  await Promise.all([...symbols, BENCHMARKS[market2]].map(async (symbol) => {
+    try {
+      histories.set(symbol, ((await historyProvider(symbol, { range: "1y" })).history ?? []).filter((bar) => bar.complete !== false && finite6(bar.close)));
+    } catch {
+      missing.push(symbol);
+    }
+  }));
+  const calendar = [...new Set([...histories.values()].flatMap((bars2) => bars2.map((bar) => bar.sessionDate)).filter(Boolean))].sort().slice(-sessions);
+  if (calendar.length < 20) return { ok: false, error: "\u771F\u5B9E\u65E5\u7EBF\u4E0D\u8DB3 20 \u4E2A\u4EA4\u6613\u65E5\uFF0C\u6CA1\u6CD5\u56DE\u6D4B\u3002", missing };
+  const byDate = new Map([...histories].map(([symbol, bars2]) => [symbol, new Map(bars2.map((bar) => [bar.sessionDate, bar]))]));
+  let cash = initialCash;
+  const positions = /* @__PURE__ */ new Map();
+  const trades = [];
+  const curve = [];
+  const notes = /* @__PURE__ */ new Set();
+  const slip = slippageBps / 1e4;
+  const sandbox = await openSandbox(code);
+  try {
+    for (const date3 of calendar) {
+      const decideAt = new Date(Date.parse(byDate.get(symbols.find((symbol) => byDate.get(symbol)?.has(date3)) ?? BENCHMARKS[market2])?.get(date3)?.closeAt ?? `${date3}T07:00:00Z`) - 6e4).toISOString();
+      const closes = new Map(symbols.map((symbol) => [symbol, byDate.get(symbol)?.get(date3)?.close]).filter(([, close]) => finite6(close)));
+      const value = () => [...positions].reduce((sum, [symbol, position]) => sum + position.quantity * (closes.get(symbol) ?? position.lastPrice), 0);
+      const equity = cash + value();
+      const account2 = {
+        market: market2,
+        cash: round6(cash),
+        metrics: { equity: round6(equity), cash: round6(cash) },
+        watchlist: { symbols },
+        reports: [],
+        positions: [...positions].map(([symbol, position]) => ({ symbol, quantity: position.quantity, averageCost: position.cost / position.quantity, lots: position.lots, marketValue: position.quantity * (closes.get(symbol) ?? position.lastPrice), weightPct: equity > 0 ? position.quantity * (closes.get(symbol) ?? position.lastPrice) / equity * 100 : 0 }))
+      };
+      const today = localMarketTime(decideAt, market2)?.date ?? date3;
+      const sellable = Object.fromEntries([...positions].map(([symbol, position]) => [symbol, market2 === "A" ? position.lots.filter((lot) => lot.date < today).reduce((sum, lot) => sum + lot.quantity, 0) : position.quantity]));
+      let output;
+      try {
+        output = await sandbox.run({ now: decideAt, market: market2, account: account2, params, universe: symbols }, {
+          history: async (symbol, options = {}) => (histories.get(symbol) ?? []).filter((bar) => bar.sessionDate < date3).slice(-(options?.days ?? 260)),
+          quote: async (symbol) => {
+            const bar = byDate.get(symbol)?.get(date3);
+            if (!bar) throw new Error(`${symbol} ${date3} \u6CA1\u6709\u884C\u60C5`);
+            const previous = (histories.get(symbol) ?? []).filter((entry) => entry.sessionDate < date3).at(-1);
+            return { symbol, price: bar.close, changePct: previous ? (bar.close / previous.close - 1) * 100 : null, asOf: decideAt, signalEligible: true };
+          },
+          intraday: async () => {
+            notes.add("\u7B56\u7565\u7528\u5230\u4E86\u5206\u949F\u7EBF\uFF0C\u65E5\u7EBF\u56DE\u6D4B\u91CC\u62FF\u4E0D\u5230\uFF0C\u8FD9\u90E8\u5206\u4FE1\u53F7\u6CA1\u6709\u88AB\u56DE\u6D4B\u3002");
+            return [];
+          },
+          scan: async () => {
+            notes.add("\u7B56\u7565\u7528\u5230\u4E86\u5168\u5E02\u573A\u626B\u63CF\uFF0C\u56DE\u6D4B\u91CC\u6CA1\u6709\u5386\u53F2\u626B\u63CF\u6570\u636E\uFF0C\u53EA\u5728\u80A1\u7968\u6C60\u91CC\u56DE\u6D4B\u3002");
+            return { rows: [] };
+          }
+        }, { sellable, timeoutMs: 2e4 });
+      } catch (error2) {
+        return { ok: false, error: `${date3} \u8FD0\u884C\u51FA\u9519\uFF1A${error2.message}`, sessions: curve.length };
+      }
+      let orders = Array.isArray(output?.orders) ? output.orders : [];
+      if (Array.isArray(output?.targets)) {
+        const quotes = new Map([...closes].map(([symbol, close]) => [symbol, { price: close }]));
+        orders = [...orders, ...ordersFromTargets({ ...account2, lotOverrides: {} }, output.targets, quotes, { now: decideAt, minTradeValuePct: output.minTradeValuePct ?? 0.5 })];
+      }
+      for (const order of [...orders.filter((entry) => entry.side === "SELL"), ...orders.filter((entry) => entry.side === "BUY")]) {
+        const close = closes.get(order.symbol);
+        if (!finite6(close) || !Number.isInteger(order.quantity) || order.quantity <= 0) continue;
+        const position = positions.get(order.symbol);
+        if (order.side === "SELL") {
+          const quantity = Math.min(order.quantity, sellable[order.symbol] ?? 0);
+          if (!quantity || !position) continue;
+          const price = close * (1 - slip);
+          const fee = computeFees(market2, "SELL", quantity, price, fees).total;
+          const released = position.cost / position.quantity * quantity;
+          cash += quantity * price - fee;
+          trades.push({ date: date3, symbol: order.symbol, side: "SELL", quantity, price: round6(price, 4), pnl: round6(quantity * price - fee - released) });
+          position.cost -= released;
+          position.quantity -= quantity;
+          let left = quantity;
+          for (const lot of position.lots) {
+            const used = Math.min(left, lot.quantity);
+            lot.quantity -= used;
+            left -= used;
+          }
+          position.lots = position.lots.filter((lot) => lot.quantity > 0);
+          sellable[order.symbol] -= quantity;
+          if (position.quantity <= 0) positions.delete(order.symbol);
+        } else {
+          const lot = lotRules({ market: market2, lotOverrides: {} }, order.symbol, { lotSize: 100 }).lotSize ?? 1;
+          const price = close * (1 + slip);
+          let quantity = Math.floor(order.quantity / lot) * lot;
+          const floor = finite6(minCashPct) ? (cash + value()) * minCashPct / 100 : 0;
+          while (quantity > 0 && cash - quantity * price - computeFees(market2, "BUY", quantity, price, fees).total < floor) quantity -= lot;
+          if (quantity <= 0) {
+            notes.add("\u6709\u4E70\u5355\u56E0\u4E3A\u4FDD\u7559\u73B0\u91D1\u7684\u8FB9\u754C\u88AB\u7F29\u5C0F\u6216\u8DF3\u8FC7\u3002");
+            continue;
+          }
+          const fee = computeFees(market2, "BUY", quantity, price, fees).total;
+          cash -= quantity * price + fee;
+          const next = position ?? { quantity: 0, cost: 0, lots: [], lastPrice: close };
+          next.quantity += quantity;
+          next.cost += quantity * price + fee;
+          next.lots.push({ date: date3, quantity });
+          positions.set(order.symbol, next);
+          trades.push({ date: date3, symbol: order.symbol, side: "BUY", quantity, price: round6(price, 4) });
+        }
+      }
+      for (const [symbol, position] of positions) if (finite6(closes.get(symbol))) position.lastPrice = closes.get(symbol);
+      curve.push({ date: date3, equity: round6(cash + value()) });
+    }
+  } finally {
+    await sandbox.close();
+  }
+  let peak = -Infinity, maxDrawdownPct = 0;
+  for (const point of curve) {
+    peak = Math.max(peak, point.equity);
+    maxDrawdownPct = Math.min(maxDrawdownPct, (point.equity / peak - 1) * 100);
+  }
+  const bench = byDate.get(BENCHMARKS[market2]);
+  const benchFirst = bench?.get(calendar[0])?.close, benchLast = bench?.get(calendar.at(-1))?.close;
+  const sells = trades.filter((trade) => trade.side === "SELL");
+  return {
+    ok: true,
+    from: calendar[0],
+    to: calendar.at(-1),
+    sessions: curve.length,
+    totalReturnPct: round6((curve.at(-1).equity / initialCash - 1) * 100),
+    maxDrawdownPct: round6(maxDrawdownPct),
+    benchmarkReturnPct: finite6(benchFirst) && finite6(benchLast) ? round6((benchLast / benchFirst - 1) * 100) : null,
+    trades: trades.length,
+    closedTrades: sells.length,
+    winRatePct: sells.length ? round6(sells.filter((trade) => trade.pnl > 0).length / sells.length * 100, 1) : null,
+    curve: curve.filter((_, index) => index % Math.max(1, Math.floor(curve.length / 60)) === 0 || index === curve.length - 1),
+    notes: [...notes, ...missing.length ? [`\u8FD9\u4E9B\u80A1\u7968\u62FF\u4E0D\u5230\u771F\u5B9E\u65E5\u7EBF\uFF0C\u6CA1\u6709\u53C2\u4E0E\u56DE\u6D4B\uFF1A${missing.join("\u3001")}`] : [], ...sells.length < 10 ? ["\u5E73\u4ED3\u4E0D\u5230 10 \u7B14\uFF0C\u56DE\u6D4B\u7ED3\u679C\u53C2\u8003\u610F\u4E49\u6709\u9650\u3002"] : []],
+    basis: "\u771F\u5B9E\u65E5\u7EBF\uFF08Yahoo / \u817E\u8BAF\uFF09\uFF0C\u6536\u76D8\u4EF7\u6210\u4EA4\uFF0C\u52A0\u6ED1\u70B9\u548C\u5F53\u524D\u8D39\u7387"
+  };
+}
+async function dryRunCode({ code, meta = {}, account: account2, params = {}, strategyId, now = () => (/* @__PURE__ */ new Date()).toISOString(), deps = {} }) {
+  const intents = [];
+  const broker = {
+    mode: "dry-run",
+    account: async () => account2,
+    async placeOrder(intent) {
+      intents.push(intent);
+      return { order: { status: "dry-run" } };
+    }
+  };
+  const strategy2 = sandboxedStrategy({ id: strategyId, code, meta, market: account2.market });
+  try {
+    const round7 = await runStrategyRound({ strategy: strategy2, params, broker, now, runId: null, historyProvider: deps.historyProvider ?? getHistoricalQuote, quoteProvider: deps.quoteProvider ?? getTradeQuote, intradayProvider: deps.intradayProvider ?? getIntradayBars, scanProvider: deps.scanProvider ?? scanMarket });
+    return { ok: true, orders: intents.map(({ symbol, side, quantity, reason }) => ({ symbol, side, quantity, reason })), logs: round7.logs.slice(-20) };
+  } catch (error2) {
+    return { ok: false, error: error2.message, orders: intents };
+  }
+}
+async function inspectCode(code) {
+  prepareStrategyCode(code);
+  const sandbox = await openSandbox(code);
+  try {
+    return sandbox.meta;
+  } finally {
+    await sandbox.close();
+  }
+}
+async function writeTraderStrategy({ arena, scheduler, store, accountId: accountId2, code, changeNote, params = {}, intervalMinutes, universe, caller = {}, backtestSessions = 120, deps = {} }) {
+  const account2 = await arena.getAccount(accountId2, { sync: false, limit: 5 });
+  arena.assertTrader?.(account2, caller);
+  const strategyId = traderStrategyId(accountId2);
+  const by = caller?.client && caller.client !== "dashboard" ? { kind: "agent", client: caller.client } : { kind: "owner" };
+  const pool = universe?.length ? universe : params.universe?.length ? params.universe : account2.watchlist?.symbols?.length ? account2.watchlist.symbols : account2.positions.map((position) => position.symbol);
+  const entry = await store.addVersion(accountId2, { code, changeNote, by, params, intervalMinutes: intervalMinutes ?? null, universe: universe ?? null });
+  const reject = async (stage, error2) => ({ ...await store.updateVersion(accountId2, entry.version, { status: "rejected", rejectedAt: stage, error: error2 }), live: (await store.meta(accountId2)).live });
+  let meta;
+  try {
+    meta = await inspectCode(code);
+  } catch (error2) {
+    return reject("load", error2.message);
+  }
+  let resolved;
+  try {
+    resolved = resolveParams({ params: meta.params ?? {} }, params);
+  } catch (error2) {
+    return reject("params", error2.message);
+  }
+  const dryRun = await dryRunCode({ code, meta, account: account2, params: { ...resolved, ...universe?.length ? { universe } : {} }, strategyId, deps });
+  if (!dryRun.ok) {
+    await store.updateVersion(accountId2, entry.version, { dryRun });
+    return reject("dry-run", dryRun.error);
+  }
+  const settings = await arena.workbenchSettings?.().catch(() => null);
+  const backtest = await backtestCode({ code, market: account2.market, universe: pool, params: resolved, sessions: backtestSessions, initialCash: account2.initialCash, minCashPct: account2.limits?.minCashPct ?? null, fees: settings?.fees?.[account2.market], historyProvider: deps.historyProvider });
+  if (!backtest.ok) {
+    await store.updateVersion(accountId2, entry.version, { dryRun, backtest });
+    return reject("backtest", backtest.error);
+  }
+  const previous = (await store.meta(accountId2)).versions.find((item) => item.status === "live");
+  const live = await store.updateVersion(accountId2, entry.version, { status: "live", liveAt: (/* @__PURE__ */ new Date()).toISOString(), meta, dryRun, backtest });
+  await arena.updateStrategy({ accountId: accountId2, summary: account2.strategy?.summary?.trim() || `\u4EE3\u7801\u7B56\u7565 ${strategyId}`, changeNote: `\u4EE3\u7801\u7B56\u7565 v${entry.version}${changeNote ? `\uFF1A${changeNote}` : ""}` }, caller.client === "dashboard" ? {} : caller).catch(() => {
+  });
+  const jobs = await scheduler.listJobs();
+  const job = jobs.find((item) => item.accountId === accountId2);
+  const every = intervalMinutes ?? job?.strategy?.intervalMinutes ?? 5;
+  if (job && job.runner.type !== "strategy") await scheduler.upsertJob(accountId2, { strategy: { strategyId, intervalMinutes: every, params: resolved }, mode: "director" });
+  else await scheduler.upsertJob(accountId2, { intervalMinutes: every, times: [], runner: { type: "strategy", strategyId, params: resolved, timeoutMinutes: 5 } });
+  return { ...live, live: entry.version, previous: previous ? { version: previous.version, backtest: previous.backtest ?? null } : null, intervalMinutes: every };
+}
+async function rollbackTraderStrategy({ arena, scheduler, store, accountId: accountId2, version: version3, caller = {} }) {
+  const account2 = await arena.getAccount(accountId2, { sync: false, limit: 1 });
+  arena.assertTrader?.(account2, caller);
+  const info = await store.meta(accountId2);
+  const target = info.versions.find((item) => item.version === Number(version3));
+  if (!target) throw new Error(`Version ${version3} not found.`);
+  if (!target.meta) throw new Error(`Version ${version3} never passed its checks; it cannot go live.`);
+  const entry = await store.updateVersion(accountId2, target.version, { status: "live", liveAt: (/* @__PURE__ */ new Date()).toISOString(), rolledBackBy: caller.client ?? "dashboard" });
+  await arena.updateStrategy({ accountId: accountId2, summary: account2.strategy?.summary?.trim() || `\u4EE3\u7801\u7B56\u7565 ${traderStrategyId(accountId2)}`, changeNote: `\u56DE\u9000\u5230\u4EE3\u7801\u7B56\u7565 v${target.version}` }, caller.client === "dashboard" ? {} : caller).catch(() => {
+  });
+  const job = (await scheduler.listJobs()).find((item) => item.accountId === accountId2);
+  if (job?.strategy) await scheduler.upsertJob(accountId2, { strategy: { ...job.strategy, params: target.params && Object.keys(target.params).length ? resolveParams({ params: target.meta.params ?? {} }, target.params) : job.strategy.params } });
+  return entry;
+}
+
+// mcp/skill-library.mjs
+import { readFile as readFile8 } from "node:fs/promises";
+import path9 from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+var here = path9.dirname(fileURLToPath2(import.meta.url));
+var cached = null;
+function libraryDir() {
+  return process.env.HROUTER_LIBRARY_DIR || path9.resolve(here, "..", "library");
+}
+async function readJson2(name) {
+  return JSON.parse(await readFile8(path9.join(libraryDir(), name), "utf8"));
+}
+async function loadLibrary() {
+  if (cached && cached.dir === libraryDir()) return cached.value;
+  const [catalog, templates] = await Promise.all([readJson2("catalog.json"), readJson2("templates.json")]);
+  const value = {
+    sources: catalog.sources,
+    note: catalog.note,
+    skills: catalog.skills.map((skill) => ({ ...skill, sourceInfo: catalog.sources[skill.source] ?? null })),
+    templates: templates.templates,
+    discipline: templates.discipline
+  };
+  cached = { dir: libraryDir(), value };
+  return value;
+}
+async function skillBody(id) {
+  if (!/^[a-z0-9-]{2,60}$/.test(id ?? "")) throw new Error(`Invalid skill id ${id}`);
+  return readFile8(path9.join(libraryDir(), "skills", id, "SKILL.md"), "utf8");
+}
+async function starterStrategyCode(id) {
+  if (!/^[a-z0-9-]{2,60}$/.test(id ?? "")) throw new Error(`Invalid strategy id ${id}`);
+  return readFile8(path9.join(libraryDir(), "strategies", `${id}.mjs`), "utf8");
+}
+async function skillsFor(account2) {
+  const library = await loadLibrary();
+  const template = library.templates.find((entry) => entry.id === account2.template);
+  const chosen = Array.isArray(account2.skills) ? account2.skills : template?.skills ?? [];
+  const ids = [.../* @__PURE__ */ new Set([...library.discipline, ...chosen])];
+  return ids.map((id) => library.skills.find((skill) => skill.id === id)).filter((skill) => skill && skill.status === "available" && skill.markets.includes(account2.market));
+}
+async function skillTextFor(account2) {
+  const skills = await skillsFor(account2).catch(() => []);
+  const parts = [];
+  for (const skill of skills) {
+    try {
+      parts.push(`## \u6D41\u6D3E / \u7EAA\u5F8B skill\uFF1A${skill.name}
+
+${(await skillBody(skill.id)).replace(/^#\s.*\n/, "").trim()}`);
+    } catch {
+    }
+  }
+  return parts.join("\n\n---\n\n");
+}
+async function templateDefaults(templateId, input = {}) {
+  if (!templateId) return {};
+  const library = await loadLibrary();
+  const template = library.templates.find((entry) => entry.id === templateId);
+  if (!template) throw new Error(`Unknown template ${templateId}.`);
+  if (template.status !== "available") throw new Error(`\u300C${template.name}\u300D\u8FD8\u7F3A\u6570\u636E\uFF08${(template.requires ?? []).join("\u3001")}\uFF09\uFF0C\u7B2C 2 \u671F\u5F00\u653E\u3002`);
+  if (input.market && !template.markets.includes(input.market)) throw new Error(`\u300C${template.name}\u300D\u4E0D\u9002\u7528\u4E8E ${input.market} \u5E02\u573A\u3002`);
+  return {
+    template: template.id,
+    skills: template.skills,
+    ...input.prompt ? {} : template.prompt ? { prompt: template.prompt } : {},
+    ...input.applySuggestedLimits && Object.keys(template.suggestedLimits ?? {}).length ? { limits: { ...template.suggestedLimits, ...input.limits } } : {},
+    cadence: template.cadence,
+    starterStrategy: template.starterStrategy ?? null,
+    builtinStrategy: template.builtinStrategy ?? false
+  };
+}
+
+// mcp/brokers.mjs
+var BROKER_MODES = Object.freeze(["paper", "advisory"]);
+function normalizeIntent(intent) {
+  const side = String(intent.side ?? "").toUpperCase();
+  if (!["BUY", "SELL"].includes(side)) throw new Error("Order intent side must be BUY or SELL.");
+  const quantity = Number(intent.quantity);
+  if (!Number.isInteger(quantity) || quantity <= 0) throw new Error("Order intent quantity must be a positive integer number of shares.");
+  const orderType = intent.orderType === "limit" ? "limit" : "market";
+  if (orderType === "limit" && !(Number(intent.limitPrice) > 0)) throw new Error("Limit intents need a positive limitPrice.");
+  return {
+    symbol: normalizeTradeSymbol(intent.symbol),
+    side,
+    quantity,
+    orderType,
+    limitPrice: orderType === "limit" ? Number(intent.limitPrice) : void 0,
+    timeInForce: intent.timeInForce === "gtc" ? "gtc" : "day",
+    reason: String(intent.reason ?? "").slice(0, 2e3),
+    confidence: Number.isFinite(intent.confidence) ? intent.confidence : void 0,
+    horizon: intent.horizon,
+    clientOrderId: intent.clientOrderId,
+    ...["stopLossPct", "stopLossPrice", "takeProfitPct", "takeProfitPrice"].reduce((exits, key) => Number.isFinite(intent[key]) ? { ...exits, [key]: intent[key] } : exits, {})
+  };
+}
+function createPaperBroker({ arena, accountId: accountId2, caller }) {
+  return {
+    mode: "paper",
+    accountId: accountId2,
+    account: (options) => arena.getAccount(accountId2, options),
+    quote: (symbol) => getTradeQuote(symbol),
+    async placeOrder(intent) {
+      const order = normalizeIntent(intent);
+      return arena.placeOrder({ accountId: accountId2, ...order }, caller);
+    },
+    cancelOrder: (orderId, reason) => arena.cancelOrder({ accountId: accountId2, orderId, reason }, caller),
+    logDecision: (entry) => arena.logDecision({ accountId: accountId2, ...entry }, caller),
+    publishReport: (report) => arena.publishReport({ accountId: accountId2, ...report }, caller),
+    setExits: (input) => arena.setExits({ accountId: accountId2, ...input }, caller),
+    touchRound: (kind) => arena.touchRound(accountId2, kind, caller)
+  };
+}
+
 // mcp/scheduler.mjs
-var RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "command", "strategy"];
-var SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 5, tickMs: 3e4, leaseMs: 12e4, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6e3, runLogLimit: 300, failureThreshold: 3 });
+var RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "acp", "command", "strategy"];
+var AGENT_TYPES = ["claude", "codex", "kimi", "workbuddy", "acp", "command"];
+var ACP_PRESETS = [
+  { id: "kimi-acp", name: "Kimi Code (ACP)", command: "kimi", args: ["acp"] },
+  { id: "gemini", name: "Gemini CLI", command: "gemini", args: ["--experimental-acp"] },
+  { id: "opencode", name: "OpenCode", command: "opencode", args: ["acp"] }
+];
+var SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 5, tickMs: 3e4, leaseMs: 12e4, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6e3, runLogLimit: 300, failureThreshold: 3, maxQueueMinutes: 10, defaultReviewMinutes: 10 });
 var TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 var minuteOf2 = (time3) => {
   const [, h, m] = time3.match(TIME);
   return Number(h) * 60 + Number(m);
 };
-var tail = (text2, bytes) => text2.length > bytes ? `\u2026${text2.slice(-bytes)}` : text2;
 function sanitizeJob(input, current = {}) {
   const job = { ...current };
   if (input.enabled !== void 0) job.enabled = Boolean(input.enabled);
@@ -17343,6 +18906,7 @@ function sanitizeJob(input, current = {}) {
       next.maxBudgetUsd = budget;
     }
     if (runner.type === "command" && (!next.command || !(next.args ?? []).some((arg) => arg.includes("{prompt}")))) throw new ArenaError("A command runner needs a command and at least one argument containing {prompt}.");
+    if (runner.type === "acp" && !next.command) throw new ArenaError(`An ACP runner needs the agent's command (e.g. gemini with args ["--experimental-acp"]).`);
     if (runner.type === "strategy") {
       if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(runner.strategyId ?? "")) throw new ArenaError("A strategy runner needs a strategyId.");
       next.strategyId = runner.strategyId;
@@ -17350,6 +18914,25 @@ function sanitizeJob(input, current = {}) {
     }
     job.runner = next;
   }
+  if (input.backup !== void 0) {
+    if (input.backup === null || input.backup === "") delete job.backup;
+    else {
+      if (!AGENT_TYPES.includes(input.backup.type) || input.backup.type === "command") throw new ArenaError(`backup.type must be one of ${AGENT_TYPES.filter((type) => type !== "command").join(", ")}.`);
+      if (input.backup.type === "acp" && !input.backup.command) throw new ArenaError("An ACP backup needs its command.");
+      job.backup = { type: input.backup.type, ...input.backup.model ? { model: String(input.backup.model).slice(0, 80) } : {}, ...input.backup.type === "acp" ? { command: String(input.backup.command).slice(0, 500), args: (input.backup.args ?? []).slice(0, 40).map(String) } : {} };
+    }
+  }
+  if (input.strategy !== void 0) {
+    if (input.strategy === null) delete job.strategy;
+    else {
+      const strategy2 = input.strategy;
+      if (!/^[a-z0-9][a-z0-9:-]{1,60}$/.test(strategy2.strategyId ?? "")) throw new ArenaError("strategy.strategyId is required.");
+      const interval = Number(strategy2.intervalMinutes ?? 5);
+      if (!Number.isInteger(interval) || interval < 1 || interval > 240) throw new ArenaError("strategy.intervalMinutes must be 1\u2013240.");
+      job.strategy = { strategyId: strategy2.strategyId, intervalMinutes: interval, params: strategy2.params && typeof strategy2.params === "object" && !Array.isArray(strategy2.params) ? strategy2.params : {} };
+    }
+  }
+  if (input.paused === false) delete job.paused;
   if (job.intervalMinutes && job.runner && job.runner.type !== "strategy" && job.intervalMinutes < SCHEDULER_DEFAULTS.minAgentIntervalMinutes)
     throw new ArenaError(`Agent rounds take several minutes; use an interval of at least ${SCHEDULER_DEFAULTS.minAgentIntervalMinutes} minutes (code strategies may run every minute).`);
   job.times ??= [];
@@ -17359,15 +18942,15 @@ function sanitizeJob(input, current = {}) {
 }
 function onPath(name, envPath = process.env.PATH ?? "") {
   const names = process.platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name];
-  for (const dir of envPath.split(path7.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path7.join(dir, candidate))) return path7.join(dir, candidate);
+  for (const dir of envPath.split(path10.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path10.join(dir, candidate))) return path10.join(dir, candidate);
   return null;
 }
 function workbuddyConfigDir(env = process.env) {
-  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path7.join(os3.homedir(), ".workbuddy");
+  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path10.join(os3.homedir(), ".workbuddy");
 }
 function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
-  if (type === "kimi") return onPath("kimi") ?? path7.join(os3.homedir(), ".local", "bin", "kimi");
+  if (type === "kimi") return onPath("kimi") ?? path10.join(os3.homedir(), ".local", "bin", "kimi");
   if (type === "workbuddy") {
     const bundled = "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy";
     return onPath("codebuddy") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codebuddy");
@@ -17395,7 +18978,8 @@ function agentInvocation({ job, account: account2, prompt, nodePath, bundlePath:
       "--permission-mode",
       "dontAsk",
       "--output-format",
-      "text",
+      "stream-json",
+      "--verbose",
       "--no-session-persistence",
       ...runner.model ? ["--model", runner.model] : [],
       ...runner.maxBudgetUsd && runner.type === "claude" ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : [],
@@ -17410,13 +18994,14 @@ function agentInvocation({ job, account: account2, prompt, nodePath, bundlePath:
 
 ---
 
-${prompt}` : prompt, "--output-format", "text", ...model ? ["-m", model] : []];
+${prompt}` : prompt, "--output-format", "stream-json", ...model ? ["-m", model] : []];
     return { command: runner.command || defaultCommand("kimi"), args, env, cwd: workDir };
   }
   if (runner.type === "codex") {
     const toml = (value) => JSON.stringify(value);
     const args = [
       "exec",
+      "--json",
       "--skip-git-repo-check",
       "--ephemeral",
       "-s",
@@ -17474,51 +19059,6 @@ function dueSlots(job, market2, at, done, catchUpMinutes = SCHEDULER_DEFAULTS.ca
   }
   return fixed;
 }
-function runChild({ command, args, env, cwd, timeoutMs, spawnImpl, tailBytes }) {
-  return new Promise((resolve) => {
-    const started = Date.now();
-    let stdout = "";
-    let stderr = "";
-    let timedOut = false;
-    let child;
-    try {
-      const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(CLAUDE|CLAUDECODE|CODEX_THREAD|CODEX_SESSION|MCP_)/.test(key)));
-      child = spawnImpl(command, args, { cwd, env: { ...inherited, ...env }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
-    } catch (error2) {
-      resolve({ exitCode: null, error: error2.message, stdout: "", stderr: "", durationMs: 0, timedOut: false });
-      return;
-    }
-    child.stdout?.on("data", (chunk) => {
-      stdout = tail(stdout + chunk, tailBytes * 2);
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr = tail(stderr + chunk, tailBytes * 2);
-    });
-    const kill = (signal) => {
-      try {
-        process.platform === "win32" ? child.kill(signal) : process.kill(-child.pid, signal);
-      } catch {
-        try {
-          child.kill(signal);
-        } catch {
-        }
-      }
-    };
-    const timer = setTimeout(() => {
-      timedOut = true;
-      kill("SIGTERM");
-      setTimeout(() => kill("SIGKILL"), 1e4).unref?.();
-    }, timeoutMs);
-    child.on("error", (error2) => {
-      clearTimeout(timer);
-      resolve({ exitCode: null, error: error2.code === "ENOENT" ? `Command not found: ${command}` : error2.message, stdout: tail(stdout, tailBytes), stderr: tail(stderr, tailBytes), durationMs: Date.now() - started, timedOut });
-    });
-    child.on("close", (code, signal) => {
-      clearTimeout(timer);
-      resolve({ exitCode: code, signal, stdout: tail(stdout, tailBytes), stderr: tail(stderr, tailBytes), durationMs: Date.now() - started, timedOut });
-    });
-  });
-}
 function inferRunner(account2) {
   const text2 = `${account2.agent?.client ?? ""} ${account2.agent?.label ?? ""}`.toLowerCase();
   if (account2.model?.startsWith("strategy:") || text2.includes("strategy")) return null;
@@ -17529,43 +19069,62 @@ function inferRunner(account2) {
   if (text2.includes("claude")) return { type: "claude", model };
   return null;
 }
+var poolKey = (runner) => runner.type === "command" || runner.type === "acp" ? `${runner.type}:${runner.command ?? ""}` : runner.type;
+var agentLane = (job) => job.runner?.type !== "strategy";
+var PAUSING_FAILURES = /* @__PURE__ */ new Set(["auth", "config", "missing"]);
 function createScheduler({
   arena,
   now = arena.now,
-  spawnImpl = spawn2,
+  spawnImpl = spawn3,
   strategyLoader = loadStrategies,
   nodePath = process.execPath,
-  bundlePath: bundlePath2 = fileURLToPath2(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath2(import.meta.url) : path7.resolve(path7.dirname(fileURLToPath2(import.meta.url)), "server.bundle.mjs"),
+  bundlePath: bundlePath2 = fileURLToPath3(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath3(import.meta.url) : path10.resolve(path10.dirname(fileURLToPath3(import.meta.url)), "server.bundle.mjs"),
   skillPath,
   tickMs = SCHEDULER_DEFAULTS.tickMs,
   leaseMs = SCHEDULER_DEFAULTS.leaseMs,
   catchUpMinutes = SCHEDULER_DEFAULTS.catchUpMinutes,
   strategyDeps = {},
+  resolveStrategy = null,
   onError = () => {
   }
 } = {}) {
-  const file = path7.join(arena.root, "schedules.json");
-  const runDir = path7.join(arena.root, "runs");
-  const ownerId = `${os3.hostname()}:${process.pid}:${randomBytes2(4).toString("hex")}`;
+  const file = path10.join(arena.root, "schedules.json");
+  const runDir = path10.join(arena.root, "runs");
+  const eventDir = path10.join(runDir, "events");
+  const ownerId = `${os3.hostname()}:${process.pid}:${randomBytes3(4).toString("hex")}`;
   const running = /* @__PURE__ */ new Map();
+  const agentRuns = /* @__PURE__ */ new Set();
+  const live = /* @__PURE__ */ new Map();
+  const queued = /* @__PURE__ */ new Map();
+  const listeners = /* @__PURE__ */ new Set();
   let timer = null;
   let ticking = null;
   let role = "idle";
   let last = null;
+  const traderStore = createTraderStrategyStore(arena.root, now);
+  const resolver = resolveStrategy ?? ((strategyId) => strategyId.startsWith("trader-") ? traderStore.resolve(strategyId) : null);
+  const emit = (message) => {
+    for (const listener of listeners) {
+      try {
+        listener(message);
+      } catch {
+      }
+    }
+  };
   async function readState() {
     try {
-      const state = JSON.parse(await readFile6(file, "utf8"));
-      return { jobs: state.jobs ?? [], done: state.done ?? {} };
+      const state = JSON.parse(await readFile9(file, "utf8"));
+      return { jobs: state.jobs ?? [], done: state.done ?? {}, pools: state.pools ?? {} };
     } catch (error2) {
-      if (error2.code === "ENOENT") return { jobs: [], done: {} };
+      if (error2.code === "ENOENT") return { jobs: [], done: {}, pools: {} };
       throw error2;
     }
   }
   async function writeState(state) {
-    await mkdir6(arena.root, { recursive: true });
-    const temporary = `${file}.${process.pid}.${randomUUID4()}.tmp`;
-    await writeFile5(temporary, JSON.stringify(state, null, 1), "utf8");
-    await rename6(temporary, file);
+    await mkdir8(arena.root, { recursive: true });
+    const temporary = `${file}.${process.pid}.${randomUUID6()}.tmp`;
+    await writeFile7(temporary, JSON.stringify(state, null, 1), "utf8");
+    await rename8(temporary, file);
   }
   const update = (mutate) => arena.withLock(async () => {
     const state = await readState();
@@ -17573,16 +19132,33 @@ function createScheduler({
     await writeState(state);
     return result;
   });
+  const poolPaused = (state, runner) => {
+    const pool = state.pools[poolKey(runner)];
+    return pool && Date.parse(pool.pausedUntil) > Date.parse(now()) ? pool : null;
+  };
+  const workbench = async () => arena.workbenchSettings ? arena.workbenchSettings().catch(() => ({})) : {};
   async function appendRun(accountId2, record2) {
-    await mkdir6(runDir, { recursive: true });
-    await appendFile(path7.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
+    await mkdir8(runDir, { recursive: true });
+    await appendFile(path10.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
 `, "utf8");
+  }
+  function eventWriter(runId) {
+    let chain = mkdir8(eventDir, { recursive: true }).catch(() => {
+    });
+    return {
+      push(event) {
+        chain = chain.then(() => appendFile(path10.join(eventDir, `${runId}.jsonl`), `${JSON.stringify(event)}
+`, "utf8")).catch(() => {
+        });
+      },
+      flush: () => chain
+    };
   }
   async function listRuns({ accountId: accountId2, limit = 50 } = {}) {
     if (!/^acc_[a-f0-9]{12}$/.test(accountId2 ?? "")) throw new ArenaError("accountId required.");
     let text2 = "";
     try {
-      text2 = await readFile6(path7.join(runDir, `${accountId2}.jsonl`), "utf8");
+      text2 = await readFile9(path10.join(runDir, `${accountId2}.jsonl`), "utf8");
     } catch (error2) {
       if (error2.code !== "ENOENT") throw error2;
     }
@@ -17592,69 +19168,212 @@ function createScheduler({
       } catch {
         return null;
       }
-    }).filter(Boolean);
-    return rows.slice(-limit).reverse();
+    }).filter(Boolean).map((row) => row.lane ? row : { ...row, lane: row.runner === "strategy" ? "strategy" : "agent" });
+    const inFlight = [...live.values()].filter((entry) => entry.record.accountId === accountId2 && !rows.some((row) => row.id === entry.record.id)).map((entry) => ({ ...entry.record, status: "running", events: entry.events.length }));
+    return [...rows.slice(-limit).reverse(), ...inFlight].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt)).slice(0, limit);
   }
-  async function skillText() {
-    const candidates = [skillPath, path7.resolve(path7.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
+  async function runEvents(runId) {
+    if (!/^run_[a-f0-9]{12}$/.test(runId ?? "")) throw new ArenaError("Invalid run id.");
+    if (live.has(runId)) return { runId, running: true, run: live.get(runId).record, events: live.get(runId).events };
+    try {
+      const text2 = await readFile9(path10.join(eventDir, `${runId}.jsonl`), "utf8");
+      return { runId, running: false, events: text2.split("\n").filter(Boolean).map((line) => JSON.parse(line)) };
+    } catch (error2) {
+      if (error2.code === "ENOENT") return { runId, running: false, events: [] };
+      throw error2;
+    }
+  }
+  async function skillText(account2) {
+    let base = null;
+    const candidates = [skillPath, path10.resolve(path10.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
     for (const candidate of candidates) {
       try {
-        return (await readFile6(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
+        base = (await readFile9(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
+        break;
       } catch {
       }
     }
-    return null;
+    const library = account2 ? await skillTextFor(account2).catch(() => "") : "";
+    return [base, library].filter(Boolean).join("\n\n---\n\n") || null;
   }
-  async function execute(job, { slot = null, trigger = "schedule" } = {}) {
-    if (running.has(job.accountId)) return { status: "skipped", reason: "already-running" };
-    const account2 = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
-    if (account2.status !== "active") return { status: "skipped", reason: "inactive" };
-    const runId = `run_${randomBytes2(6).toString("hex")}`;
-    const startedAt = now();
-    const record2 = { id: runId, accountId: job.accountId, runner: job.runner.type, model: job.runner.model ?? null, strategyId: job.runner.strategyId ?? null, slot, trigger, startedAt };
-    const work = (async () => {
-      if (job.runner.type === "strategy") {
-        const { strategies, errors } = await strategyLoader();
-        const strategy2 = strategies.get(job.runner.strategyId);
-        if (!strategy2) return { ...record2, status: "failed", finishedAt: now(), error: `Strategy ${job.runner.strategyId} not found${errors.length ? ` (${errors.join("; ")})` : ""}.` };
-        const caller = { client: account2.agent.client ?? `strategy-${strategy2.id}` };
-        const broker = createPaperBroker({ arena, accountId: job.accountId, caller });
-        try {
-          const round5 = await runStrategyRound({ strategy: strategy2, params: job.runner.params, broker, now, runId, ...strategyDeps });
-          return { ...record2, status: "ok", finishedAt: now(), orders: round5.orders, logs: round5.logs.slice(-20), strategyVersion: strategy2.version };
-        } catch (error2) {
-          return { ...record2, status: "failed", finishedAt: now(), error: error2.message };
-        }
-      }
-      const workDir = await mkdtemp(path7.join(os3.tmpdir(), "hrouter-round-"));
-      try {
-        const identity = account2.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
-        const prompt = roundPrompt({ account: account2, language: job.runner.language });
-        const invocation = agentInvocation({ job, account: account2, prompt, nodePath, bundlePath: bundlePath2, skillText: await skillText(), workDir, identity });
-        const result = await runChild({ ...invocation, timeoutMs: job.runner.timeoutMinutes * 6e4, spawnImpl, tailBytes: SCHEDULER_DEFAULTS.tailBytes });
-        const after = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
-        const reported = Boolean(after.lastRoundAt && Date.parse(after.lastRoundAt) >= Date.parse(startedAt));
-        const status = result.timedOut ? "timeout" : result.exitCode === 0 ? reported ? "ok" : "no-round" : "failed";
-        return { ...record2, status, finishedAt: now(), command: invocation.command, exitCode: result.exitCode, durationMs: result.durationMs, error: result.error ?? null, stdoutTail: result.stdout, stderrTail: result.stderr, reported };
-      } finally {
-        await rm3(workDir, { recursive: true, force: true });
-      }
-    })();
-    running.set(job.accountId, work);
+  async function findStrategy(strategyId, accountId2) {
+    const found = await resolver(strategyId, accountId2);
+    if (found) return { strategy: found, errors: [] };
+    if (strategyId.startsWith("trader-")) return { strategy: null, errors: ["\u8FD9\u4E2A\u4EA4\u6613\u5458\u8FD8\u6CA1\u6709\u901A\u8FC7\u68C0\u67E5\u7684\u4EE3\u7801\u7B56\u7565"] };
+    const { strategies, errors } = await strategyLoader();
+    return { strategy: strategies.get(strategyId) ?? null, errors };
+  }
+  async function promptFor(account2, job, trigger) {
+    const settings = await workbench();
+    const strategy2 = job.strategy ? await findStrategy(job.strategy.strategyId, account2.id).then(({ strategy: found }) => found ? { id: found.id, version: found.version, intervalMinutes: job.strategy.intervalMinutes } : null).catch(() => null) : null;
+    return buildRoundPrompt({
+      account: account2,
+      language: job.runner.language,
+      prompts: { global: settings.prompts?.global, market: settings.prompts?.[account2.market] },
+      limits: account2.limits ? limitsText(account2.limits, account2.limitStatus) : "",
+      instructions: account2.instructions ?? [],
+      mode: job.mode === "director" || job.strategy ? "director" : "rounds",
+      strategy: strategy2,
+      reviewMinutes: job.intervalMinutes ?? null,
+      trigger: trigger === "schedule" || trigger === "manual" ? null : trigger,
+      starter: account2.template ? await loadLibrary().then((library) => {
+        const template = library.templates.find((entry) => entry.id === account2.template);
+        return template && !template.builtinStrategy ? template.starterStrategy : null;
+      }).catch(() => null) : null
+    });
+  }
+  async function runStrategyLane(job, account2, { strategyId, params }, record2) {
+    const { strategy: strategy2, errors } = await findStrategy(strategyId, account2.id);
+    if (!strategy2) return { ...record2, status: "failed", finishedAt: now(), error: `Strategy ${strategyId} not found${errors.length ? ` (${errors.join("; ")})` : ""}.` };
+    const caller = { client: account2.agent.client ?? `strategy-${strategy2.id}` };
+    const broker = createPaperBroker({ arena, accountId: job.accountId, caller });
     try {
-      const outcome = await work;
-      await appendRun(job.accountId, outcome);
-      await update((state) => {
-        const stored = state.jobs.find((entry) => entry.accountId === job.accountId);
-        if (stored) {
-          stored.lastRun = { id: outcome.id, status: outcome.status, at: outcome.finishedAt };
-          stored.consecutiveFailures = outcome.status === "ok" ? 0 : (stored.consecutiveFailures ?? 0) + 1;
-        }
-      });
-      return outcome;
-    } finally {
-      running.delete(job.accountId);
+      const round7 = await runStrategyRound({ strategy: strategy2, params, broker, now, runId: record2.id, ...strategyDeps });
+      return { ...record2, status: "ok", finishedAt: now(), orders: round7.orders, logs: round7.logs.slice(-20), strategyVersion: strategy2.version };
+    } catch (error2) {
+      return { ...record2, status: "failed", finishedAt: now(), error: error2.message, strategyVersion: strategy2.version };
     }
+  }
+  async function runAgentRound(job, account2, { record: record2, runner }) {
+    const entry = { record: record2, events: [] };
+    const writer = eventWriter(record2.id);
+    live.set(record2.id, entry);
+    emit({ type: "run-start", run: record2 });
+    const workDir = await mkdtemp(path10.join(os3.tmpdir(), "hrouter-round-"));
+    try {
+      const effective = { ...job, runner };
+      const identity = account2.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
+      const prompt = await promptFor(account2, job, record2.trigger);
+      const skills = await skillText(account2);
+      const onEvent = (event) => {
+        entry.events.push(event);
+        if (entry.events.length > 400) entry.events.shift();
+        writer.push(event);
+        emit({ type: "run-event", runId: record2.id, accountId: record2.accountId, event });
+      };
+      let invocation;
+      let result;
+      if (runner.type === "acp") {
+        const env = { HROUTER_AGENT_ID: identity, HROUTER_NO_DASHBOARD: "1", HROUTER_REPORT_DIR: getStorageDir() };
+        invocation = { command: runner.command, args: runner.args ?? [] };
+        result = await runAcpAgent({
+          ...invocation,
+          env,
+          cwd: workDir,
+          prompt: skills ? `${skills}
+
+---
+
+${prompt}` : prompt,
+          timeoutMs: runner.timeoutMinutes * 6e4,
+          spawnImpl,
+          onEvent,
+          mcpServers: [{ name: "hrouter_market_pulse", command: nodePath, args: [bundlePath2, "--stdio"], env: Object.entries(env).map(([name, value]) => ({ name, value })) }]
+        });
+      } else {
+        invocation = agentInvocation({ job: effective, account: account2, prompt, nodePath, bundlePath: bundlePath2, skillText: skills, workDir, identity });
+        result = await runAgent({ ...invocation, timeoutMs: runner.timeoutMinutes * 6e4, spawnImpl, format: streamFormat(runner.type), tailBytes: SCHEDULER_DEFAULTS.tailBytes, onEvent });
+      }
+      const after = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
+      const reported = Boolean(after.lastRoundAt && Date.parse(after.lastRoundAt) >= Date.parse(record2.startedAt));
+      const status = result.timedOut ? "timeout" : result.exitCode === 0 && !result.streamError ? reported ? "ok" : "no-round" : "failed";
+      const failure = status === "failed" || status === "timeout" ? classifyFailure(result, now()) : null;
+      await writer.flush();
+      return {
+        ...record2,
+        status,
+        finishedAt: now(),
+        command: invocation.command,
+        exitCode: result.exitCode,
+        durationMs: result.durationMs,
+        error: result.error ?? result.streamError ?? null,
+        stdoutTail: result.text || result.stdout,
+        stderrTail: result.stderr,
+        reported,
+        usage: result.usage,
+        sessionId: result.sessionId,
+        events: result.events.length,
+        failure
+      };
+    } finally {
+      live.delete(record2.id);
+      await rm3(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {
+      });
+    }
+  }
+  const backupRunner = (job) => job.backup ? { timeoutMinutes: job.runner.timeoutMinutes, language: job.runner.language, ...job.runner.webSearch === false ? { webSearch: false } : {}, type: job.backup.type, ...job.backup.model ? { model: job.backup.model } : {}, ...job.backup.command ? { command: job.backup.command, args: job.backup.args ?? [] } : {} } : null;
+  async function pausePool(runner, failure, runId) {
+    await update((state) => {
+      state.pools[poolKey(runner)] = { pausedUntil: failure.resetAt, kind: failure.kind, message: failure.message ?? null, at: now(), runId };
+    });
+    emit({ type: "pool", key: poolKey(runner), pausedUntil: failure.resetAt });
+  }
+  async function finishJob(job, outcome, lane) {
+    await appendRun(job.accountId, outcome);
+    await update((state) => {
+      const stored = state.jobs.find((entry) => entry.accountId === job.accountId);
+      if (!stored) return;
+      if (lane === "strategy") {
+        stored.strategyLastRun = { id: outcome.id, status: outcome.status, at: outcome.finishedAt };
+        return;
+      }
+      stored.lastRun = { id: outcome.id, status: outcome.status, at: outcome.finishedAt };
+      if (outcome.status === "skipped") return;
+      stored.consecutiveFailures = outcome.status === "ok" ? 0 : (stored.consecutiveFailures ?? 0) + 1;
+      if (outcome.failure && PAUSING_FAILURES.has(outcome.failure.kind)) stored.paused = { kind: outcome.failure.kind, message: outcome.failure.message ?? outcome.error ?? null, at: outcome.finishedAt, runId: outcome.id };
+    });
+    emit({ type: "run-end", run: outcome });
+  }
+  async function execute(job, { slot = null, trigger = "schedule", lane = "primary" } = {}) {
+    const key = lane === "strategy" ? `${job.accountId}:S` : job.accountId;
+    if (running.has(key)) return { status: "skipped", reason: "already-running" };
+    const isAgent = lane !== "strategy" && agentLane(job);
+    let release;
+    running.set(key, new Promise((resolve) => {
+      release = resolve;
+    }));
+    if (isAgent) agentRuns.add(key);
+    try {
+      const account2 = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
+      if (account2.status !== "active") return { status: "skipped", reason: "inactive" };
+      const record2 = (runner, extra = {}) => ({ id: `run_${randomBytes3(6).toString("hex")}`, accountId: job.accountId, lane: lane === "strategy" ? "strategy" : runner.type === "strategy" ? "strategy" : "agent", runner: runner.type, model: runner.model ?? null, strategyId: lane === "strategy" ? job.strategy.strategyId : runner.strategyId ?? null, slot, trigger, startedAt: now(), ...extra });
+      const work = (async () => {
+        if (lane === "strategy") return [await runStrategyLane(job, account2, job.strategy, record2({ type: "strategy" }))];
+        if (job.runner.type === "strategy") return [await runStrategyLane(job, account2, { strategyId: job.runner.strategyId, params: job.runner.params }, record2(job.runner))];
+        const state = await readState();
+        let runner = job.runner;
+        let backupFor = null;
+        const blocked = poolPaused(state, job.runner);
+        if (blocked) {
+          const backup = backupRunner(job);
+          if (backup && !poolPaused(state, backup)) {
+            runner = backup;
+            backupFor = `${job.runner.type} ${blocked.kind}`;
+          } else return [{ ...record2(job.runner), status: "skipped", reason: "quota", finishedAt: now(), error: `${job.runner.type} \u989D\u5EA6\u7528\u5C3D\uFF0C${blocked.pausedUntil} \u6062\u590D${job.backup ? "\uFF1B\u5907\u7528 Agent \u4E5F\u4E0D\u53EF\u7528" : "\uFF1B\u6CA1\u6709\u8BBE\u7F6E\u5907\u7528 Agent"}` }];
+        }
+        const outcomes2 = [await runAgentRound(job, account2, { record: record2(runner, backupFor ? { backupFor } : {}), runner })];
+        const first = outcomes2[0];
+        if (first.failure?.kind === "quota") {
+          await pausePool(runner, first.failure, first.id);
+          const backup = backupRunner(job);
+          if (!backupFor && backup && !poolPaused(await readState(), backup)) outcomes2.push(await runAgentRound(job, account2, { record: record2(backup, { backupFor: `${runner.type} quota`, trigger: "backup" }), runner: backup }));
+        }
+        return outcomes2;
+      })();
+      running.set(key, work);
+      const outcomes = await work;
+      for (const outcome of outcomes) await finishJob(job, outcome, lane === "strategy" ? "strategy" : "primary");
+      return outcomes.at(-1);
+    } finally {
+      release();
+      running.delete(key);
+      agentRuns.delete(key);
+    }
+  }
+  async function markDone(key, slots) {
+    await update((state) => {
+      state.done[key] = [...state.done[key] ?? [], ...slots.map((slot) => slot.key)].slice(-600);
+    });
   }
   async function tickOnce() {
     const at = now();
@@ -17666,8 +19385,10 @@ function createScheduler({
     }
     role = "leader";
     const { jobs, done } = await readState();
+    const cap = (await workbench()).maxConcurrentAgents ?? 4;
     const started = [];
-    for (const job of jobs.filter((entry) => entry.enabled !== false)) {
+    const waiting = [];
+    for (const job of jobs.filter((entry) => entry.enabled !== false && !entry.paused)) {
       let account2;
       try {
         account2 = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
@@ -17675,22 +19396,43 @@ function createScheduler({
         continue;
       }
       if (account2.status !== "active") continue;
+      if (job.strategy && agentLane(job)) {
+        const strategyKey = `${job.accountId}:S`;
+        const slots2 = dueSlots({ intervalMinutes: job.strategy.intervalMinutes, times: [] }, account2.market, at, done[strategyKey] ?? [], catchUpMinutes);
+        if (slots2.length) {
+          await markDone(strategyKey, slots2);
+          if (!running.has(strategyKey)) {
+            started.push(strategyKey);
+            execute(job, { slot: slots2.at(-1).key, lane: "strategy" }).catch((error2) => onError(error2));
+          }
+        }
+      }
       const slots = dueSlots(job, account2.market, at, done[job.accountId] ?? [], catchUpMinutes);
-      if (!slots.length) continue;
-      if (running.has(job.accountId)) {
-        const skipped = slots.filter((slot) => slot.repeat);
-        if (skipped.length) await update((state) => {
-          state.done[job.accountId] = [...state.done[job.accountId] ?? [], ...skipped.map((slot) => slot.key)].slice(-600);
-        });
+      if (!slots.length) {
+        queued.delete(job.accountId);
         continue;
       }
-      await update((state) => {
-        state.done[job.accountId] = [...state.done[job.accountId] ?? [], ...slots.map((slot) => slot.key)].slice(-600);
-      });
+      if (running.has(job.accountId)) {
+        const skipped = slots.filter((slot) => slot.repeat);
+        if (skipped.length) await markDone(job.accountId, skipped);
+        continue;
+      }
+      if (agentLane(job) && agentRuns.size >= cap) {
+        const since = queued.get(job.accountId) ?? Date.parse(at);
+        queued.set(job.accountId, since);
+        if (Date.parse(at) - since > SCHEDULER_DEFAULTS.maxQueueMinutes * 6e4) {
+          queued.delete(job.accountId);
+          await markDone(job.accountId, slots);
+          await appendRun(job.accountId, { id: `run_${randomBytes3(6).toString("hex")}`, accountId: job.accountId, lane: "agent", runner: job.runner.type, model: job.runner.model ?? null, slot: slots.at(-1).key, trigger: "schedule", startedAt: at, finishedAt: at, status: "skipped", reason: "queue-full", error: `\u540C\u65F6\u8FD0\u884C\u7684 Agent \u5DF2\u8FBE\u4E0A\u9650 ${cap} \u4E2A\uFF0C\u6392\u961F\u8D85\u8FC7 ${SCHEDULER_DEFAULTS.maxQueueMinutes} \u5206\u949F\uFF0C\u8DF3\u8FC7\u8FD9\u4E00\u8F6E\u3002` });
+        } else waiting.push(job.accountId);
+        continue;
+      }
+      queued.delete(job.accountId);
+      await markDone(job.accountId, slots);
       started.push(job.accountId);
       execute(job, { slot: slots.at(-1).key }).catch((error2) => onError(error2));
     }
-    last = { at, role, started, running: [...running.keys()] };
+    last = { at, role, started, waiting, running: [...running.keys()] };
     return last;
   }
   async function tick() {
@@ -17707,53 +19449,165 @@ function createScheduler({
     ownerId,
     tick,
     async listJobs() {
-      const { jobs } = await readState();
-      return jobs.map((job) => ({ ...job, running: running.has(job.accountId), unhealthy: (job.consecutiveFailures ?? 0) >= SCHEDULER_DEFAULTS.failureThreshold }));
+      const { jobs, pools } = await readState();
+      const at = Date.parse(now());
+      return jobs.map((job) => {
+        const pool = agentLane(job) ? pools[poolKey(job.runner)] : null;
+        return {
+          ...job,
+          running: running.has(job.accountId),
+          strategyRunning: running.has(`${job.accountId}:S`),
+          queued: queued.has(job.accountId),
+          unhealthy: (job.consecutiveFailures ?? 0) >= SCHEDULER_DEFAULTS.failureThreshold || Boolean(job.paused),
+          pool: pool && Date.parse(pool.pausedUntil) > at ? pool : null
+        };
+      });
+    },
+    async listPools() {
+      const { jobs, pools } = await readState();
+      const at = Date.parse(now());
+      const keys = /* @__PURE__ */ new Set([...Object.keys(pools), ...jobs.filter(agentLane).flatMap((job) => [poolKey(job.runner), ...job.backup ? [poolKey(job.backup)] : []])]);
+      return [...keys].map((key) => ({
+        key,
+        paused: Boolean(pools[key] && Date.parse(pools[key].pausedUntil) > at),
+        ...pools[key] ?? {},
+        traders: jobs.filter((job) => agentLane(job) && poolKey(job.runner) === key).map((job) => job.accountId),
+        backups: jobs.filter((job) => job.backup && poolKey(job.backup) === key).map((job) => job.accountId)
+      }));
+    },
+    async clearPool(key) {
+      return update((state) => {
+        delete state.pools[key];
+        return { cleared: key };
+      });
+    },
+    async resumeJob(accountId2) {
+      return update((state) => {
+        const job = state.jobs.find((entry) => entry.accountId === accountId2);
+        if (!job) throw new ArenaError("No schedule for this account.", "not_found", 404);
+        delete job.paused;
+        job.consecutiveFailures = 0;
+        return job;
+      });
     },
     async upsertJob(accountId2, input) {
       const account2 = await arena.getAccount(accountId2, { sync: false, limit: 1 });
-      if (input.runner?.type === "strategy") {
-        const { strategies } = await strategyLoader();
-        const strategy2 = strategies.get(input.runner.strategyId);
-        if (!strategy2) throw new ArenaError(`Unknown strategy ${input.runner.strategyId}.`);
+      for (const strategyInput of [input.runner?.type === "strategy" ? input.runner : null, input.strategy ?? null].filter(Boolean)) {
+        const { strategy: strategy2 } = await findStrategy(strategyInput.strategyId, accountId2);
+        if (!strategy2) throw new ArenaError(`Unknown strategy ${strategyInput.strategyId}.`);
         if (!strategy2.markets.includes(account2.market)) throw new ArenaError(`${strategy2.id} does not support the ${account2.market} market.`);
-        resolveParams(strategy2, input.runner.params);
+        resolveParams(strategy2, strategyInput.params);
       }
       return update((state) => {
         const index = state.jobs.findIndex((job2) => job2.accountId === accountId2);
         const job = { ...sanitizeJob(input, index >= 0 ? state.jobs[index] : { enabled: true }), accountId: accountId2, updatedAt: now() };
+        if (input.mode !== void 0) {
+          if (!["director", "rounds"].includes(input.mode)) throw new ArenaError("mode must be director or rounds.");
+          job.mode = input.mode;
+        }
+        delete job.paused;
         if (index >= 0) state.jobs[index] = job;
         else state.jobs.push(job);
         return job;
       });
     },
-    // Give a new agent account the owner's default repeat schedule, unless it already has one.
-    async ensureDefaultSchedule(accountId2, intervalMinutes = 15) {
+    // Review cadence and strategy frequency, changeable by the owner or (unless locked) the trader itself.
+    async setCadence(accountId2, { reviewMinutes, strategyMinutes, reason } = {}, caller = {}) {
+      const requested = [];
+      const changes = {};
+      for (const [key, value] of [["reviewMinutes", reviewMinutes], ["strategyMinutes", strategyMinutes]]) {
+        if (value === void 0) continue;
+        if (await arena.checkLock?.(accountId2, key, caller)) {
+          requested.push(await arena.requestChange(accountId2, { key, to: value, reason }, caller));
+          continue;
+        }
+        changes[key] = value;
+      }
+      const job = await update((state) => {
+        const stored = state.jobs.find((entry) => entry.accountId === accountId2);
+        if (!stored) throw new ArenaError("This trader has no schedule yet; configure it in the dashboard first.", "not_found", 404);
+        if (changes.reviewMinutes !== void 0) {
+          const value = Number(changes.reviewMinutes);
+          if (!Number.isInteger(value) || value < SCHEDULER_DEFAULTS.minAgentIntervalMinutes || value > 240) throw new ArenaError(`reviewMinutes must be ${SCHEDULER_DEFAULTS.minAgentIntervalMinutes}\u2013240.`);
+          stored.intervalMinutes = value;
+        }
+        if (changes.strategyMinutes !== void 0) {
+          if (!stored.strategy) throw new ArenaError("No code strategy yet; write one with arena_write_strategy first.");
+          const value = Number(changes.strategyMinutes);
+          if (!Number.isInteger(value) || value < 1 || value > 240) throw new ArenaError("strategyMinutes must be 1\u2013240.");
+          stored.strategy.intervalMinutes = value;
+        }
+        stored.updatedAt = now();
+        return stored;
+      });
+      if (Object.keys(changes).length && arena.logCadenceChange) await arena.logCadenceChange(accountId2, changes, caller, reason);
+      return { job, applied: changes, requested };
+    },
+    // Give a new agent account the owner's default schedule, unless it already has one: the agent
+    // reviews every N minutes as the director and writes its own code strategy.
+    async ensureDefaultSchedule(accountId2, intervalMinutes = SCHEDULER_DEFAULTS.defaultReviewMinutes) {
       if (!intervalMinutes) return { created: false, reason: "default schedule disabled" };
       const { jobs } = await readState();
       if (jobs.some((job2) => job2.accountId === accountId2)) return { created: false, reason: "already scheduled" };
       const account2 = await arena.getAccount(accountId2, { sync: false, limit: 1 });
       const runner = inferRunner(account2);
       if (!runner) return { created: false, reason: "no CLI runner for this agent" };
-      const job = await this.upsertJob(accountId2, { intervalMinutes, times: [], runner: { ...runner, timeoutMinutes: SCHEDULER_DEFAULTS.timeoutMinutes } });
+      const job = await this.upsertJob(accountId2, { intervalMinutes, times: [], mode: "director", runner: { ...runner, timeoutMinutes: SCHEDULER_DEFAULTS.timeoutMinutes } });
       return { created: true, job };
     },
     async deleteJob(accountId2) {
       return update((state) => {
         state.jobs = state.jobs.filter((job) => job.accountId !== accountId2);
         delete state.done[accountId2];
+        delete state.done[`${accountId2}:S`];
         return { deleted: accountId2 };
       });
     },
-    async runNow(accountId2) {
+    async runNow(accountId2, { lane = "primary", trigger = "manual" } = {}) {
       const { jobs } = await readState();
       const job = jobs.find((entry) => entry.accountId === accountId2);
       if (!job) throw new ArenaError("Configure a schedule for this account first.", "not_found", 404);
-      if (running.has(accountId2)) return { status: "skipped", reason: "already-running" };
-      const promise = execute(job, { trigger: "manual" });
+      if (lane === "strategy" && !job.strategy) throw new ArenaError("This trader has no code strategy yet.");
+      if (running.has(lane === "strategy" ? `${accountId2}:S` : accountId2)) return { status: "skipped", reason: "already-running" };
+      const promise = execute(job, { trigger, lane });
       return { status: "started", wait: () => promise };
     },
     listRuns,
+    runEvents,
+    // Exactly what the next agent round would send: the prompt and the skill text.
+    async previewPrompt(accountId2) {
+      const { jobs } = await readState();
+      const job = jobs.find((entry) => entry.accountId === accountId2) ?? { runner: { type: "claude" }, intervalMinutes: SCHEDULER_DEFAULTS.defaultReviewMinutes, mode: "director" };
+      const account2 = await arena.getAccount(accountId2, { sync: false, limit: 1 });
+      const skills = await skillText(account2);
+      return { prompt: await promptFor(account2, job, "schedule"), skills, chars: (skills?.length ?? 0) + (await promptFor(account2, job, "schedule")).length };
+    },
+    // Tokens, cost and run counts per trader since a time (default: start of today, local).
+    async usage({ since } = {}) {
+      const from = Date.parse(since ?? new Date(new Date(now()).setHours(0, 0, 0, 0)).toISOString());
+      const { jobs } = await readState();
+      const rows = [];
+      for (const job of jobs) {
+        const runs = (await listRuns({ accountId: job.accountId, limit: SCHEDULER_DEFAULTS.runLogLimit })).filter((run2) => Date.parse(run2.startedAt) >= from);
+        const agentRuns2 = runs.filter((run2) => run2.lane === "agent" && run2.status !== "skipped");
+        rows.push({
+          accountId: job.accountId,
+          reviews: agentRuns2.length,
+          strategyRuns: runs.filter((run2) => run2.lane === "strategy").length,
+          inputTokens: agentRuns2.reduce((sum2, run2) => sum2 + (run2.usage?.inputTokens ?? 0), 0),
+          outputTokens: agentRuns2.reduce((sum2, run2) => sum2 + (run2.usage?.outputTokens ?? 0), 0),
+          costUsd: agentRuns2.reduce((sum2, run2) => sum2 + (run2.usage?.costUsd ?? 0), 0),
+          failed: runs.filter((run2) => ["failed", "timeout"].includes(run2.status)).length,
+          byRunner: Object.entries(agentRuns2.reduce((map, run2) => ({ ...map, [run2.runner]: (map[run2.runner] ?? 0) + (run2.usage?.inputTokens ?? 0) + (run2.usage?.outputTokens ?? 0) }), {})).map(([runner, tokens]) => ({ runner, tokens }))
+        });
+      }
+      const sum = (key) => rows.reduce((total, row) => total + row[key], 0);
+      return { since: new Date(from).toISOString(), traders: rows, totals: { reviews: sum("reviews"), strategyRuns: sum("strategyRuns"), tokens: sum("inputTokens") + sum("outputTokens"), costUsd: Math.round(sum("costUsd") * 100) / 100, failed: sum("failed") } };
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     start({ initialDelayMs = 3e3 } = {}) {
       if (timer) return this;
       const loop = async () => {
@@ -17772,11 +19626,19 @@ function createScheduler({
       await arena.releaseLease("scheduler", ownerId).catch(() => {
       });
     },
-    status: () => ({ ownerId, role, last, running: [...running.keys()] })
+    status: () => ({ ownerId, role, last, running: [...running.keys()], agentRuns: agentRuns.size, queued: [...queued.keys()] })
   };
 }
 
 // mcp/arena-tools.mjs
+var STRATEGY_API = [
+  "Write an ES module: export default { id, name, version, markets, description, params: { key: { type: 'integer'|'number'|'boolean'|'enum'|'symbols', default, min, max, label } }, async run(ctx) { \u2026 } }.",
+  "ctx: now, market, account (cash, positions with lots, metrics.equity), params (validated), universe (your stock pool),",
+  "await ctx.history(symbol, { days }) \u2192 completed daily bars oldest first ({ sessionDate, open, high, low, close, volume }); await ctx.quote(symbol) \u2192 live quote (price, bid, ask, changePct, signalEligible);",
+  "await ctx.intraday(symbol) \u2192 today's completed minute bars ({ time, price, volume, vwap }); await ctx.scan({ sort, boards, minAmount, limit }) \u2192 whole-market ranking; ctx.sellable(symbol); ctx.log(text); ctx.indicators.sma(values, n).",
+  "Return { targets: [{ symbol, weight 0\u20131, reason }] } or { orders: [{ symbol, side, quantity, reason }] }, optionally exits: { stopLossPct, takeProfitPct } for new buys and report: { title, summary }.",
+  "No imports, require, process, fetch or eval: the code runs in a sandbox with only ctx for data. Hard limits are enforced by the arena, not by your code."
+].join(" ");
 var accountId = external_exports.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_\u2026) returned by arena_register_account or arena_my_accounts.");
 var market = external_exports.enum(["A", "HK", "US"]);
 var exitFields = {
@@ -17827,11 +19689,13 @@ function registerArenaTools(server2, { toolResult: toolResult2, toolError: toolE
       strategySummary: external_exports.string().min(10).max(2e3).describe("The strategy you will follow: universe, entry/exit rules, sizing, risk limits."),
       initialCash: external_exports.number().min(1e3).max(1e10).optional().describe("Leave unset to use the competition default so accounts stay comparable."),
       competition: external_exports.string().min(1).max(40).optional().describe("Group name; only accounts in the same market and competition are ranked together. Default 'default'."),
-      agentLabel: external_exports.string().max(60).optional().describe("Human-friendly agent name, e.g. 'Claude Code', 'Codex', 'WorkBuddy'.")
+      agentLabel: external_exports.string().max(60).optional().describe("Human-friendly agent name, e.g. 'Claude Code', 'Codex', 'WorkBuddy'."),
+      template: external_exports.string().max(40).optional().describe("Trader template (see arena_skill_library): a-share-swing, value, growth-momentum, quant-rotation. Binds its skills and starting prompt.")
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
   }, async (input) => {
-    const account2 = await getArena().createAccount(input, caller());
+    const defaults = await templateDefaults(input.template, input);
+    const account2 = await getArena().createAccount({ ...input, ...defaults }, caller());
     const schedule = await createScheduler({ arena: getArena() }).ensureDefaultSchedule(account2.id, (await loadPreferences()).defaultAgentIntervalMinutes).catch((error2) => ({ created: false, reason: error2.message }));
     account2.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type } : null;
     return [account2, `Created arena account ${account2.id}. Save this id and pass it as accountId to every arena tool. ${compactAccount(account2)}`];
@@ -17853,7 +19717,7 @@ ${rows.map(compactAccount).join("\n")}` : `No arena account for ${me.client} yet
     title: "Get arena account",
     description: [
       "Sync with live quotes (fills resting orders that became marketable, expires day orders, marks positions) and return cash, positions (with stop-loss / take-profit levels), open orders, recent trades, journal, account events (fills by the background matcher, stops, dividends, splits, suspensions) and performance metrics.",
-      "Also returns the owner's riskPolicy (read-only for agents: max position %, max exposure %, drawdown circuit breaker), the current drawdown/breaker state and run health (missed trading days)."
+      "Also returns the hard limits (limits: keep-cash %, max holdings, per-position %, new positions per day, risk per trade, boards, \u2026) with limitStatus (room left: buyableValue, positionsLeft, newLeftToday), the drawdown/breaker state and run health (missed trading days)."
     ].join(" "),
     inputSchema: { accountId, limit: external_exports.number().int().min(1).max(200).optional().describe("Number of recent orders/trades/journal entries (default 30).") },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
@@ -17861,6 +19725,7 @@ ${rows.map(compactAccount).join("\n")}` : `No arena account for ${me.client} yet
     const account2 = await getArena().getAccount(id, { limit });
     const { equity, ...rest } = account2;
     return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, `${compactAccount(account2)}
+${limitsText(account2.limits, account2.limitStatus)}
 ${policyText(account2.riskPolicy)}`];
   });
   register("arena_place_order", {
@@ -17871,7 +19736,7 @@ ${policyText(account2.riskPolicy)}`];
       "Market orders need an open session. Limit orders rest and a background matcher fills them every 1-2 minutes during the session when the price is marketable; 'day' orders expire at the session close, 'gtc' after 30 days.",
       "One account may take at most a configured share of the day's volume (default 5%); larger orders fill partially and the rest keeps resting. Suspended stocks (no trades today) do not fill.",
       "BUY orders may carry stopLoss / takeProfit (price or % of average cost); the matcher sells at market when a fresh quote crosses the level, subject to T+1 and limit-down.",
-      "The owner's risk policy (see arena_get_account) can reject buys; agents cannot change it.",
+      "Hard limits (see arena_get_account limits / limitStatus; default: keep 20% cash) reject buys that break them. Change unlocked limits with arena_set_limits.",
       "Always give the reason (thesis, signal, risk) so the decision can be reviewed later. Rejections are recorded and count against discipline metrics."
     ].join(" "),
     inputSchema: {
@@ -18002,6 +19867,147 @@ ${policyText(account2.riskPolicy)}`];
     }
     return [{ ...result, mirroredToDashboard: mirrored }, `Stock pool set to ${result.watchlist.symbols.length} symbols${mirrored ? "; dashboard watchlist updated" : ""}.`];
   });
+  const limitShape = Object.fromEntries(Object.entries(LIMIT_SPECS).map(([key, spec]) => [
+    key,
+    (spec.type === "boards" ? external_exports.array(external_exports.enum(BOARD_OPTIONS)) : spec.type === "int" ? external_exports.number().int().min(spec.min).max(spec.max) : external_exports.number().min(spec.min).max(spec.max)).nullable().optional().describe(`${spec.zh} / ${spec.en}: ${spec.hint}. null turns it off.`)
+  ]));
+  register("arena_get_settings", {
+    title: "Get trader settings",
+    description: "Read a trader's hard limits (with room left), lock state, prompt, pending change requests, the market's fee schedule and the global / market prompts. Settings change at any time from the dashboard or these MCP tools.",
+    inputSchema: { accountId },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async ({ accountId: id }) => {
+    const settings = await getArena().getSettings(id);
+    const locked = Object.keys(settings.locks ?? {});
+    return [settings, `${limitsText(settings.limits, settings.limitStatus)}${locked.length ? `
+Locked by the owner: ${locked.join(", ")}.` : ""}${settings.requests.length ? `
+${settings.requests.length} change request(s) waiting for the owner.` : ""}`];
+  });
+  register("arena_set_limits", {
+    title: "Set trader limits",
+    description: [
+      "Change a trader's hard limits (checked by the arena before every buy). Only the keys you pass change; null turns a limit off.",
+      "Items the owner locked are not changed: they become a change request the owner approves or rejects in the dashboard. Every change is logged with who made it and the reason."
+    ].join(" "),
+    inputSchema: { accountId, ...limitShape, reason: external_exports.string().min(4).max(500).describe("Why you change it; shown to the owner and in the change log.") },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async ({ accountId: id, reason, ...limits }) => {
+    const result = await getArena().setLimits({ accountId: id, limits, reason }, caller());
+    const lines = [
+      result.applied.length ? `Changed: ${result.applied.map((entry) => `${entry.key} ${JSON.stringify(entry.from)} \u2192 ${JSON.stringify(entry.to)}`).join(", ")}.` : "Nothing changed.",
+      result.requested.length ? `Locked by the owner, filed as request(s): ${result.requested.map((entry) => entry.key).join(", ")}.` : null,
+      limitsText(result.limits, result.limitStatus)
+    ].filter(Boolean);
+    return [result, lines.join("\n")];
+  });
+  register("arena_set_prompt", {
+    title: "Set trader prompt",
+    description: "Replace a trader's own prompt (added after the global and market prompts in every round). If the owner locked it, the change becomes a request.",
+    inputSchema: { accountId, prompt: external_exports.string().max(4e3), reason: external_exports.string().max(500).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async (input) => {
+    const result = await getArena().setPrompt(input, caller());
+    return [result, result.requested.length ? "The prompt is locked by the owner; filed a change request." : "Trader prompt updated."];
+  });
+  register("arena_set_fees", {
+    title: "Set market fee schedule",
+    description: [
+      "Change the fee schedule for one market (shared by every trader in it); later fills use it. Rates are fractions: 0.00025 = 0.025%.",
+      `Fields: A ${Object.keys(DEFAULT_FEES.A).join(", ")}; HK ${Object.keys(DEFAULT_FEES.HK).join(", ")}; US ${Object.keys(DEFAULT_FEES.US).join(", ")}. Rejected when the owner locked the market's fees.`
+    ].join(" "),
+    inputSchema: { market, fees: external_exports.record(external_exports.number()).describe("Numeric fields to change, e.g. { commissionRate: 0.0002, minCommission: 5 }."), waiveMinimum: external_exports.boolean().optional().describe("A / HK: true = no minimum commission (\u514D\u4E94)."), reason: external_exports.string().max(500).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async ({ market: selected, fees, waiveMinimum, reason }) => {
+    const result = await getArena().setFees({ market: selected, fees: { ...fees, ...waiveMinimum === void 0 ? {} : { waiveMinimum } }, reason }, caller());
+    return [result, `${result.market} fees: ${Object.entries(result.fees).map(([key, value]) => `${key} ${value}`).join(", ")}.`];
+  });
+  register("arena_set_cadence", {
+    title: "Set review and strategy cadence",
+    description: [
+      "Change how often you (the agent) are woken for a review, and how often your code strategy executes. Reviews cost tokens; strategy executions do not.",
+      "reviewMinutes 5\u2013240, strategyMinutes 1\u2013240. Items the owner locked become a change request instead."
+    ].join(" "),
+    inputSchema: { accountId, reviewMinutes: external_exports.number().int().min(5).max(240).optional(), strategyMinutes: external_exports.number().int().min(1).max(240).optional(), reason: external_exports.string().min(4).max(500) },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async ({ accountId: id, reviewMinutes, strategyMinutes, reason }) => {
+    const result = await createScheduler({ arena: getArena() }).setCadence(id, { reviewMinutes, strategyMinutes, reason }, caller());
+    const parts = [
+      result.applied.reviewMinutes !== void 0 ? `review every ${result.applied.reviewMinutes} min` : null,
+      result.applied.strategyMinutes !== void 0 ? `strategy every ${result.applied.strategyMinutes} min` : null
+    ].filter(Boolean);
+    return [result, `${parts.length ? `Now: ${parts.join(", ")}.` : "Nothing changed."}${result.requested.length ? ` Locked by the owner, filed as request(s): ${result.requested.map((entry) => entry.key).join(", ")}.` : ""}`];
+  });
+  register("arena_write_strategy", {
+    title: "Write your code strategy",
+    description: [
+      "Publish a new version of your own code strategy. It runs automatically at the frequency you set (no tokens), while you review every few minutes as the director.",
+      "Before going live the version is loaded in a sandbox, dry-run on live data (orders computed, not placed) and backtested on real daily bars (about 6 months, closes, fees and slippage). A failing version is kept as rejected with the reason and the current live version keeps running.",
+      STRATEGY_API
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      code: external_exports.string().min(40).max(6e4).describe("The whole ES module source."),
+      changeNote: external_exports.string().min(4).max(500).describe("What changed and why."),
+      params: external_exports.record(external_exports.any()).optional().describe("Parameter values for this version (defaults come from the module's params)."),
+      universe: external_exports.array(external_exports.string().max(20)).max(40).optional().describe("Symbols to run and backtest on; default your stock pool, then holdings."),
+      intervalMinutes: external_exports.number().int().min(1).max(240).optional().describe("How often the strategy executes during the session (default: current, else 5).")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  }, async (input) => {
+    const arena = getArena();
+    const result = await writeTraderStrategy({ arena, scheduler: createScheduler({ arena }), store: createTraderStrategyStore(arena.root), ...input, caller: caller() });
+    if (result.status !== "live") return [result, `v${result.version} REJECTED at ${result.rejectedAt}: ${result.error}${result.live ? ` \xB7 v${result.live} keeps running.` : " \xB7 no live version yet."}`];
+    const bt = result.backtest;
+    return [result, `v${result.version} is LIVE, executing every ${result.intervalMinutes} min. Dry run: ${result.dryRun.orders.length} order(s). Backtest ${bt.from}\u2013${bt.to}: ${bt.totalReturnPct}% (max DD ${bt.maxDrawdownPct}%, benchmark ${bt.benchmarkReturnPct ?? "\u2014"}%, ${bt.trades} trades).${result.previous?.backtest ? ` Previous v${result.previous.version}: ${result.previous.backtest.totalReturnPct}% / ${result.previous.backtest.maxDrawdownPct}%.` : ""}${bt.notes.length ? ` Notes: ${bt.notes.join(" ")}` : ""}`];
+  });
+  register("arena_get_strategy", {
+    title: "Get your code strategy",
+    description: "Read your live code strategy (source), its parameters, schedule and every earlier version with its checks, backtest and status.",
+    inputSchema: { accountId, version: external_exports.number().int().positive().optional().describe("A specific version's source; default the live one.") },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async ({ accountId: id, version: version3 }) => {
+    const store = createTraderStrategyStore(getArena().root);
+    const [meta, current] = await Promise.all([store.meta(id), store.code(id, version3)]);
+    const job = (await createScheduler({ arena: getArena() }).listJobs()).find((entry) => entry.accountId === id);
+    return [
+      { strategyId: traderStrategyId(id), live: meta.live, versions: meta.versions, code: current?.code ?? null, schedule: job ? { reviewMinutes: job.intervalMinutes ?? null, strategy: job.strategy ?? (job.runner?.type === "strategy" ? { strategyId: job.runner.strategyId, intervalMinutes: job.intervalMinutes } : null), mode: job.mode ?? null } : null },
+      meta.live ? `Live: v${meta.live} of ${meta.versions.length} version(s).` : "No live code strategy yet. Write one with arena_write_strategy."
+    ];
+  });
+  register("arena_rollback_strategy", {
+    title: "Roll back your code strategy",
+    description: "Make an earlier version that passed its checks live again.",
+    inputSchema: { accountId, version: external_exports.number().int().positive(), reason: external_exports.string().max(500).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async ({ accountId: id, version: version3 }) => {
+    const arena = getArena();
+    const entry = await rollbackTraderStrategy({ arena, scheduler: createScheduler({ arena }), store: createTraderStrategyStore(arena.root), accountId: id, version: version3, caller: caller() });
+    return [entry, `v${entry.version} is live again.`];
+  });
+  register("arena_skill_library", {
+    title: "Trader skill library",
+    description: "List the built-in trader templates and skills (discipline, team roles, investor panel, CANSLIM, VCP, A-share trend pullback, MACD resonance, \u2026) with their source repository, license, markets and whether the data they need is available.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async () => {
+    const library = await loadLibrary();
+    const text2 = [
+      "Templates:",
+      ...library.templates.map((template) => `- ${template.id} \xB7 ${template.name} [${template.markets.join("/")}] ${template.status === "available" ? "" : `(needs ${template.requires?.join(", ")})`}`),
+      "Skills:",
+      ...library.skills.map((skill) => `- ${skill.id} \xB7 ${skill.name} [${skill.markets.join("/")}] ${skill.sourceInfo?.repo ?? ""} ${skill.sourceInfo?.license ?? ""}${skill.status === "available" ? "" : ` (needs ${skill.requires?.join(", ")})`}`)
+    ].join("\n");
+    return [library, text2];
+  });
+  register("arena_get_starter_strategy", {
+    title: "Get a starter strategy",
+    description: "Read the source of a built-in starter strategy (trend-pullback, macd-resonance) to adapt and publish with arena_write_strategy.",
+    inputSchema: { id: external_exports.enum(["trend-pullback", "macd-resonance"]) },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  }, async ({ id }) => {
+    const code = await starterStrategyCode(id);
+    return [{ id, code }, code];
+  });
   register("arena_leaderboard", {
     title: "Arena leaderboard",
     description: "Rank all agents' accounts by total return within each market and competition, with drawdown, Sharpe, win rate, fees, turnover, benchmark and excess return.",
@@ -18018,30 +20024,30 @@ ${policyText(account2.riskPolicy)}`];
 }
 
 // mcp/update-coordination.mjs
-import { mkdir as mkdir7, readFile as readFile7, writeFile as writeFile6, rename as rename7, rm as rm4, readdir as readdir3, stat as stat2 } from "node:fs/promises";
+import { mkdir as mkdir9, readFile as readFile10, writeFile as writeFile8, rename as rename9, rm as rm4, readdir as readdir3, stat as stat3 } from "node:fs/promises";
 import { rmSync } from "node:fs";
-import { randomUUID as randomUUID5 } from "node:crypto";
+import { randomUUID as randomUUID7 } from "node:crypto";
 import os4 from "node:os";
-import path8 from "node:path";
+import path11 from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 function updateHome(env = process.env, platform = process.platform, home = os4.homedir()) {
-  if (env.HROUTER_UPDATE_HOME) return path8.resolve(env.HROUTER_UPDATE_HOME);
-  return platform === "win32" ? path8.join(env.LOCALAPPDATA || path8.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path8.join(env.XDG_DATA_HOME || path8.join(home, ".local", "share"), "hrouter-market-pulse-updater");
+  if (env.HROUTER_UPDATE_HOME) return path11.resolve(env.HROUTER_UPDATE_HOME);
+  return platform === "win32" ? path11.join(env.LOCALAPPDATA || path11.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path11.join(env.XDG_DATA_HOME || path11.join(home, ".local", "share"), "hrouter-market-pulse-updater");
 }
-async function readJson2(file, fallback = null) {
+async function readJson3(file, fallback = null) {
   try {
-    return JSON.parse(await readFile7(file, "utf8"));
+    return JSON.parse(await readFile10(file, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function atomicJson(file, data) {
-  await mkdir7(path8.dirname(file), { recursive: true, mode: 448 });
-  const temp = `${file}.${randomUUID5()}.tmp`;
+  await mkdir9(path11.dirname(file), { recursive: true, mode: 448 });
+  const temp = `${file}.${randomUUID7()}.tmp`;
   try {
-    await writeFile6(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
-    await rename7(temp, file);
+    await writeFile8(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
+    await rename9(temp, file);
   } finally {
     await rm4(temp, { force: true });
   }
@@ -18056,23 +20062,23 @@ function processAlive2(pid) {
   }
 }
 async function acquireLock(home, name, { waitMs = 0, alive = processAlive2 } = {}) {
-  await mkdir7(home, { recursive: true, mode: 448 });
-  const dir = path8.join(home, `${name}.lock`);
+  await mkdir9(home, { recursive: true, mode: 448 });
+  const dir = path11.join(home, `${name}.lock`);
   const deadline = Date.now() + waitMs;
   for (; ; ) {
     try {
-      await mkdir7(dir, { mode: 448 });
-      await atomicJson(path8.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
+      await mkdir9(dir, { mode: 448 });
+      await atomicJson(path11.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
       return async () => {
         await rm4(dir, { recursive: true, force: true });
       };
     } catch (error2) {
       if (error2.code !== "EEXIST") throw error2;
-      const owner = await readJson2(path8.join(dir, "owner.json"));
+      const owner = await readJson3(path11.join(dir, "owner.json"));
       let stale = owner && !alive(owner.pid);
       if (!owner) {
         try {
-          stale = Date.now() - (await stat2(dir)).mtimeMs > 6e5;
+          stale = Date.now() - (await stat3(dir)).mtimeMs > 6e5;
         } catch (error3) {
           if (error3.code === "ENOENT") continue;
           throw error3;
@@ -18082,13 +20088,13 @@ async function acquireLock(home, name, { waitMs = 0, alive = processAlive2 } = {
         const reaping = `${dir}.reaping`;
         let reaper = false;
         try {
-          await mkdir7(reaping, { mode: 448 });
+          await mkdir9(reaping, { mode: 448 });
           reaper = true;
-          const current = await readJson2(path8.join(dir, "owner.json"));
+          const current = await readJson3(path11.join(dir, "owner.json"));
           let removable = current && !alive(current.pid);
           if (!current) {
             try {
-              removable = Date.now() - (await stat2(dir)).mtimeMs > 6e5;
+              removable = Date.now() - (await stat3(dir)).mtimeMs > 6e5;
             } catch (error3) {
               if (error3.code !== "ENOENT") throw error3;
             }
@@ -18110,11 +20116,11 @@ async function acquireLock(home, name, { waitMs = 0, alive = processAlive2 } = {
   }
 }
 async function acquireRuntimeLease(home = updateHome()) {
-  if (!await readJson2(path8.join(home, "state.json"))) return () => {
+  if (!await readJson3(path11.join(home, "state.json"))) return () => {
   };
   const unlock = await acquireLock(home, "activation", { waitMs: 12e4 });
   if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
-  const file = path8.join(home, "running", `${process.pid}-${randomUUID5()}.json`);
+  const file = path11.join(home, "running", `${process.pid}-${randomUUID7()}.json`);
   try {
     await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
   } finally {
@@ -18131,18 +20137,18 @@ async function acquireRuntimeLease(home = updateHome()) {
 }
 
 // mcp/service.mjs
-import { mkdir as mkdir8, readFile as readFile8, rename as rename8, stat as stat3, writeFile as writeFile7 } from "node:fs/promises";
-import { randomUUID as randomUUID6 } from "node:crypto";
+import { mkdir as mkdir10, readFile as readFile11, rename as rename10, stat as stat4, writeFile as writeFile9 } from "node:fs/promises";
+import { randomUUID as randomUUID8 } from "node:crypto";
 import os5 from "node:os";
-import path9 from "node:path";
+import path12 from "node:path";
 var SERVICE_HEARTBEAT_MS = 3e4;
 var SERVICE_STALE_MS = 12e4;
 function serviceStatusFile(arenaRoot) {
-  return path9.join(arenaRoot, "service-status.json");
+  return path12.join(arenaRoot, "service-status.json");
 }
 async function readServiceStatus(arenaRoot, now = Date.now()) {
   try {
-    const status = JSON.parse(await readFile8(serviceStatusFile(arenaRoot), "utf8"));
+    const status = JSON.parse(await readFile11(serviceStatusFile(arenaRoot), "utf8"));
     const alive = now - Date.parse(status.heartbeatAt) < SERVICE_STALE_MS;
     return { ...status, state: alive ? "running" : "stopped" };
   } catch (error2) {
@@ -18150,7 +20156,7 @@ async function readServiceStatus(arenaRoot, now = Date.now()) {
     throw error2;
   }
 }
-function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: version2, port, onExit = () => process.exit(0) }) {
+function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: version3, port, onExit = () => process.exit(0) }) {
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
   let bundleMtime = null;
   let stopping = false;
@@ -18158,7 +20164,7 @@ function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: 
     const status = {
       pid: process.pid,
       host: os5.hostname(),
-      version: version2,
+      version: version3,
       bundlePath: bundlePath2,
       port,
       startedAt,
@@ -18166,18 +20172,18 @@ function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: 
       node: process.version,
       scheduler: scheduler?.status() ?? null
     };
-    await mkdir8(arena.root, { recursive: true });
+    await mkdir10(arena.root, { recursive: true });
     const file = serviceStatusFile(arena.root);
-    const temporary = `${file}.${process.pid}.${randomUUID6()}.tmp`;
-    await writeFile7(temporary, JSON.stringify(status, null, 1), "utf8");
-    await rename8(temporary, file);
+    const temporary = `${file}.${process.pid}.${randomUUID8()}.tmp`;
+    await writeFile9(temporary, JSON.stringify(status, null, 1), "utf8");
+    await rename10(temporary, file);
   };
   const beat = async () => {
     if (stopping) return;
     try {
       await write();
       if (bundlePath2) {
-        const mtime = (await stat3(bundlePath2)).mtimeMs;
+        const mtime = (await stat4(bundlePath2)).mtimeMs;
         if (bundleMtime === null) bundleMtime = mtime;
         else if (mtime !== bundleMtime) {
           console.error("Arena service: plugin bundle changed; restarting.");
@@ -18198,12 +20204,12 @@ function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: 
 }
 
 // mcp/server.mjs
-import { fileURLToPath as fileURLToPath5 } from "node:url";
+import { fileURLToPath as fileURLToPath6 } from "node:url";
 
 // mcp/arena-demo.mjs
-import { mkdtemp as mkdtemp2, mkdir as mkdir9, writeFile as writeFile8 } from "node:fs/promises";
+import { mkdtemp as mkdtemp2, mkdir as mkdir11, writeFile as writeFile10 } from "node:fs/promises";
 import os6 from "node:os";
-import path10 from "node:path";
+import path13 from "node:path";
 function generator(seed) {
   let state = seed >>> 0;
   return () => {
@@ -18247,7 +20253,7 @@ function seedAccount(agent, index, start) {
     const lot = agent.market === "A" ? 100 : 1;
     const quantity = Math.max(lot, Math.floor(config2.defaultCash * (0.05 + random() * 0.12) / price / lot) * lot);
     const side = random() > 0.45 ? "SELL" : "BUY";
-    const fees = computeFees(agent.market, side, quantity, price);
+    const fees = computeFees2(agent.market, side, quantity, price);
     const realizedPnl = side === "SELL" ? Math.round((random() - 0.42 + agent.drift * 60) * quantity * price * 0.08) : null;
     const id = `ord_demo${String(index).padStart(2, "0")}${String(n).padStart(4, "0")}`;
     const reason = side === "BUY" ? agent.market === "A" ? `${name} \u653E\u91CF\u7A81\u7834 20 \u65E5\u9AD8\u70B9\uFF0C\u52A8\u91CF\u6392\u540D\u524D\u5217\uFF0C\u6309\u8BA1\u5212\u5EFA\u4ED3\u3002` : `${name} broke out above its 20-day high on rising volume; sizing per plan.` : agent.market === "A" ? `${name} \u89E6\u53D1\u6B62\u76C8/\u6B62\u635F\u6761\u4EF6\uFF0C\u6309\u7EAA\u5F8B\u51CF\u4ED3\u3002` : `${name} hit the exit rule; trimming per plan.`;
@@ -18340,12 +20346,12 @@ function seedAccount(agent, index, start) {
   };
 }
 async function createDemoArena() {
-  const root2 = await mkdtemp2(path10.join(os6.tmpdir(), "hrouter-arena-demo-"));
-  await mkdir9(path10.join(root2, "accounts"), { recursive: true });
+  const root2 = await mkdtemp2(path13.join(os6.tmpdir(), "hrouter-arena-demo-"));
+  await mkdir11(path13.join(root2, "accounts"), { recursive: true });
   const start = Date.now() - 34 * 864e5 - 8 * 36e5;
   const accounts = AGENTS.map((agent, index) => seedAccount(agent, index, start));
   const prices = new Map(accounts.flatMap((account2) => Object.values(account2.positions).map((position) => [position.symbol, position])));
-  for (const account2 of accounts) await writeFile8(path10.join(root2, "accounts", `${account2.id}.json`), JSON.stringify(account2));
+  for (const account2 of accounts) await writeFile10(path13.join(root2, "accounts", `${account2.id}.json`), JSON.stringify(account2));
   const arena = createArena({
     root: root2,
     // Synthetic quotes: hold the seeded marks so the demo stays stable while it is open.
@@ -18360,16 +20366,146 @@ async function createDemoArena() {
   return arena;
 }
 
+// mcp/env-check.mjs
+import { spawn as spawn4 } from "node:child_process";
+import { existsSync as existsSync2 } from "node:fs";
+import { readdir as readdir4, stat as stat5 } from "node:fs/promises";
+import path14 from "node:path";
+var AGENTS2 = [
+  { id: "claude", name: "Claude Code", kind: "claude-cli" },
+  { id: "codex", name: "Codex", kind: "codex-cli" },
+  { id: "kimi", name: "Kimi Code", kind: "kimi-cli" },
+  { id: "workbuddy", name: "WorkBuddy", kind: "claude-cli" },
+  ...ACP_PRESETS.filter((preset) => preset.id !== "kimi-acp").map((preset) => ({ id: preset.id, name: preset.name, kind: "acp", command: preset.command, args: preset.args }))
+];
+function version(command, timeoutMs = 6e3) {
+  return new Promise((resolve) => {
+    let out = "";
+    let child;
+    try {
+      child = spawn4(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true, env: { ...process.env, NO_COLOR: "1" } });
+    } catch {
+      resolve(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+      }
+      resolve(null);
+    }, timeoutMs);
+    child.stdout?.on("data", (chunk) => {
+      out += chunk;
+    });
+    child.stderr?.on("data", (chunk) => {
+      out += chunk;
+    });
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+    child.on("close", () => {
+      clearTimeout(timer);
+      resolve(out.match(/\d+\.\d+(\.\d+)?/)?.[0] ?? (out.trim().split("\n")[0]?.slice(0, 40) || null));
+    });
+  });
+}
+async function timed(task) {
+  const started = Date.now();
+  try {
+    const value = await task();
+    return { ok: true, ms: Date.now() - started, value };
+  } catch (error2) {
+    return { ok: false, ms: Date.now() - started, error: error2.message.slice(0, 200) };
+  }
+}
+async function dirSize(dir, depth = 0) {
+  if (depth > 4) return 0;
+  let total = 0;
+  let entries = [];
+  try {
+    entries = await readdir4(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    const full = path14.join(dir, entry.name);
+    if (entry.isDirectory()) total += await dirSize(full, depth + 1);
+    else {
+      try {
+        total += (await stat5(full)).size;
+      } catch {
+      }
+    }
+  }
+  return total;
+}
+async function checkEnvironment({ arena, scheduler }) {
+  const jobs = scheduler ? await scheduler.listJobs().catch(() => []) : [];
+  const pools = scheduler ? await scheduler.listPools().catch(() => []) : [];
+  const agents = await Promise.all(AGENTS2.map(async (agent) => {
+    const command = agent.kind === "acp" ? onPath(agent.command) : defaultCommand(agent.id);
+    const installed = Boolean(command && (path14.isAbsolute(command) ? existsSync2(command) : onPath(command)));
+    const ver = installed ? await version(command) : null;
+    const used = jobs.filter((job) => job.runner?.type === agent.id || agent.kind === "acp" && job.runner?.command === agent.command);
+    const authFailure = used.find((job) => job.paused?.kind === "auth");
+    const pool = pools.find((entry) => entry.key === agent.id || entry.key === `acp:${agent.command}`);
+    const status = !installed ? "missing" : authFailure ? "auth" : pool?.paused ? "quota" : "ok";
+    return {
+      ...agent,
+      command: installed ? command : null,
+      version: ver,
+      installed,
+      status,
+      traders: used.length,
+      detail: !installed ? "\u6CA1\u627E\u5230\u547D\u4EE4" : authFailure ? `\u6CA1\u6709\u767B\u5F55\uFF1A${authFailure.paused.message ?? ""}` : pool?.paused ? `\u989D\u5EA6\u7528\u5C3D\uFF0C${pool.pausedUntil} \u6062\u590D` : used.length ? `${used.length} \u4E2A\u4EA4\u6613\u5458\u5728\u7528` : "\u5DF2\u5B89\u88C5"
+    };
+  }));
+  const [service3, matcher, tencent, eastmoney, minutes, news] = await Promise.all([
+    readServiceStatus(arena.root).catch(() => ({ state: "unknown" })),
+    arena.matcherStatus().catch(() => ({ state: "unknown" })),
+    timed(() => getTradeQuote("000300.SS", { timeoutMs: 6e3 })),
+    timed(() => scanMarket({ market: "A", sort: "amount", limit: 1 })),
+    timed(() => getIntradayBars("600036.SS")),
+    timed(() => getNews("\u62DB\u5546\u94F6\u884C", 1, { symbol: "600036.SS" }))
+  ]);
+  const sources = [
+    { id: "tencent", name: "\u884C\u60C5 \xB7 \u817E\u8BAF", ok: tencent.ok, ms: tencent.ms, detail: tencent.ok ? `\u5B9E\u65F6 \xB7 \u4E94\u6863${tencent.value.bids?.length ? "" : "\uFF08\u672C\u6B21\u6CA1\u6709\u8FD4\u56DE\u76D8\u53E3\uFF09"}` : tencent.error },
+    { id: "eastmoney", name: "\u5168\u5E02\u573A\u626B\u63CF \xB7 \u4E1C\u65B9\u8D22\u5BCC", ok: eastmoney.ok, ms: eastmoney.ms, detail: eastmoney.ok ? "\u6392\u884C\u4E0E\u677F\u5757" : eastmoney.error },
+    { id: "minutes", name: "\u5206\u949F\u7EBF \xB7 \u817E\u8BAF", ok: minutes.ok, ms: minutes.ms, detail: minutes.ok ? `${minutes.value.bars?.length ?? 0} \u6839` : minutes.error },
+    { id: "news", name: "\u65B0\u95FB\u4E0E\u516C\u544A", ok: news.ok, ms: news.ms, detail: news.ok ? "\u4E1C\u65B9\u8D22\u5BCC / Yahoo" : news.error }
+  ];
+  const storage = getStorageDir();
+  const items = [
+    ...agents.filter((agent) => agent.installed || agent.kind !== "acp").map((agent) => ({ id: `agent:${agent.id}`, group: "agent", name: agent.name, status: agent.status === "ok" ? "ok" : agent.status === "missing" ? "missing" : agent.status === "quota" ? "temporary" : "action", detail: [agent.version, agent.detail].filter(Boolean).join(" \xB7 ") })),
+    { id: "service", group: "service", name: "\u5E38\u9A7B\u670D\u52A1", status: service3.state === "running" ? "ok" : "action", detail: service3.state === "running" ? `\u7AEF\u53E3 ${service3.port ?? 8780} \xB7 ${service3.version ?? ""}` : "\u6CA1\u6709\u8FD0\u884C\uFF1Anpm run service:install" },
+    { id: "matcher", group: "service", name: "\u64AE\u5408\u5668", status: matcher.state === "running" ? "ok" : matcher.state === "stale" ? "action" : "action", detail: matcher.state === "running" ? `\u6700\u8FD1 ${matcher.lastTickAt ?? "\u2014"}` : matcher.state },
+    { id: "scheduler", group: "service", name: "\u8C03\u5EA6\u5668", status: service3.scheduler || scheduler?.status().role === "leader" ? "ok" : "action", detail: service3.scheduler ? `${service3.scheduler.role ?? ""} \xB7 \u8FD0\u884C\u4E2D ${service3.scheduler.running?.length ?? 0}` : "\u8DDF\u968F\u5E38\u9A7B\u670D\u52A1" },
+    ...sources.map((source) => ({ id: `source:${source.id}`, group: "data", name: source.name, status: source.ok ? "ok" : "action", detail: source.ok ? `${source.detail} \xB7 ${source.ms} ms` : source.detail })),
+    { id: "storage", group: "service", name: "\u6570\u636E\u76EE\u5F55", status: "ok", detail: `${storage} \xB7 ${(await dirSize(storage) / 1048576).toFixed(0)} MB` }
+  ];
+  return {
+    at: (/* @__PURE__ */ new Date()).toISOString(),
+    items,
+    agents,
+    sources,
+    pools,
+    summary: { ok: items.filter((item) => item.status === "ok").length, action: items.filter((item) => item.status === "action").length, temporary: items.filter((item) => item.status === "temporary").length, missing: items.filter((item) => item.status === "missing").length },
+    acpPresets: ACP_PRESETS
+  };
+}
+
 // mcp/http.mjs
 import { createServer } from "node:http";
-import { readFile as readFile10 } from "node:fs/promises";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
-import { randomUUID as randomUUID8 } from "node:crypto";
+import { readFile as readFile13 } from "node:fs/promises";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
+import { randomUUID as randomUUID10 } from "node:crypto";
 
 // mcp/workspace.mjs
-import { randomUUID as randomUUID7, createHash as createHash3 } from "node:crypto";
-import { mkdir as mkdir10, readFile as readFile9, rename as rename9, writeFile as writeFile9 } from "node:fs/promises";
-import path11 from "node:path";
+import { randomUUID as randomUUID9, createHash as createHash3 } from "node:crypto";
+import { mkdir as mkdir12, readFile as readFile12, rename as rename11, writeFile as writeFile11 } from "node:fs/promises";
+import path15 from "node:path";
 
 // mcp/research.mjs
 function researchAsOf2(value = (/* @__PURE__ */ new Date()).toISOString()) {
@@ -18627,21 +20763,21 @@ var journalQueue = Promise.resolve();
 var cache = /* @__PURE__ */ new Map();
 var benchmarkDefaults = { A: "000001.SS", HK: "^HSI", US: "^GSPC" };
 var cleanText = (value, limit = 2e3) => String(value ?? "").trim().slice(0, limit);
-var finite5 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
+var finite7 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
 async function readStore(name, fallback = []) {
   try {
-    return JSON.parse(await readFile9(path11.join(getStorageDir(), name), "utf8"));
+    return JSON.parse(await readFile12(path15.join(getStorageDir(), name), "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function writeStore(name, data) {
-  const target = path11.join(getStorageDir(), name);
-  await mkdir10(path11.dirname(target), { recursive: true });
-  const temp = `${target}.${randomUUID7()}.tmp`;
-  await writeFile9(temp, JSON.stringify(data, null, 2));
-  await rename9(temp, target);
+  const target = path15.join(getStorageDir(), name);
+  await mkdir12(path15.dirname(target), { recursive: true });
+  const temp = `${target}.${randomUUID9()}.tmp`;
+  await writeFile11(temp, JSON.stringify(data, null, 2));
+  await rename11(temp, target);
 }
 async function listDecisions({ symbol, limit = 200 } = {}) {
   const items = await readStore("decisions.json");
@@ -18709,7 +20845,7 @@ async function recordDecision(input) {
       );
   }
   const record2 = {
-    id: `decision_${randomUUID7()}`,
+    id: `decision_${randomUUID9()}`,
     symbol,
     state,
     thesis,
@@ -18811,7 +20947,7 @@ async function appendThesisReview(input) {
       };
     });
     const review = {
-      id: `thesis_review_${randomUUID7()}`,
+      id: `thesis_review_${randomUUID9()}`,
       reviewedAt,
       type: "thesis-assessment",
       source: "research-assessment",
@@ -19094,7 +21230,7 @@ function secFinancialRecords(symbol, cik, payload) {
     const units = concept?.units ?? {};
     return Object.entries(units).flatMap(([unit2, rows]) => {
       const entries = rows.filter(
-        (row2) => finite5(row2.val) !== null && row2.filed && ["10-K", "10-Q"].includes(row2.form)
+        (row2) => finite7(row2.val) !== null && row2.filed && ["10-K", "10-Q"].includes(row2.form)
       ).sort(
         (a, b) => b.filed.localeCompare(a.filed) || b.end.localeCompare(a.end)
       );
@@ -19235,9 +21371,9 @@ async function syncOfficialEvidence({ symbols, limit = 8 } = {}) {
       list.slice(offset, Math.min(offset + 3, 5)).map(async (symbol) => {
         const market2 = marketFromSymbol(symbol);
         const key = `official-sync:${symbol}`;
-        const cached2 = cache.get(key);
-        if (cached2 && Date.now() - cached2.at < 9e5) {
-          return { symbol, status: "synced", ...cached2.data, cached: true };
+        const cached3 = cache.get(key);
+        if (cached3 && Date.now() - cached3.at < 9e5) {
+          return { symbol, status: "synced", ...cached3.data, cached: true };
         }
         try {
           if (market2 === "HK") {
@@ -19702,17 +21838,7 @@ function makeDemoReport(options = {}) {
 
 // mcp/http.mjs
 var assets = /* @__PURE__ */ new Map([
-  ["/assets/dashboard.js", ["dashboard.js", "text/javascript; charset=utf-8"]],
-  ["/assets/dashboard.css", ["dashboard.css", "text/css; charset=utf-8"]],
-  ["/assets/dashboard.js.LEGAL.txt", ["dashboard.js.LEGAL.txt", "text/plain; charset=utf-8"]],
-  [
-    "/assets/vendor/lightweight-charts.js",
-    ["vendor/lightweight-charts.js", "text/javascript; charset=utf-8"]
-  ],
-  [
-    "/assets/vendor/lucide.js",
-    ["vendor/lucide.js", "text/javascript; charset=utf-8"]
-  ]
+  ["/assets/vendor/LICENSE-lightweight-charts", ["vendor/LICENSE-lightweight-charts", "text/plain; charset=utf-8"]]
 ]);
 var assetRoot = new URL("../assets/", import.meta.url);
 var jsonType = "application/json; charset=utf-8";
@@ -19770,6 +21896,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
     return runScheduler && !demo2 ? scheduler.start() : scheduler;
   });
   let refreshedAt = 0;
+  let envCache = null;
   const server2 = createServer(async (request, response) => {
     try {
       const host = request.headers.host;
@@ -19844,6 +21971,61 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           const side = ["BUY", "SELL"].includes(url.searchParams.get("side")) ? url.searchParams.get("side") : void 0;
           return respond(response, 200, await (await arenaReady).history(history[1], url.searchParams.get("kind"), { ...paging, side, type: url.searchParams.get("type") || void 0, symbol: url.searchParams.get("symbol") || void 0 }));
         }
+        if (url.pathname === "/api/arena/pools") return respond(response, 200, { pools: await (await schedulerReady).listPools() });
+        if (url.pathname === "/api/arena/usage") return respond(response, 200, await (await schedulerReady).usage({ since: url.searchParams.get("since") || void 0 }));
+        const runEvents = url.pathname.match(/^\/api\/arena\/run-events\/(run_[a-f0-9]{12})$/);
+        if (runEvents) return respond(response, 200, await (await schedulerReady).runEvents(runEvents[1]));
+        if (url.pathname === "/api/events") {
+          const scheduler = await schedulerReady;
+          response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", Connection: "keep-alive" });
+          response.write(`event: hello
+data: ${JSON.stringify({ at: (/* @__PURE__ */ new Date()).toISOString(), scheduler: scheduler.status().role })}
+
+`);
+          const unsubscribe = scheduler.subscribe((message) => response.write(`event: ${message.type}
+data: ${JSON.stringify(message)}
+
+`));
+          const heartbeat = setInterval(() => response.write(": ping\n\n"), 2e4);
+          request.on("close", () => {
+            clearInterval(heartbeat);
+            unsubscribe();
+          });
+          return;
+        }
+        if (url.pathname === "/api/markets") {
+          const at = (/* @__PURE__ */ new Date()).toISOString();
+          const nextOpen = (market2) => {
+            for (let hour = 0; hour <= 24 * 10; hour += 0.25) {
+              const probe = new Date(Date.now() + hour * 36e5).toISOString();
+              if (getMarketSession(market2, probe).status === "open") return probe;
+            }
+            return null;
+          };
+          return respond(response, 200, Object.fromEntries(["A", "HK", "US"].map((market2) => {
+            const session = getMarketSession(market2, at);
+            return [market2, { status: session.status, date: session.date, minute: session.minute, verified: session.verified, nextOpenAt: session.status === "open" ? null : nextOpen(market2) }];
+          })));
+        }
+        if (url.pathname === "/api/library") return respond(response, 200, await loadLibrary());
+        if (url.pathname === "/api/env") {
+          if (!envCache || Date.now() - envCache.at > 6e4 || url.searchParams.get("fresh") === "1") envCache = { at: Date.now(), value: await checkEnvironment({ arena: await arenaReady, scheduler: await schedulerReady }) };
+          return respond(response, 200, { demo: demo2, ...envCache.value });
+        }
+        const librarySkill = url.pathname.match(/^\/api\/library\/(skills|strategies)\/([a-z0-9-]{2,60})$/);
+        if (librarySkill) return respond(response, 200, librarySkill[1] === "skills" ? { id: librarySkill[2], body: await skillBody(librarySkill[2]) } : { id: librarySkill[2], code: await starterStrategyCode(librarySkill[2]) });
+        const strategyRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/strategy$/);
+        if (strategyRead) {
+          const store = createTraderStrategyStore((await arenaReady).root);
+          const version3 = Number(url.searchParams.get("version")) || void 0;
+          const [meta, current] = await Promise.all([store.meta(strategyRead[1]), store.code(strategyRead[1], version3).catch(() => null)]);
+          return respond(response, 200, { strategyId: traderStrategyId(strategyRead[1]), ...meta, code: current?.code ?? null, version: current?.version ?? null });
+        }
+        const promptPreview = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/prompt-preview$/);
+        if (promptPreview) return respond(response, 200, await (await schedulerReady).previewPrompt(promptPreview[1]));
+        const settingsRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/settings$/);
+        if (settingsRead) return respond(response, 200, { demo: demo2, ...await (await arenaReady).getSettings(settingsRead[1]) });
+        if (url.pathname === "/api/workbench/settings") return respond(response, 200, { demo: demo2, ...await (await arenaReady).workbenchSettings() });
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {
           const arena = await arenaReady;
@@ -19864,7 +22046,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: true ? "1.6.2" : "development",
+            version: true ? "1.7.0" : "development",
             demo: demo2
           });
         if (assets.has(url.pathname)) {
@@ -19872,7 +22054,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
           return respond(
             response,
             200,
-            await readFile10(fileURLToPath3(new URL(name, assetRoot))),
+            await readFile13(fileURLToPath4(new URL(name, assetRoot))),
             type
           );
         }
@@ -19896,11 +22078,25 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
             demo2 ? demoReport : JSON.parse(await loadReport(id, "json"))
           );
         }
-        if (url.pathname === "/" || /^\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)) {
+        if (url.pathname.startsWith("/assets/app/")) {
+          const rest = url.pathname.slice("/assets/app/".length);
+          const types = { js: "text/javascript; charset=utf-8", css: "text/css; charset=utf-8", woff2: "font/woff2", woff: "font/woff", svg: "image/svg+xml", png: "image/png", txt: "text/plain; charset=utf-8" };
+          const extension = rest.split(".").at(-1);
+          if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\.[a-z0-9]+$/.test(rest) || rest.includes("..") || !types[extension]) return respond(response, 404, { error: "Not found" });
+          try {
+            const body = await readFile13(fileURLToPath4(new URL(`app/${rest}`, assetRoot)));
+            response.writeHead(200, { "Content-Type": types[extension], "Cache-Control": rest.startsWith("files/") ? "public, max-age=31536000, immutable" : "no-cache", "X-Content-Type-Options": "nosniff", "Content-Length": body.length });
+            return response.end(body);
+          } catch {
+            return respond(response, 404, { error: "Not found" });
+          }
+        }
+        const workbenchRoute = /^\/(traders(\/acc_[a-f0-9]{12})?|arena|market|research|reports|strategies|skills|schedule|settings)\/?$/.test(url.pathname);
+        if (url.pathname === "/" || workbenchRoute || /^\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)) {
           try {
             const report = demo2 ? demoReport : JSON.parse(
               await loadReport(
-                url.pathname === "/" ? "latest" : url.pathname.split("/").at(-1),
+                url.pathname === "/" || workbenchRoute ? "latest" : url.pathname.split("/").at(-1),
                 "json"
               )
             );
@@ -19926,11 +22122,19 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
         if (url.pathname.startsWith("/api/arena/")) {
           const arena = await arenaReady;
           if (url.pathname === "/api/arena/accounts") {
-            const account2 = await arena.createAccount({ ...body, agentLabel: body.agentLabel || void 0 }, dashboardCaller);
+            const defaults = await templateDefaults(body.template, body);
+            const account2 = await arena.createAccount({ ...body, ...defaults, agentLabel: body.agentLabel || void 0 }, dashboardCaller);
             if (!demo2) {
-              const interval = (await readPreferences())?.defaultAgentIntervalMinutes ?? 15;
-              const schedule2 = await (await schedulerReady).ensureDefaultSchedule(account2.id, interval).catch((error2) => ({ created: false, reason: error2.message }));
-              account2.schedule = schedule2.created ? { intervalMinutes: schedule2.job.intervalMinutes, runner: schedule2.job.runner.type } : null;
+              const scheduler = await schedulerReady;
+              const interval = Number(body.reviewMinutes) || defaults.cadence?.reviewMinutes || (await readPreferences())?.defaultAgentIntervalMinutes || 10;
+              let schedule2 = { created: false };
+              if (body.runner && body.runner.type !== "strategy") {
+                schedule2 = { created: true, job: await scheduler.upsertJob(account2.id, { intervalMinutes: interval, times: [], mode: "director", runner: { timeoutMinutes: 20, ...body.runner }, ...body.backup ? { backup: body.backup } : {} }) };
+              } else if (defaults.builtinStrategy || body.runner?.type === "strategy") {
+                const strategyId = body.runner?.strategyId ?? defaults.starterStrategy;
+                schedule2 = { created: true, job: await scheduler.upsertJob(account2.id, { intervalMinutes: defaults.cadence?.strategyMinutes ?? 5, times: [], runner: { type: "strategy", strategyId, params: body.runner?.params ?? {}, timeoutMinutes: 5 } }) };
+              } else schedule2 = await scheduler.ensureDefaultSchedule(account2.id, interval).catch((error2) => ({ created: false, reason: error2.message }));
+              account2.schedule = schedule2.created ? { intervalMinutes: schedule2.job.intervalMinutes, runner: schedule2.job.runner.type, mode: schedule2.job.mode ?? null } : null;
             }
             return respond(response, 201, account2);
           }
@@ -19947,21 +22151,44 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
             }
             return respond(response, 201, digest);
           }
-          const schedule = url.pathname.match(/^\/api\/arena\/schedules\/(acc_[a-f0-9]{12})(\/delete|\/run)?$/);
+          const rollback = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/strategy\/rollback$/);
+          if (rollback) return respond(response, 200, await rollbackTraderStrategy({ arena, scheduler: await schedulerReady, store: createTraderStrategyStore(arena.root), accountId: rollback[1], version: body.version, caller: dashboardCaller }));
+          const pool = url.pathname.match(/^\/api\/arena\/pools\/([a-z0-9:._/-]{1,200})\/clear$/);
+          if (pool) return respond(response, 200, await (await schedulerReady).clearPool(decodeURIComponent(pool[1])));
+          const instruction = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/instructions(?:\/(ins_[a-f0-9]{12})\/revoke)?$/);
+          if (instruction) return respond(response, 200, instruction[2] ? await arena.revokeInstruction(instruction[1], instruction[2], dashboardCaller) : await arena.addInstruction(instruction[1], { text: body.text, days: body.days ?? 3 }, dashboardCaller));
+          const schedule = url.pathname.match(/^\/api\/arena\/schedules\/(acc_[a-f0-9]{12})(\/delete|\/run|\/resume|\/cadence)?$/);
           if (schedule) {
             const scheduler = await schedulerReady;
             if (schedule[2] === "/delete") return respond(response, 200, await scheduler.deleteJob(schedule[1]));
+            if (schedule[2] === "/resume") return respond(response, 200, await scheduler.resumeJob(schedule[1]));
+            if (schedule[2] === "/cadence") return respond(response, 200, await scheduler.setCadence(schedule[1], body, dashboardCaller));
             if (schedule[2] === "/run") {
               if (demo2) return respond(response, 409, { error: "\u6F14\u793A\u6A21\u5F0F\u4E0D\u8FD0\u884C Agent \u6216\u7B56\u7565 / Demo mode does not run agents or strategies." });
-              const started = await scheduler.runNow(schedule[1]);
+              const started = await scheduler.runNow(schedule[1], { lane: body.lane === "strategy" ? "strategy" : "primary" });
               started.wait?.().catch((error2) => console.error(`Arena run: ${error2.message}`));
               return respond(response, 202, { status: started.status, reason: started.reason ?? null });
             }
             return respond(response, 200, await scheduler.upsertJob(schedule[1], body));
           }
+          const settings = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/(limits|prompt|locks|requests\/(req_[a-f0-9]{12}))$/);
+          if (settings) {
+            const [, id, action, requestId] = settings;
+            if (action === "limits") return respond(response, 200, await arena.setLimits({ accountId: id, limits: body.limits, reason: body.reason }, dashboardCaller));
+            if (action === "prompt") return respond(response, 200, await arena.setPrompt({ accountId: id, prompt: body.prompt, reason: body.reason }, dashboardCaller));
+            if (action === "locks") return respond(response, 200, await arena.setLocks(id, body.locks, dashboardCaller));
+            return respond(response, 200, await arena.resolveRequest(id, requestId, body, dashboardCaller));
+          }
           const update = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})(\/delete)?$/);
           if (update) return respond(response, 200, update[2] ? await arena.deleteAccount(update[1]) : await arena.updateAccount(update[1], body));
           return respond(response, 404, { error: "Unknown arena action" });
+        }
+        if (url.pathname.startsWith("/api/workbench")) {
+          const arena = await arenaReady;
+          if (url.pathname === "/api/workbench/fees") return respond(response, 200, await arena.setFees({ market: body.market, fees: body.fees, reason: body.reason }, dashboardCaller));
+          if (url.pathname === "/api/workbench/prompts") return respond(response, 200, await arena.setWorkbenchPrompt({ scope: body.scope, prompt: body.prompt, reason: body.reason }, dashboardCaller));
+          if (url.pathname === "/api/workbench/settings") return respond(response, 200, await arena.updateWorkbench(body, dashboardCaller));
+          return respond(response, 404, { error: "Unknown workbench action" });
         }
         if (url.pathname.startsWith("/api/paper/")) {
           if (demo2) return respond(response, 409, { error: "\u6F14\u793A\u6A21\u5F0F\u4E0D\u8FDE\u63A5\u6A21\u62DF\u8D26\u6237\u3002\u8BF7\u542F\u52A8\u771F\u5B9E\u6570\u636E\u9762\u677F / Use the real-data dashboard; no synthetic trading fallback." });
@@ -20043,7 +22270,7 @@ function startDashboard({ port = getReportPort(), demo: demo2 = false, matcher: 
               throw new Error("Symbol and thesis required");
             const entry = {
               ...body,
-              id: `demo_${randomUUID8()}`,
+              id: `demo_${randomUUID10()}`,
               createdAt: (/* @__PURE__ */ new Date()).toISOString(),
               reviews: [],
               demo: true
@@ -20199,7 +22426,7 @@ __export(util_exports, {
   assertNever: () => assertNever,
   assertNotEqual: () => assertNotEqual,
   assignProp: () => assignProp,
-  cached: () => cached,
+  cached: () => cached2,
   captureStackTrace: () => captureStackTrace,
   cleanEnum: () => cleanEnum,
   cleanRegex: () => cleanRegex,
@@ -20264,7 +22491,7 @@ function jsonStringifyReplacer(_, value) {
     return value.toString();
   return value;
 }
-function cached(getter) {
+function cached2(getter) {
   const set = false;
   return {
     get value() {
@@ -20321,10 +22548,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path13) {
-  if (!path13)
+function getElementAtPath(obj, path17) {
+  if (!path17)
     return obj;
-  return path13.reduce((acc, key) => acc?.[key], obj);
+  return path17.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -20353,7 +22580,7 @@ var captureStackTrace = Error.captureStackTrace ? Error.captureStackTrace : (...
 function isObject(data) {
   return typeof data === "object" && data !== null && !Array.isArray(data);
 }
-var allowsEval = cached(() => {
+var allowsEval = cached2(() => {
   if (typeof navigator !== "undefined" && navigator?.userAgent?.includes("Cloudflare")) {
     return false;
   }
@@ -20644,11 +22871,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path13, issues) {
+function prefixIssues(path17, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path13);
+    iss.path.unshift(path17);
     return iss;
   });
 }
@@ -20842,10 +23069,10 @@ var ksuid = /^[A-Za-z0-9]{27}$/;
 var nanoid = /^[a-zA-Z0-9_-]{21}$/;
 var duration = /^P(?:(\d+W)|(?!.*W)(?=\d|T\d)(\d+Y)?(\d+M)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+([.,]\d+)?S)?)?)$/;
 var guid = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/;
-var uuid = (version2) => {
-  if (!version2)
+var uuid = (version3) => {
+  if (!version3)
     return /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$/;
-  return new RegExp(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-${version2}[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`);
+  return new RegExp(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-${version3}[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`);
 };
 var email = /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/;
 var _emoji = `^(\\p{Extended_Pictographic}|\\p{Emoji_Component})+$`;
@@ -21313,7 +23540,7 @@ var Doc = class {
 };
 
 // node_modules/zod/v4/core/versions.js
-var version = {
+var version2 = {
   major: 4,
   minor: 0,
   patch: 0
@@ -21325,7 +23552,7 @@ var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   inst ?? (inst = {});
   inst._zod.def = def;
   inst._zod.bag = inst._zod.bag || {};
-  inst._zod.version = version;
+  inst._zod.version = version2;
   const checks = [...inst._zod.def.checks ?? []];
   if (inst._zod.traits.has("$ZodCheck")) {
     checks.unshift(inst);
@@ -21850,7 +24077,7 @@ function handleOptionalObjectResult(result, final, key, input) {
 }
 var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
   $ZodType.init(inst, def);
-  const _normalized = cached(() => {
+  const _normalized = cached2(() => {
     const keys = Object.keys(def.shape);
     for (const k of keys) {
       if (!(def.shape[k] instanceof $ZodType)) {
@@ -22085,7 +24312,7 @@ var $ZodDiscriminatedUnion = /* @__PURE__ */ $constructor("$ZodDiscriminatedUnio
     }
     return propValues;
   });
-  const disc = cached(() => {
+  const disc = cached2(() => {
     const opts = def.options;
     const map = /* @__PURE__ */ new Map();
     for (const o of opts) {
@@ -24061,11 +26288,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path13) {
-  if (path13.length === 0) {
+function getDotPath(path17) {
+  if (path17.length === 0) {
     return "object root";
   }
-  return path13.reduce((acc, seg, index) => {
+  return path17.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -30324,7 +32551,7 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: true ? "1.6.2" : "development"
+  version: true ? "1.7.0" : "development"
 }, {
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
@@ -31213,8 +33440,8 @@ if (service2) {
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena,
     scheduler: await dashboard.scheduler,
-    version: true ? "1.6.2" : "development",
-    bundlePath: fileURLToPath5(import.meta.url),
+    version: true ? "1.7.0" : "development",
+    bundlePath: fileURLToPath6(import.meta.url),
     port: dashboard.address()?.port,
     onExit: () => shutdown()
   });

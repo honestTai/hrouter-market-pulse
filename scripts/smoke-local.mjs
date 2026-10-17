@@ -176,7 +176,7 @@ try {
   const health = await fetch(`http://127.0.0.1:${port}/health`);
   assert.equal(health.status, 200);
   const home = await fetch(`http://127.0.0.1:${port}/`);
-  assert.match(await home.text(), /Hrouter Market Pulse/i);
+  assert.match(await home.text(), /HRouter 股票工作台/);
   const denied = await fetch(`http://127.0.0.1:${port}/api/preferences`, {
     method: "POST",
     headers: {
@@ -187,11 +187,8 @@ try {
   });
   assert.equal(denied.status, 403);
   for (const name of [
-    "dashboard.css",
-    "dashboard.js",
-    "dashboard.js.LEGAL.txt",
-    "vendor/lightweight-charts.js",
-    "vendor/lucide.js",
+    "app/app.css",
+    "app/app.js",
   ])
     assert.equal(
       (await fetch(`http://127.0.0.1:${port}/assets/${name}`)).status,
@@ -217,7 +214,7 @@ try {
         "append-only thesis scorecard",
         "packaged research skill and upstream license",
         "dashboard",
-        "React bundle, styles, notices and legacy vendor assets",
+        "workbench UI bundle, styles and notices",
         "cross-origin write rejection",
         "isolated preferences",
       ],

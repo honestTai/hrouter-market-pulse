@@ -1276,4 +1276,6 @@ export const EN: Record<string, string> = {
   '默认高；越高越慢、用量越大': 'High by default; higher is slower and uses more',
   '模型默认用各 Agent 的最新版，推理强度默认高': 'Models default to each agent\'s newest; effort defaults to high',
   '只在本机运行。模型、供应商和登录用各 Agent 自己的配置；这里管 Agent、额度、提示词、费率、推送、券商连接和语言。': 'Runs on this machine only. Models, providers and sign-in use each agent\'s own config; here you manage agents, quota, prompts, fees, push, broker connection and language.',
+  '上涨 / 下跌': 'Up / down',
+  '平盘 {n}': '{n} flat',
 }

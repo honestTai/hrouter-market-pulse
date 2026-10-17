@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.8.0 — desktop app, trader teams, market radar, CLI
+
+1.7.0 was not published separately; this release includes it. Downloads: macOS `.dmg`, Windows installer and the agent plugin ZIP.
 
 - **`market-pulse` command line** for the owner and any agent working for them: traders, conversations, approvals, orders and reconciliation, research tasks, reports and digests, radar and dragon-tiger, schedules, quota, environment, models and skills, plus an `api` escape hatch; `--json` for agents. Installed with the background service (or `npm run cli:install`). Calls made from inside a trader's own round are read-only on the server. New skill `hrouter-workbench-cli`.
 - **Model and effort pickers, not tied to one provider.** Each agent's models come from the CLI's own files (Claude Code aliases, `~/.codex/models_cache.json`, `~/.kimi-code/config.toml`), newest first and selected by default; reasoning effort defaults to high (`--effort` for Claude Code, `model_reasoning_effort` for Codex; Kimi Code uses its own thinking setting). New route `/api/agent-models`.

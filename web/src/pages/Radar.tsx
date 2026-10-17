@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { get, type Emotion, type Radar } from '@/lib/api'
 import { bigAmount, dateTime, num } from '@/lib/format'
-import { t } from '@/lib/i18n'
+import { isEnglish, t } from '@/lib/i18n'
 import { useEmotion, useRadar } from '@/lib/queries'
 import { Page, PageHeader } from '@/components/Shell'
 import { Expandable } from '@/components/Expandable'
@@ -38,7 +38,7 @@ export function RadarPage() {
       <ErrorNote error={radar.error} />
       {radar.isLoading ? <Spinner /> : data && <>
         <div className="grid grid-cols-5 gap-4 max-xl:grid-cols-3 max-md:grid-cols-2 max-sm:grid-cols-1">
-          <Card className="p-4"><Stat label={t('上涨 / 下跌 / 平盘')} value={b?.advancers !== null && b?.advancers !== undefined ? <><span className="text-up">{b.advancers}</span><span className="text-ink-3"> / </span><span className="text-down">{b.decliners}</span><span className="text-sm text-ink-3"> / {b.unchanged}</span></> : '—'} sub={b?.error ?? t('沪深两市，不含北交所')} /></Card>
+          <Card className="p-4"><Stat label={t('上涨 / 下跌')} value={b?.advancers !== null && b?.advancers !== undefined ? <><span className="text-up">{b.advancers}</span><span className="text-ink-3"> / </span><span className="text-down">{b.decliners}</span></> : '—'} sub={b?.error ?? `${t('平盘 {n}', { n: b?.unchanged ?? '—' })} · ${t('沪深两市，不含北交所')}`} /></Card>
           <Card className="p-4"><Stat label={t('两市成交额')} value={bigAmount(b?.turnover)} sub={(b?.indices ?? []).slice(0, 2).map((index) => `${t(index.name)} ${index.changePct !== null && index.changePct !== undefined ? `${index.changePct > 0 ? '+' : ''}${index.changePct}%` : '—'}`).join(' · ')} /></Card>
           <Card className="p-4"><Stat label={t('涨停 / 炸板 / 跌停')} value={s?.limitUps !== undefined ? <><span className="text-up">{s.limitUps}</span><span className="text-ink-3"> / </span>{s.broken}<span className="text-ink-3"> / </span><span className="text-down">{s.limitDowns}</span></> : '—'} sub={s?.brokenRatePct !== null && s?.brokenRatePct !== undefined ? t('炸板率 {pct}%', { pct: s.brokenRatePct }) : s?.error ?? '—'} /></Card>
           <Card className="p-4"><Stat label={t('最高连板')} value={s?.highestBoard ? t('{n} 板', { n: s.highestBoard }) : '—'} sub={s?.ladder?.[0]?.stocks.map((stock) => stock.name).join(t('、')) ?? '—'} /></Card>
@@ -117,7 +117,7 @@ function LadderCard({ radar }: { radar: Radar }) {
         <div className="flex max-h-[300px] flex-col gap-2 overflow-y-auto scroll-thin">
           {s.ladder.map((step) => (
             <div key={step.boards} className="flex gap-2.5">
-              <span className={cn('flex h-6 w-12 shrink-0 items-center justify-center rounded-md font-mono text-xs font-semibold', step.boards >= 4 ? 'bg-up text-white' : step.boards >= 2 ? 'bg-bad-soft text-up' : 'bg-sunken text-ink-2')}>{t('{n} 板', { n: step.boards })}</span>
+              <span className={cn('flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md font-mono text-xs font-semibold', isEnglish() ? 'w-[4.5rem]' : 'w-12', step.boards >= 4 ? 'bg-up text-white' : step.boards >= 2 ? 'bg-bad-soft text-up' : 'bg-sunken text-ink-2')}>{t('{n} 板', { n: step.boards })}</span>
               <div className="flex min-w-0 flex-1 flex-wrap gap-1">
                 {(step.boards >= 2 ? step.stocks : step.stocks.slice(0, 12)).map((stock) => <span key={stock.symbol} title={`${stock.symbol} · ${stock.industry ?? ''} · ${t('首封 {time}', { time: stock.firstSealAt ?? '—' })}`} className="rounded-md border border-line px-1.5 py-0.5 text-xs">{stock.name}</span>)}
                 {step.boards < 2 && step.stocks.length > 12 && <span className="px-1 py-0.5 text-xs text-ink-3">{t('… 共 {n} 只', { n: step.count })}</span>}

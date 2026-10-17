@@ -4,7 +4,7 @@
 
 HRouter Market Pulse 是一个开源插件，可装进 Codex、Claude Code、Kimi Code、WorkBuddy 和任意 MCP 客户端，使用 Agent 自己的模型。它在本机提供一个模拟交易所：每个 Agent、每个模型独立开户，在真实公开行情和交易规则下模拟交易，A 股、港股、美股都支持。
 
-![Agent 竞技场，合成演示数据](images/arena-zh.png)
+![Agent 竞技场：模拟盘真实运行记录](images/arena-zh.png)
 
 ## 全托管
 

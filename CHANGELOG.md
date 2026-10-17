@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1 — install fixes
+
+- The plugin's dashboard honors `HROUTER_REPORT_PORT=0` and falls back to a free port when 8787–8797 are all taken; the installer's health check no longer fails on machines with many agent sessions open.
+- `npm run service:install` retries `launchctl bootstrap` while the previous service is still unloading instead of leaving it stopped.
+- The Windows desktop build compiles (the overlay title bar is macOS only).
+
 ## 1.8.0 — desktop app, trader teams, market radar, CLI
 
 1.7.0 was not published separately; this release includes it. Downloads: macOS `.dmg`, Windows installer and the agent plugin ZIP.

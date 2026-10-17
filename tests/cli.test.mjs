@@ -73,3 +73,14 @@ test("cli: install writes a market-pulse wrapper", async () => {
     assert.match(await readFile(result.path, "utf8"), /market-pulse\.mjs/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test("report port: 0 means any free port, junk falls back to 8787", async () => {
+  const { getReportPort } = await import("../mcp/core.mjs");
+  const saved = process.env.HROUTER_REPORT_PORT;
+  try {
+    process.env.HROUTER_REPORT_PORT = "0";
+    assert.equal(getReportPort(), 0);
+    process.env.HROUTER_REPORT_PORT = "abc";
+    assert.equal(getReportPort(), 8787);
+  } finally { if (saved === undefined) delete process.env.HROUTER_REPORT_PORT; else process.env.HROUTER_REPORT_PORT = saved; }
+});

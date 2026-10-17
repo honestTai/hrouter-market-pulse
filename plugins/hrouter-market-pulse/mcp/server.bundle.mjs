@@ -7336,7 +7336,17 @@ async function main(argv = process.argv.slice(2)) {
       await mkdir14(path18.dirname(file.path), { recursive: true });
       await writeFile13(file.path, file.content, { mode: 384 });
     }
-    for (const [command, args] of plan.enable) await exec(command, args);
+    for (const [command, args] of plan.enable) {
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          await exec(command, args);
+          break;
+        } catch (error2) {
+          if (attempt >= 10 || !/Bootstrap failed: (5|37)/.test(error2.message)) throw error2;
+          await new Promise((resolve) => setTimeout(resolve, 1e3));
+        }
+      }
+    }
     const port = serviceEnvironment().HROUTER_REPORT_PORT;
     let state = { reachable: false };
     for (let attempt = 0; attempt < 15 && !state.reachable; attempt += 1) {
@@ -9008,6 +9018,7 @@ async function savePreferences(input) {
 }
 function getReportPort() {
   const value = Number(process.env.HROUTER_REPORT_PORT ?? 8787);
+  if (value === 0 && process.env.HROUTER_REPORT_PORT?.trim() === "0") return 0;
   return Number.isInteger(value) && value >= 1024 && value <= 65535 ? value : 8787;
 }
 function getReportUrl(runId = "latest") {
@@ -23379,7 +23390,7 @@ data: ${JSON.stringify(message)}
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: true ? "1.8.0" : "development"
+            version: true ? "1.8.1" : "development"
           });
         if (assets.has(url.pathname)) {
           const [name, type] = assets.get(url.pathname);
@@ -23655,8 +23666,8 @@ data: ${JSON.stringify(message)}
   server2.ready = new Promise((resolve, reject) => {
     let attempts = 0;
     server2.on("error", (error2) => {
-      if (error2.code === "EADDRINUSE" && attempts++ < 10) {
-        port = port >= 65535 ? 8787 : port + 1;
+      if (error2.code === "EADDRINUSE" && attempts++ < 11) {
+        port = attempts > 10 ? 0 : port >= 65535 ? 8787 : port + 1;
         process.env.HROUTER_REPORT_PORT = String(port);
         server2.listen(port, "127.0.0.1");
       } else reject(error2);
@@ -33873,7 +33884,7 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: true ? "1.8.0" : "development"
+  version: true ? "1.8.1" : "development"
 }, {
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
@@ -34768,7 +34779,7 @@ if (service2) {
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena,
     scheduler: await dashboard.scheduler,
-    version: true ? "1.8.0" : "development",
+    version: true ? "1.8.1" : "development",
     bundlePath: fileURLToPath6(import.meta.url),
     port: dashboard.address()?.port,
     onExit: () => shutdown()

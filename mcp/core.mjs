@@ -1404,6 +1404,8 @@ export async function savePreferences(input) {
 
 export function getReportPort() {
   const value = Number(process.env.HROUTER_REPORT_PORT ?? 8787);
+  // 0 asks the OS for any free port (health checks, tests).
+  if (value === 0 && process.env.HROUTER_REPORT_PORT?.trim() === "0") return 0;
   return Number.isInteger(value) && value >= 1024 && value <= 65535 ? value : 8787;
 }
 

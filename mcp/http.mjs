@@ -560,8 +560,9 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
   server.ready = new Promise((resolve, reject) => {
     let attempts = 0;
     server.on("error", (error) => {
-      if (error.code === "EADDRINUSE" && attempts++ < 10) {
-        port = port >= 65535 ? 8787 : port + 1;
+      if (error.code === "EADDRINUSE" && attempts++ < 11) {
+        // Try the next ten ports, then let the OS pick a free one instead of crashing.
+        port = attempts > 10 ? 0 : port >= 65535 ? 8787 : port + 1;
         process.env.HROUTER_REPORT_PORT = String(port);
         server.listen(port, "127.0.0.1");
       } else reject(error);

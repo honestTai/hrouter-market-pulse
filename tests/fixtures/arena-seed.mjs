@@ -1,9 +1,9 @@
-// Synthetic Agent Arena for `--demo`: isolated temp storage, deterministic fake prices.
-// Every account is flagged demo so the UI can label it; nothing touches real arena data.
+// Test fixture: a seeded arena in temp storage with deterministic synthetic prices, for paging and
+// HTTP tests that must not touch the network. The workbench itself has no demo mode.
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { ARENA_MARKETS, createArena, computeFees } from "./arena.mjs";
+import { ARENA_MARKETS, createArena, computeFees } from "../../mcp/arena.mjs";
 
 function generator(seed) {
   let state = seed >>> 0;
@@ -117,8 +117,8 @@ function seedAccount(agent, index, start) {
   };
 }
 
-export async function createDemoArena() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "hrouter-arena-demo-"));
+export async function createSeededArena() {
+  const root = await mkdtemp(path.join(os.tmpdir(), "hrouter-arena-seed-"));
   await mkdir(path.join(root, "accounts"), { recursive: true });
   // Last seeded point lands about an hour ago, never in the future.
   const start = Date.now() - 34 * 86400000 - 8 * 3600000;
@@ -127,7 +127,7 @@ export async function createDemoArena() {
   for (const account of accounts) await writeFile(path.join(root, "accounts", `${account.id}.json`), JSON.stringify(account));
   const arena = createArena({
     root,
-    // Synthetic quotes: hold the seeded marks so the demo stays stable while it is open.
+    // Synthetic quotes: hold the seeded marks so tests stay deterministic.
     quoteProvider: async (symbol) => {
       const position = prices.get(symbol);
       const market = /\.(SS|SZ|BJ)$/.test(symbol) ? "A" : /\.HK$/.test(symbol) ? "HK" : "US";
@@ -135,6 +135,6 @@ export async function createDemoArena() {
       return { symbol, name: position?.name ?? symbol, market, price: base, asOf: new Date().toISOString(), provider: "Synthetic demo", lotSize: market === "HK" ? 100 : null, limitUp: null, limitDown: null };
     },
   });
-  await arena.generateDigest({ market: "A", trigger: "demo" });
+  await arena.generateDigest({ market: "A", trigger: "manual" });
   return arena;
 }

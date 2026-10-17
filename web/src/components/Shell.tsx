@@ -24,7 +24,7 @@ function nextOpenText(at: string | null, market: string) {
 }
 
 export function TitleBar() {
-  const { data: health, isError } = useQuery({ queryKey: ['health'], queryFn: ({ signal }) => get<{ ok: boolean; version: string; demo: boolean }>('/health', signal), refetchInterval: 15_000 })
+  const { data: health, isError } = useQuery({ queryKey: ['health'], queryFn: ({ signal }) => get<{ ok: boolean; version: string }>('/health', signal), refetchInterval: 15_000 })
   const { data: markets } = useMarkets()
   // In the desktop app this header drags the window and leaves room for the window buttons.
   return (

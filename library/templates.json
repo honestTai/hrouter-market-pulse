@@ -1,45 +1,149 @@
 {
-  "version": 1,
-  "note": "Trader templates bundle skills, a starting prompt, suggested limits (applied only if the owner ticks them) and a cadence. Every template also loads the discipline skills.",
-  "discipline": ["pre-trade-gate", "position-sizing", "loss-circuit-breaker", "trade-review"],
-  "templates": [
-    {
-      "id": "a-share-swing", "name": "A 股趋势波段", "markets": ["A"], "status": "available",
-      "skills": ["a-share-trend-pullback", "macd-trend-resonance"], "starterStrategy": "trend-pullback",
-      "prompt": "只做趋势向上的股票：60 日线向上、股价在 60 日线上方才考虑买入。回踩不破再进，跌破慢线或 RSI 过热离场。每笔买单带止损，默认 -7%。",
-      "suggestedLimits": { "maxPositions": 6, "maxPositionPct": 20, "maxRiskPerTradePct": 1.5 },
-      "cadence": { "reviewMinutes": 10, "strategyMinutes": 5 }
-    },
-    {
-      "id": "value", "name": "价值投资", "markets": ["A", "HK", "US"], "status": "available",
-      "skills": ["investor-panel"], "starterStrategy": null,
-      "prompt": "像企业主一样买股票：先看护城河、资产负债表和估值，再看价格。用投资人评审逐只过一遍，三位以上看多才建仓。少交易，持有周期以月计。",
-      "suggestedLimits": { "maxPositions": 8, "maxPositionPct": 15, "maxNewPerDay": 1 },
-      "cadence": { "reviewMinutes": 30, "strategyMinutes": 30 }
-    },
-    {
-      "id": "growth-momentum", "name": "成长动量（CANSLIM / VCP）", "markets": ["US", "HK"], "status": "available",
-      "skills": ["canslim", "vcp-trend-template"], "starterStrategy": null,
-      "prompt": "只在大盘处于上升趋势时开新仓。找盈利加速、接近新高、波动收缩后放量突破的龙头；突破失败或跌破 50 日线就走。",
-      "suggestedLimits": { "maxPositions": 6, "maxRiskPerTradePct": 1 },
-      "cadence": { "reviewMinutes": 15, "strategyMinutes": 5 }
-    },
-    {
-      "id": "quant-rotation", "name": "量化轮动", "markets": ["A", "HK", "US"], "status": "available",
-      "skills": [], "starterStrategy": "momentum-rotation", "builtinStrategy": true,
-      "prompt": "",
-      "suggestedLimits": {},
-      "cadence": { "reviewMinutes": null, "strategyMinutes": 5 }
-    },
-    {
-      "id": "a-share-hot-money", "name": "A 股游资短线", "markets": ["A"], "status": "needs-data",
-      "skills": ["lhb-hot-money", "emotion-cycle", "tuige-shortline"], "requires": ["龙虎榜", "涨停池", "连板"],
-      "prompt": "", "suggestedLimits": { "maxPositions": 4, "maxPositionPct": 25 }, "cadence": { "reviewMinutes": 10, "strategyMinutes": 1 }
-    },
-    {
-      "id": "macro-timing", "name": "宏观择时", "markets": ["A", "HK", "US"], "status": "needs-data",
-      "skills": ["investor-panel", "loss-circuit-breaker"], "requires": ["北向资金", "市场宽度"],
-      "prompt": "", "suggestedLimits": {}, "cadence": { "reviewMinutes": 60, "strategyMinutes": 30 }
-    }
-  ]
+ "version": 1,
+ "note": "Trader templates bundle skills, a starting prompt, suggested limits (applied only if the owner ticks them) and a cadence. Every template also loads the discipline skills.",
+ "discipline": [
+  "pre-trade-gate",
+  "position-sizing",
+  "loss-circuit-breaker",
+  "trade-review"
+ ],
+ "templates": [
+  {
+   "id": "a-share-swing",
+   "name": "A 股趋势波段",
+   "markets": [
+    "A"
+   ],
+   "status": "available",
+   "skills": [
+    "a-share-trend-pullback",
+    "macd-trend-resonance"
+   ],
+   "starterStrategy": "trend-pullback",
+   "prompt": "只做趋势向上的股票：60 日线向上、股价在 60 日线上方才考虑买入。回踩不破再进，跌破慢线或 RSI 过热离场。每笔买单带止损，默认 -7%。",
+   "suggestedLimits": {
+    "maxPositions": 6,
+    "maxPositionPct": 20,
+    "maxRiskPerTradePct": 1.5
+   },
+   "cadence": {
+    "reviewMinutes": 10,
+    "strategyMinutes": 5
+   }
+  },
+  {
+   "id": "value",
+   "name": "价值投资",
+   "markets": [
+    "A",
+    "HK",
+    "US"
+   ],
+   "status": "available",
+   "skills": [
+    "investor-panel"
+   ],
+   "starterStrategy": null,
+   "prompt": "像企业主一样买股票：先看护城河、资产负债表和估值，再看价格。用投资人评审逐只过一遍，三位以上看多才建仓。少交易，持有周期以月计。",
+   "suggestedLimits": {
+    "maxPositions": 8,
+    "maxPositionPct": 15,
+    "maxNewPerDay": 1
+   },
+   "cadence": {
+    "reviewMinutes": 30,
+    "strategyMinutes": 30
+   }
+  },
+  {
+   "id": "growth-momentum",
+   "name": "成长动量（CANSLIM / VCP）",
+   "markets": [
+    "US",
+    "HK"
+   ],
+   "status": "available",
+   "skills": [
+    "canslim",
+    "vcp-trend-template"
+   ],
+   "starterStrategy": null,
+   "prompt": "只在大盘处于上升趋势时开新仓。找盈利加速、接近新高、波动收缩后放量突破的龙头；突破失败或跌破 50 日线就走。",
+   "suggestedLimits": {
+    "maxPositions": 6,
+    "maxRiskPerTradePct": 1
+   },
+   "cadence": {
+    "reviewMinutes": 15,
+    "strategyMinutes": 5
+   }
+  },
+  {
+   "id": "quant-rotation",
+   "name": "量化轮动",
+   "markets": [
+    "A",
+    "HK",
+    "US"
+   ],
+   "status": "available",
+   "skills": [],
+   "starterStrategy": "momentum-rotation",
+   "builtinStrategy": true,
+   "prompt": "",
+   "suggestedLimits": {},
+   "cadence": {
+    "reviewMinutes": null,
+    "strategyMinutes": 5
+   }
+  },
+  {
+   "id": "a-share-hot-money",
+   "name": "A 股游资短线",
+   "markets": [
+    "A"
+   ],
+   "status": "available",
+   "skills": [
+    "lhb-hot-money",
+    "emotion-cycle",
+    "tuige-shortline"
+   ],
+   "prompt": "只做 A 股短线：每轮先用情绪周期定阶段，冰点和退潮期不接力。只做当日主线里辨识度最高的前排（最早封板、最高板、封单最大），看龙虎榜确认是谁在买。每笔写清 trigger、invalidation 和止损价；结构失败当天离场，不补仓。",
+   "suggestedLimits": {
+    "maxPositions": 4,
+    "maxPositionPct": 25
+   },
+   "cadence": {
+    "reviewMinutes": 10,
+    "strategyMinutes": 1
+   },
+   "starterStrategy": null
+  },
+  {
+   "id": "macro-timing",
+   "name": "宏观择时",
+   "markets": [
+    "A",
+    "HK",
+    "US"
+   ],
+   "status": "available",
+   "skills": [
+    "market-regime",
+    "investor-panel",
+    "loss-circuit-breaker"
+   ],
+   "prompt": "先用市场状态定总仓位（进攻 / 中性 / 防守 / 避险），状态降级当天减仓，升级连续两天确认再加。个股只做投资人评审看多的少数几只，持有周期以周计。",
+   "suggestedLimits": {
+    "maxExposurePct": 90,
+    "maxPositions": 8
+   },
+   "cadence": {
+    "reviewMinutes": 60,
+    "strategyMinutes": 30
+   },
+   "starterStrategy": null
+  }
+ ]
 }

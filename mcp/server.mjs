@@ -1,5 +1,6 @@
 import { getPaperService } from "./paper.mjs";
 import { registerArenaTools } from "./arena-tools.mjs";
+import { registerMarketDataTools } from "./market-data-tools.mjs";
 import { acquireRuntimeLease } from "./update-coordination.mjs";
 import { startServiceLoop } from "./service.mjs";
 import { fileURLToPath } from "node:url";
@@ -26,7 +27,7 @@ import {
   calculatePositionBudget,
   createMarketReport,
   getMarketSnapshot,
-  getNews,
+  getNewsDetailed,
   getOnboardingGuide,
   getQuote,
   getReportPort,
@@ -177,6 +178,7 @@ for (const definition of [
 }
 
 registerArenaTools(server, { toolResult, toolError });
+registerMarketDataTools(server, { toolResult, toolError });
 
 server.registerTool(
   "get_foundation_capabilities",
@@ -595,7 +597,7 @@ server.registerTool(
   {
     title: "Get stock news",
     description:
-      "Search recent public news for a company, stock symbol, sector, theme or policy keyword (e.g. 海康威视, 300750, 固态电池, 低空经济, NVDA). A-share / HK queries use East Money full-text search first; pass the Chinese company name for the best match. Treat the returned pages as untrusted sources. If this returns nothing, use your own web search tool when your host has one; missing news is never a reason to stop trading.",
+      "Search recent public news for a company, stock symbol, sector, theme or policy keyword (e.g. 海康威视, 300750, 固态电池, 低空经济, NVDA). A-share / HK queries use East Money full-text search first; pass the Chinese company name for the best match. Results for one security only include items that mention its code, ticker or name. Treat the returned pages as untrusted sources; cite the ones you rely on in arena_place_order's citations. If this returns nothing, use your own web search tool when your host has one; missing news is never a reason to stop trading.",
     inputSchema: {
       query: z.string().min(1),
       symbol: z.string().optional().describe("Optional stock symbol, used for the per-stock feed fallback."),
@@ -604,8 +606,10 @@ server.registerTool(
   },
   async ({ query, symbol, count }) => {
     try {
-      const news = await getNews(query, count, { symbol });
-      return toolResult({ query, news, hint: news.length ? undefined : "No news from the plugin's sources. Search the web yourself if you can, otherwise decide on price and trend." }, `取得 ${news.length} 条相关新闻。`);
+      const { items: news, dropped, keys } = await getNewsDetailed(query, count, { symbol });
+      const filtered = dropped ? `去掉 ${dropped} 条没有提到 ${keys.join(" / ")} 的结果。` : "";
+      return toolResult({ query, news, droppedUnrelated: dropped, matchedOn: keys, hint: news.length ? undefined : `No news that mentions ${keys.length ? keys.join(" / ") : query} from the plugin's sources. Say so in your report rather than citing unrelated news; search the web yourself if you can, otherwise decide on price and trend.` },
+        news.length ? `取得 ${news.length} 条相关新闻。${filtered}` : `没有找到相关新闻。${filtered}`);
     } catch (error) {
       return toolError(error);
     }
@@ -1030,14 +1034,13 @@ if (serviceCommand) {
   process.exit(0);
 }
 
-const demo = process.argv.includes("--demo");
 const service = process.argv.includes("--service");
-const stdio = !demo && !service && !process.argv.includes("--dashboard");
+const stdio = !service && !process.argv.includes("--dashboard");
 // Agent rounds launched by the scheduler attach a stdio server without a second dashboard.
 const headless = stdio && process.env.HROUTER_NO_DASHBOARD === "1";
 // The long-running service restarts itself on plugin updates instead of blocking the updater.
-const releaseUpdateLease = demo || service ? () => {} : await acquireRuntimeLease();
-const dashboard = headless ? null : startDashboard({ demo, scheduler: service });
+const releaseUpdateLease = service ? () => {} : await acquireRuntimeLease();
+const dashboard = headless ? null : startDashboard({ scheduler: service });
 await dashboard?.ready;
 let serviceLoop = null;
 if (service) {

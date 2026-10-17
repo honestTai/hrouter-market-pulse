@@ -44,7 +44,7 @@ export function MarketPage() {
   }
   return (
     <Page>
-      <PageHeader eyebrow="真实公开行情 · 可能延迟" title="市场" description={`自选 ${items.length} 只 · 报告 ${dateTime(report.data?.generatedAt)}${report.data?.demo ? ' · 演示数据' : ''}`}
+      <PageHeader eyebrow="真实公开行情 · 可能延迟" title="市场" description={`自选 ${items.length} 只 · 报告 ${dateTime(report.data?.generatedAt)}`}
         actions={<><Button onClick={() => setEditing(true)}><Plus className="size-4" />管理自选</Button><Button variant="primary" loading={busy} onClick={refresh}><RefreshCw className="size-4" />更新行情</Button></>} />
       <ErrorNote error={report.error} />
       <Indices report={report.data} />
@@ -117,7 +117,7 @@ function StockDetail({ item, report, timeframe, setTimeframe }: { item: Item; re
   const [expanded, setExpanded] = useState(false)
   const ind = item.indicators || {}
   const evidence = collectEvidence(report, item.symbol)
-  const usable = item.signalEligible === true && crossStatus(item) !== 'conflict' && !['stale', 'error', 'unverified'].includes(quoteStatus(item, { demo: report.demo }))
+  const usable = item.signalEligible === true && crossStatus(item) !== 'conflict' && !['stale', 'error', 'unverified'].includes(quoteStatus(item))
   const chart = (height: number) => <PriceChart item={item} timeframe={timeframe} type={type} range={range} averages={averages} height={height} />
   return (
     <Card className="flex min-w-0 flex-[999_1_560px] flex-col gap-4 p-5">

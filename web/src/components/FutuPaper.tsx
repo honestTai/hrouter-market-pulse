@@ -26,7 +26,7 @@ export function FutuPaper() {
   useEffect(() => { const latest = status.data?.snapshots?.find((entry: any) => entry.accountId === accountId && entry.market === market); if (latest) setSnapshot(latest) }, [status.data, accountId, market])
   const act = async (name: string, task: () => Promise<void>) => { setBusy(name); setError(''); try { await task() } catch (caught) { setError((caught as Error).message) } finally { setBusy('') } }
   const policy = status.data?.policy ?? {}
-  const setup = !status.data?.bridgeEnabled || status.data?.demoDisabled
+  const setup = !status.data?.bridgeEnabled
   const verified = accounts.some((entry) => entry.accountId === accountId && entry.market === market && entry.environment === 'SIMULATE') || (policy.accountId === accountId && policy.market === market)
   const intents = (status.data?.intents ?? []).filter((entry: any) => !accountId || (entry.accountId === accountId && entry.market === market))
   if (status.isLoading) return <Spinner />

@@ -21,8 +21,9 @@ import { getInstrumentRules, getMarketSession, localMarketTime, marketLocalToIso
 import { inDateRange, matchesText, paginate } from "./paging.mjs";
 import {
   DEFAULT_FEES, DEFAULT_LIMITS, LIMIT_SPECS, NEW_ACCOUNT_LIMITS, SettingsError, appendChange, assertUnlocked, changeEntry, changedBy, computeFees as computeScheduleFees,
-  createWorkbenchSettings, isOwner, limitStatus, limitViolation, sanitizeFees, sanitizeLimits, sanitizePrompt,
+  createWorkbenchSettings, isOwner, knownIndustries, limitStatus, limitViolation, sanitizeFees, sanitizeLimits, sanitizePrompt,
 } from "./trader-settings.mjs";
+import { industriesOf } from "./market-data.mjs";
 
 export const ARENA_MARKETS = {
   A: { currency: "CNY", defaultCash: 1000000, benchmark: "000300.SS", benchmarkName: "沪深300 / CSI 300" },
@@ -346,7 +347,25 @@ export function sellableQuantity(account, symbol, now = new Date().toISOString()
 // Fill `quantity` shares of an order (all that remains by default); partial fills keep it open.
 // The market data a fill or order relied on: last, best bid / ask, quote time and provider.
 export function quoteSnapshot(quote) {
-  return { price: quote.price ?? null, bid: quote.bid ?? null, ask: quote.ask ?? null, asOf: quote.asOf ?? null, source: quote.provider ?? quote.source ?? null, changePct: finite(quote.changePct) ? round(quote.changePct, 2) : null };
+  return { price: quote.price ?? null, bid: quote.bid ?? null, ask: quote.ask ?? null, asOf: quote.asOf ?? null, source: quote.provider ?? quote.source ?? null, changePct: finite(quote.changePct) ? round(quote.changePct, 2) : null, freshness: quote.freshness?.status ?? null };
+}
+
+// News, filings or data an order relied on, as the agent cites them (kept with the order and its fills).
+export function sanitizeCitations(input) {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input) || input.length > 8) throw new ArenaError("citations must be a list of at most 8 sources.");
+  return input.map((entry) => {
+    const title = String(entry?.title ?? "").trim().slice(0, 200);
+    if (!title) throw new ArenaError("Each citation needs a title.");
+    let url = null;
+    if (entry.url) {
+      try { const parsed = new URL(String(entry.url)); if (["http:", "https:"].includes(parsed.protocol) && !parsed.username && !parsed.password) url = parsed.href.slice(0, 500); } catch { /* dropped */ }
+      if (!url) throw new ArenaError(`Citation "${title}" has an invalid url (http or https only).`);
+    }
+    const publishedAt = entry.publishedAt && Number.isFinite(Date.parse(entry.publishedAt)) ? new Date(entry.publishedAt).toISOString() : null;
+    const kind = ["news", "filing", "data", "report"].includes(entry.kind) ? entry.kind : "news";
+    return { kind, title, url, source: entry.source ? String(entry.source).slice(0, 80) : null, publishedAt };
+  });
 }
 
 // Completed-minute prices strictly after `since` and before the current minute, for today only.
@@ -376,6 +395,7 @@ function applyFill(account, order, price, quote, now, quantity = remainingQuanti
     if (lot) lot.quantity += quantity;
     else position.lots.push({ date: tradeDate, quantity });
     if (order.exits) position.exits = { ...position.exits, ...order.exits };
+    if (order.industry) position.industry ??= order.industry;
     account.cash = round(account.cash - gross - fees.total);
     account.positions[order.symbol] = position;
   } else {
@@ -418,7 +438,7 @@ function applyFill(account, order, price, quote, now, quantity = remainingQuanti
     realizedPnl, at: now, reason: order.reason, confidence: order.confidence ?? null, strategyVersion: order.strategyVersion,
     ...(order.trigger ? { trigger: order.trigger } : {}), ...(order.fills > 1 || order.status === "open" ? { partial: true } : {}),
     // Where the price came from, so every fill can be traced back to real market data.
-    fillBasis: basis, quote: quote ? quoteSnapshot(quote) : null,
+    fillBasis: basis, quote: quote ? quoteSnapshot(quote) : null, ...(order.citations?.length ? { citations: order.citations } : {}),
   };
   account.trades.push(trade);
   if (account.trades.length > LIMITS.trades) account.trades = account.trades.slice(-LIMITS.trades);
@@ -598,7 +618,7 @@ function processAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; }
 }
 
-export function createArena({ root = path.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, now = () => new Date().toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
+export function createArena({ root = path.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, industryProvider = null, now = () => new Date().toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
   const accountDir = path.join(root, "accounts");
   const digestDir = path.join(root, "digests");
   const lockDir = path.join(root, ".lock");
@@ -1014,7 +1034,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       id: account.id, name: account.name, competition: account.competition, market: account.market, currency: account.currency,
       agent: account.agent, model: account.model, strategy: { version: account.strategy.version, summary: account.strategy.summary, updatedAt: account.strategy.updatedAt },
       status: account.status, createdAt: account.createdAt, updatedAt: account.updatedAt, createdBy: account.createdBy,
-      initialCash: account.initialCash, settings: account.settings, benchmark: account.benchmark, metrics, demo: account.demo === true,
+      initialCash: account.initialCash, settings: account.settings, benchmark: account.benchmark, metrics,
       curve: returnCurve(account, metrics.equity),
       lastTradeAt: account.trades.at(-1)?.at ?? null,
       lastActivityAt: [account.trades.at(-1)?.at, account.journal.at(-1)?.at, account.orders.at(-1)?.createdAt, account.reports?.at(-1)?.at].filter(Boolean).sort().at(-1) ?? null,
@@ -1193,12 +1213,21 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       if (reason.length < 10) throw new ArenaError("reason is required (at least 10 characters): explain the thesis so the decision can be reviewed.");
       const exits = normalizeExits(input);
       if (exits && side !== "BUY") throw new ArenaError("stopLoss / takeProfit attach to BUY orders; use arena_set_exits for an existing position.");
+      const citations = sanitizeCitations(input.citations);
       if (input.clientOrderId) {
         const existing = account.orders.find((order) => order.clientOrderId === input.clientOrderId);
         if (existing) return { duplicate: true, order: existing, account: publicAccount(account) };
       }
 
       const observed = await quote(symbol, { fresh: true });
+      // Industry of the stock and of everything held, for the per-industry limit and the record.
+      // A lookup failure never blocks trading: unknown industries simply are not counted.
+      let industries = {};
+      if (side === "BUY" && industryProvider) {
+        const known = knownIndustries(account);
+        const missing = [symbol, ...Object.keys(account.positions)].filter((entry) => !known[entry]);
+        industries = missing.length ? await industryProvider(missing).catch(() => ({})) : {};
+      }
       const at = now();
       const rules = lotRules(account, symbol, observed);
       const session = eligibleSession(account.market, at);
@@ -1209,7 +1238,8 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         horizon: input.horizon ?? null, strategyVersion: account.strategy.version, createdAt: at,
         expiresAt: input.timeInForce === "gtc" ? new Date(Date.parse(at) + 30 * 86400000).toISOString() : session.closeAt,
         quoteAtSubmit: observed ? quoteSnapshot(observed) : null,
-        placedBy: caller.client ?? "unknown", ...(exits ? { exits } : {}),
+        placedBy: caller.client ?? "unknown", ...(exits ? { exits } : {}), ...(citations.length ? { citations } : {}),
+        ...(industries[symbol] || knownIndustries(account)[symbol] ? { industry: industries[symbol] ?? knownIndustries(account)[symbol] } : {}),
       };
       const reject = (message, code = "rejected") => { Object.assign(order, { status: "rejected", rejectReason: message, closedAt: at }); return { code, message }; };
 
@@ -1260,7 +1290,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       }
       const limitDetails = () => {
         const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed?.price);
-        return { quantity, price: reference, stopPrice: stopFrom(exits, reference), quote: observed, now: at };
+        return { quantity, price: reference, stopPrice: stopFrom(exits, reference), quote: observed, now: at, industries };
       };
       if (!failure && side === "BUY") {
         const violation = riskViolation(account, symbol, order.reserved, undefined, limitDetails());
@@ -1897,7 +1927,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
 
 let defaultArena;
 export function getArena() {
-  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions, intradayProvider: getIntradayBars });
+  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions, intradayProvider: getIntradayBars, industryProvider: industriesOf });
   return defaultArena;
 }
 

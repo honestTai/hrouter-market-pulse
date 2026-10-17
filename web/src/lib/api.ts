@@ -63,7 +63,7 @@ export interface AccountSummary {
   latestReport: Report | null; watchlist: { symbols: string[] } | null; limits: Limits; limitStatus: LimitStatus
   health: { status: string; missedTradingDays: number }; alerts: Array<{ type: string; severity: string; message: string }>
   template: string | null; skills: string[] | null; pendingRequests: number; instructions: Instruction[]; prompt: string
-  risk: { breaker: { drawdownPct: number } | null; drawdownPct: number }; rank?: number; demo?: boolean
+  risk: { breaker: { drawdownPct: number } | null; drawdownPct: number }; rank?: number
 }
 
 export interface AccountDetail extends AccountSummary {
@@ -72,7 +72,7 @@ export interface AccountDetail extends AccountSummary {
   strategyHistory: Array<{ version: number; summary: string; note: string | null; at: string }>
 }
 
-export interface Leaderboard { generatedAt: string; demo?: boolean; groups: Array<{ market: Market; competition: string; currency: string; accounts: AccountSummary[] }>; matcher: { state: string; lastTickAt?: string }; service: { state: string } }
+export interface Leaderboard { generatedAt: string; groups: Array<{ market: Market; competition: string; currency: string; accounts: AccountSummary[] }>; matcher: { state: string; lastTickAt?: string }; service: { state: string } }
 
 export interface Runner { type: string; model?: string; timeoutMinutes?: number; strategyId?: string; params?: Record<string, unknown>; command?: string; args?: string[]; webSearch?: boolean }
 export interface Job {

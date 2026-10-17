@@ -3,7 +3,7 @@ import { isNumber } from './format'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Item = Record<string, any>
-export type MarketReport = { items: Item[]; generatedAt?: string | null; demo?: boolean; context?: any; evidence?: any; events?: any[]; monitor?: any; alerts?: any[]; eventWarnings?: string[]; empty?: boolean; phase?: string }
+export type MarketReport = { items: Item[]; generatedAt?: string | null; context?: any; evidence?: any; events?: any[]; monitor?: any; alerts?: any[]; eventWarnings?: string[]; empty?: boolean; phase?: string }
 
 export const array = (value: any, key?: string): any[] => Array.isArray(value) ? value : key && Array.isArray(value?.[key]) ? value[key] : []
 
@@ -23,17 +23,15 @@ export function chartBars(item: Item | undefined, timeframe: 'daily' | 'intraday
   return [...result.values()].sort((a, b) => a.time - b.time)
 }
 
-export function quoteStatus(item: Item, { demo = false, now = Date.now() } = {}) {
+export function quoteStatus(item: Item, { now = Date.now() } = {}) {
   if (item.error) return 'error'
   const freshness = item.freshness || item.dataQuality?.freshness || {}
   const status = freshness.status || item.dataQuality?.status
   if (['stale', 'future', 'expired', 'invalid', 'missing_timestamp', 'unknown-timestamp'].includes(status) || item.dataQuality?.stale) return 'stale'
   if (['closed', 'closed_fresh', 'session_closed', 'fresh_closed', 'market-closed'].includes(status)) return 'closed'
   if (['fresh', 'ok'].includes(status)) {
-    if (!demo) {
-      const age = now - Date.parse(item.asOf)
-      if (!Number.isFinite(age) || age < 0 || age > (freshness.maxAgeSeconds || 300) * 1000) return 'stale'
-    }
+    const age = now - Date.parse(item.asOf)
+    if (!Number.isFinite(age) || age < 0 || age > (freshness.maxAgeSeconds || 300) * 1000) return 'stale'
     return 'fresh'
   }
   return 'unverified'

@@ -123,7 +123,7 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       "One account may take at most a configured share of the day's volume (default 5%); larger orders fill partially and the rest keeps resting. Suspended stocks (no trades today) do not fill.",
       "BUY orders may carry stopLoss / takeProfit (price or % of average cost); the matcher sells at market when a fresh quote crosses the level, subject to T+1 and limit-down.",
       "Hard limits (see arena_get_account limits / limitStatus; default: keep 20% cash) reject buys that break them. Change unlocked limits with arena_set_limits.",
-      "Always give the reason (thesis, signal, risk) so the decision can be reviewed later. Rejections are recorded and count against discipline metrics.",
+      "Always give the reason (thesis, signal, risk) and cite the news / filings you relied on, so the decision can be reviewed later. Every order also stores the quote it saw (source, bid / ask, time, freshness). Rejections are recorded and count against discipline metrics.",
     ].join(" "),
     inputSchema: {
       accountId,
@@ -137,6 +137,13 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       confidence: z.number().min(0).max(1).optional().describe("Your subjective probability the trade works (0–1); used for calibration review."),
       horizon: z.string().max(40).optional().describe("Intended holding period, e.g. '3d', '2w'."),
       clientOrderId: z.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional().describe("Idempotency key: retries with the same id return the original order."),
+      citations: z.array(z.object({
+        kind: z.enum(["news", "filing", "data", "report"]).optional(),
+        title: z.string().min(1).max(200),
+        url: z.string().max(500).optional(),
+        source: z.string().max(80).optional(),
+        publishedAt: z.string().max(40).optional(),
+      })).max(8).optional().describe("The news, filings or data this decision relies on (from get_news, query_evidence, scan_market …). Stored with the order and its fills so the owner can check them; never cite something you did not read."),
       ...exitFields,
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },

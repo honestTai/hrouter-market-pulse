@@ -1,7 +1,6 @@
 import { inDateRange, matchesText, pageParams, paginate } from "./paging.mjs";
 import { getPaperService } from "./paper.mjs";
 import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
-import { createDemoArena } from "./arena-demo.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
 import { loadLibrary, skillBody, starterStrategyCode, templateDefaults } from "./skill-library.mjs";
@@ -12,7 +11,6 @@ import { describeStrategy, loadStrategies } from "./strategies/index.mjs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { randomUUID } from "node:crypto";
 import {
   buildEmptyHtml,
   buildReportHtml,
@@ -21,7 +19,6 @@ import {
   loadPreferences,
   loadReport,
   savePreferences,
-  sanitizePreferences,
 } from "./core.mjs";
 import {
   enrichReport,
@@ -31,9 +28,8 @@ import {
   syncOfficialEvidence,
   ingestOfficialRecords,
 } from "./workspace.mjs";
-import { makeDemoReport, demoPreferences, demoDecisions } from "./demo.mjs";
 import { queryEvidence } from "./foundation.mjs";
-import { buildThesisScorecard, projectCatalystCalendar } from "./research.mjs";
+import { projectCatalystCalendar } from "./research.mjs";
 
 const assets = new Map([
   ["/assets/vendor/LICENSE-lightweight-charts", ["vendor/LICENSE-lightweight-charts", "text/plain; charset=utf-8"]],
@@ -75,14 +71,12 @@ async function bodyJson(request) {
   return body;
 }
 
-export function startDashboard({ port = getReportPort(), demo = false, matcher: runMatcher = true, scheduler: runScheduler = false } = {}) {
-  let demoReport = demo ? makeDemoReport() : null;
-  let preferences = demo ? structuredClone(demoPreferences) : null;
-  let decisions = demo ? structuredClone(demoDecisions) : null;
+// `arena` lets tests serve a seeded arena; the workbench always serves the real one (no demo mode).
+export function startDashboard({ port = getReportPort(), arena: arenaOption = null, matcher: runMatcher = true, scheduler: runScheduler = false } = {}) {
   let refreshPromise = null;
-  const arenaReady = demo ? createDemoArena() : Promise.resolve(getArena());
+  const arenaReady = Promise.resolve(arenaOption ?? getArena());
   const dashboardCaller = { client: "dashboard" };
-  const readPreferences = async () => (demo ? preferences : loadPreferences());
+  const readPreferences = () => loadPreferences();
   // Unattended matching: every dashboard / MCP process runs a matcher; the lease elects one leader.
   const matcherReady = runMatcher ? arenaReady.then((arena) => createMatcher({
     arena, getPreferences: readPreferences,
@@ -98,7 +92,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
   // Schedules are files, so any dashboard can edit them; only the service (runScheduler) runs them on time.
   const schedulerReady = arenaReady.then((arena) => {
     const scheduler = createScheduler({ arena, onError: (error) => console.error(`Arena scheduler: ${error.message}`) });
-    return runScheduler && !demo ? scheduler.start() : scheduler;
+    return runScheduler ? scheduler.start() : scheduler;
   });
   let refreshedAt = 0;
   let envCache = null;
@@ -115,12 +109,12 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
       if (request.method === "GET") {
         if (url.pathname === "/api/arena/leaderboard") {
           const arena = await arenaReady;
-          return respond(response, 200, { demo, ...(await arena.leaderboard({
+          return respond(response, 200, { ...(await arena.leaderboard({
             market: url.searchParams.get("market") || undefined,
             competition: url.searchParams.get("competition") || undefined,
             includeArchived: url.searchParams.get("archived") === "1",
             sync: url.searchParams.get("sync") === "1" || await needsSync(arena),
-          })), matcher: await matcherStatus(arena), service: demo ? { state: "demo" } : await readServiceStatus(arena.root) });
+          })), matcher: await matcherStatus(arena), service: await readServiceStatus(arena.root) });
         }
         if (url.pathname === "/api/arena/matcher") return respond(response, 200, await matcherStatus(await arenaReady));
         // Every account's round reports, newest first, paged and filtered for the report centre.
@@ -143,15 +137,15 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             && matchesText(paging.q, report.title, report.summary, report.marketView, report.account.name, report.account.model, ...(report.actions ?? []).map((entry) => entry.symbol), ...(report.picks ?? []).map((entry) => entry.symbol)));
           const page = paginate(filtered, paging);
           const accounts = [...new Map(rows.map((report) => [report.account.id, report.account])).values()];
-          return respond(response, 200, { demo, reports: page.items, total: page.total, offset: page.offset, limit: page.limit, all: rows.length, accounts });
+          return respond(response, 200, { reports: page.items, total: page.total, offset: page.offset, limit: page.limit, all: rows.length, accounts });
         }
         if (url.pathname === "/api/arena/schedules") {
           const arena = await arenaReady;
           const scheduler = await schedulerReady;
           const { strategies, errors, dir } = await loadStrategies();
           return respond(response, 200, {
-            demo, jobs: await scheduler.listJobs(), strategies: [...strategies.values()].map(describeStrategy), strategyErrors: errors, strategyDir: dir,
-            service: demo ? { state: "demo" } : await readServiceStatus(arena.root), scheduler: scheduler.status(),
+            jobs: await scheduler.listJobs(), strategies: [...strategies.values()].map(describeStrategy), strategyErrors: errors, strategyDir: dir,
+            service: await readServiceStatus(arena.root), scheduler: scheduler.status(),
           });
         }
         const runs = url.pathname.match(/^\/api\/arena\/runs\/(acc_[a-f0-9]{12})$/);
@@ -169,7 +163,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           const rows = (await (await arenaReady).listDigests({ limit: 400 })).filter((digest) => (!market || market === "all" || !digest.market || digest.market === market)
             && inDateRange(digest.at, paging) && matchesText(paging.q, digest.title, digest.headline, ...(digest.accounts ?? []).map((row) => row.name)));
           const page = paginate(rows, paging);
-          return respond(response, 200, { demo, digests: page.items, total: page.total, offset: page.offset, limit: page.limit, webhook: webhook ? { format: webhook.format, enabled: webhook.enabled, host: new URL(webhook.url).host } : null });
+          return respond(response, 200, { digests: page.items, total: page.total, offset: page.offset, limit: page.limit, webhook: webhook ? { format: webhook.format, enabled: webhook.enabled, host: new URL(webhook.url).host } : null });
         }
         const history = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/history$/);
         if (history) {
@@ -200,7 +194,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
         if (url.pathname === "/api/library") return respond(response, 200, await loadLibrary());
         if (url.pathname === "/api/env") {
           if (!envCache || Date.now() - envCache.at > 60000 || url.searchParams.get("fresh") === "1") envCache = { at: Date.now(), value: await checkEnvironment({ arena: await arenaReady, scheduler: await schedulerReady }) };
-          return respond(response, 200, { demo, ...envCache.value });
+          return respond(response, 200, { ...envCache.value });
         }
         const librarySkill = url.pathname.match(/^\/api\/library\/(skills|strategies)\/([a-z0-9-]{2,60})$/);
         if (librarySkill) return respond(response, 200, librarySkill[1] === "skills" ? { id: librarySkill[2], body: await skillBody(librarySkill[2]) } : { id: librarySkill[2], code: await starterStrategyCode(librarySkill[2]) });
@@ -214,22 +208,20 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
         const promptPreview = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/prompt-preview$/);
         if (promptPreview) return respond(response, 200, await (await schedulerReady).previewPrompt(promptPreview[1]));
         const settingsRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/settings$/);
-        if (settingsRead) return respond(response, 200, { demo, ...(await (await arenaReady).getSettings(settingsRead[1])) });
-        if (url.pathname === "/api/workbench/settings") return respond(response, 200, { demo, ...(await (await arenaReady).workbenchSettings()) });
+        if (settingsRead) return respond(response, 200, { ...(await (await arenaReady).getSettings(settingsRead[1])) });
+        if (url.pathname === "/api/workbench/settings") return respond(response, 200, { ...(await (await arenaReady).workbenchSettings()) });
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {
           const arena = await arenaReady;
-          return respond(response, 200, { demo, ...(await arena.getAccount(arenaAccount[1], { limit: 200, sync: url.searchParams.get("sync") === "1" || await needsSync(arena) })) });
+          return respond(response, 200, { ...(await arena.getAccount(arenaAccount[1], { limit: 200, sync: url.searchParams.get("sync") === "1" || await needsSync(arena) })) });
         }
-        if (url.pathname === "/api/paper/status") return respond(response, 200, demo
-          ? { environment: "SIMULATE", demoDisabled: true, bridgeEnabled: false, policy: { enabled: false }, intents: [], samples: [], limitation: "Paper trading requires the real-data dashboard and actual Futu OpenD. No synthetic account, fills or performance are supplied." }
-          : await getPaperService().status());
+        if (url.pathname === "/api/paper/status") return respond(response, 200, await getPaperService().status());
         if (url.pathname === "/api/evidence") {
-          const evidence = demo ? { items: demoReport.evidence ?? [] } : await queryEvidence({
+          const evidence = await queryEvidence({
             symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : undefined,
             limit: 500,
           });
-          const calendar = demo ? { events: demoReport.events ?? [], warnings: [] } : projectCatalystCalendar(evidence.items);
+          const calendar = projectCatalystCalendar(evidence.items);
           const warnings = [...calendar.warnings];
           if (evidence.totalMatched > evidence.returned) warnings.push("Evidence scan truncated; calendar may omit events or revisions.");
           return respond(response, 200, { ...evidence, events: calendar.events, eventWarnings: warnings });
@@ -239,7 +231,6 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             ok: true,
             service: "hrouter-market-pulse",
             version: typeof __HROUTER_VERSION__ === "string" ? __HROUTER_VERSION__ : "development",
-            demo,
           });
         if (assets.has(url.pathname)) {
           const [name, type] = assets.get(url.pathname);
@@ -254,13 +245,13 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           return respond(
             response,
             200,
-            demo ? preferences : await loadPreferences(),
+            await loadPreferences(),
           );
         if (url.pathname === "/api/decisions")
           return respond(
             response,
             200,
-            demo ? { decisions: decisions.map((record) => ({ ...record, scorecard: buildThesisScorecard(record) })) } : await listDecisions(),
+            await listDecisions(),
           );
         if (
           url.pathname === "/api/latest" ||
@@ -273,7 +264,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           return respond(
             response,
             200,
-            demo ? demoReport : JSON.parse(await loadReport(id, "json")),
+            JSON.parse(await loadReport(id, "json")),
           );
         }
         // Workbench UI bundle (Vite build): only known file types under /assets/app/, no traversal.
@@ -295,9 +286,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           /^\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)
         ) {
           try {
-            const report = demo
-              ? demoReport
-              : JSON.parse(
+            const report = JSON.parse(
                   await loadReport(
                     url.pathname === "/" || workbenchRoute
                       ? "latest"
@@ -329,7 +318,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           if (url.pathname === "/api/arena/accounts") {
             const defaults = await templateDefaults(body.template, body);
             const account = await arena.createAccount({ ...body, ...defaults, agentLabel: body.agentLabel || undefined }, dashboardCaller);
-            if (!demo) {
+            {
               const scheduler = await schedulerReady;
               const interval = Number(body.reviewMinutes) || defaults.cadence?.reviewMinutes || (await readPreferences())?.defaultAgentIntervalMinutes || 10;
               let schedule = { created: false };
@@ -351,7 +340,6 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             const prefs = await readPreferences();
             let digest = await arena.generateDigest({ market, trigger: "manual", language: prefs?.language });
             if (body.send) {
-              if (demo) return respond(response, 409, { error: "演示模式不推送日报 / Demo mode never posts digests." });
               if (!prefs?.digestWebhook?.url) return respond(response, 409, { error: "No digest webhook configured in preferences." });
               digest = await arena.recordDigestDelivery(digest.id, await deliverDigest(digest, { ...prefs.digestWebhook, enabled: true }, { now: arena.now }));
             }
@@ -372,7 +360,6 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             if (schedule[2] === "/resume") return respond(response, 200, await scheduler.resumeJob(schedule[1]));
             if (schedule[2] === "/cadence") return respond(response, 200, await scheduler.setCadence(schedule[1], body, dashboardCaller));
             if (schedule[2] === "/run") {
-              if (demo) return respond(response, 409, { error: "演示模式不运行 Agent 或策略 / Demo mode does not run agents or strategies." });
               const started = await scheduler.runNow(schedule[1], { lane: body.lane === "strategy" ? "strategy" : "primary" });
               started.wait?.().catch((error) => console.error(`Arena run: ${error.message}`));
               return respond(response, 202, { status: started.status, reason: started.reason ?? null });
@@ -399,7 +386,6 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           return respond(response, 404, { error: "Unknown workbench action" });
         }
         if (url.pathname.startsWith("/api/paper/")) {
-          if (demo) return respond(response, 409, { error: "演示模式不连接模拟账户。请启动真实数据面板 / Use the real-data dashboard; no synthetic trading fallback." });
           const actions = { connect: "accounts", refresh: "refresh", policy: "savePolicy", evaluate: "evaluate", submit: "submit", cancel: "cancel" };
           const action = actions[url.pathname.slice("/api/paper/".length)];
           if (!action) return respond(response, 404, { error: "Unknown paper action" });
@@ -431,11 +417,6 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
               .filter((key) => body[key] !== undefined)
               .map((key) => [key, body[key]]),
           );
-          if (demo) {
-            preferences = sanitizePreferences(selected, preferences);
-            demoReport.language = preferences.language;
-            return respond(response, 200, preferences);
-          }
           return respond(response, 200, await savePreferences(selected));
         }
         if (url.pathname === "/api/refresh") {
@@ -447,15 +428,6 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           ].includes(body.phase)
             ? body.phase
             : "intraday";
-          if (demo) {
-            demoReport = {
-              ...makeDemoReport({ watchlist: preferences.watchlist, positions: preferences.positions }),
-              language: preferences.language,
-              phase,
-              demo: true,
-            };
-            return respond(response, 200, demoReport);
-          }
           if (refreshPromise)
             return respond(response, 200, await refreshPromise);
           if (Date.now() - refreshedAt < 15000)
@@ -483,54 +455,25 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           }
         }
         if (url.pathname === "/api/decisions") {
-          if (demo) {
-            if (!body.symbol || !body.thesis)
-              throw new Error("Symbol and thesis required");
-            const entry = {
-              ...body,
-              id: `demo_${randomUUID()}`,
-              createdAt: new Date().toISOString(),
-              reviews: [],
-              demo: true,
-            };
-            decisions.unshift(entry);
-            demoReport.decisions = decisions;
-            return respond(response, 201, entry);
-          }
           return respond(response, 201, await recordDecision(body));
         }
         const review = url.pathname.match(
           /^\/api\/decisions\/([A-Za-z0-9_-]+)\/review$/,
         );
         if (review) {
-          if (demo) {
-            const entry = decisions.find((item) => item.id === review[1]);
-            if (!entry)
-              return respond(response, 404, { error: "Decision not found" });
-            entry.reviews ??= [];
-            entry.reviews.push({
-              ...body,
-              reviewedAt: new Date().toISOString(),
-            });
-            return respond(response, 200, entry);
-          }
           return respond(response, 200, await reviewDecision(review[1], body));
         }
         if (url.pathname === "/api/official/sync")
           return respond(
             response,
             200,
-            demo
-              ? { demo: true, results: [] }
-              : await syncOfficialEvidence(body),
+            await syncOfficialEvidence(body),
           );
         if (url.pathname === "/api/evidence")
           return respond(
             response,
             201,
-            demo
-              ? { demo: true, inserted: 0 }
-              : await ingestOfficialRecords(body),
+            await ingestOfficialRecords(body),
           );
       }
       return respond(response, 404, { error: "Not found" });
@@ -563,7 +506,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
       port = server.address().port;
       process.env.HROUTER_REPORT_PORT = String(port);
       console.error(
-        `Hrouter Market Pulse: http://127.0.0.1:${port}/ ${demo ? "(demo)" : ""}`,
+        `Hrouter Market Pulse: http://127.0.0.1:${port}/`,
       );
       resolve(server);
     });

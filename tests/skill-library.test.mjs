@@ -31,7 +31,10 @@ test("templates bind skills by market and discipline skills always come along", 
   assert.ok(swing.prompt.includes("60 日线"));
   assert.equal(swing.limits, undefined, "suggested limits apply only when the owner ticks them");
   assert.deepEqual((await templateDefaults("a-share-swing", { market: "A", applySuggestedLimits: true })).limits, { maxPositions: 6, maxPositionPct: 20, maxRiskPerTradePct: 1.5 });
-  await assert.rejects(templateDefaults("a-share-hot-money", { market: "A" }), /缺数据/);
+  const hotMoney = await templateDefaults("a-share-hot-money", { market: "A" });
+  assert.deepEqual(hotMoney.skills, ["lhb-hot-money", "emotion-cycle", "tuige-shortline"]);
+  assert.match(await skillTextFor({ market: "A", template: "a-share-hot-money" }), /get_dragon_tiger/);
+  assert.deepEqual((await templateDefaults("macro-timing", { market: "US" })).skills, ["market-regime", "investor-panel", "loss-circuit-breaker"]);
   await assert.rejects(templateDefaults("a-share-swing", { market: "US" }), /不适用/);
   const ids = (await skillsFor({ market: "A", template: "a-share-swing" })).map((skill) => skill.id);
   assert.deepEqual(ids, ["pre-trade-gate", "position-sizing", "loss-circuit-breaker", "trade-review", "a-share-trend-pullback", "macd-trend-resonance"]);

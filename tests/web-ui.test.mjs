@@ -2,11 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { makeDemoReport } from "../mcp/demo.mjs";
 import { buildReportHtml } from "../mcp/dashboard.mjs";
-import { startDashboard } from "../mcp/http.mjs";
+
+// The dashboard writes preferences and decisions: keep them in a temp dir, never the real data dir.
+const dataDir = await mkdtemp(path.join(os.tmpdir(), "web-ui-"));
+process.env.HROUTER_REPORT_DIR = dataDir;
+const { startDashboard } = await import("../mcp/http.mjs");
+test.after(() => rm(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
 
 // The workbench UI helpers are TypeScript; bundle them once for the tests.
 async function helpers() {
@@ -77,8 +82,8 @@ test("UI: the HTML shell loads one local bundle and never a CDN; embedded data c
   assert.doesNotMatch(html, /<\/script><script>alert/);
 });
 
-test("UI: demo server serves workbench routes, guards bundle paths and keeps the research APIs", async () => {
-  const server = startDashboard({ demo: true, port: 0, matcher: false });
+test("UI: server serves workbench routes, guards bundle paths and keeps the research APIs", async () => {
+  const server = startDashboard({ port: 0, matcher: false });
   await server.ready;
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = async (route, body) => {
@@ -97,8 +102,6 @@ test("UI: demo server serves workbench routes, guards bundle paths and keeps the
     const markets = await (await fetch(base + "/api/markets")).json();
     assert.ok(["A", "HK", "US"].every((market) => typeof markets[market].status === "string"));
     await post("/api/preferences", { watchlist: ["AAPL"], language: "zh-CN", positions: [] });
-    const report = await post("/api/refresh", { phase: "research" });
-    assert.equal(report.items.length, 1);
     const record = await post("/api/decisions", { symbol: "AAPL", thesis: "Synthetic UI test", state: "watch", pillars: [{ id: "growth", expectation: "Growth", invalidationCondition: "Decline" }] });
     const reviewed = await post(`/api/decisions/${record.id}/review`, { outcome: "open", notes: "UI review" });
     assert.equal(reviewed.reviews.length, 1);
@@ -109,9 +112,3 @@ test("UI: demo server serves workbench routes, guards bundle paths and keeps the
   } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 
-test("UI: demo honors saved scope without inventing prices for unknown securities", () => {
-  const report = makeDemoReport({ now: "2026-10-04T12:00:00Z", watchlist: ["AAPL", "UNKNOWN"] });
-  assert.deepEqual(report.items.map((item) => item.symbol), ["AAPL", "UNKNOWN"]);
-  assert.equal(report.items[1].price, undefined);
-  assert.match(report.items[1].error, /synthetic fixture/);
-});

@@ -24,6 +24,7 @@ import {
   createWorkbenchSettings, isOwner, knownIndustries, limitStatus, limitViolation, sanitizeFees, sanitizeLimits, sanitizePrompt,
 } from "./trader-settings.mjs";
 import { industriesOf } from "./market-data.mjs";
+import { AutonomyError, DEFAULT_AUTONOMY, approvalReason, approvalStatus, disciplineWarnings, pipelineFor, reconcile as reconcileAccount, sanitizeAutonomy } from "./approvals.mjs";
 
 export const ARENA_MARKETS = {
   A: { currency: "CNY", defaultCash: 1000000, benchmark: "000300.SS", benchmarkName: "沪深300 / CSI 300" },
@@ -1044,6 +1045,9 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       risk, health, lastRoundAt: health.lastRoundAt, alerts, template: account.template ?? null, skills: account.skills ?? null,
       pendingRequests: (account.requests ?? []).filter((request) => request.status === "pending").length,
       instructions: activeInstructions(account, at), prompt: account.prompt ?? "",
+      autonomy: { ...DEFAULT_AUTONOMY, ...account.autonomy },
+      pendingApprovals: (account.approvals ?? []).filter((entry) => approvalStatus(entry, at) === "pending").length,
+      approvals: (account.approvals ?? []).slice(-20).reverse().map((entry) => ({ ...entry, status: approvalStatus(entry, at) })),
     };
     if (!detail) return summary;
     return {
@@ -1296,6 +1300,23 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         const violation = riskViolation(account, symbol, order.reserved, undefined, limitDetails());
         if (violation) failure = reject(violation, "risk");
       }
+      // Who asked, and whether the owner's autonomy setting makes this order wait for confirmation.
+      // An approval id only counts when the owner's approval itself re-places the order.
+      const approvedId = caller.approvedBy === "owner" && /^apr_[a-f0-9]{12}$/.test(input.approvalId ?? "") ? input.approvalId : null;
+      order.origin = input.origin === "strategy" ? "strategy" : isOwner(caller) ? "owner" : "agent";
+      order.warnings = disciplineWarnings({ side, exits, citations, origin: order.origin, reason, recentTrades: account.trades.slice(-20), now: at });
+      const referencePrice = execution?.price ?? (type === "limit" ? order.limitPrice : observed?.price);
+      const needsApproval = !failure && !approvedId ? approvalReason({
+        autonomy: { ...DEFAULT_AUTONOMY, ...account.autonomy }, owner: isOwner(caller), held: Boolean(account.positions[symbol]), side,
+        value: finite(referencePrice) ? quantity * referencePrice : null, equity: valuation(account).equity, requested: input.requireApproval === true,
+      }) : null;
+      if (approvedId) order.approvalId = approvedId;
+      // Dry run: every check above, nothing recorded.
+      if (input.dryRun) return {
+        dryRun: true, ok: !failure, error: failure?.message ?? null, rejectedBy: failure?.code ?? null, needsApproval, warnings: order.warnings,
+        estimate: finite(referencePrice) ? { price: referencePrice, value: round(quantity * referencePrice), fees: accountFees(account, side, quantity, referencePrice).total, basis: execution?.basis ?? null } : null,
+        quote: observed ? quoteSnapshot(observed) : null, industry: order.industry ?? null,
+      };
 
       return withLock(async () => {
         // Re-read under the lock: another process may have traded this account since our checks.
@@ -1312,6 +1333,26 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           if (violation) failure = reject(violation, "risk");
         }
         markRound(current, "order", at);
+        if (needsApproval && !failure) {
+          const waiting = (current.approvals ?? []).find((entry) => approvalStatus(entry, at) === "pending" && entry.preview.symbol === symbol && entry.preview.side === side);
+          if (waiting) {
+            await save(current);
+            return { pendingApproval: waiting, duplicate: true, order: { ...order, status: "pending-approval" }, account: publicAccount(current), note: `A ${side} ${symbol} order is already waiting for the owner (${waiting.id}); not filed again.` };
+          }
+          const autonomy = { ...DEFAULT_AUTONOMY, ...current.autonomy };
+          const exitInput = Object.fromEntries(["stopLossPrice", "stopLossPct", "takeProfitPrice", "takeProfitPct"].filter((key) => finite(input[key])).map((key) => [key, input[key]]));
+          const approval = {
+            id: shortId("apr"), kind: "order", status: "pending", reason: needsApproval, createdAt: at, expiresAt: new Date(Date.parse(at) + autonomy.expiryMinutes * 60000).toISOString(),
+            requestedBy: caller.client ?? null, origin: order.origin,
+            input: { symbol, side, quantity, orderType: type, limitPrice: order.limitPrice ?? undefined, timeInForce: order.timeInForce, reason: order.reason, confidence: order.confidence ?? undefined, horizon: order.horizon ?? undefined, citations, origin: order.origin, ...exitInput },
+            preview: { symbol, name: order.name, side, type, quantity, limitPrice: order.limitPrice, price: finite(referencePrice) ? referencePrice : null, value: finite(referencePrice) ? round(quantity * referencePrice) : null, quote: order.quoteAtSubmit, exits: order.exits ?? null },
+            warnings: order.warnings,
+          };
+          current.approvals = [...(current.approvals ?? []), approval].slice(-200);
+          addEvent(current, at, { type: "approval-requested", approvalId: approval.id, symbol, side, quantity, message: `${side === "BUY" ? "买入" : "卖出"} ${order.name} ${quantity} 股等主人确认（${needsApproval}）。` });
+          await save(current);
+          return { pendingApproval: approval, order: { ...order, status: "pending-approval" }, account: publicAccount(current), note: `Waiting for the owner's confirmation (${needsApproval}); expires ${approval.expiresAt}. The order is re-checked against live quotes and limits when approved.` };
+        }
         current.orders.push(order);
         if (current.orders.length > LIMITS.orders) {
           const open = current.orders.filter((entry) => entry.status === "open");
@@ -1324,6 +1365,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           liquidity = fillQuantity(current, order, observed, at);
           if (liquidity.quantity > 0) trade = applyFill(current, order, execution.price, observed, at, liquidity.quantity, execution.basis);
         }
+        order.pipeline = pipelineFor({ at, by: caller.client ?? "owner", failure, warnings: order.warnings, approval: approvedId ? { id: approvedId } : null, status: order.status });
         recordEquity(current, at, Boolean(trade));
         await save(current);
         const result = {
@@ -1557,6 +1599,41 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
 
     // ---- Owner instructions: short-lived orders injected into every round until they expire ----
 
+    // Owner approves or rejects an order that waits for confirmation. Approval re-places it with
+    // the live quote and every limit checked again, as the agent that asked.
+    async resolveApproval(id, approvalId, { approve, note } = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner approves or rejects orders.", "forbidden", 403);
+      const entry = await withLock(async () => {
+        const account = await load(id);
+        const approval = (account.approvals ?? []).find((item) => item.id === approvalId);
+        if (!approval) throw new ArenaError("Approval not found.", "not_found", 404);
+        const status = approvalStatus(approval, now());
+        if (status !== "pending") throw new ArenaError(`This order is already ${status}.`, "conflict", 409);
+        Object.assign(approval, { status: approve ? "approving" : "rejected", decidedAt: now(), note: note ? String(note).slice(0, 500) : null });
+        addEvent(account, now(), { type: approve ? "approval-approved" : "approval-rejected", approvalId, symbol: approval.preview.symbol, message: `主人${approve ? "确认" : "拒绝"}了 ${approval.preview.side === "BUY" ? "买入" : "卖出"} ${approval.preview.name} ${approval.preview.quantity} 股${note ? `：${note}` : ""}。` });
+        await save(account);
+        return structuredClone(approval);
+      });
+      if (!approve) return { approval: entry };
+      let result;
+      try { result = await this.placeOrder({ ...entry.input, accountId: id, approvalId }, { client: entry.requestedBy ?? undefined, approvedBy: "owner" }); }
+      catch (error) { result = { error: error.message }; }
+      return withLock(async () => {
+        const account = await load(id);
+        const approval = account.approvals.find((item) => item.id === approvalId);
+        const failed = !result.order || result.order.status === "rejected";
+        Object.assign(approval, { status: failed ? "failed" : "approved", result: { orderId: result.order?.id ?? null, status: result.order?.status ?? null, tradeId: result.trade?.id ?? null, error: result.error ?? result.order?.rejectReason ?? null } });
+        await save(account);
+        return { approval, order: result.order ?? null, trade: result.trade ?? null, error: approval.result.error };
+      });
+    },
+
+    // Replay trades and corporate actions and compare with the stored cash and positions.
+    async reconcile(id) {
+      const account = await load(id);
+      return { accountId: id, ...reconcileAccount(account), checkedAt: now() };
+    },
+
     async addInstruction(id, { text, days = 3 } = {}, caller = {}) {
       if (!isOwner(caller)) throw new ArenaError("Only the owner gives instructions, from the dashboard.", "forbidden", 403);
       const body = String(text ?? "").trim();
@@ -1683,6 +1760,12 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           const text = sanitizeRiskText(input.prompt);
           if ((account.prompt ?? "") !== text) appendChange(account, changeEntry({ key: "prompt", from: account.prompt ?? "", to: text, by: { kind: "owner", via: "ui" }, at: now() }));
           account.prompt = text;
+        }
+        if (input.autonomy !== undefined) {
+          let next;
+          try { next = sanitizeAutonomy(input.autonomy ?? {}, { ...DEFAULT_AUTONOMY, ...account.autonomy }); } catch (error) { if (error instanceof AutonomyError) throw new ArenaError(error.message); throw error; }
+          appendChange(account, changeEntry({ key: "autonomy", from: { ...DEFAULT_AUTONOMY, ...account.autonomy }, to: next, by: { kind: "owner", via: "ui" }, at: now(), reason: input.reason }));
+          account.autonomy = next;
         }
         if (input.resetBreaker) {
           const equity = valuation(account).equity;

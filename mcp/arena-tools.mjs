@@ -122,7 +122,7 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       "Market orders need an open session. Limit orders rest and a background matcher fills them every 1-2 minutes during the session when the price is marketable; 'day' orders expire at the session close, 'gtc' after 30 days.",
       "One account may take at most a configured share of the day's volume (default 5%); larger orders fill partially and the rest keeps resting. Suspended stocks (no trades today) do not fill.",
       "BUY orders may carry stopLoss / takeProfit (price or % of average cost); the matcher sells at market when a fresh quote crosses the level, subject to T+1 and limit-down.",
-      "Hard limits (see arena_get_account limits / limitStatus; default: keep 20% cash) reject buys that break them. Change unlocked limits with arena_set_limits.",
+      "Hard limits (see arena_get_account limits / limitStatus; default: keep 20% cash) reject buys that break them. Change unlocked limits with arena_set_limits.", "If the owner set autonomy to confirm or suggest (arena_get_account autonomy), qualifying orders are filed as approvals and placed only when the owner confirms; use dryRun to check first.",
       "Always give the reason (thesis, signal, risk) and cite the news / filings you relied on, so the decision can be reviewed later. Every order also stores the quote it saw (source, bid / ask, time, freshness). Rejections are recorded and count against discipline metrics.",
     ].join(" "),
     inputSchema: {
@@ -137,6 +137,8 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       confidence: z.number().min(0).max(1).optional().describe("Your subjective probability the trade works (0–1); used for calibration review."),
       horizon: z.string().max(40).optional().describe("Intended holding period, e.g. '3d', '2w'."),
       clientOrderId: z.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional().describe("Idempotency key: retries with the same id return the original order."),
+      requireApproval: z.boolean().optional().describe("Ask the owner to confirm this order before it is placed, even when your autonomy would not require it (for unusual or large decisions)."),
+      dryRun: z.boolean().optional().describe("Check the order against every rule and hard limit (and whether the owner must confirm it) without placing anything."),
       citations: z.array(z.object({
         kind: z.enum(["news", "filing", "data", "report"]).optional(),
         title: z.string().min(1).max(200),
@@ -149,6 +151,10 @@ export function registerArenaTools(server, { toolResult, toolError }) {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, async (input) => {
     const result = await getArena().placeOrder(input, caller());
+    if (result.dryRun) return [result, result.ok
+      ? `DRY RUN OK: ${input.side} ${input.quantity} ${input.symbol} ≈ ${result.estimate?.value ?? "?"}${result.needsApproval ? ` — would wait for the owner (${result.needsApproval})` : ""}${result.warnings.length ? `. Warnings: ${result.warnings.join("; ")}` : ""}`
+      : `DRY RUN REJECTED: ${result.error}`];
+    if (result.pendingApproval) return [result, `WAITING FOR OWNER: ${result.pendingApproval.reason}. ${input.side} ${input.quantity} ${input.symbol} [${result.pendingApproval.id}] expires ${result.pendingApproval.expiresAt}. ${result.note} Check its status later with arena_get_account (approvals).`];
     const { order, trade } = result;
     const summary = order.status === "rejected"
       ? `REJECTED: ${order.rejectReason}`

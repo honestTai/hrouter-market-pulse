@@ -23,6 +23,8 @@ import { limitsText } from "./trader-settings.mjs";
 import { createTraderStrategyStore } from "./trader-strategies.mjs";
 import { loadLibrary, skillTextFor } from "./skill-library.mjs";
 import { createPaperBroker } from "./brokers.mjs";
+import { BUDGET_DEFAULTS, GATE_DEFAULTS, GateError, WAKE_DEFAULTS, budgetDecision, gateDecision, sanitizeBudget, sanitizeGate, sanitizeWake, snapshot, wakeDecision } from "./review-gate.mjs";
+import { localMarketTime } from "./market-rules.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
 export const RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "acp", "command", "strategy"];
@@ -100,6 +102,12 @@ export function sanitizeJob(input, current = {}) {
       job.strategy = { strategyId: strategy.strategyId, intervalMinutes: interval, params: strategy.params && typeof strategy.params === "object" && !Array.isArray(strategy.params) ? strategy.params : {} };
     }
   }
+  // When a review is worth its tokens: skip unchanged slots, wake early on events, a daily budget.
+  try {
+    if (input.gate !== undefined) job.gate = sanitizeGate(input.gate, job.gate);
+    if (input.wake !== undefined) job.wake = sanitizeWake(input.wake, job.wake);
+    if (input.budget !== undefined) job.budget = sanitizeBudget(input.budget, job.budget);
+  } catch (error) { if (error instanceof GateError) throw new ArenaError(error.message); throw error; }
   if (input.paused === false) delete job.paused;
   // An agent round itself takes minutes, so agents repeat at most every 10 minutes; code strategies every minute.
   if (job.intervalMinutes && job.runner && job.runner.type !== "strategy" && job.intervalMinutes < SCHEDULER_DEFAULTS.minAgentIntervalMinutes)
@@ -257,8 +265,8 @@ export function createScheduler({
   const emit = (message) => { for (const listener of listeners) { try { listener(message); } catch { /* ignore */ } } };
 
   async function readState() {
-    try { const state = JSON.parse(await readFile(file, "utf8")); return { jobs: state.jobs ?? [], done: state.done ?? {}, pools: state.pools ?? {} }; }
-    catch (error) { if (error.code === "ENOENT") return { jobs: [], done: {}, pools: {} }; throw error; }
+    try { const state = JSON.parse(await readFile(file, "utf8")); return { jobs: state.jobs ?? [], done: state.done ?? {}, pools: state.pools ?? {}, reviews: state.reviews ?? {}, gate: state.gate ?? {} }; }
+    catch (error) { if (error.code === "ENOENT") return { jobs: [], done: {}, pools: {}, reviews: {}, gate: {} }; throw error; }
   }
   async function writeState(state) {
     await mkdir(arena.root, { recursive: true });
@@ -325,13 +333,14 @@ export function createScheduler({
   }
 
   // The prompt for one agent round, with every layer the owner configured.
-  async function promptFor(account, job, trigger) {
+  async function promptFor(account, job, trigger, changes = null) {
     const settings = await workbench();
     const strategy = job.strategy ? await findStrategy(job.strategy.strategyId, account.id).then(({ strategy: found }) => found ? { id: found.id, version: found.version, intervalMinutes: job.strategy.intervalMinutes } : null).catch(() => null) : null;
     return buildRoundPrompt({
       account, language: job.runner.language, prompts: { global: settings.prompts?.global, market: settings.prompts?.[account.market] },
       limits: account.limits ? limitsText(account.limits, account.limitStatus) : "", instructions: account.instructions ?? [],
-      mode: job.mode === "director" || job.strategy ? "director" : "rounds", strategy, reviewMinutes: job.intervalMinutes ?? null, trigger: trigger === "schedule" || trigger === "manual" ? null : trigger,
+      mode: job.mode === "director" || job.strategy ? "director" : "rounds", strategy, reviewMinutes: job.intervalMinutes ?? null, trigger: trigger === "wake" ? changes : null, changes: trigger === "wake" ? null : changes,
+      autonomy: account.autonomy ?? null, approvals: (account.approvals ?? []).filter((entry) => ["pending", "approved", "rejected", "failed", "expired"].includes(entry.status)).slice(0, 5),
       starter: account.template ? await loadLibrary().then((library) => { const template = library.templates.find((entry) => entry.id === account.template); return template && !template.builtinStrategy ? template.starterStrategy : null; }).catch(() => null) : null,
     });
   }
@@ -358,7 +367,7 @@ export function createScheduler({
     try {
       const effective = { ...job, runner };
       const identity = account.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
-      const prompt = await promptFor(account, job, record.trigger);
+      const prompt = await promptFor(account, job, record.trigger, record.changes ?? null);
       const skills = await skillText(account);
       const onEvent = (event) => { entry.events.push(event); if (entry.events.length > 400) entry.events.shift(); writer.push(event); emit({ type: "run-event", runId: record.id, accountId: record.accountId, event }); };
       let invocation;
@@ -400,6 +409,7 @@ export function createScheduler({
 
   async function finishJob(job, outcome, lane) {
     await appendRun(job.accountId, outcome);
+    tokenCache.delete(job.accountId);
     await update((state) => {
       const stored = state.jobs.find((entry) => entry.accountId === job.accountId);
       if (!stored) return;
@@ -413,7 +423,7 @@ export function createScheduler({
   }
 
   // Execute one round for a job now. Never two at once for the same account and lane.
-  async function execute(job, { slot = null, trigger = "schedule", lane = "primary" } = {}) {
+  async function execute(job, { slot = null, trigger = "schedule", lane = "primary", changes = null } = {}) {
     const key = lane === "strategy" ? `${job.accountId}:S` : job.accountId;
     if (running.has(key)) return { status: "skipped", reason: "already-running" };
     const isAgent = lane !== "strategy" && agentLane(job);
@@ -425,7 +435,7 @@ export function createScheduler({
     try {
       const account = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
       if (account.status !== "active") return { status: "skipped", reason: "inactive" };
-      const record = (runner, extra = {}) => ({ id: `run_${randomBytes(6).toString("hex")}`, accountId: job.accountId, lane: lane === "strategy" ? "strategy" : runner.type === "strategy" ? "strategy" : "agent", runner: runner.type, model: runner.model ?? null, strategyId: lane === "strategy" ? job.strategy.strategyId : runner.strategyId ?? null, slot, trigger, startedAt: now(), ...extra });
+      const record = (runner, extra = {}) => ({ id: `run_${randomBytes(6).toString("hex")}`, accountId: job.accountId, lane: lane === "strategy" ? "strategy" : runner.type === "strategy" ? "strategy" : "agent", runner: runner.type, model: runner.model ?? null, strategyId: lane === "strategy" ? job.strategy.strategyId : runner.strategyId ?? null, slot, trigger, ...(changes ? { changes } : {}), startedAt: now(), ...extra });
       const work = (async () => {
         if (lane === "strategy") return [await runStrategyLane(job, account, job.strategy, record({ type: "strategy" }))];
         if (job.runner.type === "strategy") return [await runStrategyLane(job, account, { strategyId: job.runner.strategyId, params: job.runner.params }, record(job.runner))];
@@ -450,8 +460,40 @@ export function createScheduler({
       running.set(key, work);
       const outcomes = await work;
       for (const outcome of outcomes) await finishJob(job, outcome, lane === "strategy" ? "strategy" : "primary");
+      // What the trader saw at the end of a review, for the next change check.
+      if (isAgent && outcomes.some((outcome) => ["ok", "no-round"].includes(outcome.status))) await rememberReview(job.accountId).catch((error) => onError(error));
       return outcomes.at(-1);
     } finally { release(); running.delete(key); agentRuns.delete(key); }
+  }
+
+  async function reviewAccount(accountId) {
+    return arena.getAccount(accountId, { sync: false, limit: 30 });
+  }
+  async function rememberReview(accountId) {
+    const account = await reviewAccount(accountId);
+    await update((state) => { state.reviews = { ...state.reviews, [accountId]: snapshot(account, now()) }; });
+  }
+  const dayOf = (at, market) => localMarketTime(at, market)?.date ?? String(at).slice(0, 10);
+  // Count a skipped or woken review per trader and day, shown in the dashboard instead of run rows.
+  async function countGate(accountId, market, field, reason) {
+    const at = now();
+    await update((state) => {
+      const today = dayOf(at, market);
+      const current = state.gate?.[accountId]?.date === today ? state.gate[accountId] : { date: today, skipped: 0, wakes: 0, budgetSkips: 0 };
+      current[field] = (current[field] ?? 0) + 1;
+      current[`last_${field}`] = { at, reason };
+      state.gate = { ...state.gate, [accountId]: current };
+    });
+  }
+  const tokenCache = new Map();
+  async function tokensToday(accountId, market) {
+    const hit = tokenCache.get(accountId);
+    if (hit && Date.now() - hit.at < 60000) return hit.tokens;
+    const today = dayOf(now(), market);
+    const runs = (await listRuns({ accountId, limit: SCHEDULER_DEFAULTS.runLogLimit })).filter((run) => run.lane === "agent" && dayOf(run.startedAt, market) === today);
+    const tokens = runs.reduce((sum, run) => sum + (run.usage?.inputTokens ?? 0) + (run.usage?.outputTokens ?? 0), 0);
+    tokenCache.set(accountId, { at: Date.now(), tokens });
+    return tokens;
   }
 
   async function markDone(key, slots) {
@@ -463,7 +505,7 @@ export function createScheduler({
     const lease = await arena.acquireLease("scheduler", ownerId, leaseMs);
     if (!lease.owner) { role = "standby"; last = { at, role }; return last; }
     role = "leader";
-    const { jobs, done } = await readState();
+    const { jobs, done, reviews, gate: gateState } = await readState();
     const cap = (await workbench()).maxConcurrentAgents ?? 4;
     const started = [];
     const waiting = [];
@@ -481,7 +523,24 @@ export function createScheduler({
         }
       }
       const slots = dueSlots(job, account.market, at, done[job.accountId] ?? [], catchUpMinutes);
-      if (!slots.length) { queued.delete(job.accountId); continue; }
+      const previous = reviews[job.accountId] ?? null;
+      const today = dayOf(at, account.market);
+      if (!slots.length) {
+        queued.delete(job.accountId);
+        // Between slots: wake the trader early when something it must react to happened.
+        if (agentLane(job) && !running.has(job.accountId) && agentRuns.size < cap && getMarketSession(account.market, at).status === "open") {
+          const wake = { ...WAKE_DEFAULTS, ...job.wake };
+          const budget = budgetDecision({ budget: { ...BUDGET_DEFAULTS, ...job.budget }, tokensToday: await tokensToday(job.accountId, account.market), previous, at, intervalMinutes: job.intervalMinutes });
+          const wakesToday = gateState?.[job.accountId]?.date === today ? gateState[job.accountId].wakes ?? 0 : 0;
+          const reason = budget.mode === "normal" ? wakeDecision({ wake, gate: { ...GATE_DEFAULTS, ...job.gate }, previous, account: await reviewAccount(job.accountId), at, wakesToday }) : null;
+          if (reason) {
+            await countGate(job.accountId, account.market, "wakes", reason);
+            started.push(job.accountId);
+            execute(job, { trigger: "wake", changes: reason }).catch((error) => onError(error));
+          }
+        }
+        continue;
+      }
       if (running.has(job.accountId)) {
         // A repeat slot that arrives while the previous round is still going is skipped, not queued,
         // so slow rounds never chain back-to-back.
@@ -503,8 +562,17 @@ export function createScheduler({
       queued.delete(job.accountId);
       // Mark every due slot before launching so a crash or a second leader never double-runs it.
       await markDone(job.accountId, slots);
+      let changes = null;
+      if (agentLane(job)) {
+        // Scripts look first: an agent review only runs when something changed or the budget allows.
+        const budget = budgetDecision({ budget: { ...BUDGET_DEFAULTS, ...job.budget }, tokensToday: await tokensToday(job.accountId, account.market), previous, at, intervalMinutes: job.intervalMinutes });
+        if (budget.mode === "stop" || (budget.mode === "slow" && !budget.run)) { await countGate(job.accountId, account.market, "budgetSkips", budget.reason); continue; }
+        const decision = gateDecision({ gate: { ...GATE_DEFAULTS, ...job.gate }, previous, account: await reviewAccount(job.accountId), at, sameDay: previous ? dayOf(previous.at, account.market) === today : false });
+        if (!decision.run) { await countGate(job.accountId, account.market, "skipped", decision.reason); continue; }
+        if (decision.changes?.length) changes = decision.reason;
+      }
       started.push(job.accountId);
-      execute(job, { slot: slots.at(-1).key }).catch((error) => onError(error));
+      execute(job, { slot: slots.at(-1).key, changes }).catch((error) => onError(error));
     }
     last = { at, role, started, waiting, running: [...running.keys()] };
     return last;
@@ -520,7 +588,7 @@ export function createScheduler({
     ownerId,
     tick,
     async listJobs() {
-      const { jobs, pools } = await readState();
+      const { jobs, pools, reviews, gate } = await readState();
       const at = Date.parse(now());
       return jobs.map((job) => {
         const pool = agentLane(job) ? pools[poolKey(job.runner)] : null;
@@ -528,6 +596,7 @@ export function createScheduler({
           ...job, running: running.has(job.accountId), strategyRunning: running.has(`${job.accountId}:S`), queued: queued.has(job.accountId),
           unhealthy: (job.consecutiveFailures ?? 0) >= SCHEDULER_DEFAULTS.failureThreshold || Boolean(job.paused),
           pool: pool && Date.parse(pool.pausedUntil) > at ? pool : null,
+          ...(agentLane(job) ? { gate: { ...GATE_DEFAULTS, ...job.gate }, wake: { ...WAKE_DEFAULTS, ...job.wake }, budget: { ...BUDGET_DEFAULTS, ...job.budget }, gateToday: gate?.[job.accountId] ?? null, lastReviewAt: reviews?.[job.accountId]?.at ?? null } : {}),
         };
       });
     },

@@ -45,7 +45,7 @@ export function createPaperBroker({ arena, accountId, caller }) {
     quote: (symbol) => getTradeQuote(symbol),
     async placeOrder(intent) {
       const order = normalizeIntent(intent);
-      return arena.placeOrder({ accountId, ...order }, caller);
+      return arena.placeOrder({ accountId, ...order, origin: "strategy" }, caller);
     },
     cancelOrder: (orderId, reason) => arena.cancelOrder({ accountId, orderId, reason }, caller),
     logDecision: (entry) => arena.logDecision({ accountId, ...entry }, caller),

@@ -68,3 +68,71 @@ test("orders and fills keep the cited sources and the quote they saw", async () 
     await assert.rejects(arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 100, reason, citations: [{ title: "x", url: "javascript:alert(1)" }] }, agent), /invalid url/);
   } finally { await cleanup(); }
 });
+
+test("autonomy: confirm mode files new positions as approvals the owner confirms; agents cannot skip it", async () => {
+  const { arena, setNow, cleanup } = await setup({ "600036.SS": { price: 40 }, "600900.SS": { price: 28 } });
+  try {
+    const { id } = await arena.createAccount({ name: "K", model: "k3", market: "A" }, agent);
+    await assert.rejects(arena.updateAccount(id, { autonomy: { level: "boss" } }), /autonomy.level/);
+    await arena.updateAccount(id, { autonomy: { level: "confirm", minValuePct: 15 }, reason: "先盯着" });
+    const asked = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 1000, reason }, agent);
+    assert.equal(asked.order.status, "pending-approval");
+    assert.equal(asked.pendingApproval.reason, "新开仓");
+    assert.deepEqual(asked.pendingApproval.warnings, ["买单没有止损", "没有引用新闻、公告或数据来源", "理由里没写风险或失效条件"]);
+    assert.equal((await arena.getAccount(id, { sync: false })).orders.length, 0, "nothing reserved while waiting");
+    const again = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 500, reason }, agent);
+    assert.equal(again.duplicate, true);
+    const sneaky = await arena.placeOrder({ accountId: id, symbol: "600900", side: "BUY", quantity: 100, reason, approvalId: asked.pendingApproval.id }, agent);
+    assert.equal(sneaky.order.status, "pending-approval", "an approval id from the agent is ignored");
+    await assert.rejects(arena.resolveApproval(id, asked.pendingApproval.id, { approve: true }, agent), /Only the owner/);
+
+    const approved = await arena.resolveApproval(id, asked.pendingApproval.id, { approve: true, note: "可以" }, owner);
+    assert.equal(approved.approval.status, "approved");
+    assert.equal(approved.order.status, "filled");
+    assert.equal(approved.order.placedBy, "kimi-code");
+    assert.deepEqual(approved.order.pipeline.map((step) => step.stage), ["intent", "limits", "discipline", "confirmation", "broker"]);
+    assert.equal(approved.order.pipeline[3].status, "approved");
+    const rejected = await arena.resolveApproval(id, sneaky.pendingApproval.id, { approve: false, note: "不买电力" }, owner);
+    assert.equal(rejected.approval.status, "rejected");
+    await assert.rejects(arena.resolveApproval(id, sneaky.pendingApproval.id, { approve: true }, owner), /already rejected/);
+
+    // Adding to a held stock under 15% of equity goes straight through; the owner never waits.
+    assert.equal((await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 1000, reason }, agent)).order.status, "filled");
+    assert.equal((await arena.placeOrder({ accountId: id, symbol: "600900", side: "BUY", quantity: 100, reason }, owner)).order.status, "filled");
+    const big = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 5000, reason }, agent);
+    assert.match(big.pendingApproval.reason, /超过 15%/);
+    setNow("2026-10-15T05:00:00.000Z");
+    const account = await arena.getAccount(id, { sync: false });
+    assert.equal(account.approvals.find((entry) => entry.id === big.pendingApproval.id).status, "expired");
+    assert.equal(account.pendingApprovals, 0);
+    await assert.rejects(arena.resolveApproval(id, big.pendingApproval.id, { approve: true }, owner), /expired/);
+  } finally { await cleanup(); }
+});
+
+test("autonomy: suggest mode and dry runs; reconciliation rebuilds cash and positions from the records", async () => {
+  const { arena, root, cleanup } = await setup({ "600036.SS": { price: 40 } });
+  try {
+    const { id } = await arena.createAccount({ name: "K", model: "k3", market: "A" }, agent);
+    const dry = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 22000, reason, dryRun: true }, agent);
+    assert.equal(dry.ok, false);
+    assert.match(dry.error, /保留现金/);
+    assert.equal((await arena.getAccount(id, { sync: false })).orders.length, 0);
+    assert.equal((await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 1000, reason }, agent)).order.status, "filled");
+    assert.equal((await arena.placeOrder({ accountId: id, symbol: "600036", side: "SELL", quantity: 0 + 1000, reason }, agent)).order.status, "rejected", "T+1");
+    await arena.updateAccount(id, { autonomy: { level: "suggest" } });
+    const proposed = await arena.placeOrder({ accountId: id, symbol: "600036", side: "BUY", quantity: 100, reason }, agent);
+    assert.match(proposed.pendingApproval.reason, /只给建议/);
+    const check = await arena.reconcile(id);
+    assert.equal(check.ok, true);
+    assert.deepEqual(check.positions, [{ symbol: "600036.SS", ledger: 1000, stored: 1000, diff: 0 }]);
+    // Tamper with the stored cash: reconciliation must notice.
+    const { readFile, writeFile } = await import("node:fs/promises");
+    const file = path.join(root, "accounts", `${id}.json`);
+    const raw = JSON.parse(await readFile(file, "utf8"));
+    raw.cash += 100;
+    await writeFile(file, JSON.stringify(raw));
+    const broken = await arena.reconcile(id);
+    assert.equal(broken.ok, false);
+    assert.equal(broken.cash.diff, 100);
+  } finally { await cleanup(); }
+});

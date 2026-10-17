@@ -22,7 +22,12 @@ ${id ? `我的竞技场账户是 ${id}，只操作这个账户。` : "先调用 
 // The full prompt a scheduled round sends, in a fixed order the owner can preview:
 // system rules → global prompt → market prompt → trader prompt → hard limits → instructions → task.
 // (The skill text travels separately as the system prompt.)
-export function buildRoundPrompt({ account, language = "zh-CN", prompts = {}, limits = "", instructions = [], mode = "rounds", strategy = null, reviewMinutes = null, trigger = null, starter = null }) {
+const AUTONOMY_TEXT = {
+  confirm: { zh: (a) => `关键操作确认：新开仓、金额超过总资产 ${a.minValuePct}% 的订单${a.sells ? "、卖出" : ""}会先变成确认卡片，主人确认后才按当时的真实行情下单。被拒绝就换思路，不要反复提交同一笔。`, en: (a) => `Confirm key orders: new positions, orders above ${a.minValuePct}% of equity${a.sells ? " and sells" : ""} wait for the owner's confirmation and are placed at the live quote once confirmed. If one is rejected, change your plan; do not resubmit it.` },
+  suggest: { zh: () => "只给建议：每笔订单都是提议，主人确认后才下单。写清理由、止损和引用来源，方便主人判断。", en: () => "Suggest only: every order is a proposal the owner confirms. Give the reason, stop and sources so the owner can decide." },
+};
+
+export function buildRoundPrompt({ account, language = "zh-CN", prompts = {}, limits = "", instructions = [], mode = "rounds", strategy = null, reviewMinutes = null, trigger = null, changes = null, starter = null, autonomy = null, approvals = [] }) {
   const en = language === "en";
   const sections = [];
   const push = (title, body) => { if (String(body ?? "").trim()) sections.push(`## ${title}\n${String(body).trim()}`); };
@@ -33,6 +38,9 @@ export function buildRoundPrompt({ account, language = "zh-CN", prompts = {}, li
   push(en ? "Owner prompt (this market)" : "前置提示词 · 本市场", prompts.market);
   push(en ? "Owner prompt (this trader)" : "前置提示词 · 本交易员", account.prompt);
   push(en ? "Hard limits" : "硬性边界", limits);
+  if (autonomy && AUTONOMY_TEXT[autonomy.level]) push(en ? "Autonomy" : "自主级别", AUTONOMY_TEXT[autonomy.level][en ? "en" : "zh"](autonomy));
+  if (approvals.length) push(en ? "Orders the owner decided on" : "主人对订单的确认结果", approvals.map((entry) => `- ${entry.preview?.side === "BUY" ? (en ? "Buy" : "买入") : (en ? "Sell" : "卖出")} ${entry.preview?.name ?? entry.preview?.symbol} ${entry.preview?.quantity}: ${entry.status}${entry.note ? ` (${entry.note})` : ""}${entry.result?.error ? ` — ${entry.result.error}` : ""}`).join("\n"));
+  if (changes) push(en ? "What changed since your last review" : "自上次复查以来的变化", changes);
   if (instructions.length) push(en ? "Owner instructions in force" : "主人的指令（有效期内，每次都要遵守，并在报告里回应执行情况）", instructions.map((entry) => `- ${entry.text}${entry.expiresAt ? (en ? ` (until ${entry.expiresAt.slice(0, 10)})` : `（有效到 ${entry.expiresAt.slice(0, 10)}）`) : ""}`).join("\n"));
   if (mode === "director") {
     const every = reviewMinutes ? (en ? `every ${reviewMinutes} minutes` : `每 ${reviewMinutes} 分钟一次`) : "";

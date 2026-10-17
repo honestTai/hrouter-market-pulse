@@ -111,7 +111,7 @@ test("target weights become lot-sized orders, sells before buys", () => {
 test("strategy rounds trade through the paper broker, never see unfinished bars, and report", async () => {
   const { arena, cleanup } = await setup();
   try {
-    const account = await arena.createAccount({ name: "MA", model: "strategy:ma-trend", market: "A" }, { client: "dashboard" });
+    const account = await arena.createAccount({ name: "MA", model: "strategy:ma-trend", market: "A", limits: { minCashPct: null } }, { client: "dashboard" });
     const broker = createPaperBroker({ arena, accountId: account.id, caller: { client: "strategy-ma-trend" } });
     let sawUnfinished = false;
     const round = await runStrategyRound({
@@ -172,7 +172,7 @@ test("strategy jobs run in-process through the scheduler", async () => {
   const clock = { value: "2026-10-15T01:46:00.000Z" };
   const { arena, cleanup } = await setup(clock);
   try {
-    const account = await arena.createAccount({ name: "Quant", model: "strategy:ma-trend", market: "A" }, { client: "dashboard" });
+    const account = await arena.createAccount({ name: "Quant", model: "strategy:ma-trend", market: "A", limits: { minCashPct: null } }, { client: "dashboard" });
     const scheduler = createScheduler({ arena, now: () => clock.value, strategyDeps: { historyProvider: async (symbol) => history(symbol), quoteProvider: async (symbol) => ({ price: prices[symbol] }) } });
     await assert.rejects(scheduler.upsertJob(account.id, { times: ["09:45"], runner: { type: "strategy", strategyId: "nope" } }), /Unknown strategy/);
     await scheduler.upsertJob(account.id, { times: ["09:45"], runner: { type: "strategy", strategyId: "ma-trend", params: { universe: ["600519.SS", "300750.SZ"] } } });

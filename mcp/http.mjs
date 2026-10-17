@@ -182,6 +182,9 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           const side = ["BUY", "SELL"].includes(url.searchParams.get("side")) ? url.searchParams.get("side") : undefined;
           return respond(response, 200, await (await arenaReady).history(history[1], url.searchParams.get("kind"), { ...paging, side, type: url.searchParams.get("type") || undefined, symbol: url.searchParams.get("symbol") || undefined }));
         }
+        const settingsRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/settings$/);
+        if (settingsRead) return respond(response, 200, { demo, ...(await (await arenaReady).getSettings(settingsRead[1])) });
+        if (url.pathname === "/api/workbench/settings") return respond(response, 200, { demo, ...(await (await arenaReady).workbenchSettings()) });
         const arenaAccount = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})$/);
         if (arenaAccount) {
           const arena = await arenaReady;
@@ -312,9 +315,24 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             }
             return respond(response, 200, await scheduler.upsertJob(schedule[1], body));
           }
+          const settings = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/(limits|prompt|locks|requests\/(req_[a-f0-9]{12}))$/);
+          if (settings) {
+            const [, id, action, requestId] = settings;
+            if (action === "limits") return respond(response, 200, await arena.setLimits({ accountId: id, limits: body.limits, reason: body.reason }, dashboardCaller));
+            if (action === "prompt") return respond(response, 200, await arena.setPrompt({ accountId: id, prompt: body.prompt, reason: body.reason }, dashboardCaller));
+            if (action === "locks") return respond(response, 200, await arena.setLocks(id, body.locks, dashboardCaller));
+            return respond(response, 200, await arena.resolveRequest(id, requestId, body, dashboardCaller));
+          }
           const update = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})(\/delete)?$/);
           if (update) return respond(response, 200, update[2] ? await arena.deleteAccount(update[1]) : await arena.updateAccount(update[1], body));
           return respond(response, 404, { error: "Unknown arena action" });
+        }
+        if (url.pathname.startsWith("/api/workbench")) {
+          const arena = await arenaReady;
+          if (url.pathname === "/api/workbench/fees") return respond(response, 200, await arena.setFees({ market: body.market, fees: body.fees, reason: body.reason }, dashboardCaller));
+          if (url.pathname === "/api/workbench/prompts") return respond(response, 200, await arena.setWorkbenchPrompt({ scope: body.scope, prompt: body.prompt, reason: body.reason }, dashboardCaller));
+          if (url.pathname === "/api/workbench/settings") return respond(response, 200, await arena.updateWorkbench(body, dashboardCaller));
+          return respond(response, 404, { error: "Unknown workbench action" });
         }
         if (url.pathname.startsWith("/api/paper/")) {
           if (demo) return respond(response, 409, { error: "演示模式不连接模拟账户。请启动真实数据面板 / Use the real-data dashboard; no synthetic trading fallback." });

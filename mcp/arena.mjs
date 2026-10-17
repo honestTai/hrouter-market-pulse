@@ -16,9 +16,13 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { getCorporateActions, getStorageDir, getTradeQuote, loadPreferences, marketFromSymbol, normalizeSymbol } from "./core.mjs";
+import { getCorporateActions, getIntradayBars, getStorageDir, getTradeQuote, loadPreferences, marketFromSymbol, normalizeSymbol } from "./core.mjs";
 import { getInstrumentRules, getMarketSession, localMarketTime, marketLocalToIso } from "./market-rules.mjs";
 import { inDateRange, matchesText, paginate } from "./paging.mjs";
+import {
+  DEFAULT_FEES, DEFAULT_LIMITS, LIMIT_SPECS, NEW_ACCOUNT_LIMITS, SettingsError, appendChange, assertUnlocked, changeEntry, changedBy, computeFees as computeScheduleFees,
+  createWorkbenchSettings, isOwner, limitStatus, limitViolation, sanitizeFees, sanitizeLimits, sanitizePrompt,
+} from "./trader-settings.mjs";
 
 export const ARENA_MARKETS = {
   A: { currency: "CNY", defaultCash: 1000000, benchmark: "000300.SS", benchmarkName: "沪深300 / CSI 300" },
@@ -34,7 +38,8 @@ const LOCK_WAIT_MS = 20000;
 const SUSPENSION_GRACE_MINUTES = 5;
 const CORPORATE_ACTION_RETRY_MS = 3600000;
 export const DEFAULT_MAX_VOLUME_PCT = 5;
-export const DEFAULT_RISK_POLICY = Object.freeze({ maxPositionPct: null, maxExposurePct: null, maxDrawdownPct: null, onBreach: "block", reduceToExposurePct: 50 });
+export const DEFAULT_RISK_POLICY = DEFAULT_LIMITS;
+export const ACCOUNT_SCHEMA_VERSION = 2;
 export const MATCHER_DEFAULTS = Object.freeze({ intervalMs: 90000, jitterMs: 15000, leaseMs: 300000, digestWindowMs: 18 * 3600000, webhookAttempts: 3 });
 
 const round = (value, digits = 2) => {
@@ -68,29 +73,14 @@ export class ArenaError extends Error {
 // Exchange rules
 // ---------------------------------------------------------------------------
 
-// Approximate retail schedules. They are documented presets, not broker quotes.
-export function computeFees(market, side, quantity, price) {
-  const value = quantity * price;
-  const parts = {};
-  if (market === "A") {
-    parts.commission = Math.max(5, value * 0.00025);
-    parts.stampDuty = side === "SELL" ? value * 0.0005 : 0;
-    parts.transferFee = value * 0.00001;
-  } else if (market === "HK") {
-    parts.commission = Math.max(3, value * 0.0003);
-    parts.stampDuty = Math.ceil(value * 0.001);
-    parts.tradingFee = value * 0.0000565;
-    parts.sfcLevy = value * 0.000027;
-    parts.frcLevy = value * 0.0000015;
-    parts.settlement = clamp(value * 0.00002, 2, 100);
-  } else {
-    parts.commission = clamp(quantity * 0.005, 1, value * 0.01);
-    parts.secFee = side === "SELL" ? value * 0.0000278 : 0;
-    parts.taf = side === "SELL" ? Math.min(quantity * 0.000166, 8.3) : 0;
-  }
-  const breakdown = Object.fromEntries(Object.entries(parts).filter(([, amount]) => amount > 0).map(([key, amount]) => [key, round(amount)]));
-  return { total: round(Object.values(breakdown).reduce((sum, amount) => sum + amount, 0)), breakdown };
+// Fees follow the owner's per-market schedule (settings.json); the defaults are documented retail presets.
+// Each loaded account carries its market's schedule in memory (never persisted with the account).
+const feeSchedules = new WeakMap();
+const scheduleOf = (account) => feeSchedules.get(account) ?? DEFAULT_FEES[account.market];
+export function computeFees(market, side, quantity, price, schedule) {
+  return computeScheduleFees(market, side, quantity, price, schedule);
 }
+const accountFees = (account, side, quantity, price) => computeScheduleFees(account.market, side, quantity, price, scheduleOf(account));
 
 export function tickSize(market, price) {
   if (market === "HK") {
@@ -147,28 +137,49 @@ export function tradability(account, quote, now = new Date().toISOString()) {
   return { ok: true, ageSeconds: round(Math.max(0, ageSeconds), 0), session, calendarVerified: session.verified };
 }
 
+// Price a market order would pay walking the visible book: buys take asks, sells hit bids. Size beyond
+// the visible levels is priced at the last level. Without a book (Yahoo fallback) the last price is used.
+export function bookPrice(quote, side, quantity) {
+  const levels = (side === "BUY" ? quote?.asks : quote?.bids) ?? [];
+  const touch = side === "BUY" ? quote?.ask : quote?.bid;
+  if (!finite(touch) || touch <= 0) return { price: quote.price, basis: "last" };
+  if (!levels.length || !finite(quantity) || quantity <= 0 || levels.some((level) => !finite(level.size))) return { price: touch, basis: side === "BUY" ? "ask" : "bid" };
+  let remaining = quantity, cost = 0;
+  for (const level of levels) {
+    const take = Math.min(remaining, level.size);
+    cost += take * level.price;
+    remaining -= take;
+    if (remaining <= 0) break;
+  }
+  if (remaining > 0) cost += remaining * levels.at(-1).price;
+  return { price: cost / quantity, basis: levels.length > 1 && quantity > levels[0].size ? "book" : side === "BUY" ? "ask" : "bid" };
+}
+
 // Execution price for an order against an observed quote, or null when it cannot fill now.
-export function executionPrice(account, order, quote) {
+// Buys pay the ask (sells receive the bid) plus the configured slippage; limits never fill worse.
+export function executionPrice(account, order, quote, quantity = order.quantity - (order.filledQuantity ?? 0)) {
   const slip = (account.settings?.slippageBps ?? 5) / 10000;
   const market = account.market;
   if (order.side === "BUY") {
-    if (market === "A" && finite(quote.limitUp) && quote.price >= quote.limitUp - 1e-9) return { price: null, blocked: "limit-up" };
-    let price = alignToTick(market, quote.price * (1 + slip), "up");
+    if (market === "A" && finite(quote.limitUp) && quote.price >= quote.limitUp - 1e-9 && !(quote.ask > 0)) return { price: null, blocked: "limit-up" };
+    const book = bookPrice(quote, "BUY", quantity);
+    let price = alignToTick(market, book.price * (1 + slip), "up");
     if (market === "A" && finite(quote.limitUp)) price = Math.min(price, quote.limitUp);
     if (order.type === "limit") {
-      if (quote.price > order.limitPrice + 1e-9) return { price: null, blocked: "limit-not-reached" };
+      if (book.price > order.limitPrice + 1e-9) return { price: null, blocked: "limit-not-reached" };
       price = Math.min(price, order.limitPrice);
     }
-    return { price };
+    return { price, basis: book.basis };
   }
-  if (market === "A" && finite(quote.limitDown) && quote.price <= quote.limitDown + 1e-9) return { price: null, blocked: "limit-down" };
-  let price = alignToTick(market, quote.price * (1 - slip), "down");
+  if (market === "A" && finite(quote.limitDown) && quote.price <= quote.limitDown + 1e-9 && !(quote.bid > 0)) return { price: null, blocked: "limit-down" };
+  const book = bookPrice(quote, "SELL", quantity);
+  let price = alignToTick(market, book.price * (1 - slip), "down");
   if (market === "A" && finite(quote.limitDown)) price = Math.max(price, quote.limitDown);
   if (order.type === "limit") {
-    if (quote.price < order.limitPrice - 1e-9) return { price: null, blocked: "limit-not-reached" };
+    if (book.price < order.limitPrice - 1e-9) return { price: null, blocked: "limit-not-reached" };
     price = Math.max(price, order.limitPrice);
   }
-  return { price };
+  return { price, basis: book.basis };
 }
 
 // The day's traded volume in shares. Tencent reports A-share volume in board lots of 100.
@@ -238,24 +249,28 @@ export function exitLevels(position) {
   return levels.stopLoss === null && levels.takeProfit === null ? null : levels;
 }
 
+// The stop price a BUY would carry, from its exits spec and the expected entry price.
+function stopFrom(exits, reference) {
+  if (!exits?.stopLoss) return null;
+  if (finite(exits.stopLoss.price)) return exits.stopLoss.price;
+  return finite(exits.stopLoss.pct) && finite(reference) ? reference * (1 - exits.stopLoss.pct / 100) : null;
+}
+
+// Accounts created before trader settings existed get the new default (keep 20% cash) once.
+export function migrateAccount(account, at) {
+  if ((account.schemaVersion ?? 1) >= ACCOUNT_SCHEMA_VERSION) return account;
+  const before = account.riskPolicy?.minCashPct ?? null;
+  account.riskPolicy = { ...DEFAULT_LIMITS, ...account.riskPolicy, minCashPct: before ?? NEW_ACCOUNT_LIMITS.minCashPct };
+  account.prompt ??= "";
+  account.locks ??= {};
+  account.requests ??= [];
+  if (before === null) appendChange(account, changeEntry({ key: "minCashPct", from: null, to: account.riskPolicy.minCashPct, by: { kind: "system", via: "upgrade" }, reason: "升级到新版本时补上默认边界：保留现金 20%", at }));
+  account.schemaVersion = ACCOUNT_SCHEMA_VERSION;
+  return account;
+}
+
 export function sanitizeRiskPolicy(input = {}, current = {}) {
-  const next = { ...DEFAULT_RISK_POLICY, ...current };
-  const pct = (key, low, high) => {
-    if (input[key] === undefined) return;
-    if (input[key] === null || input[key] === "") { next[key] = key === "reduceToExposurePct" ? DEFAULT_RISK_POLICY.reduceToExposurePct : null; return; }
-    const value = Number(input[key]);
-    if (!Number.isFinite(value) || value < low || value > high) throw new ArenaError(`${key} must be between ${low} and ${high}, or empty to disable.`);
-    next[key] = round(value, 2);
-  };
-  pct("maxPositionPct", 1, 100);
-  pct("maxExposurePct", 1, 100);
-  pct("maxDrawdownPct", 1, 90);
-  pct("reduceToExposurePct", 0, 100);
-  if (input.onBreach !== undefined) {
-    if (!["block", "reduce"].includes(input.onBreach)) throw new ArenaError("onBreach must be block or reduce.");
-    next.onBreach = input.onBreach;
-  }
-  return next;
+  try { return sanitizeLimits(input, current); } catch (error) { throw new ArenaError(error.message, error.code, error.status); }
 }
 
 // ---------------------------------------------------------------------------
@@ -280,7 +295,7 @@ function addEvent(account, at, event, dedupe) {
   return entry;
 }
 
-const riskPolicyOf = (account) => ({ ...DEFAULT_RISK_POLICY, ...account.riskPolicy });
+const riskPolicyOf = (account) => ({ ...DEFAULT_LIMITS, ...account.riskPolicy });
 
 // Drawdown from the peak equity since the account opened or the owner last reset the breaker.
 export function drawdownState(account, equityNow = valuation(account).equity) {
@@ -291,7 +306,7 @@ export function drawdownState(account, equityNow = valuation(account).equity) {
 }
 
 // Why a buy adding `addValue` of exposure in `symbol` breaches the owner's policy, or null.
-export function riskViolation(account, symbol, addValue, excludeOrderId) {
+export function riskViolation(account, symbol, addValue, excludeOrderId, details = null) {
   const policy = riskPolicyOf(account);
   if (account.risk?.breaker) return `Owner risk policy: drawdown circuit breaker tripped at ${account.risk.breaker.drawdownPct}% on ${account.risk.breaker.trippedAt}; new buys are blocked until the owner resets it in the dashboard.`;
   const value = valuation(account);
@@ -312,6 +327,7 @@ export function riskViolation(account, symbol, addValue, excludeOrderId) {
     const pct = (value.marketValue + resting + addValue) / value.equity * 100;
     if (pct > policy.maxExposurePct + 1e-9) return `Owner risk policy: total exposure would be ${round(pct, 1)}% of equity, above the ${policy.maxExposurePct}% limit.`;
   }
+  if (details) return limitViolation(account, details.atFill ? { ...policy, maxOrdersPerDay: null } : policy, value, { symbol, addValue, pending, ...details });
   return null;
 }
 
@@ -328,8 +344,26 @@ export function sellableQuantity(account, symbol, now = new Date().toISOString()
 }
 
 // Fill `quantity` shares of an order (all that remains by default); partial fills keep it open.
-function applyFill(account, order, price, quote, now, quantity = remainingQuantity(order)) {
-  const fees = computeFees(account.market, order.side, quantity, price);
+// The market data a fill or order relied on: last, best bid / ask, quote time and provider.
+export function quoteSnapshot(quote) {
+  return { price: quote.price ?? null, bid: quote.bid ?? null, ask: quote.ask ?? null, asOf: quote.asOf ?? null, source: quote.provider ?? quote.source ?? null, changePct: finite(quote.changePct) ? round(quote.changePct, 2) : null };
+}
+
+// Completed-minute prices strictly after `since` and before the current minute, for today only.
+export function minutePricesBetween(bars, market, since, at) {
+  if (!bars?.length) return [];
+  const now = localMarketTime(at, market);
+  const from = localMarketTime(since, market);
+  if (!now) return [];
+  const fromMinute = from?.date === now.date ? from.minute : -1;
+  return bars.filter((bar) => (!bar.date || bar.date === now.date)).map((bar) => {
+    const [h, m] = String(bar.time ?? "").split(":").map(Number);
+    return { minute: h * 60 + m, price: bar.price };
+  }).filter((bar) => Number.isFinite(bar.minute) && finite(bar.price) && bar.minute > fromMinute && bar.minute < now.minute).map((bar) => bar.price);
+}
+
+function applyFill(account, order, price, quote, now, quantity = remainingQuantity(order), basis = null) {
+  const fees = accountFees(account, order.side, quantity, price);
   const gross = round(quantity * price);
   const tradeDate = localMarketTime(now, account.market).date;
   let position = account.positions[order.symbol];
@@ -375,7 +409,7 @@ function applyFill(account, order, price, quote, now, quantity = remainingQuanti
   order.fillPrice = round(((order.fillPrice ?? 0) * filledBefore + price * quantity) / order.filledQuantity, 4);
   order.fees = round((order.fees ?? 0) + fees.total);
   order.fills = (order.fills ?? 0) + 1;
-  order.fillQuote = quote ? { price: quote.price, asOf: quote.asOf, source: quote.provider ?? quote.source } : null;
+  order.fillQuote = quote ? quoteSnapshot(quote) : null;
   if (order.filledQuantity >= order.quantity) Object.assign(order, { status: "filled", filledAt: now, reserved: 0 });
   else Object.assign(order, { partiallyFilledAt: now, reserved: round(order.reserved * (remainingBefore - quantity) / remainingBefore) });
   const trade = {
@@ -383,6 +417,8 @@ function applyFill(account, order, price, quote, now, quantity = remainingQuanti
     side: order.side, quantity, price, gross, fees: fees.total, feeBreakdown: fees.breakdown,
     realizedPnl, at: now, reason: order.reason, confidence: order.confidence ?? null, strategyVersion: order.strategyVersion,
     ...(order.trigger ? { trigger: order.trigger } : {}), ...(order.fills > 1 || order.status === "open" ? { partial: true } : {}),
+    // Where the price came from, so every fill can be traced back to real market data.
+    fillBasis: basis, quote: quote ? quoteSnapshot(quote) : null,
   };
   account.trades.push(trade);
   if (account.trades.length > LIMITS.trades) account.trades = account.trades.slice(-LIMITS.trades);
@@ -560,13 +596,15 @@ function processAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; }
 }
 
-export function createArena({ root = path.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, now = () => new Date().toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
+export function createArena({ root = path.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, now = () => new Date().toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
   const accountDir = path.join(root, "accounts");
   const digestDir = path.join(root, "digests");
   const lockDir = path.join(root, ".lock");
   const leaseFile = path.join(root, "matcher-lease.json");
   const statusFile = path.join(root, "matcher-status.json");
+  const workbench = createWorkbenchSettings(root, now);
   const quoteCache = new Map();
+  const minuteCache = new Map();
   const actionCache = new Map();
   const lastSync = new Map();
 
@@ -606,8 +644,14 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
     return path.join(accountDir, `${id}.json`);
   };
 
+  async function prepare(account) {
+    migrateAccount(account, now());
+    feeSchedules.set(account, (await workbench.read()).fees[account.market] ?? DEFAULT_FEES[account.market]);
+    return account;
+  }
+
   async function load(id) {
-    try { return JSON.parse(await readFile(accountPath(id), "utf8")); }
+    try { return await prepare(JSON.parse(await readFile(accountPath(id), "utf8"))); }
     catch (error) {
       if (error.code === "ENOENT") throw new ArenaError(`Account ${id} not found. Call arena_my_accounts or arena_register_account.`, "not_found", 404);
       throw error;
@@ -628,7 +672,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
     try { names = await readdir(accountDir); } catch (error) { if (error.code !== "ENOENT") throw error; }
     const accounts = [];
     for (const name of names.filter((entry) => /^acc_[a-f0-9]{12}\.json$/.test(entry))) {
-      try { accounts.push(JSON.parse(await readFile(path.join(accountDir, name), "utf8"))); } catch { /* Skip a file mid-write; the next read sees it. */ }
+      try { accounts.push(await prepare(JSON.parse(await readFile(path.join(accountDir, name), "utf8")))); } catch { /* Skip a file mid-write; the next read sees it. */ }
     }
     return accounts.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
   }
@@ -772,15 +816,20 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
   }
 
   // Stop-loss / take-profit: when a fresh quote crosses a level, sell the sellable shares at market.
-  function triggerExits(account, quoteMap, at, events) {
+  function triggerExits(account, quoteMap, at, events, minuteMap = null) {
     const today = localMarketTime(at, account.market)?.date;
     for (const position of Object.values(account.positions)) {
       const levels = exitLevels(position);
       const observed = quoteMap.get(position.symbol);
       if (!levels || !observed || observed.error || !tradability(account, observed, at).ok) continue;
       if (openOrders(account).some((order) => order.symbol === position.symbol && order.trigger)) continue;
-      const trigger = levels.stopLoss !== null && observed.price <= levels.stopLoss + 1e-9 ? "stop-loss"
-        : levels.takeProfit !== null && observed.price >= levels.takeProfit - 1e-9 ? "take-profit" : null;
+      // Real minute prices since the last check catch touches the snapshots in between missed.
+      const minutes = minutePricesBetween(minuteMap?.get(position.symbol), account.market, position.exitCheckedAt ?? position.openedAt, at);
+      if (minuteMap?.has(position.symbol)) position.exitCheckedAt = at;
+      const low = Math.min(observed.price, ...minutes);
+      const high = Math.max(observed.price, ...minutes);
+      const trigger = levels.stopLoss !== null && low <= levels.stopLoss + 1e-9 ? "stop-loss"
+        : levels.takeProfit !== null && high >= levels.takeProfit - 1e-9 ? "take-profit" : null;
       if (!trigger) continue;
       const level = trigger === "stop-loss" ? levels.stopLoss : levels.takeProfit;
       const defer = (why, message) => {
@@ -804,7 +853,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
   }
 
   // Apply observed quotes: corporate actions, expiries, marks, risk, protective exits, then fills.
-  function settle(account, quoteMap, at, actionMap) {
+  function settle(account, quoteMap, at, actionMap, minuteMap = null) {
     const events = [];
     applyCorporateActions(account, actionMap, at, events);
     for (const order of openOrders(account)) {
@@ -828,7 +877,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       if (!finite(account.benchmark.startPrice)) { account.benchmark.startPrice = benchmark.price; account.benchmark.startAt = at; }
     }
     evaluateBreaker(account, quoteMap, at, events);
-    triggerExits(account, quoteMap, at, events);
+    triggerExits(account, quoteMap, at, events, minuteMap);
     const today = localMarketTime(at, account.market)?.date;
     for (const order of openOrders(account)) {
       const observed = quoteMap.get(order.symbol);
@@ -840,7 +889,15 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         if (event) events.push({ type: "suspended", symbol: order.symbol, why: suspended });
         continue;
       }
-      const execution = executionPrice(account, order, observed);
+      let execution = executionPrice(account, order, observed);
+      // A limit the snapshot missed still fills if real minute prices traded through it since the last check.
+      if (execution.price === null && execution.blocked === "limit-not-reached" && order.type === "limit") {
+        const prices = minutePricesBetween(minuteMap?.get(order.symbol), account.market, order.minuteCheckedAt ?? order.createdAt, at);
+        const tick = tickSize(account.market, order.limitPrice);
+        const through = order.side === "BUY" ? prices.some((price) => price < order.limitPrice - tick / 2) : prices.some((price) => price > order.limitPrice + tick / 2);
+        if (through) execution = { price: order.limitPrice, basis: "minute-trade-through" };
+      }
+      if (minuteMap?.has(order.symbol)) order.minuteCheckedAt = at;
       if (execution.price === null) { order.lastBlock = execution.blocked; continue; }
       if (order.side === "SELL" && (account.positions[order.symbol]?.quantity ?? 0) < remainingQuantity(order)) {
         Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Position no longer covers this sell order." });
@@ -849,12 +906,12 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       const liquidity = fillQuantity(account, order, observed, at);
       if (!liquidity.quantity) { order.lastBlock = "liquidity"; continue; }
       if (order.side === "BUY") {
-        const cost = liquidity.quantity * execution.price + computeFees(account.market, "BUY", liquidity.quantity, execution.price).total;
+        const cost = liquidity.quantity * execution.price + accountFees(account, "BUY", liquidity.quantity, execution.price).total;
         if (cost > account.cash - reservedCash(account, order.id) + 1e-6) {
           Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: "Insufficient cash at fill time." });
           continue;
         }
-        const violation = riskViolation(account, order.symbol, cost, order.id);
+        const violation = riskViolation(account, order.symbol, cost, order.id, { quantity: liquidity.quantity, price: execution.price, stopPrice: stopFrom(order.exits, execution.price), quote: observed, now: at, atFill: true });
         if (violation) {
           Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: violation });
           events.push({ type: "risk-rejected", orderId: order.id, symbol: order.symbol });
@@ -862,11 +919,27 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         }
       }
       delete order.lastBlock;
-      const trade = applyFill(account, order, execution.price, observed, at, liquidity.quantity);
+      const trade = applyFill(account, order, execution.price, observed, at, liquidity.quantity, execution.basis);
       events.push({ type: order.status === "open" ? "partial" : "filled", orderId: order.id, tradeId: trade.id, symbol: order.symbol, side: order.side, quantity: liquidity.quantity, price: execution.price, ...(order.trigger ? { trigger: order.trigger } : {}) });
     }
     if (account.status === "active") recordEquity(account, at);
     return events;
+  }
+
+  // Today's minute bars for symbols with resting limits or protective exits, cached for a minute.
+  async function minutesFor(symbols) {
+    const result = new Map();
+    if (!intradayProvider) return result;
+    await Promise.all([...new Set(symbols)].map(async (symbol) => {
+      const cached = minuteCache.get(symbol);
+      if (cached && Date.now() - cached.fetchedAt < 55000) { result.set(symbol, cached.bars); return; }
+      try {
+        const { bars } = await intradayProvider(symbol);
+        minuteCache.set(symbol, { bars, fetchedAt: Date.now() });
+        result.set(symbol, bars);
+      } catch { /* No minute data: snapshots alone decide, as before. */ }
+    }));
+    return result;
   }
 
   async function corporateActionsFor(symbols) {
@@ -895,13 +968,15 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
     const symbols = targets.flatMap((account) => [...Object.keys(account.positions), ...openOrders(account).map((order) => order.symbol), account.benchmark?.symbol].filter(Boolean));
     const quoteMap = await quotes(symbols, { fresh: force });
     const actionMap = await corporateActionsFor(targets.flatMap((account) => Object.keys(account.positions)));
+    const minuteMap = await minutesFor(targets.flatMap((account) => getMarketSession(account.market, now()).status === "open"
+      ? [...openOrders(account).filter((order) => order.type === "limit").map((order) => order.symbol), ...Object.values(account.positions).filter((position) => position.exits).map((position) => position.symbol)] : []));
     const events = [];
     await withLock(async () => {
       for (const target of targets) {
         const account = await load(target.id);
         if (account.status !== "active") continue;
         const at = now();
-        events.push(...settle(account, quoteMap, at, actionMap).map((event) => ({ ...event, accountId: account.id })));
+        events.push(...settle(account, quoteMap, at, actionMap, minuteMap).map((event) => ({ ...event, accountId: account.id })));
         await save(account);
         lastSync.set(account.id, Date.now());
       }
@@ -943,7 +1018,9 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       lastActivityAt: [account.trades.at(-1)?.at, account.journal.at(-1)?.at, account.orders.at(-1)?.createdAt, account.reports?.at(-1)?.at].filter(Boolean).sort().at(-1) ?? null,
       latestReport: account.reports?.length ? (({ id, at, title, summary, sentiment }) => ({ id, at, title, summary, sentiment }))(account.reports.at(-1)) : null,
       watchlist: account.watchlist ?? null,
-      riskPolicy: riskPolicyOf(account), risk, health, lastRoundAt: health.lastRoundAt, alerts,
+      riskPolicy: riskPolicyOf(account), limits: riskPolicyOf(account), limitStatus: limitStatus(account, riskPolicyOf(account), value, at),
+      risk, health, lastRoundAt: health.lastRoundAt, alerts, template: account.template ?? null,
+      pendingRequests: (account.requests ?? []).filter((request) => request.status === "pending").length,
     };
     if (!detail) return summary;
     return {
@@ -952,9 +1029,42 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       journal: account.journal.slice(-limit).reverse(), equity: account.equity,
       strategyHistory: account.strategy.history, closedPositions: (account.closedPositions ?? []).slice(-limit).reverse(),
       lotOverrides: account.lotOverrides ?? {},
+      prompt: account.prompt ?? "", locks: account.locks ?? {}, requests: (account.requests ?? []).slice(-50).reverse(),
+      changeLog: (account.changeLog ?? []).slice(-limit).reverse(),
       reports: (account.reports ?? []).slice(-limit).reverse(),
       events: (account.events ?? []).slice(-limit).reverse().map(({ dedupe, ...event }) => event),
     };
+  }
+
+  // Settings validation errors surface as ArenaErrors so HTTP and MCP report them uniformly.
+  function wrapSettings(task) {
+    try { return task(); } catch (error) { if (error instanceof SettingsError) throw new ArenaError(error.message, error.code, error.status); throw error; }
+  }
+  const sanitizeRiskText = (text) => wrapSettings(() => sanitizePrompt(text));
+
+  // Apply limit changes and record one change entry per key whose value actually changed.
+  function applyLimitChanges(account, input, by, at, reason) {
+    const before = riskPolicyOf(account);
+    const next = sanitizeRiskPolicy(input, before);
+    const applied = [];
+    for (const key of Object.keys(input)) {
+      if (JSON.stringify(before[key] ?? null) === JSON.stringify(next[key] ?? null)) continue;
+      appendChange(account, changeEntry({ key, from: before[key] ?? null, to: next[key] ?? null, by, reason, at }));
+      applied.push({ key, from: before[key] ?? null, to: next[key] ?? null });
+    }
+    account.riskPolicy = { ...next, updatedAt: at };
+    return applied;
+  }
+
+  // One pending request per key: a newer ask replaces the older one.
+  function fileRequest(account, { key, to, reason, by, at }) {
+    account.requests ??= [];
+    for (const request of account.requests) if (request.status === "pending" && request.key === key) Object.assign(request, { status: "superseded", resolvedAt: at });
+    const from = key === "prompt" ? account.prompt ?? "" : riskPolicyOf(account)[key] ?? null;
+    const request = { id: shortId("req"), at, key, from, to: to ?? null, reason: reason ? String(reason).slice(0, 500) : null, by, status: "pending" };
+    account.requests = [...account.requests, request].slice(-100);
+    addEvent(account, at, { type: "change-request", key, message: `Agent asked to change locked "${key}" from ${JSON.stringify(from)} to ${JSON.stringify(to)}.` });
+    return request;
   }
 
   function markRound(account, kind, at = now()) {
@@ -978,13 +1088,15 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       const competition = String(input.competition ?? "default").trim().slice(0, 40) || "default";
       const at = now();
       const account = {
-        schemaVersion: 1, id: shortId("acc"), name, competition, market, currency: config.currency, status: "active",
+        schemaVersion: ACCOUNT_SCHEMA_VERSION, id: shortId("acc"), name, competition, market, currency: config.currency, status: "active",
         agent: { client: caller.client && caller.client !== "dashboard" ? caller.client : (input.agentClient ?? null), clientVersion: caller.clientVersion ?? null, label: String(input.agentLabel ?? input.agentClient ?? caller.client ?? "").slice(0, 60) || null },
         model,
         strategy: { version: 1, summary: String(input.strategySummary ?? "").slice(0, 2000), updatedAt: at, history: [{ version: 1, summary: String(input.strategySummary ?? "").slice(0, 2000), note: "initial", at }] },
         initialCash: round(initialCash), cash: round(initialCash), realizedPnl: 0,
         settings: { slippageBps: clamp(input.slippageBps ?? 5, 0, 100), maxQuoteAgeSeconds: clamp(input.maxQuoteAgeSeconds ?? 180, 30, 900), maxVolumePct: clamp(input.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT, 0.1, 100), feeModel: `${market}-retail-v1` },
-        riskPolicy: { ...DEFAULT_RISK_POLICY },
+        riskPolicy: input.limits ? sanitizeRiskPolicy(input.limits, NEW_ACCOUNT_LIMITS) : { ...NEW_ACCOUNT_LIMITS },
+        prompt: input.prompt ? sanitizePrompt(input.prompt) : "", locks: {}, requests: [], changeLog: [],
+        ...(input.template ? { template: String(input.template).slice(0, 60) } : {}),
         benchmark: { symbol: config.benchmark, name: config.benchmarkName, startPrice: null, startAt: null },
         positions: {}, orders: [], trades: [], journal: [], equity: [{ at, equity: round(initialCash), cash: round(initialCash), marketValue: 0 }],
         createdAt: at, updatedAt: at, createdBy: caller.client ?? "dashboard",
@@ -1090,7 +1202,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         status: "open", reserved: 0, reason: reason.slice(0, 2000), confidence: finite(input.confidence) ? clamp(input.confidence, 0, 1) : null,
         horizon: input.horizon ?? null, strategyVersion: account.strategy.version, createdAt: at,
         expiresAt: input.timeInForce === "gtc" ? new Date(Date.parse(at) + 30 * 86400000).toISOString() : session.closeAt,
-        quoteAtSubmit: observed ? { price: observed.price, asOf: observed.asOf, source: observed.provider ?? observed.source } : null,
+        quoteAtSubmit: observed ? quoteSnapshot(observed) : null,
         placedBy: caller.client ?? "unknown", ...(exits ? { exits } : {}),
       };
       const reject = (message, code = "rejected") => { Object.assign(order, { status: "rejected", rejectReason: message, closedAt: at }); return { code, message }; };
@@ -1124,10 +1236,10 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       }
       if (!failure && side === "BUY") {
         const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed.price);
-        const estimate = quantity * reference + computeFees(account.market, "BUY", quantity, reference).total;
+        const estimate = quantity * reference + accountFees(account, "BUY", quantity, reference).total;
         const available = account.cash - reservedCash(account);
         if (estimate > available + 1e-6) failure = reject(`Insufficient available cash: need about ${round(estimate)} ${account.currency}, available ${round(available)}.`);
-        else order.reserved = round(type === "limit" ? quantity * order.limitPrice + computeFees(account.market, "BUY", quantity, order.limitPrice).total : estimate);
+        else order.reserved = round(type === "limit" ? quantity * order.limitPrice + accountFees(account, "BUY", quantity, order.limitPrice).total : estimate);
       }
       if (!failure && type === "limit" && finite(observed?.price)) {
         const deviation = Math.abs(order.limitPrice / observed.price - 1) * 100;
@@ -1140,8 +1252,12 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         if (finite(exits.stopLoss?.price) && exits.stopLoss.price >= reference) failure = reject(`stopLossPrice ${exits.stopLoss.price} must be below the entry price (~${reference}).`);
         else if (finite(exits.takeProfit?.price) && exits.takeProfit.price <= reference) failure = reject(`takeProfitPrice ${exits.takeProfit.price} must be above the entry price (~${reference}).`);
       }
+      const limitDetails = () => {
+        const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed?.price);
+        return { quantity, price: reference, stopPrice: stopFrom(exits, reference), quote: observed, now: at };
+      };
       if (!failure && side === "BUY") {
-        const violation = riskViolation(account, symbol, order.reserved);
+        const violation = riskViolation(account, symbol, order.reserved, undefined, limitDetails());
         if (violation) failure = reject(violation, "risk");
       }
 
@@ -1156,7 +1272,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         }
         if (!failure && side === "SELL" && quantity > sellableQuantity(current, symbol, at)) failure = reject("Sellable quantity changed while the order was being placed.");
         if (!failure && side === "BUY") {
-          const violation = riskViolation(current, symbol, order.reserved);
+          const violation = riskViolation(current, symbol, order.reserved, undefined, limitDetails());
           if (violation) failure = reject(violation, "risk");
         }
         markRound(current, "order", at);
@@ -1170,7 +1286,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         let liquidity = null;
         if (!failure && execution?.price !== null && execution?.price !== undefined) {
           liquidity = fillQuantity(current, order, observed, at);
-          if (liquidity.quantity > 0) trade = applyFill(current, order, execution.price, observed, at, liquidity.quantity);
+          if (liquidity.quantity > 0) trade = applyFill(current, order, execution.price, observed, at, liquidity.quantity, execution.basis);
         }
         recordEquity(current, at, Boolean(trade));
         await save(current);
@@ -1282,6 +1398,176 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       });
     },
 
+    // ---- Trader settings: limits, prompt, locks and change requests ---------------------------
+
+    async getSettings(id) {
+      const account = await load(id);
+      const settings = await workbench.read();
+      const value = valuation(account);
+      return {
+        accountId: account.id, market: account.market, currency: account.currency,
+        limits: riskPolicyOf(account), limitSpecs: LIMIT_SPECS, limitStatus: limitStatus(account, riskPolicyOf(account), value, now()),
+        prompt: account.prompt ?? "", locks: account.locks ?? {},
+        requests: (account.requests ?? []).filter((request) => request.status === "pending"),
+        fees: settings.fees[account.market], feesLocked: Boolean(settings.locks[`fees.${account.market}`]),
+        prompts: { global: settings.prompts.global, market: settings.prompts[account.market] },
+        changeLog: (account.changeLog ?? []).slice(-30).reverse(),
+      };
+    },
+
+    // Limits change at any time. Owners change anything; agents change what is not locked, and a
+    // locked item they try to change becomes a pending request the owner sees in the dashboard.
+    async setLimits({ accountId, limits = {}, reason }, caller = {}) {
+      if (!limits || typeof limits !== "object" || Array.isArray(limits)) throw new ArenaError("limits must be an object.");
+      return withLock(async () => {
+        const account = await load(accountId);
+        const at = now();
+        const by = changedBy(caller);
+        const owner = isOwner(caller);
+        const requested = [];
+        const allowed = {};
+        for (const [key, to] of Object.entries(limits)) {
+          if (!owner && account.locks?.[key]) { requested.push(fileRequest(account, { key, to, reason, by, at })); continue; }
+          allowed[key] = to;
+        }
+        const applied = applyLimitChanges(account, allowed, by, at, reason);
+        await save(account);
+        return { accountId, limits: riskPolicyOf(account), applied, requested, limitStatus: limitStatus(account, riskPolicyOf(account), valuation(account), at) };
+      });
+    },
+
+    async setPrompt({ accountId, prompt, reason }, caller = {}) {
+      const text = wrapSettings(() => sanitizePrompt(prompt));
+      return withLock(async () => {
+        const account = await load(accountId);
+        const at = now();
+        const by = changedBy(caller);
+        if (!isOwner(caller) && account.locks?.prompt) {
+          const request = fileRequest(account, { key: "prompt", to: text, reason, by, at });
+          await save(account);
+          return { accountId, prompt: account.prompt ?? "", requested: [request] };
+        }
+        if ((account.prompt ?? "") !== text) appendChange(account, changeEntry({ key: "prompt", from: account.prompt ?? "", to: text, by, reason, at }));
+        account.prompt = text;
+        await save(account);
+        return { accountId, prompt: text, requested: [] };
+      });
+    },
+
+    // Owner only: lock or unlock items so agents cannot change them.
+    async setLocks(id, locks = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner can lock or unlock settings, in the dashboard.", "forbidden", 403);
+      const allowedKeys = new Set([...Object.keys(LIMIT_SPECS), "prompt", "reviewMinutes", "strategyMinutes"]);
+      return withLock(async () => {
+        const account = await load(id);
+        const at = now();
+        account.locks ??= {};
+        for (const [key, locked] of Object.entries(locks)) {
+          if (!allowedKeys.has(key)) throw new ArenaError(`Cannot lock "${key}".`);
+          if (Boolean(account.locks[key]) === Boolean(locked)) continue;
+          if (locked) account.locks[key] = true; else delete account.locks[key];
+          appendChange(account, changeEntry({ key: `lock:${key}`, from: !locked, to: Boolean(locked), by: { kind: "owner", via: "ui" }, at }));
+        }
+        await save(account);
+        return { accountId: id, locks: account.locks };
+      });
+    },
+
+    // A locked item an agent asked to change (also used by the scheduler for cadence).
+    async checkLock(id, key, caller = {}) {
+      const account = await load(id);
+      return !isOwner(caller) && Boolean(account.locks?.[key]);
+    },
+
+    async requestChange(id, { key, to, reason }, caller = {}) {
+      return withLock(async () => {
+        const account = await load(id);
+        const request = fileRequest(account, { key, to, reason, by: changedBy(caller), at: now() });
+        await save(account);
+        return request;
+      });
+    },
+
+    // Owner approves (optionally with a different value) or rejects an agent's request.
+    async resolveRequest(id, requestId, { approve, value, note } = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner resolves change requests.", "forbidden", 403);
+      return withLock(async () => {
+        const account = await load(id);
+        const request = (account.requests ?? []).find((entry) => entry.id === requestId);
+        if (!request) throw new ArenaError(`Request ${requestId} not found.`, "not_found", 404);
+        if (request.status !== "pending") return { request };
+        const at = now();
+        const final = value === undefined ? request.to : value;
+        if (approve) {
+          if (request.key === "prompt") {
+            appendChange(account, changeEntry({ key: "prompt", from: account.prompt ?? "", to: final, by: { kind: "owner", via: "ui", approved: request.id }, reason: request.reason, at }));
+            account.prompt = wrapSettings(() => sanitizePrompt(final));
+          } else if (request.key in LIMIT_SPECS) {
+            applyLimitChanges(account, { [request.key]: final }, { kind: "owner", via: "ui", approved: request.id }, at, request.reason);
+          }
+        }
+        Object.assign(request, { status: approve ? "approved" : "rejected", resolvedAt: at, resolvedValue: approve ? final : null, note: note ? String(note).slice(0, 500) : null });
+        await save(account);
+        return { request, limits: riskPolicyOf(account), prompt: account.prompt ?? "" };
+      });
+    },
+
+    // ---- Workbench-wide settings: fees per market, global / market prompts ----------------------
+
+    async workbenchSettings() {
+      return workbench.read();
+    },
+
+    async setFees({ market, fees = {}, reason }, caller = {}) {
+      const key = `fees.${market}`;
+      return withLock(() => workbench.change(async (settings, { by, at, owner }) => {
+        if (!owner && settings.locks[key]) throw new ArenaError(`「${market} 费率」被主人锁定，Agent 不能改。`, "locked", 423);
+        const next = wrapSettings(() => sanitizeFees(market, fees, settings.fees[market]));
+        for (const [field, to] of Object.entries(next)) {
+          if (settings.fees[market][field] !== to) appendChange(settings, changeEntry({ key: `${key}.${field}`, from: settings.fees[market][field], to, by, reason, at }));
+        }
+        settings.fees[market] = next;
+        return { market, fees: next };
+      }, caller));
+    },
+
+    async setWorkbenchPrompt({ scope, prompt, reason }, caller = {}) {
+      if (!["global", "A", "HK", "US"].includes(scope)) throw new ArenaError("scope must be global, A, HK or US.");
+      const text = wrapSettings(() => sanitizePrompt(prompt));
+      return withLock(() => workbench.change(async (settings, { by, at, owner }) => {
+        if (!owner && settings.locks[`prompt.${scope}`]) throw new ArenaError(`「${scope} 前置提示词」被主人锁定，Agent 不能改。`, "locked", 423);
+        if (settings.prompts[scope] !== text) appendChange(settings, changeEntry({ key: `prompt.${scope}`, from: settings.prompts[scope], to: text, by, reason, at }));
+        settings.prompts[scope] = text;
+        return { scope, prompt: text };
+      }, caller));
+    },
+
+    // Owner only: concurrency, default review cadence and workbench locks.
+    async updateWorkbench(input = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner changes workbench settings.", "forbidden", 403);
+      return withLock(() => workbench.change(async (settings, { by, at }) => {
+        if (input.maxConcurrentAgents !== undefined) {
+          const value = Number(input.maxConcurrentAgents);
+          if (!Number.isInteger(value) || value < 1 || value > 16) throw new ArenaError("maxConcurrentAgents must be 1–16.");
+          appendChange(settings, changeEntry({ key: "maxConcurrentAgents", from: settings.maxConcurrentAgents, to: value, by, at }));
+          settings.maxConcurrentAgents = value;
+        }
+        if (input.defaultReviewMinutes !== undefined) {
+          const value = Number(input.defaultReviewMinutes);
+          if (!Number.isInteger(value) || value < 5 || value > 240) throw new ArenaError("defaultReviewMinutes must be 5–240.");
+          appendChange(settings, changeEntry({ key: "defaultReviewMinutes", from: settings.defaultReviewMinutes, to: value, by, at }));
+          settings.defaultReviewMinutes = value;
+        }
+        if (input.locks && typeof input.locks === "object") {
+          for (const [key, locked] of Object.entries(input.locks)) {
+            if (!/^(fees|prompt)\.(global|A|HK|US)$/.test(key)) throw new ArenaError(`Cannot lock "${key}".`);
+            if (locked) settings.locks[key] = true; else delete settings.locks[key];
+          }
+        }
+        return settings;
+      }, caller));
+    },
+
     // Dashboard-only administration. Agents cannot archive, reset or re-fund accounts.
     async updateAccount(id, input) {
       return withLock(async () => {
@@ -1300,8 +1586,13 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         // The owner's risk policy and liquidity cap are dashboard-only: no MCP tool reaches this method.
         if (input.riskPolicy !== undefined) {
           if (!input.riskPolicy || typeof input.riskPolicy !== "object" || Array.isArray(input.riskPolicy)) throw new ArenaError("riskPolicy must be an object.");
-          account.riskPolicy = { ...sanitizeRiskPolicy(input.riskPolicy, account.riskPolicy), updatedAt: now() };
+          applyLimitChanges(account, input.riskPolicy, { kind: "owner", via: "ui" }, now(), input.reason);
           addEvent(account, now(), { type: "risk-policy", message: "Owner updated the risk policy.", policy: account.riskPolicy });
+        }
+        if (input.prompt !== undefined) {
+          const text = sanitizeRiskText(input.prompt);
+          if ((account.prompt ?? "") !== text) appendChange(account, changeEntry({ key: "prompt", from: account.prompt ?? "", to: text, by: { kind: "owner", via: "ui" }, at: now() }));
+          account.prompt = text;
         }
         if (input.resetBreaker) {
           const equity = valuation(account).equity;
@@ -1546,7 +1837,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
 
 let defaultArena;
 export function getArena() {
-  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions });
+  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions, intradayProvider: getIntradayBars });
   return defaultArena;
 }
 

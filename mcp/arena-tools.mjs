@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ARENA_MARKETS, callerFromClient, getArena } from "./arena.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { loadPreferences, marketFromSymbol, savePreferences } from "./core.mjs";
+import { BOARD_OPTIONS, DEFAULT_FEES, LIMIT_SPECS, limitsText } from "./trader-settings.mjs";
 
 const accountId = z.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_…) returned by arena_register_account or arena_my_accounts.");
 const market = z.enum(["A", "HK", "US"]);
@@ -90,14 +91,14 @@ export function registerArenaTools(server, { toolResult, toolError }) {
     title: "Get arena account",
     description: [
       "Sync with live quotes (fills resting orders that became marketable, expires day orders, marks positions) and return cash, positions (with stop-loss / take-profit levels), open orders, recent trades, journal, account events (fills by the background matcher, stops, dividends, splits, suspensions) and performance metrics.",
-      "Also returns the owner's riskPolicy (read-only for agents: max position %, max exposure %, drawdown circuit breaker), the current drawdown/breaker state and run health (missed trading days).",
+      "Also returns the hard limits (limits: keep-cash %, max holdings, per-position %, new positions per day, risk per trade, boards, …) with limitStatus (room left: buyableValue, positionsLeft, newLeftToday), the drawdown/breaker state and run health (missed trading days).",
     ].join(" "),
     inputSchema: { accountId, limit: z.number().int().min(1).max(200).optional().describe("Number of recent orders/trades/journal entries (default 30).") },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, async ({ accountId: id, limit = 30 }) => {
     const account = await getArena().getAccount(id, { limit });
     const { equity, ...rest } = account;
-    return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, `${compactAccount(account)}\n${policyText(account.riskPolicy)}`];
+    return [{ ...rest, equityPoints: equity.length, equityRecent: equity.slice(-20) }, `${compactAccount(account)}\n${limitsText(account.limits, account.limitStatus)}\n${policyText(account.riskPolicy)}`];
   });
 
   register("arena_place_order", {
@@ -108,7 +109,7 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       "Market orders need an open session. Limit orders rest and a background matcher fills them every 1-2 minutes during the session when the price is marketable; 'day' orders expire at the session close, 'gtc' after 30 days.",
       "One account may take at most a configured share of the day's volume (default 5%); larger orders fill partially and the rest keeps resting. Suspended stocks (no trades today) do not fill.",
       "BUY orders may carry stopLoss / takeProfit (price or % of average cost); the matcher sells at market when a fresh quote crosses the level, subject to T+1 and limit-down.",
-      "The owner's risk policy (see arena_get_account) can reject buys; agents cannot change it.",
+      "Hard limits (see arena_get_account limits / limitStatus; default: keep 20% cash) reject buys that break them. Change unlocked limits with arena_set_limits.",
       "Always give the reason (thesis, signal, risk) so the decision can be reviewed later. Rejections are recorded and count against discipline metrics.",
     ].join(" "),
     inputSchema: {
@@ -242,6 +243,62 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       mirrored = true;
     }
     return [{ ...result, mirroredToDashboard: mirrored }, `Stock pool set to ${result.watchlist.symbols.length} symbols${mirrored ? "; dashboard watchlist updated" : ""}.`];
+  });
+
+  const limitShape = Object.fromEntries(Object.entries(LIMIT_SPECS).map(([key, spec]) => [key,
+    (spec.type === "boards" ? z.array(z.enum(BOARD_OPTIONS)) : spec.type === "int" ? z.number().int().min(spec.min).max(spec.max) : z.number().min(spec.min).max(spec.max))
+      .nullable().optional().describe(`${spec.zh} / ${spec.en}: ${spec.hint}. null turns it off.`)]));
+
+  register("arena_get_settings", {
+    title: "Get trader settings",
+    description: "Read a trader's hard limits (with room left), lock state, prompt, pending change requests, the market's fee schedule and the global / market prompts. Settings change at any time from the dashboard or these MCP tools.",
+    inputSchema: { accountId },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ accountId: id }) => {
+    const settings = await getArena().getSettings(id);
+    const locked = Object.keys(settings.locks ?? {});
+    return [settings, `${limitsText(settings.limits, settings.limitStatus)}${locked.length ? `\nLocked by the owner: ${locked.join(", ")}.` : ""}${settings.requests.length ? `\n${settings.requests.length} change request(s) waiting for the owner.` : ""}`];
+  });
+
+  register("arena_set_limits", {
+    title: "Set trader limits",
+    description: [
+      "Change a trader's hard limits (checked by the arena before every buy). Only the keys you pass change; null turns a limit off.",
+      "Items the owner locked are not changed: they become a change request the owner approves or rejects in the dashboard. Every change is logged with who made it and the reason.",
+    ].join(" "),
+    inputSchema: { accountId, ...limitShape, reason: z.string().min(4).max(500).describe("Why you change it; shown to the owner and in the change log.") },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ accountId: id, reason, ...limits }) => {
+    const result = await getArena().setLimits({ accountId: id, limits, reason }, caller());
+    const lines = [
+      result.applied.length ? `Changed: ${result.applied.map((entry) => `${entry.key} ${JSON.stringify(entry.from)} → ${JSON.stringify(entry.to)}`).join(", ")}.` : "Nothing changed.",
+      result.requested.length ? `Locked by the owner, filed as request(s): ${result.requested.map((entry) => entry.key).join(", ")}.` : null,
+      limitsText(result.limits, result.limitStatus),
+    ].filter(Boolean);
+    return [result, lines.join("\n")];
+  });
+
+  register("arena_set_prompt", {
+    title: "Set trader prompt",
+    description: "Replace a trader's own prompt (added after the global and market prompts in every round). If the owner locked it, the change becomes a request.",
+    inputSchema: { accountId, prompt: z.string().max(4000), reason: z.string().max(500).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    const result = await getArena().setPrompt(input, caller());
+    return [result, result.requested.length ? "The prompt is locked by the owner; filed a change request." : "Trader prompt updated."];
+  });
+
+  register("arena_set_fees", {
+    title: "Set market fee schedule",
+    description: [
+      "Change the fee schedule for one market (shared by every trader in it); later fills use it. Rates are fractions: 0.00025 = 0.025%.",
+      `Fields: A ${Object.keys(DEFAULT_FEES.A).join(", ")}; HK ${Object.keys(DEFAULT_FEES.HK).join(", ")}; US ${Object.keys(DEFAULT_FEES.US).join(", ")}. Rejected when the owner locked the market's fees.`,
+    ].join(" "),
+    inputSchema: { market, fees: z.record(z.number()).describe("Numeric fields to change, e.g. { commissionRate: 0.0002, minCommission: 5 }."), waiveMinimum: z.boolean().optional().describe("A / HK: true = no minimum commission (免五)."), reason: z.string().max(500).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ market: selected, fees, waiveMinimum, reason }) => {
+    const result = await getArena().setFees({ market: selected, fees: { ...fees, ...(waiveMinimum === undefined ? {} : { waiveMinimum }) }, reason }, caller());
+    return [result, `${result.market} fees: ${Object.entries(result.fees).map(([key, value]) => `${key} ${value}`).join(", ")}.`];
   });
 
   register("arena_leaderboard", {

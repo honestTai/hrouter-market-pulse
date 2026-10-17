@@ -5,7 +5,7 @@ import { ApprovalCard, PausedCard, PoolCard, RequestCard, TraderCard, useRequest
 import { AgentMark, Button, Card, CardTitle, Empty, ErrorNote, Segmented, Signed, Spinner, Stat } from '@/components/ui'
 import { NewTraderDialog } from '@/components/NewTrader'
 import { AGENT_NAME, BENCHMARK_NAME, MARKET_NAME } from '@/lib/format'
-import { locale, t } from '@/lib/i18n'
+import { isEnglish, locale, t } from '@/lib/i18n'
 import { useAccounts, useApprovals, usePools, useSchedules, useUsage } from '@/lib/queries'
 
 const today = () => new Intl.DateTimeFormat(locale(), { month: 'long', day: 'numeric', weekday: 'short' }).format(new Date())
@@ -41,7 +41,7 @@ export function HomePage() {
         actions={<Button variant="primary" size="lg" onClick={() => setCreating(true)}><Plus className="size-4" />{t('新建交易员')}</Button>} />
       <ErrorNote error={error} />
 
-      <div className="grid grid-cols-4 gap-4 max-lg:grid-cols-2 max-sm:grid-cols-1">
+      <div className="grid grid-cols-4 gap-4 max-lg:grid-cols-2 max-sm:gap-3">
         <Card className="p-4"><Stat label={t('今日领先')} value={leader ? <Signed value={leader.metrics.todayReturnPct} className="text-[20px]" /> : '—'} sub={leader?.name ?? t('还没有交易员')} /></Card>
         <Card className="p-4"><Stat label={t('跑赢基准')} value={<>{beating}<span className="text-sm text-ink-3"> / {accounts.length}</span></>} sub={[...new Set(accounts.map((account) => account.market))].map((key) => BENCHMARK_NAME[key]).join(' · ') || '—'} /></Card>
         <Card className="p-4"><Stat label={t('今日成交 / 被边界拦下')} value={<>{fills}<span className="text-sm text-ink-3"> / {rejected}</span></>} sub={t('拦截原因在交易员页的时间线里')} /></Card>
@@ -88,7 +88,7 @@ export function HomePage() {
                   </div>
                 </div>
               )
-            }) : <div className="text-[13px] text-ink-3">{t('现在没有在跑的复查或策略。')}{schedules.data?.service.state !== 'running' ? t('常驻服务没在运行，调度不会按时触发。') : ''}</div>}
+            }) : <div className="text-[13px] text-ink-3">{[t('现在没有在跑的复查或策略。'), schedules.data?.service.state !== 'running' ? t('常驻服务没在运行，调度不会按时触发。') : ''].filter(Boolean).join(isEnglish() ? ' ' : '')}</div>}
           </Card>
 
           <Card className="flex flex-col gap-3 p-4">

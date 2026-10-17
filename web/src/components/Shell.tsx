@@ -5,7 +5,7 @@ import { BookOpen, Bot, CandlestickChart, Clock, Code2, FileText, LayoutDashboar
 import { get } from '@/lib/api'
 import { useAccounts, useEnv, useLibrary, usePools } from '@/lib/queries'
 import { AGENT_NAME, MARKET_NAME } from '@/lib/format'
-import { locale, t } from '@/lib/i18n'
+import { isEnglish, locale, t } from '@/lib/i18n'
 import logo from '@/assets/logo.png'
 import { AgentMark, Dot, cn } from './ui'
 
@@ -21,7 +21,7 @@ const hhmm = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, 
 function nextOpenText(at: string | null, market: string) {
   if (!at) return ''
   const zone = { A: 'Asia/Shanghai', HK: 'Asia/Hong_Kong', US: 'America/New_York' }[market]
-  const local = new Intl.DateTimeFormat(locale(), { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(at))
+  const local = new Intl.DateTimeFormat(locale(), { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(at)).replace(',', '')
   return zone === 'Asia/Shanghai' ? local : t('{time}（北京时间）', { time: local })
 }
 
@@ -76,10 +76,11 @@ function MarketClock() {
         const session = data?.[market]
         const open = session?.status === 'open'
         return (
-          <div key={market} className="flex items-center gap-2">
+          <div key={market} className="flex items-center gap-2" title={session ? STATUS_TEXT[session.status] ?? session.status : undefined}>
             <Dot tone={open ? 'ok' : session?.status === 'break' ? 'warn' : 'muted'} />
-            <span className="w-9 text-[13px] font-semibold">{MARKET_NAME[market]}</span>
-            <span className={cn('flex-1 truncate', open ? 'text-ok' : 'text-ink-3')}>{session ? STATUS_TEXT[session.status] ?? session.status : '—'}</span>
+            <span className={cn('shrink-0 text-[13px] font-semibold', isEnglish() ? 'w-7' : 'w-9')}>{isEnglish() ? { A: 'CN', HK: 'HK', US: 'US' }[market] : MARKET_NAME[market]}</span>
+            {/* English status words don't fit next to the next-open time; the dot and tooltip carry it. */}
+            <span className={cn('min-w-0 flex-1 truncate', open ? 'text-ok' : 'text-ink-3')}>{session ? (open || !isEnglish() ? STATUS_TEXT[session.status] ?? session.status : '') : '—'}</span>
             {session && <span className="font-mono text-ink-3">{open ? hhmm(session.minute) : nextOpenText(session.nextOpenAt, 'A')}</span>}
           </div>
         )

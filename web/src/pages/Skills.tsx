@@ -9,7 +9,7 @@ import { dateTime, MARKET_NAME, safeUrl } from '@/lib/format'
 import { t } from '@/lib/i18n'
 import { useAccounts, useAction, useClaudeSkills, useLibrary, useSkillUpdates } from '@/lib/queries'
 
-const CATEGORY: Record<string, string> = { discipline: t('纪律'), team: t('团队'), style: t('流派'), research: t('研究'), imported: t('导入') }
+const CATEGORY: Record<string, string> = { discipline: t('纪律'), team: t('团队'), style: t('流派'), research: t('研究'), imported: t('导入的') }
 
 export function SkillsPage() {
   const library = useLibrary()
@@ -121,7 +121,7 @@ function ImportDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(value) => !value && onClose()} title={t('导入 skill')} description={t('只复制 SKILL.md 和参考资料（Markdown），不复制、不运行任何脚本。导入后在交易员设置里勾选才会用上。')} width={620}>
       <div className="flex flex-col gap-3">
-        <Segmented label={t('来源')} value={kind} onChange={setKind} options={[['git', t('Git 仓库')], ['claude', '~/.claude/skills'], ['folder', t('本机文件夹')]]} />
+        <div><Segmented label={t('来源')} value={kind} onChange={setKind} options={[['git', t('Git 仓库')], ['claude', '~/.claude/skills'], ['folder', t('本机文件夹')]]} /></div>
         {kind === 'git' && <>
           <Field label={t('仓库地址（https）')}><Input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://github.com/owner/repo" /></Field>
           <Field label={t('子目录（SKILL.md 所在的目录，可选）')}><Input value={subdir} onChange={(event) => setSubdir(event.target.value)} placeholder="skills/my-skill" /></Field>

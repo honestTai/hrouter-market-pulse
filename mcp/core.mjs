@@ -1585,10 +1585,10 @@ export async function scanMarket({ market = "A", view = "stocks", sort = "change
   const bounded = Math.max(1, Math.min(100, Number(limit) || 30));
   const fid = SCAN_SORTS[sort] ?? "f3";
   if (view === "sectors" || view === "concepts") {
-    const payload = await fetchJson(`${EASTMONEY_LIST}?pn=1&pz=${bounded}&po=${order === "asc" ? 0 : 1}&np=1&fltt=2&invt=2&fid=${fid}&fs=${view === "concepts" ? "m:90+t:3" : "m:90+t:2"}&fields=f2,f3,f6,f8,f12,f14,f62,f104,f105,f128,f140`, 10000, false);
+    const payload = await fetchJson(`${EASTMONEY_LIST}?pn=1&pz=${bounded}&po=${order === "asc" ? 0 : 1}&np=1&fltt=2&invt=2&fid=${fid}&fs=${view === "concepts" ? "m:90+t:3" : "m:90+t:2"}&fields=f2,f3,f6,f8,f12,f14,f62,f104,f105,f128,f140,f141`, 10000, false);
     return {
       market: "A", view, sort, asOf: new Date().toISOString(), source: "East Money",
-      rows: (payload?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, changePct: number(row.f3), amount: number(row.f6), turnoverPct: number(row.f8), mainNetInflow: number(row.f62), advancers: row.f104 ?? null, decliners: row.f105 ?? null, leader: row.f128 ? { name: row.f128, symbol: scanSymbol(row.f140, null, "A") } : null })),
+      rows: (payload?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, changePct: number(row.f3), amount: number(row.f6), turnoverPct: number(row.f8), mainNetInflow: number(row.f62), advancers: row.f104 ?? null, decliners: row.f105 ?? null, leader: row.f128 ? { name: row.f128, symbol: scanSymbol(row.f140, Number(row.f141), "A") } : null })),
     };
   }
   let fs;

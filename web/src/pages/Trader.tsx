@@ -3,22 +3,25 @@ import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ChevronLeft, Send, X } from 'lucide-react'
 import type { AccountDetail, Job, Message, Run, RunEvent } from '@/lib/api'
 import { AGENT_NAME, agentKind, AUTONOMY_NAME, BENCHMARK_NAME, changeLabel, changedByLabel, compact, dateTime, FAILURE_KIND, MARKET_NAME, money, num, RUN_STATUS, SIDE_NAME, TEAM_ROLE, time, valueLabel } from '@/lib/format'
-import { locale, t } from '@/lib/i18n'
+import { isEnglish, locale, t } from '@/lib/i18n'
 import { useAccount, useAction, useJob, useRunEvents, useRuns } from '@/lib/queries'
 import { ApprovalCard, jobState } from '@/components/trader-bits'
 import { AgentMark, Button, Card, CardTitle, Dot, Empty, ErrorNote, Pill, Segmented, Select, Signed, Spinner, Tabs, Textarea, cn } from '@/components/ui'
 import { Expandable } from '@/components/Expandable'
+import { Markdown } from '@/components/Markdown'
 import { TraderStrategyTab } from './trader/Strategy'
 import { TraderSettingsTab } from './trader/Settings'
 import { TraderHistoryTab, TraderReportsTab, TraderChangesTab } from './trader/History'
 
-type Tab = 'overview' | 'strategy' | 'settings' | 'reports' | 'orders' | 'changes'
+const TABS = ['overview', 'strategy', 'settings', 'reports', 'orders', 'changes'] as const
+type Tab = typeof TABS[number]
 
 export function TraderPage() {
   const { id } = useParams({ from: '/traders/$id' })
   const search = useSearch({ from: '/traders/$id' })
   const navigate = useNavigate()
-  const tab = (search.tab ?? 'overview') as Tab
+  // Unknown or old tab names (e.g. ?tab=history) fall back to the overview instead of a blank page.
+  const tab: Tab = TABS.includes(search.tab as Tab) ? search.tab as Tab : search.tab === 'history' ? 'orders' : 'overview'
   const account = useAccount(id)
   const { job } = useJob(id)
   const setTab = (next: Tab) => navigate({ to: '/traders/$id', params: { id }, search: { tab: next === 'overview' ? undefined : next } })
@@ -68,7 +71,7 @@ function TraderHeader({ account, job }: { account: AccountDetail; job: Job | und
           {job?.backup && <><span>·</span><span>{t('备用 {agent}', { agent: AGENT_NAME[job.backup.type] ?? job.backup.type })}{job.backup.model ? ` ${job.backup.model}` : ''}</span></>}
           <span>·</span><span>{MARKET_NAME[account.market]}</span>
           {account.template && <><span>·</span><span>{t('模板 {id}', { id: account.template })}</span></>}
-          <span>·</span><span>{job?.mode === 'director' || job?.strategy ? t('Agent 主控') : job?.runner.type === 'strategy' ? t('纯代码策略') : t('全托管轮次')}</span>
+          <span>·</span><span>{job?.mode === 'director' || job?.strategy ? t('Agent 主控') : job?.runner.type === 'strategy' ? t('纯代码策略') : t('每轮看盘')}</span>
           {job?.team?.enabled && <><span>·</span><span>{t('团队模式')}</span></>}
           {agent && <><span>·</span><Pill tone={autonomy === 'full' ? 'neutral' : 'accent'}>{AUTONOMY_NAME[autonomy]}</Pill></>}
         </div>
@@ -175,7 +178,7 @@ function Overview({ account, job }: { account: AccountDetail; job: Job | undefin
               {t('脚本先看：无变化跳过 {s} 次，提前叫醒 {w} 次', { s: gate.skipped ?? 0, w: gate.wakes ?? 0 })}
             </div>
           ) : null}
-          {(strategyRuns.length > 0 || job?.strategy) && <div className="mt-2 border-t border-line pt-2.5 text-xs text-ink-2">{t('代码策略')}{job?.strategy ? t('每 {n} 分钟执行', { n: job.strategy.intervalMinutes }) : ''}{t('：{day} {n} 次', { day: dayLabel, n: strategyRuns.length })}{strategyRuns.some((run) => run.status === 'failed') ? t('，失败 {n} 次', { n: strategyRuns.filter((run) => run.status === 'failed').length }) : ''}</div>}
+          {(strategyRuns.length > 0 || job?.strategy) && <div className="mt-2 border-t border-line pt-2.5 text-xs text-ink-2">{t('代码策略')}{job?.strategy ? `${isEnglish() ? ' · ' : ''}${t('每 {n} 分钟执行', { n: job.strategy.intervalMinutes })}` : ''}{t('：{day} {n} 次', { day: dayLabel, n: strategyRuns.length })}{strategyRuns.some((run) => run.status === 'failed') ? t('，失败 {n} 次', { n: strategyRuns.filter((run) => run.status === 'failed').length }) : ''}</div>}
         </Card>
 
         <Conversation account={account} runs={list} focus={focus} onFocus={setSelected} job={job} />
@@ -266,7 +269,7 @@ function Conversation({ account, runs, focus, onFocus, job }: { account: Account
           return (
             <TraderBubble key={index} kind={run.runner === 'acp' ? 'acp' : run.runner} at={run.startedAt}
               label={`${run.trigger === 'manual' ? t('手动复查') : run.trigger === 'wake' ? t('提前复查') : t('复查')}${run.backupFor ? t('（备用 {agent} 代班）', { agent: AGENT_NAME[run.runner] ?? run.runner }) : ''}`}
-              status={run.status} text={run.status === 'running' ? t('正在复查…') : (run.stdoutTail ?? '').trim().slice(-900) || run.error || t('（没有文字输出）')}
+              status={run.status} text={run.status === 'running' ? t('正在复查…') : (run.stdoutTail ?? '').replace(/^…/, '').trim() || run.error || t('（没有文字输出）')}
               onProcess={() => onFocus(run.id)} focused={focus === run.id} note={run.team?.length ? t('团队 {n} 份报告', { n: run.team.length }) : run.changes ? t('变化：{text}', { text: run.changes.slice(0, 80) }) : undefined} />
           )
         }) : <Empty title={t('还没有对话')}>{t('交易员每次复查后，它的结论会出现在这里。你可以先问它一个问题，或给它下一条指令。')}</Empty>}
@@ -300,18 +303,33 @@ function OwnerBubble({ at, label, text, children }: { at: string; label: string;
   )
 }
 
+// Agent replies are Markdown; long ones start folded so the conversation stays scannable.
+function LongText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  const long = text.length > 700 || text.split('\n').length > 14
+  return (
+    <div className="mt-1">
+      <div className={cn('relative break-words', long && !open && 'max-h-[260px] overflow-hidden')}>
+        <Markdown text={text} className="text-[14px]" />
+        {long && !open && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface to-transparent" />}
+      </div>
+      {long && <button type="button" onClick={() => setOpen(!open)} className="mt-1 text-xs text-accent-ink underline-offset-2 hover:underline">{open ? t('收起') : t('展开全文')}</button>}
+    </div>
+  )
+}
+
 function TraderBubble({ kind, at, label, status, text, onProcess, focused, note }: { kind: string | undefined; at: string | null; label: string; status: string; text: string; onProcess?: () => void; focused?: boolean; note?: string }) {
   return (
     <div className="flex gap-2.5">
       <AgentMark kind={kind} size={28} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
-          <span>{t('交易员')} · {label}{at ? ` · ${dateTime(at)}` : ''}</span>
+          <span>{t('交易员 · {label}', { label })}{at ? ` · ${dateTime(at)}` : ''}</span>
           {status !== 'ok' && <Pill tone={status === 'running' ? 'accent' : status === 'no-round' ? 'warn' : 'bad'}>{RUN_STATUS[status] ?? status}</Pill>}
           {note && <span className="truncate text-ink-3">{note}</span>}
           {onProcess && <button type="button" onClick={onProcess} className={cn('underline-offset-2 hover:underline', focused && 'text-accent-ink')}>{t('看过程')}</button>}
         </div>
-        <p className="m-0 mt-1 whitespace-pre-wrap break-words text-[14px]">{text}</p>
+        <LongText text={text} />
       </div>
     </div>
   )
@@ -370,7 +388,7 @@ function Holdings({ account }: { account: AccountDetail }) {
       <CardTitle extra={<><span className="font-mono text-xs text-ink-3">{account.positions.length}</span><span className="ml-auto text-xs text-ink-3">{t('委托 {a} · 今日成交 {b}', { a: account.openOrders.length, b: account.metrics.todayFills ?? 0 })}</span></>}>{t('持仓')}</CardTitle>
       {account.positions.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[13px]">
+          <table className="w-full border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
             <thead><tr className="text-left text-xs text-ink-3"><th className="py-1 font-medium">{t('股票')}</th><th className="text-right font-medium">{t('仓位')}</th><th className="text-right font-medium">{t('盈亏')}</th><th className="text-right font-medium">{t('止损')}</th></tr></thead>
             <tbody>
               {account.positions.map((position) => {
@@ -431,7 +449,7 @@ function RunProcess({ runId, run }: { runId: string; run: Run | undefined }) {
               )
             })}
           </ol>
-        ) : <div className="mt-3 text-[13px] text-ink-3">{run?.status === 'running' ? t('等第一条事件…') : run?.error ? <span className="text-bad">{run.error}</span> : t('这一轮没有记录过程（旧版本的运行只保存了输出结尾）。')}{run && !list.length && run.stdoutTail && <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-2 p-3 font-mono text-xs scroll-thin">{run.stdoutTail}</pre>}</div>}
+        ) : <div className="mt-3 text-[13px] text-ink-3">{run?.status === 'running' ? t('等第一条事件…') : run?.error ? <span className="text-bad">{run.error}</span> : t('这一轮没有记录过程（旧版本的运行只保存了输出结尾）。')}{run && !list.length && run.stdoutTail && <div className="mt-2 max-h-[420px] overflow-auto rounded-lg bg-surface-2 p-3 text-ink scroll-thin"><Markdown text={run.stdoutTail.replace(/^…/, '')} className="text-[13px]" /></div>}</div>}
       </Card>
     </Expandable>
   )

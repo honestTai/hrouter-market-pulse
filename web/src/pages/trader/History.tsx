@@ -9,6 +9,8 @@ import { CitationList } from '@/components/trader-bits'
 import { Expandable } from '@/components/Expandable'
 import { Button, Card, CardTitle, Dot, Empty, Input, Pager, Pill, Segmented, Select, Signed, Spinner, cn } from '@/components/ui'
 
+const FEE_PART: Record<string, string> = { commission: t('佣金'), stampDuty: t('印花税'), transferFee: t('过户费'), tradingFee: t('交易费'), sfcLevy: t('证监会征费'), frcLevy: t('会财局征费'), settlement: t('结算费'), secFee: t('SEC 费'), taf: 'TAF' }
+
 type HistoryKind = 'trades' | 'orders' | 'journal' | 'events' | 'reports'
 interface HistoryPage<T> { items: T[]; total: number; offset: number; limit: number; facets: { types: string[]; symbols: string[] }; all: number }
 
@@ -97,7 +99,7 @@ function RowDetail({ row, kind, currency }: { row: Trade & Order; kind: 'trades'
       <Pipeline steps={row.pipeline} />
       {row.warnings?.length ? <div className="flex flex-wrap gap-1.5">{row.warnings.map((warning) => <Pill key={warning} tone="warn">{warning}</Pill>)}</div> : null}
       {kind === 'trades' ? <QuoteLine quote={row.quote} label={t('成交时行情')} /> : <QuoteLine quote={row.quoteAtSubmit} label={t('下单时行情')} />}
-      {kind === 'trades' && row.feeBreakdown && <div className="text-xs text-ink-2">{t('费用明细')}：{Object.entries(row.feeBreakdown).map(([key, value]) => `${key} ${money(value, currency, 2)}`).join(' · ')}</div>}
+      {kind === 'trades' && row.feeBreakdown && <div className="text-xs text-ink-2">{t('费用明细')}：{Object.entries(row.feeBreakdown).map(([key, value]) => `${FEE_PART[key] ?? key} ${money(value, currency, 2)}`).join(' · ')}</div>}
       {row.industry && <div className="text-xs text-ink-2">{t('行业：{name}', { name: row.industry })}</div>}
       {row.citations?.length ? <div className="flex flex-col gap-1"><div className="text-xs font-semibold text-ink-3">{t('依据的来源')}</div><CitationList citations={row.citations} /></div> : <div className="text-xs text-ink-3">{t('没有引用来源。')}</div>}
     </div>
@@ -134,7 +136,7 @@ export function TraderHistoryTab({ account }: { account: AccountDetail }) {
           <Expandable title={t('{name} · 委托与成交', { name: account.name })}>
             <Card className="overflow-x-auto p-0">
               {page.isLoading ? <div className="p-4"><Spinner /></div> : !page.data?.items.length ? <div className="p-6 text-center text-[13px] text-ink-3">{t('没有记录。')}</div> : (
-                <table className="w-full min-w-[860px] border-collapse text-[13px]">
+                <table className="w-full min-w-[860px] border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
                   <thead><tr className="text-left text-xs text-ink-3">
                     {expandable && <th className="w-8" aria-label={t('展开')} />}
                     <th className={cn('py-2.5 font-medium', !expandable && 'px-4')}>{t('时间')}</th>
@@ -153,7 +155,7 @@ export function TraderHistoryTab({ account }: { account: AccountDetail }) {
                             <td className={cn('whitespace-nowrap py-2 pr-3 font-mono text-xs text-ink-3', !expandable && 'px-4')}>{dateTime(kind === 'orders' ? row.createdAt : row.at)}</td>
                             {kind === 'trades' && <>
                               <td className="py-2 pr-3"><div className="font-semibold">{row.name}</div><div className="font-mono text-[11px] text-ink-3">{row.symbol}</div></td>
-                              <td className={cn('pr-3', row.side === 'BUY' ? 'text-up' : 'text-down')}>{SIDE_NAME[row.side]}{row.trigger ? `（${row.trigger === 'stop-loss' ? t('止损') : row.trigger === 'take-profit' ? t('止盈') : row.trigger}）` : ''}</td>
+                              <td className={cn('pr-3', row.side === 'BUY' ? 'text-up' : 'text-down')}>{SIDE_NAME[row.side]}{row.trigger ? ` · ${row.trigger === 'stop-loss' ? t('止损') : row.trigger === 'take-profit' ? t('止盈') : row.trigger}` : ''}</td>
                               <td className="text-right font-mono">{row.quantity.toLocaleString(locale())}</td>
                               <td className="text-right font-mono">{num(row.price, row.price < 1 ? 4 : 2)}</td>
                               <td className="pl-3 text-xs text-ink-2">{BASIS[row.fillBasis ?? ''] ?? '—'}{row.quote?.source ? ` · ${row.quote.source}` : ''}{row.citations?.length ? <Pill className="ml-1">{t('{n} 个来源', { n: row.citations.length })}</Pill> : null}</td>
@@ -196,7 +198,7 @@ function ApprovalLog({ approvals, currency }: { approvals: Approval[]; currency:
   if (!approvals.length) return <Empty title={t('还没有确认记录')}>{t('自主级别设成「关键操作确认」或「只给建议」后，等你确认的订单和你的决定会记在这里。')}</Empty>
   return (
     <Card className="overflow-x-auto p-0">
-      <table className="w-full min-w-[760px] border-collapse text-[13px]">
+      <table className="w-full min-w-[760px] border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
         <thead><tr className="text-left text-xs text-ink-3"><th className="px-4 py-2.5 font-medium">{t('提交')}</th><th className="font-medium">{t('订单')}</th><th className="font-medium">{t('为什么要确认')}</th><th className="font-medium">{t('结果')}</th><th className="px-4 font-medium">{t('备注')}</th></tr></thead>
         <tbody>
           {approvals.map((approval) => (
@@ -244,7 +246,7 @@ export function TraderChangesTab({ account }: { account: AccountDetail }) {
       <Card className="flex min-w-0 flex-[999_1_520px] flex-col gap-3 overflow-x-auto p-4">
         <CardTitle>{t('修改记录')}</CardTitle>
         {account.changeLog.length ? (
-          <table className="w-full min-w-[520px] border-collapse text-[13px]">
+          <table className="w-full min-w-[520px] border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
             <tbody>{account.changeLog.map((entry) => (
               <tr key={entry.id} className="border-t border-line align-top">
                 <td className="whitespace-nowrap py-2 pr-3 font-mono text-xs text-ink-3">{dateTime(entry.at)}</td>

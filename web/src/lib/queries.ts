@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { QueryClient, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { get, post, qs, type AccountDetail, type Approval, type Emotion, type EnvReport, type Job, type Leaderboard, type Library, type Pool, type Radar, type Reconcile, type ResearchTask, type Run, type RunEvent, type Schedules, type SkillUpdate, type TraderSettings, type TraderStrategy, type Usage, type WorkbenchSettings } from './api'
+import { isEnglish, t } from './i18n'
 
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 15_000, refetchOnWindowFocus: true, retry: 1 } },
@@ -30,9 +31,15 @@ export const useRunEvents = (runId: string | null | undefined, live = false) => 
 })
 export const usePools = () => useQuery({ queryKey: ['pools'], queryFn: ({ signal }) => get<{ pools: Pool[] }>('/api/arena/pools', signal), refetchInterval: () => (visible() ? 30_000 : false) })
 export const useUsage = () => useQuery({ queryKey: ['usage'], queryFn: ({ signal }) => get<Usage>('/api/arena/usage', signal), refetchInterval: () => (visible() ? 60_000 : false) })
-export const useEnv = () => useQuery({ queryKey: ['env'], queryFn: ({ signal }) => get<EnvReport>('/api/env', signal), staleTime: 60_000 })
+export const useEnv = () => useQuery({ queryKey: ['env'], queryFn: ({ signal }) => get<EnvReport>(`/api/env${isEnglish() ? '?lang=en' : ''}`, signal), staleTime: 60_000 })
 export const useWorkbench = () => useQuery({ queryKey: ['workbench'], queryFn: ({ signal }) => get<WorkbenchSettings>('/api/workbench/settings', signal) })
-export const useLibrary = () => useQuery({ queryKey: ['library'], queryFn: ({ signal }) => get<Library>('/api/library', signal), staleTime: 300_000 })
+// Built-in skill and template names come from the catalog in Chinese; the English dictionary covers them.
+const localLibrary = (library: Library): Library => !isEnglish() ? library : {
+  ...library,
+  skills: library.skills.map((skill) => ({ ...skill, name: t(skill.name), summary: t(skill.summary) })),
+  templates: library.templates.map((template) => ({ ...template, name: t(template.name) })),
+}
+export const useLibrary = () => useQuery({ queryKey: ['library'], queryFn: ({ signal }) => get<Library>('/api/library', signal).then(localLibrary), staleTime: 300_000 })
 export const useTraderSettings = (id: string | undefined) => useQuery({ queryKey: ['trader-settings', id], enabled: Boolean(id), queryFn: ({ signal }) => get<TraderSettings>(`/api/arena/accounts/${id}/settings`, signal) })
 export const useTraderStrategy = (id: string | undefined, version?: number) => useQuery({ queryKey: ['trader-strategy', id, version], enabled: Boolean(id), queryFn: ({ signal }) => get<TraderStrategy>(`/api/arena/accounts/${id}/strategy${qs({ version })}`, signal) })
 

@@ -133,7 +133,7 @@ export function NewTraderDialog({ open, onOpenChange }: { open: boolean; onOpenC
         <div className="flex flex-col gap-4">
           {!quant && <Field label={t('复查间隔（分钟）')} hint={t('Agent 当主控：每隔这么久复查一次，中间由它写的代码策略执行；没变化的时段自动跳过。Agent 自己也能改')}><Input type="number" min={5} max={240} value={review} onChange={(event) => setReview(event.target.value)} className="w-32" /></Field>}
           <Field label={t('自主级别')} hint={AUTONOMY_HINT[autonomy]}>
-            <Segmented label={t('自主级别')} value={autonomy} onChange={setAutonomy} options={(['full', 'confirm', 'suggest'] as const).map((level) => [level, AUTONOMY_NAME[level]])} />
+            <div><Segmented label={t('自主级别')} value={autonomy} onChange={setAutonomy} options={(['full', 'confirm', 'suggest'] as const).map((level) => [level, AUTONOMY_NAME[level]])} /></div>
           </Field>
         </div>
       )}

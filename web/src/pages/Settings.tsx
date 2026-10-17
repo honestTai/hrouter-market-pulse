@@ -12,7 +12,7 @@ import { get, post, type Market } from '@/lib/api'
 import { MARKET_NAME, changeLabel, changedByLabel, dateTime, valueLabel } from '@/lib/format'
 import { prefs, type Colors, type Theme } from '@/lib/prefs'
 import { useAccounts, useAction, useEnv, usePools, useWorkbench } from '@/lib/queries'
-import { language, setLanguage, t } from '@/lib/i18n'
+import { isEnglish, language, setLanguage, t } from '@/lib/i18n'
 
 const SECTIONS: Array<[string, string]> = [['env', t('环境检查')], ['agents', t('Agent 管理')], ['quota', t('额度池')], ['prompts', t('前置提示词')], ['fees', t('费率')], ['push', t('推送')], ['broker', t('券商连接')], ['general', t('通用')]]
 
@@ -51,7 +51,7 @@ function EnvSection() {
   const env = useEnv()
   const client = useQueryClient()
   const [checking, setChecking] = useState(false)
-  const recheck = async () => { setChecking(true); try { client.setQueryData(['env'], await get('/api/env?fresh=1')) } catch (error) { toast.error((error as Error).message) } finally { setChecking(false) } }
+  const recheck = async () => { setChecking(true); try { client.setQueryData(['env'], await get(`/api/env?fresh=1${isEnglish() ? '&lang=en' : ''}`)) } catch (error) { toast.error((error as Error).message) } finally { setChecking(false) } }
   const summary = env.data?.summary
   return (
     <Card className="flex flex-col gap-3 p-[18px]">
@@ -92,7 +92,7 @@ function AgentsSection() {
         </div>
         {env.isLoading ? <Spinner /> : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-[13px]">
+            <table className="w-full min-w-[640px] border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
               <thead><tr className="text-left text-xs text-ink-3"><th className="py-1.5 font-medium">Agent</th><th className="font-medium">{t('接入方式')}</th><th className="font-medium">{t('命令')}</th><th className="font-medium">{t('版本')}</th><th className="font-medium">{t('交易员')}</th><th className="font-medium">{t('状态')}</th></tr></thead>
               <tbody>{env.data?.agents.map((agent) => (
                 <tr key={agent.id} className={cn('border-t border-line', !agent.installed && 'text-ink-3')}>

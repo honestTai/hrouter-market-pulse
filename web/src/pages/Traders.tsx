@@ -34,7 +34,7 @@ export function TradersPage() {
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">{shown.map((account) => <TraderCard key={account.id} account={account} job={jobs.find((job) => job.accountId === account.id)} />)}</div>
         ) : (
           <Card className="overflow-x-auto p-0">
-            <table className="w-full min-w-[900px] border-collapse text-[13px]">
+            <table className="w-full min-w-[900px] border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
               <thead><tr className="text-left text-xs text-ink-3"><th className="px-4 py-2.5 font-medium">{t('交易员')}</th><th className="font-medium">{t('市场')}</th><th className="text-right font-medium">{t('今日')}</th><th className="text-right font-medium">{t('累计')}</th><th className="text-right font-medium">{t('持仓')}</th><th className="text-right font-medium">{t('现金')}</th><th className="px-4 font-medium">{t('状态')}</th></tr></thead>
               <tbody>
                 {shown.map((account) => {

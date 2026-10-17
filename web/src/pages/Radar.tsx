@@ -39,7 +39,7 @@ export function RadarPage() {
       {radar.isLoading ? <Spinner /> : data && <>
         <div className="grid grid-cols-5 gap-4 max-xl:grid-cols-3 max-md:grid-cols-2 max-sm:grid-cols-1">
           <Card className="p-4"><Stat label={t('上涨 / 下跌 / 平盘')} value={b?.advancers !== null && b?.advancers !== undefined ? <><span className="text-up">{b.advancers}</span><span className="text-ink-3"> / </span><span className="text-down">{b.decliners}</span><span className="text-sm text-ink-3"> / {b.unchanged}</span></> : '—'} sub={b?.error ?? t('沪深两市，不含北交所')} /></Card>
-          <Card className="p-4"><Stat label={t('两市成交额')} value={bigAmount(b?.turnover)} sub={(b?.indices ?? []).slice(0, 2).map((index) => `${index.name} ${index.changePct !== null && index.changePct !== undefined ? `${index.changePct > 0 ? '+' : ''}${index.changePct}%` : '—'}`).join(' · ')} /></Card>
+          <Card className="p-4"><Stat label={t('两市成交额')} value={bigAmount(b?.turnover)} sub={(b?.indices ?? []).slice(0, 2).map((index) => `${t(index.name)} ${index.changePct !== null && index.changePct !== undefined ? `${index.changePct > 0 ? '+' : ''}${index.changePct}%` : '—'}`).join(' · ')} /></Card>
           <Card className="p-4"><Stat label={t('涨停 / 炸板 / 跌停')} value={s?.limitUps !== undefined ? <><span className="text-up">{s.limitUps}</span><span className="text-ink-3"> / </span>{s.broken}<span className="text-ink-3"> / </span><span className="text-down">{s.limitDowns}</span></> : '—'} sub={s?.brokenRatePct !== null && s?.brokenRatePct !== undefined ? t('炸板率 {pct}%', { pct: s.brokenRatePct }) : s?.error ?? '—'} /></Card>
           <Card className="p-4"><Stat label={t('最高连板')} value={s?.highestBoard ? t('{n} 板', { n: s.highestBoard }) : '—'} sub={s?.ladder?.[0]?.stocks.map((stock) => stock.name).join(t('、')) ?? '—'} /></Card>
           <Card className={cn('p-4', stage && { bad: 'border-bad-line', warn: 'border-warn-line', ok: 'border-ok-line', accent: 'border-accent-line' }[stage.tone])}><Stat label={t('情绪阶段')} value={stage ? <span className={{ bad: 'text-bad', warn: 'text-warn-ink', ok: 'text-ok', accent: 'text-accent-ink' }[stage.tone]}>{stage.name}</span> : '—'} sub={stage?.hint ?? (emotion.isLoading ? t('计算中…') : '—')} /></Card>
@@ -144,7 +144,7 @@ function DragonTigerCard({ radar }: { radar: Radar }) {
       <CardTitle extra={<span className="text-xs text-ink-3">{t('{date} · 共 {n} 条 · 收盘后约 18:00 公布 · 点一行看买卖营业部', { date: lhb.date, n: lhb.total ?? 0 })}</span>}>{t('龙虎榜 · 净买入前列')}</CardTitle>
       {lhb.error ? <ErrorNote error={lhb.error} /> : lhb.rows?.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-[13px]">
+          <table className="w-full min-w-[720px] border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
             <thead><tr className="text-left text-xs text-ink-3"><th className="py-1.5 font-medium">{t('股票')}</th><th className="text-right font-medium">{t('收盘')}</th><th className="text-right font-medium">{t('涨跌')}</th><th className="text-right font-medium">{t('上榜净买入')}</th><th className="text-right font-medium">{t('买入 / 卖出')}</th><th className="pl-4 font-medium">{t('上榜原因')}</th></tr></thead>
             <tbody>
               {lhb.rows.map((row, index) => (
@@ -198,7 +198,7 @@ function SectorsCard({ radar }: { radar: Radar }) {
     <Card className="flex flex-col gap-3 p-4">
       <CardTitle extra={<span className="ml-auto inline-flex rounded-[9px] bg-sunken p-[3px] text-[13px]">{(['sectors', 'concepts'] as const).map((key) => <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)} className={cn('h-7 rounded-[7px] px-3', view === key ? 'bg-surface font-semibold shadow-[0_1px_2px_rgba(17,19,24,0.08)]' : 'text-ink-2')}>{key === 'sectors' ? t('行业') : t('概念')}</button>)}</span>}>{t('涨幅前列')}</CardTitle>
       {list.error ? <ErrorNote error={list.error} /> : (
-        <table className="w-full border-collapse text-[13px]">
+        <table className="w-full border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
           <thead><tr className="text-left text-xs text-ink-3"><th className="py-1.5 font-medium">{t('名称')}</th><th className="text-right font-medium">{t('涨跌')}</th><th className="text-right font-medium">{t('主力净流入')}</th><th className="pl-3 font-medium">{t('领涨')}</th></tr></thead>
           <tbody>
             {(list.rows ?? []).map((row) => (

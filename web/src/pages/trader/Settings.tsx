@@ -115,7 +115,7 @@ function LimitsCard({ account }: { account: AccountDetail }) {
         return (
           <div key={key} className="flex flex-wrap items-center gap-3 border-t border-line py-2.5">
             <Switch label={label(key)} checked={on} onChange={(value) => setDraft({ ...draft, [key]: value ? (settings.limits[key] ?? defaults[key]) : null })} />
-            <div className="min-w-[200px] flex-1"><div className="font-semibold">{label(key)}</div><div className="text-xs text-ink-3">{t(spec.hint)}</div></div>
+            <div className="min-w-[200px] flex-1"><div className="font-semibold">{label(key)}</div><div className="text-xs text-ink-3">{t(spec.hint)}</div>{change && <div className="text-xs text-ink-3 sm:hidden">{changedByLabel(change.by).replace(t(' · 界面'), '')} · {dateTime(change.at)}</div>}</div>
             {spec.type === 'boards' ? (
               <div className="flex flex-wrap gap-2">{Object.entries(BOARD_NAME).map(([board, name]) => {
                 const list = (draft[key] as string[] | null) ?? []
@@ -129,7 +129,7 @@ function LimitsCard({ account }: { account: AccountDetail }) {
               </label>
             ) : <span className="text-[13px] text-ink-3">{t('不限制')}</span>}
             <LockButton label={label(key)} locked={locked} onChange={(value) => lock.mutate({ locks: { [key]: value } })} />
-            <span className="w-[130px] shrink-0 text-xs text-ink-3">{change ? `${changedByLabel(change.by).replace(t(' · 界面'), '')} · ${dateTime(change.at)}` : t('默认')}</span>
+            <span className="w-[130px] shrink-0 text-xs text-ink-3 max-sm:hidden">{change ? `${changedByLabel(change.by).replace(t(' · 界面'), '')} · ${dateTime(change.at)}` : t('默认')}</span>
           </div>
         )
       })}
@@ -188,7 +188,7 @@ export function FeesForm({ market, fees, locked, onSaved }: { market: string; fe
         {market !== 'US' && <label className="col-span-2 flex items-center gap-2 text-[13px] max-sm:col-span-1"><input type="checkbox" className="size-4 accent-[var(--c-accent)]" checked={Boolean(draft.waiveMinimum)} onChange={(event) => setDraft({ ...draft, waiveMinimum: event.target.checked })} />{t('免五（不收最低佣金）')}</label>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-ink-3">{t('成交价按买一 / 卖一，再加滑点。')}{locked ? t('已锁定：Agent 不能改。') : t('Agent 也能用 arena_set_fees 改。')}</span>
+        <span className="text-xs text-ink-3">{t('成交价按买一 / 卖一，再加滑点。')}{isEnglish() ? ' ' : ''}{locked ? t('已锁定：Agent 不能改。') : t('Agent 也能用 arena_set_fees 改。')}</span>
         <Button size="sm" variant="primary" className="ml-auto" loading={save.isPending} onClick={submit}>{t('保存费率')}</Button>
       </div>
     </div>
@@ -369,7 +369,7 @@ function SkillsCard({ account }: { account: AccountDetail }) {
           <div key={skill.id} className={cn('flex flex-col gap-1.5 rounded-[10px] border p-2.5 text-[13px]', skill.status !== 'available' ? 'opacity-60' : chosen.includes(skill.id) ? 'border-accent-line bg-accent-soft' : 'border-line')}>
             <label className="flex items-start gap-2">
               <input type="checkbox" className="mt-0.5 size-4 accent-[var(--c-accent)]" disabled={skill.status !== 'available'} checked={chosen.includes(skill.id)} onChange={(event) => setChosen(event.target.checked ? [...chosen, skill.id] : chosen.filter((id) => id !== skill.id))} />
-              <span><span className="font-semibold">{skill.name}</span>{skill.source === 'imported' && <Pill className="ml-1">{t('导入')}</Pill>}{overrides[skill.id] && <Pill tone="accent" className="ml-1">{t('已定制 v{n}', { n: overrides[skill.id].version ?? 1 })}</Pill>}<span className="block text-xs text-ink-3">{skill.summary}</span></span>
+              <span><span className="font-semibold">{skill.name}</span>{skill.source === 'imported' && <Pill className="ml-1">{t('导入的')}</Pill>}{overrides[skill.id] && <Pill tone="accent" className="ml-1">{t('已定制 v{n}', { n: overrides[skill.id].version ?? 1 })}</Pill>}<span className="block text-xs text-ink-3">{skill.summary}</span></span>
             </label>
             {chosen.includes(skill.id) && <button type="button" className="self-end text-xs text-accent-ink hover:underline" onClick={() => setEditing(skill.id)}>{t('定制')}</button>}
           </div>

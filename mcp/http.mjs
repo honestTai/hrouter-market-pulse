@@ -219,7 +219,8 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
         const reconcileRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/reconcile$/);
         if (reconcileRead) return respond(response, 200, await (await arenaReady).reconcile(reconcileRead[1]));
         if (url.pathname === "/api/env") {
-          if (!envCache || Date.now() - envCache.at > 60000 || url.searchParams.get("fresh") === "1") envCache = { at: Date.now(), value: await checkEnvironment({ arena: await arenaReady, scheduler: await schedulerReady }) };
+          const language = url.searchParams.get("lang") === "en" ? "en" : "zh";
+          if (!envCache || envCache.language !== language || Date.now() - envCache.at > 60000 || url.searchParams.get("fresh") === "1") envCache = { at: Date.now(), language, value: await checkEnvironment({ arena: await arenaReady, scheduler: await schedulerReady, language }) };
           return respond(response, 200, { ...envCache.value });
         }
         const librarySkill = url.pathname.match(/^\/api\/library\/(skills|strategies)\/([a-z0-9-]{2,60})$/);

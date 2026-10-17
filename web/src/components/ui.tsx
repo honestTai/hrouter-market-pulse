@@ -178,12 +178,13 @@ export function LockButton({ locked, onChange, label }: { locked: boolean; onCha
 export function Sparkline({ points, height = 44, className }: { points: number[]; height?: number; className?: string }) {
   if (points.length < 2) return <div style={{ height }} className={cn('rounded bg-surface-2', className)} />
   const min = Math.min(...points), max = Math.max(...points)
-  const span = max - min || 1
-  const coords = points.map((value, index) => `${(index / (points.length - 1)) * 280},${height - 4 - ((value - min) / span) * (height - 8)}`).join(' ')
-  const up = points.at(-1)! >= points[0]
+  const span = max - min
+  // A flat curve sits in the middle in a neutral color instead of hugging the bottom in "up" red.
+  const coords = points.map((value, index) => `${(index / (points.length - 1)) * 280},${span ? height - 4 - ((value - min) / span) * (height - 8) : height / 2}`).join(' ')
+  const change = points.at(-1)! - points[0]
   return (
     <svg viewBox={`0 0 280 ${height}`} width="100%" height={height} preserveAspectRatio="none" aria-hidden className={className}>
-      <polyline fill="none" stroke={up ? 'var(--c-up)' : 'var(--c-down)'} strokeWidth="1.8" points={coords} />
+      <polyline fill="none" stroke={!span || change === 0 ? 'var(--c-line-strong)' : change > 0 ? 'var(--c-up)' : 'var(--c-down)'} strokeWidth="1.8" vectorEffect="non-scaling-stroke" points={coords} />
     </svg>
   )
 }

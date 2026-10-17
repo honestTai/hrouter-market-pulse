@@ -72,7 +72,7 @@ export function ArenaPage() {
             <Card className="flex flex-col gap-2.5 p-4">
               <CardTitle extra={<span className="text-xs text-ink-3">{t('按累计收益排序')}</span>}>{t('排行榜')}</CardTitle>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[820px] border-collapse text-[13px]">
+                <table className="w-full min-w-[820px] border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
                   <thead><tr className="text-right text-xs text-ink-3"><th className="py-1.5 text-left font-medium">{t('交易员')}</th><th className="text-left font-medium">{t('流派')}</th><th className="font-medium">{t('累计')}</th><th className="font-medium">{t('今日')}</th><th className="font-medium">{t('超额')}</th><th className="font-medium">{t('最大回撤')}</th><th className="font-medium">{t('胜率')}</th><th className="font-medium">{t('成交 / 拒单')}</th></tr></thead>
                   <tbody>{group.accounts.map((account) => {
                     return (
@@ -95,7 +95,7 @@ export function ArenaPage() {
           ) : (
             <Card className="flex flex-col gap-2.5 p-4">
               <CardTitle>{{ model: t('按模型'), agent: t('按 Agent'), template: t('按流派') }[by]}</CardTitle>
-              <table className="w-full border-collapse text-[13px]">
+              <table className="w-full border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
                 <thead><tr className="text-right text-xs text-ink-3"><th className="py-1.5 text-left font-medium">{t('分组')}</th><th className="font-medium">{t('交易员')}</th><th className="font-medium">{t('平均收益')}</th><th className="font-medium">{t('最好')}</th><th className="font-medium">{t('平均回撤')}</th><th className="font-medium">{t('成交')}</th></tr></thead>
                 <tbody>{grouped.map((row) => <tr key={row.key} className="border-t border-line text-right"><td className="py-2 text-left font-semibold">{row.key}</td><td className="font-mono">{row.count}</td><td><Signed value={row.avg} /></td><td><Signed value={row.best} /></td><td className="font-mono">{num(row.dd, 1)}%</td><td className="font-mono">{row.trades}</td></tr>)}</tbody>
               </table>

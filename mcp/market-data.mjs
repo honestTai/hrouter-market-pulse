@@ -324,12 +324,27 @@ export async function marketBreadth() {
 // Market radar: one call for the dashboard and for agents.
 // ---------------------------------------------------------------------------
 
+// East Money lists one industry at several levels (航空装备Ⅱ and Ⅲ with identical numbers) and tiny
+// boards with one or two members; keep the first of identical rows and boards with at least 5 stocks.
+export function boardsWorthShowing(result) {
+  const seen = new Set();
+  const rows = (result?.rows ?? []).filter((row) => {
+    const members = (row.advancers ?? 0) + (row.decliners ?? 0);
+    if (row.advancers !== null && row.decliners !== null && members < 5) return false;
+    const key = `${row.changePct}:${row.amount}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { ...result, rows: rows.slice(0, 10) };
+}
+
 export async function marketRadar({ at, scan } = {}) {
   const settle = async (promise) => { try { return { ok: true, value: await promise }; } catch (error) { return { ok: false, error: error.message }; } };
   const [breadth, sentiment, lhb, margin, connect, sectors, concepts] = await Promise.all([
     settle(marketBreadth()), settle(limitUpSentiment({ at })), settle(dragonTiger({ at, limit: 20 })), settle(marketMargin({ days: 10 })), settle(stockConnect({ days: 5 })),
-    scan ? settle(scan({ market: "A", view: "sectors", sort: "change", limit: 10 })) : Promise.resolve({ ok: false, error: "no scanner" }),
-    scan ? settle(scan({ market: "A", view: "concepts", sort: "change", limit: 10 })) : Promise.resolve({ ok: false, error: "no scanner" }),
+    scan ? settle(scan({ market: "A", view: "sectors", sort: "change", limit: 40 }).then(boardsWorthShowing)) : Promise.resolve({ ok: false, error: "no scanner" }),
+    scan ? settle(scan({ market: "A", view: "concepts", sort: "change", limit: 40 }).then(boardsWorthShowing)) : Promise.resolve({ ok: false, error: "no scanner" }),
   ]);
   const part = (result) => (result.ok ? result.value : { error: result.error });
   return { generatedAt: new Date().toISOString(), date: aShareDataDate(at), breadth: part(breadth), sentiment: part(sentiment), dragonTiger: part(lhb), margin: part(margin), connect: part(connect), sectors: part(sectors), concepts: part(concepts) };

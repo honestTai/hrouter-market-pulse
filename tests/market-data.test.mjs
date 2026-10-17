@@ -92,3 +92,14 @@ test("promotion rates follow yesterday's board counts and the emotion cycle scal
   assert.equal(emotionCycle([{ date: "d1", limitUps: 1, highestBoard: 1, brokenRatePct: 1 }]).score, null);
   assert.equal(previousTradingDate("2026-10-08"), "2026-09-30", "National Day holiday skipped");
 });
+
+test("radar boards: drop duplicate industry levels and one-stock boards", async () => {
+  const { boardsWorthShowing } = await import("../mcp/market-data.mjs");
+  const rows = [
+    { name: "燃料电池", changePct: 6.5, amount: 1, advancers: 1, decliners: 0 },
+    { name: "航空装备Ⅲ", changePct: 5.9, amount: 2, advancers: 48, decliners: 1 },
+    { name: "航空装备Ⅱ", changePct: 5.9, amount: 2, advancers: 48, decliners: 1 },
+    { name: "国防军工", changePct: 4.4, amount: 3, advancers: 90, decliners: 10 },
+  ];
+  assert.deepEqual(boardsWorthShowing({ rows }).rows.map((row) => row.name), ["航空装备Ⅲ", "国防军工"]);
+});

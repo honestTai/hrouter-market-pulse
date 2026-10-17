@@ -20,7 +20,7 @@ export function SchedulePage() {
       {!up && !schedules.isLoading && <div className="rounded-[10px] border border-warn-line bg-warn-soft px-3.5 py-2.5 text-[13px] text-warn-ink">{t('常驻服务没在运行，调度不会按时触发。运行 {cmd} 安装开机自启。', { cmd: 'npm run service:install' })}</div>}
       {schedules.isLoading ? <Spinner /> : !jobs.length ? <Empty title={t('还没有调度')}>{t('新建交易员时会自动建好调度。')}</Empty> : (
         <Card className="overflow-x-auto p-0">
-          <table className="w-full min-w-[1080px] border-collapse text-[13px]">
+          <table className="w-full min-w-[1080px] border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
             <thead><tr className="text-left text-xs text-ink-3"><th className="px-4 py-2.5 font-medium">{t('交易员')}</th><th className="font-medium">{t('工作方式')}</th><th className="font-medium">{t('Agent 复查')}</th><th className="font-medium">{t('代码策略')}</th><th className="font-medium">{t('今天')}</th><th className="font-medium">{t('上次')}</th><th className="font-medium">{t('状态')}</th><th className="px-4 font-medium" /></tr></thead>
             <tbody>{jobs.map((job) => {
               const account = accounts.find((entry) => entry.id === job.accountId)

@@ -131,7 +131,10 @@ export async function main(argv = process.argv.slice(2)) {
     const port = serviceEnvironment().HROUTER_REPORT_PORT;
     let state = { reachable: false };
     for (let attempt = 0; attempt < 15 && !state.reachable; attempt += 1) { await new Promise((resolve) => setTimeout(resolve, 1000)); state = await health(port); }
-    console.log(JSON.stringify({ installed: plan.kind, bundle: bundlePath(), dashboard: `http://127.0.0.1:${port}/?view=arena`, log: plan.log, health: state }, null, 2));
+    // Put the market-pulse command on PATH too, so agents working for the owner can drive the workbench.
+    const cli = path.join(path.dirname(path.dirname(bundlePath())), "cli", "market-pulse.mjs");
+    const cliInstalled = existsSync(cli) ? await exec(process.execPath, [cli, "install"], { allowFailure: true }).then((stdout) => /Installed/.test(stdout), () => false) : false;
+    console.log(JSON.stringify({ installed: plan.kind, cli: cliInstalled ? "market-pulse" : null, bundle: bundlePath(), dashboard: `http://127.0.0.1:${port}/?view=arena`, log: plan.log, health: state }, null, 2));
     return;
   }
   if (action === "uninstall") {

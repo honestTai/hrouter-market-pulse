@@ -12,6 +12,9 @@
     "node": ">=20"
   },
   "private": true,
+  "bin": {
+    "market-pulse": "cli/market-pulse.mjs"
+  },
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -28,6 +31,8 @@
     "build:desktop": "npm --prefix desktop run build",
     "setup:futu": "node scripts/setup-futu.mjs",
     "connect": "node scripts/connect-agent.mjs",
+    "cli": "node cli/market-pulse.mjs",
+    "cli:install": "node cli/market-pulse.mjs install",
     "service:install": "node scripts/arena-service.mjs install",
     "service:status": "node scripts/arena-service.mjs status",
     "service:uninstall": "node scripts/arena-service.mjs uninstall",

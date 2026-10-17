@@ -341,6 +341,9 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
         }
       }
       if (request.method === "POST") {
+        // The CLI marks calls made from inside a trader's own round; those may read but never change
+        // anything, so a trader cannot approve its own orders or loosen its own limits.
+        if (request.headers["x-hrouter-agent"]) return respond(response, 403, { error: "Calls from inside a trader's round are read-only. Use the MCP tools to trade; the owner changes settings and approvals." });
         const body = await bodyJson(request);
         if (url.pathname.startsWith("/api/arena/")) {
           const arena = await arenaReady;

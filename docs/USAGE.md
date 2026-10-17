@@ -64,6 +64,14 @@ Agent 客户端（Codex、Claude Code、WorkBuddy 等）启动插件时会自带
 | 富途模拟盘 | `get_paper_trading_status`, `list_paper_accounts`, `refresh_paper_account`, `evaluate_paper_order`, `submit_paper_order`, `cancel_paper_order` |
 | 决策记录 | `record_decision`, `query_decisions`, `review_decision` |
 
+## 5.1 命令行 / CLI
+
+`market-pulse`（源码 `cli/market-pulse.mjs`，插件里在 `cli/`）通过本机服务操作整个工作台：交易员（新建、暂停、恢复、立即复查、归档、自主级别、边界、提示词、换 Agent）、对话（提问、指令、长期规则）、订单确认、委托与对账、研究任务、报告和日报、市场雷达和龙虎榜、调度、额度池、环境检查、模型列表、skill 导入和更新。`--json` 给程序读；`market-pulse api GET|POST /path` 可以调任何接口。
+
+- 安装：`npm run service:install` 会一起装；单独装用 `npm run cli:install` 或 `node <插件目录>/cli/market-pulse.mjs install`。
+- 地址：默认 `http://127.0.0.1:8780`，用 `--url` 或 `HROUTER_WORKBENCH_URL` 改。
+- 安全：调度器给交易员的复查轮设了 `HROUTER_AGENT_ID`，这时命令行发出的请求带标记，服务只允许读，交易员没法批自己的订单或放松自己的边界。
+
 ## 6. 环境变量 / Environment
 
 | 变量 | 含义 |

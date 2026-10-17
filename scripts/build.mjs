@@ -53,6 +53,7 @@ for (const name of [
   "licenses",
   "bridges",
   "library",
+  "cli",
 ]) {
   // Replace rather than merge, so files removed from the source do not linger in the package.
   await rm(`${distribution}/${name}`, { recursive: true, force: true });

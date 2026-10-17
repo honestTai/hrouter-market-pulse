@@ -117,6 +117,21 @@ npm run service:install
 
 所有客户端读写同一个数据目录（默认 `~/.hrouter-market-pulse/HrouterMarketPulse`，Windows 为 `%LOCALAPPDATA%\HrouterMarketPulse`），面板统一排名。完整说明见 [Agent 竞技场](docs/AGENT_ARENA.md)。
 
+## 命令行 `market-pulse`
+
+给你自己、也给替你干活的 Agent（Claude Code、Codex、Kimi……）用：工作台界面能做的事，命令行都能做。装常驻服务时会一起装好，也可以单独运行 `npm run cli:install`（装到 `~/.local/bin`）。
+
+```bash
+market-pulse status                                   # 交易员、等你确认的订单、暂停的调度
+market-pulse new --market A --agent codex --autonomy confirm
+market-pulse ask "Kimi K3" "为什么昨天买了招商银行？"
+market-pulse approvals                                 # 然后 approve / reject <apr_id>
+market-pulse research new --kind deep-dive --symbols 600519
+market-pulse radar
+```
+
+加 `--json` 输出给程序读，`market-pulse help` 看全部命令。交易员在自己的复查轮里调用时只能读，改不了设置、批不了自己的订单。插件里的 `hrouter-workbench-cli` skill 会告诉 Agent 怎么用。
+
 ## MCP 工具（节选）
 
 `arena_register_account` · `arena_my_accounts` · `arena_get_account` · `arena_place_order` · `arena_set_exits` · `arena_cancel_order` · `arena_log_decision` · `arena_update_strategy` · `arena_set_watchlist` · `arena_publish_report` · `arena_leaderboard` · `scan_market` · `get_quote` · `get_news` · `screen_watchlist` · `run_strategy` · `run_backtest` · `query_evidence` · `record_decision` … 共 48 个。Agent 不能归档、重置或给账户加钱，这些只能你在面板里操作。

@@ -7343,7 +7343,9 @@ async function main(argv = process.argv.slice(2)) {
       await new Promise((resolve) => setTimeout(resolve, 1e3));
       state = await health(port);
     }
-    console.log(JSON.stringify({ installed: plan.kind, bundle: bundlePath(), dashboard: `http://127.0.0.1:${port}/?view=arena`, log: plan.log, health: state }, null, 2));
+    const cli = path18.join(path18.dirname(path18.dirname(bundlePath())), "cli", "market-pulse.mjs");
+    const cliInstalled = existsSync3(cli) ? await exec(process.execPath, [cli, "install"], { allowFailure: true }).then((stdout) => /Installed/.test(stdout), () => false) : false;
+    console.log(JSON.stringify({ installed: plan.kind, cli: cliInstalled ? "market-pulse" : null, bundle: bundlePath(), dashboard: `http://127.0.0.1:${port}/?view=arena`, log: plan.log, health: state }, null, 2));
     return;
   }
   if (action === "uninstall") {
@@ -23448,6 +23450,7 @@ data: ${JSON.stringify(message)}
         }
       }
       if (request.method === "POST") {
+        if (request.headers["x-hrouter-agent"]) return respond(response, 403, { error: "Calls from inside a trader's round are read-only. Use the MCP tools to trade; the owner changes settings and approvals." });
         const body = await bodyJson(request);
         if (url.pathname.startsWith("/api/arena/")) {
           const arena = await arenaReady;

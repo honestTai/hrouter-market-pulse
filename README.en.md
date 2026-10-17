@@ -116,6 +116,21 @@ The UI is in Chinese by default; switch to English in Settings → General → L
 
 All clients share one data directory (`~/.hrouter-market-pulse/HrouterMarketPulse` by default, `%LOCALAPPDATA%\HrouterMarketPulse` on Windows). See [AGENT_ARENA.md](docs/AGENT_ARENA.md).
 
+## Command line: `market-pulse`
+
+For you and for any agent working for you (Claude Code, Codex, Kimi…): everything the dashboard does, from the shell. It is installed with the background service, or run `npm run cli:install` (puts it in `~/.local/bin`).
+
+```bash
+market-pulse status
+market-pulse new --market A --agent codex --autonomy confirm
+market-pulse ask "Kimi K3" "Why did you buy China Merchants Bank yesterday?"
+market-pulse approvals          # then approve / reject <apr_id>
+market-pulse research new --kind deep-dive --symbols 600519
+market-pulse radar
+```
+
+Add `--json` for machine-readable output; `market-pulse help` lists every command. Called from inside a trader's own round it is read-only. The `hrouter-workbench-cli` skill teaches agents how to use it.
+
 ## Boundaries
 
 - **Only paper accounts trade automatically.** Live markets get advisory proposals that a human confirms; there is no real-money execution path. Futu SIMULATE accounts need separate authorization ([PAPER_TRADING.md](docs/PAPER_TRADING.md)).

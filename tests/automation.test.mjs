@@ -84,10 +84,14 @@ test("agent invocations attach only this plugin, pin the data dir and pre-approv
   assert.ok(codex.args.includes('mcp_servers.hrouter_market_pulse.default_tools_approval_mode="approve"'));
   assert.ok(codex.args.some((arg) => arg.includes('HROUTER_REPORT_DIR = "/data"')));
   assert.ok(codex.args.includes("read-only"));
+  assert.ok(codex.args.includes('model_reasoning_effort="high"'), "effort defaults to high");
   const claude = agentInvocation({ job: { runner: { type: "claude", maxBudgetUsd: 1, timeoutMinutes: 5 } }, account: { id: "acc_000000000001" }, prompt: "go", nodePath: "/n", bundlePath: "/b.mjs", skillText: "skill", workDir: "/w", identity: "claude-x", dataDir: "/data" });
   const mcp = JSON.parse(claude.args[claude.args.indexOf("--mcp-config") + 1]);
   assert.equal(mcp.mcpServers.hrouter_market_pulse.env.HROUTER_REPORT_DIR, "/data");
   assert.ok(claude.args.includes("--strict-mcp-config"));
+  assert.equal(claude.args[claude.args.indexOf("--effort") + 1], "high");
+  const maxCodex = agentInvocation({ job: { runner: { type: "codex", effort: "max", timeoutMinutes: 5 } }, account: { id: "acc_000000000001" }, prompt: "go", nodePath: "/n", bundlePath: "/b.mjs", skillText: null, workDir: "/w", identity: "codex-x", dataDir: "/data" });
+  assert.ok(maxCodex.args.includes('model_reasoning_effort="xhigh"'), "Codex's top level is xhigh");
   assert.equal(claude.args[claude.args.indexOf("--allowedTools") + 1], "mcp__hrouter_market_pulse,WebSearch,WebFetch");
   const workbuddy = agentInvocation({ job: { runner: { type: "workbuddy", model: "primary-model", maxBudgetUsd: 1, timeoutMinutes: 5 } }, account: { id: "acc_000000000001" }, prompt: "go", nodePath: "/n", bundlePath: "/b.mjs", skillText: null, workDir: "/w", identity: "workbuddy-x", dataDir: "/data" });
   assert.match(workbuddy.command, /codebuddy/);

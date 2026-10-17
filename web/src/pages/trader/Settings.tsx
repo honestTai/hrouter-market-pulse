@@ -7,6 +7,7 @@ import { AUTONOMY_NAME, BOARD_NAME, changeLabel, changedByLabel, dateTime, MARKE
 import { isEnglish, locale, t } from '@/lib/i18n'
 import { useAction, useEnv, useLibrary, useTraderSettings } from '@/lib/queries'
 import { Button, Card, CardTitle, Dialog, Field, Input, LockButton, Pill, Segmented, Select, Spinner, Switch, Textarea, cn } from '@/components/ui'
+import { EffortField, latestModel, ModelField, useAgentModels } from '@/components/ModelPicker'
 
 const SHOWN_LIMITS = ['minCashPct', 'maxPositions', 'maxPositionPct', 'maxExposurePct', 'maxIndustryPct', 'maxNewPerDay', 'maxRiskPerTradePct', 'maxDrawdownPct', 'maxOrdersPerDay', 'cooldownDays', 'excludeBoards', 'minPrice', 'maxChangePct']
 
@@ -217,33 +218,35 @@ const keyOf = (runner?: Runner | null) => (!runner ? '' : runner.type === 'acp' 
 
 function AgentCard({ account, job }: { account: AccountDetail; job: Job | undefined }) {
   const options = useAgentOptions()
+  const agentModels = useAgentModels()
   const [primary, setPrimary] = useState(keyOf(job?.runner))
   const [model, setModel] = useState(job?.runner.model ?? '')
+  const [effort, setEffort] = useState(job?.runner.effort ?? 'high')
   const [backup, setBackup] = useState(keyOf(job?.backup))
   const [backupModel, setBackupModel] = useState(job?.backup?.model ?? '')
   const [mode, setMode] = useState(job?.mode === 'director' || job?.strategy ? 'director' : 'rounds')
   const [review, setReview] = useState(String(job?.intervalMinutes ?? 10))
-  useEffect(() => { setPrimary(keyOf(job?.runner)); setModel(job?.runner.model ?? ''); setBackup(keyOf(job?.backup)); setBackupModel(job?.backup?.model ?? ''); setMode(job?.mode === 'director' || job?.strategy ? 'director' : 'rounds'); setReview(String(job?.intervalMinutes ?? 10)) }, [job])
+  useEffect(() => { setPrimary(keyOf(job?.runner)); setModel(job?.runner.model ?? ''); setEffort(job?.runner.effort ?? 'high'); setBackup(keyOf(job?.backup)); setBackupModel(job?.backup?.model ?? ''); setMode(job?.mode === 'director' || job?.strategy ? 'director' : 'rounds'); setReview(String(job?.intervalMinutes ?? 10)) }, [job])
   const save = useAction<Record<string, unknown>>(`/api/arena/schedules/${account.id}`, { invalidate: [['schedules']], success: t('运行方式已保存') })
   if (job?.runner.type === 'strategy') return (
     <Card className="flex flex-col gap-2 p-[18px]">
       <CardTitle>{t('节奏与运行方式')}</CardTitle>
       <div className="text-[13px] text-ink-2">{t('纯代码策略 {id}，每 {n} 分钟执行。', { id: job.runner.strategyId ?? '', n: job.intervalMinutes ?? '—' })}</div>
       <div className="text-xs text-ink-3">{t('想让 Agent 来当主控：在下面选一个 Agent 保存，原来的代码策略会作为策略执行线保留。')}</div>
-      <AgentPicker options={options} primary={primary} setPrimary={setPrimary} model={model} setModel={setModel} />
+      <AgentPicker options={options} primary={primary} setPrimary={setPrimary} model={model} setModel={setModel} effort={effort} setEffort={setEffort} />
       <Button size="sm" variant="primary" className="self-start" disabled={!primary || primary === 'strategy'} loading={save.isPending} onClick={() => {
         const option = options.find((entry) => entry.key === primary)
-        save.mutate({ runner: { ...option!.runner, ...(model ? { model } : {}), timeoutMinutes: 20 }, intervalMinutes: 10, times: [], mode: 'director', strategy: { strategyId: job.runner.strategyId, intervalMinutes: job.intervalMinutes ?? 5, params: job.runner.params ?? {} } })
+        save.mutate({ runner: { ...option!.runner, ...(model ? { model } : {}), effort, timeoutMinutes: 20 }, intervalMinutes: 10, times: [], mode: 'director', strategy: { strategyId: job.runner.strategyId, intervalMinutes: job.intervalMinutes ?? 5, params: job.runner.params ?? {} } })
       }}>{t('改成 Agent 主控')}</Button>
     </Card>
   )
   return (
     <Card className="flex flex-col gap-3 p-[18px]">
       <CardTitle>{t('节奏与 Agent')}</CardTitle>
-      <AgentPicker options={options} primary={primary} setPrimary={setPrimary} model={model} setModel={setModel} />
+      <AgentPicker options={options} primary={primary} setPrimary={setPrimary} model={model} setModel={setModel} effort={effort} setEffort={setEffort} />
       <div className="grid grid-cols-2 gap-2.5 max-sm:grid-cols-1">
-        <Field label={t('备用 Agent')} hint={t('额度用尽或启动失败时代班')}><Select value={backup} onChange={(event) => setBackup(event.target.value)}><option value="">{t('不设置')}</option>{options.filter((entry) => entry.key !== primary).map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>)}</Select></Field>
-        <Field label={t('备用模型')}><Input value={backupModel} onChange={(event) => setBackupModel(event.target.value)} placeholder={t('跟随当前配置')} disabled={!backup} /></Field>
+        <Field label={t('备用 Agent')} hint={t('额度用尽或启动失败时代班')}><Select value={backup} onChange={(event) => { setBackup(event.target.value); setBackupModel(latestModel(agentModels.data, options.find((entry) => entry.key === event.target.value)?.runner.type ?? '')) }}><option value="">{t('不设置')}</option>{options.filter((entry) => entry.key !== primary).map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>)}</Select></Field>
+        <ModelField agent={options.find((entry) => entry.key === backup)?.runner.type ?? ''} value={backupModel} onChange={setBackupModel} label={t('备用模型')} disabled={!backup} />
         <Field label={t('工作方式')}><Select value={mode} onChange={(event) => setMode(event.target.value)}><option value="director">{t('Agent 主控（写代码策略 + 复查）')}</option><option value="rounds">{t('每轮亲自看盘下单')}</option></Select></Field>
         <Field label={mode === 'director' ? t('复查间隔（分钟）') : t('每轮间隔（分钟）')}><Input type="number" min={5} max={240} value={review} onChange={(event) => setReview(event.target.value)} /></Field>
       </div>
@@ -252,8 +255,8 @@ function AgentCard({ account, job }: { account: AccountDetail; job: Job | undefi
           const option = options.find((entry) => entry.key === primary)
           const backupOption = options.find((entry) => entry.key === backup)
           save.mutate({
-            runner: { ...(job?.runner ?? {}), ...option!.runner, model: model || undefined, timeoutMinutes: job?.runner.timeoutMinutes ?? 20 },
-            backup: backupOption ? { ...backupOption.runner, ...(backupModel ? { model: backupModel } : {}) } : null,
+            runner: { ...(job?.runner ?? {}), ...option!.runner, model: model || undefined, effort, timeoutMinutes: job?.runner.timeoutMinutes ?? 20 },
+            backup: backupOption ? { ...backupOption.runner, ...(backupModel ? { model: backupModel } : {}), effort } : null,
             mode, intervalMinutes: Number(review) || 10, times: job?.times ?? [],
           })
         }}>{t('保存')}</Button>
@@ -262,11 +265,14 @@ function AgentCard({ account, job }: { account: AccountDetail; job: Job | undefi
   )
 }
 
-function AgentPicker({ options, primary, setPrimary, model, setModel }: { options: AgentOption[]; primary: string; setPrimary: (value: string) => void; model: string; setModel: (value: string) => void }) {
+function AgentPicker({ options, primary, setPrimary, model, setModel, effort, setEffort }: { options: AgentOption[]; primary: string; setPrimary: (value: string) => void; model: string; setModel: (value: string) => void; effort: string; setEffort: (value: string) => void }) {
+  const models = useAgentModels()
+  const type = options.find((entry) => entry.key === primary)?.runner.type ?? ''
   return (
     <div className="grid grid-cols-2 gap-2.5 max-sm:grid-cols-1">
-      <Field label={t('主 Agent')}><Select value={primary} onChange={(event) => setPrimary(event.target.value)}><option value="" disabled>{t('选择')}</option>{options.map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>)}</Select></Field>
-      <Field label={t('模型')} hint={t('留空跟随 HRouter Desktop')}><Input value={model} onChange={(event) => setModel(event.target.value)} placeholder={primary === 'kimi' ? 'k3-256k' : primary === 'codex' ? 'gpt-6-astra' : primary === 'claude' ? 'claude-opus-5-5' : ''} /></Field>
+      <Field label={t('主 Agent')}><Select value={primary} onChange={(event) => { setPrimary(event.target.value); setModel(latestModel(models.data, options.find((entry) => entry.key === event.target.value)?.runner.type ?? '')) }}><option value="" disabled>{t('选择')}</option>{options.map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>)}</Select></Field>
+      <ModelField agent={type} value={model} onChange={setModel} />
+      <EffortField agent={type} model={model} value={effort} onChange={setEffort} />
     </div>
   )
 }
@@ -311,7 +317,8 @@ const ANALYSTS = ['technical', 'news', 'fundamental', 'market', 'risk']
 
 function TeamCard({ account, job }: { account: AccountDetail; job: Job }) {
   const options = useAgentOptions().filter((option) => option.runner.type !== 'kimi')
-  const initial = () => ({ enabled: Boolean(job.team?.enabled), roles: job.team?.roles ?? ['technical', 'news', 'market'], debate: job.team?.debate ?? true, analyst: keyOf(job.team?.analyst ?? null), model: job.team?.analyst?.model ?? '' })
+  const agentModels = useAgentModels()
+  const initial = () => ({ enabled: Boolean(job.team?.enabled), roles: job.team?.roles ?? ['technical', 'news', 'market'], debate: job.team?.debate ?? true, analyst: keyOf(job.team?.analyst ?? null), model: job.team?.analyst?.model ?? '', effort: job.team?.analyst?.effort ?? 'high' })
   const [draft, setDraft] = useState(initial)
   useEffect(() => setDraft(initial()), [job]) // eslint-disable-line react-hooks/exhaustive-deps
   const save = useAction<Record<string, unknown>>(`/api/arena/schedules/${account.id}`, { invalidate: [['schedules']], success: t('团队模式已保存') })
@@ -333,16 +340,19 @@ function TeamCard({ account, job }: { account: AccountDetail; job: Job }) {
         <label className="flex items-center gap-2 text-[13px]"><Switch label={t('多空辩论')} checked={draft.debate} onChange={(debate) => setDraft({ ...draft, debate })} />{t('多空辩论（多头、空头研究员各一份）')}</label>
         <div className="grid grid-cols-2 gap-2.5 max-sm:grid-cols-1">
           <Field label={t('分析员用的 Agent')} hint={kimiMain ? t('Kimi Code 不能只读运行，请另选') : t('留空用主 Agent；可以选便宜的模型')}>
-            <Select value={draft.analyst} onChange={(event) => setDraft({ ...draft, analyst: event.target.value })}><option value="">{kimiMain ? t('请选择') : t('跟主 Agent 一样')}</option>{options.map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>)}</Select>
+            <Select value={draft.analyst} onChange={(event) => setDraft({ ...draft, analyst: event.target.value, model: latestModel(agentModels.data, options.find((entry) => entry.key === event.target.value)?.runner.type ?? '') })}><option value="">{kimiMain ? t('请选择') : t('跟主 Agent 一样')}</option>{options.map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>)}</Select>
           </Field>
-          <Field label={t('分析员模型')}><Input value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} placeholder={t('跟随当前配置')} /></Field>
+          {draft.analyst ? <>
+            <ModelField agent={options.find((entry) => entry.key === draft.analyst)?.runner.type ?? ''} value={draft.model} onChange={(model) => setDraft({ ...draft, model })} label={t('分析员模型')} />
+            <EffortField agent={options.find((entry) => entry.key === draft.analyst)?.runner.type ?? ''} model={draft.model} value={draft.effort} onChange={(effort) => setDraft({ ...draft, effort })} />
+          </> : null}
         </div>
         <p className="m-0 text-xs text-warn-ink">{t('每次复查前会先多跑 {n} 个 Agent。', { n: runs })}</p>
       </>}
       <div className="flex justify-end">
         <Button size="sm" variant="primary" disabled={!dirty || (draft.enabled && (!draft.roles.length || (kimiMain && !draft.analyst)))} loading={save.isPending} onClick={() => {
           const option = options.find((entry) => entry.key === draft.analyst)
-          save.mutate({ team: draft.enabled ? { enabled: true, roles: draft.roles, debate: draft.debate, analyst: option ? { ...option.runner, ...(draft.model ? { model: draft.model } : {}) } : null } : { enabled: false } })
+          save.mutate({ team: draft.enabled ? { enabled: true, roles: draft.roles, debate: draft.debate, analyst: option ? { ...option.runner, ...(draft.model ? { model: draft.model } : {}), effort: draft.effort } : null } : { enabled: false } })
         }}>{t('保存')}</Button>
       </div>
     </Card>

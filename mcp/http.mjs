@@ -7,6 +7,7 @@ import { loadLibrary, skillBody, starterStrategyCode, templateDefaults } from ".
 import { checkUpdates, importSkill, listClaudeSkills, removeImported, updateImported } from "./skill-import.mjs";
 import { dragonTiger, dragonTigerSeats, limitPool, marketRadar, shortlineEmotion } from "./market-data.mjs";
 import { checkEnvironment } from "./env-check.mjs";
+import { agentModels } from "./agent-models.mjs";
 import { getMarketSession } from "./market-rules.mjs";
 import { readServiceStatus } from "./service.mjs";
 import { describeStrategy, loadStrategies } from "./strategies/index.mjs";
@@ -218,6 +219,7 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
         if (url.pathname === "/api/research") return respond(response, 200, { tasks: await (await schedulerReady).listResearch({ limit: Number(url.searchParams.get("limit")) || 50 }) });
         const reconcileRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/reconcile$/);
         if (reconcileRead) return respond(response, 200, await (await arenaReady).reconcile(reconcileRead[1]));
+        if (url.pathname === "/api/agent-models") return respond(response, 200, await agentModels());
         if (url.pathname === "/api/env") {
           const language = url.searchParams.get("lang") === "en" ? "en" : "zh";
           if (!envCache || envCache.language !== language || Date.now() - envCache.at > 60000 || url.searchParams.get("fresh") === "1") envCache = { at: Date.now(), language, value: await checkEnvironment({ arena: await arenaReady, scheduler: await schedulerReady, language }) };

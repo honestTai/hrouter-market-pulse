@@ -23,6 +23,7 @@ import { limitsText } from "./trader-settings.mjs";
 import { createTraderStrategyStore } from "./trader-strategies.mjs";
 import { loadLibrary, skillBody, skillTextFor, skillsVersion } from "./skill-library.mjs";
 import { createPaperBroker } from "./brokers.mjs";
+import { DEFAULT_EFFORT, EFFORTS, sanitizeEffort } from "./agent-models.mjs";
 import { GATE_DEFAULTS, GateError, WAKE_DEFAULTS, gateDecision, sanitizeGate, sanitizeWake, snapshot, wakeDecision } from "./review-gate.mjs";
 import { localMarketTime } from "./market-rules.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
@@ -66,6 +67,7 @@ export function sanitizeJob(input, current = {}) {
     if (!Number.isFinite(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 60) throw new ArenaError("timeoutMinutes must be between 1 and 60.");
     const next = { type: runner.type, timeoutMinutes, language: runner.language === "en" ? "en" : "zh-CN" };
     if (runner.model) next.model = String(runner.model).slice(0, 80);
+    try { const effort = sanitizeEffort(runner.effort); if (effort) next.effort = effort; } catch (error) { throw new ArenaError(error.message); }
     if (runner.webSearch === false) next.webSearch = false;
     if (runner.command) next.command = String(runner.command).slice(0, 500);
     if (Array.isArray(runner.args)) next.args = runner.args.slice(0, 40).map((arg) => String(arg).slice(0, 2000));
@@ -118,7 +120,7 @@ export function sanitizeJob(input, current = {}) {
       if (analyst && (!AGENT_TYPES.includes(analyst.type) || analyst.type === "command")) throw new ArenaError(`team.analyst.type must be one of ${AGENT_TYPES.filter((type) => type !== "command").join(", ")}.`);
       job.team = {
         enabled: true, roles, debate: input.team.debate === undefined ? job.team?.debate ?? true : Boolean(input.team.debate),
-        analyst: analyst ? { type: analyst.type, ...(analyst.model ? { model: String(analyst.model).slice(0, 80) } : {}), ...(analyst.type === "acp" ? { command: String(analyst.command ?? "").slice(0, 500), args: (analyst.args ?? []).slice(0, 40).map(String) } : {}) } : null,
+        analyst: analyst ? { type: analyst.type, ...(analyst.model ? { model: String(analyst.model).slice(0, 80) } : {}), ...(EFFORTS.includes(analyst.effort) ? { effort: analyst.effort } : {}), ...(analyst.type === "acp" ? { command: String(analyst.command ?? "").slice(0, 500), args: (analyst.args ?? []).slice(0, 40).map(String) } : {}) } : null,
         timeoutMinutes: Math.max(2, Math.min(20, Number(input.team.timeoutMinutes ?? job.team?.timeoutMinutes ?? 8) || 8)),
       };
     }
@@ -176,6 +178,7 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
       "--allowedTools", runner.webSearch === false ? "mcp__hrouter_market_pulse" : "mcp__hrouter_market_pulse,WebSearch,WebFetch", "--permission-mode", "dontAsk",
       "--output-format", "stream-json", "--verbose", "--no-session-persistence",
       ...(runner.model ? ["--model", runner.model] : []),
+      ...(runner.type === "claude" ? ["--effort", runner.effort ?? DEFAULT_EFFORT] : []),
       ...(runner.maxBudgetUsd && runner.type === "claude" ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : []),
       ...(skillText ? ["--append-system-prompt", skillText] : []),
     ];
@@ -206,6 +209,8 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
       // An installed copy of this plugin would add a second same-named server; keep only ours.
       "-c", 'plugins."hrouter-market-pulse@hrouter-market-pulse".enabled=false',
       ...(runner.model ? ["-m", runner.model] : []),
+      // Codex calls the top level "xhigh"; "max" maps onto it.
+      "-c", `model_reasoning_effort=${toml((runner.effort ?? DEFAULT_EFFORT) === "max" ? "xhigh" : runner.effort ?? DEFAULT_EFFORT)}`,
       skillText ? `${skillText}\n\n---\n\n${prompt}` : prompt,
     ];
     return { command: runner.command || defaultCommand("codex"), args, env, cwd: workDir };
@@ -497,7 +502,7 @@ export function createScheduler({
   const analystRunner = (job, fallback) => {
     const analyst = job.team?.analyst;
     if (!analyst) return { ...fallback, timeoutMinutes: job.team?.timeoutMinutes ?? 8 };
-    return { type: analyst.type, timeoutMinutes: job.team?.timeoutMinutes ?? 8, language: job.runner.language, ...(analyst.model ? { model: analyst.model } : {}), ...(analyst.command ? { command: analyst.command, args: analyst.args ?? [] } : {}) };
+    return { type: analyst.type, timeoutMinutes: job.team?.timeoutMinutes ?? 8, language: job.runner.language, ...(analyst.model ? { model: analyst.model } : {}), ...(analyst.effort ? { effort: analyst.effort } : {}), ...(analyst.command ? { command: analyst.command, args: analyst.args ?? [] } : {}) };
   };
   const subRuns = new Map(); // runId → promise of { role, runId, status, text }
 
@@ -861,7 +866,7 @@ export function createScheduler({
       if (runner.type === "acp" && !runner.command) throw new ArenaError("An ACP runner needs its command.");
       const task = {
         id: `res_${randomBytes(6).toString("hex")}`, kind, title, prompt, symbols, accountId: /^acc_[a-f0-9]{12}$/.test(input.accountId ?? "") ? input.accountId : null,
-        runner: { type: runner.type, ...(runner.model ? { model: String(runner.model).slice(0, 80) } : {}), ...(runner.type === "acp" ? { command: String(runner.command).slice(0, 500), args: (runner.args ?? []).slice(0, 40).map(String) } : {}) },
+        runner: { type: runner.type, ...(runner.model ? { model: String(runner.model).slice(0, 80) } : {}), ...(EFFORTS.includes(runner.effort) ? { effort: runner.effort } : {}), ...(runner.type === "acp" ? { command: String(runner.command).slice(0, 500), args: (runner.args ?? []).slice(0, 40).map(String) } : {}) },
         language: input.language === "en" ? "en" : "zh-CN", status: "queued", createdAt: now(),
       };
       await updateResearch((tasks) => { tasks.push(task); });

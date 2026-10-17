@@ -3260,8 +3260,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path18) {
-      let input = path18;
+    function removeDotSegments(path19) {
+      let input = path19;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3670,8 +3670,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path18 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path18 && path18 !== "/" ? path18 : void 0;
+        const path19 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path19 && path19 !== "/" ? path19 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -7217,20 +7217,20 @@ __export(arena_service_exports, {
 import { execFile as execFile3, spawn as spawn5 } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
 import { mkdir as mkdir14, rm as rm6, writeFile as writeFile13 } from "node:fs/promises";
-import os7 from "node:os";
-import path17 from "node:path";
+import os8 from "node:os";
+import path18 from "node:path";
 import { fileURLToPath as fileURLToPath5 } from "node:url";
 import { promisify as promisify3 } from "node:util";
 function bundlePath() {
   const self = fileURLToPath5(import.meta.url);
   if (self.endsWith("server.bundle.mjs")) return self;
-  const packaged = path17.join(root, "plugins", "hrouter-market-pulse", "mcp", "server.bundle.mjs");
-  return existsSync3(packaged) ? packaged : path17.join(root, "mcp", "server.bundle.mjs");
+  const packaged = path18.join(root, "plugins", "hrouter-market-pulse", "mcp", "server.bundle.mjs");
+  return existsSync3(packaged) ? packaged : path18.join(root, "mcp", "server.bundle.mjs");
 }
-function storageDir(home = os7.homedir()) {
-  if (process.env.HROUTER_REPORT_DIR) return path17.resolve(process.env.HROUTER_REPORT_DIR);
-  const base = process.env.LOCALAPPDATA || (process.platform === "win32" ? path17.join(home, "AppData", "Local") : path17.join(home, ".hrouter-market-pulse"));
-  return path17.join(base, "HrouterMarketPulse");
+function storageDir(home2 = os8.homedir()) {
+  if (process.env.HROUTER_REPORT_DIR) return path18.resolve(process.env.HROUTER_REPORT_DIR);
+  const base = process.env.LOCALAPPDATA || (process.platform === "win32" ? path18.join(home2, "AppData", "Local") : path18.join(home2, ".hrouter-market-pulse"));
+  return path18.join(base, "HrouterMarketPulse");
 }
 function serviceEnvironment(env = process.env) {
   const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA", "CODEBUDDY_API_KEY"];
@@ -7238,11 +7238,11 @@ function serviceEnvironment(env = process.env) {
   selected.HROUTER_REPORT_PORT = env.HROUTER_ARENA_PORT || "8780";
   return selected;
 }
-function servicePlan({ platform = process.platform, home = os7.homedir(), node = process.execPath, bundle = bundlePath(), env = serviceEnvironment(), uid = process.getuid?.() } = {}) {
+function servicePlan({ platform = process.platform, home: home2 = os8.homedir(), node = process.execPath, bundle = bundlePath(), env = serviceEnvironment(), uid = process.getuid?.() } = {}) {
   const args = [bundle, "--service"];
-  const log = path17.join(storageDir(home), "arena", "service.log");
+  const log = path18.join(storageDir(home2), "arena", "service.log");
   if (platform === "darwin") {
-    const file = path17.join(home, "Library", "LaunchAgents", `${SERVICE_NAME}.plist`);
+    const file = path18.join(home2, "Library", "LaunchAgents", `${SERVICE_NAME}.plist`);
     const content = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -7264,7 +7264,7 @@ function servicePlan({ platform = process.platform, home = os7.homedir(), node =
     };
   }
   if (platform === "linux") {
-    const file = path17.join(home, ".config", "systemd", "user", `${SERVICE_NAME}.service`);
+    const file = path18.join(home2, ".config", "systemd", "user", `${SERVICE_NAME}.service`);
     const content = `[Unit]
 Description=Hrouter Market Pulse Agent Arena service
 After=network-online.target
@@ -7330,10 +7330,10 @@ async function main(argv = process.argv.slice(2)) {
   const plan = servicePlan();
   if (!existsSync3(bundlePath())) throw new Error("Build first: npm ci && npm run build");
   if (action === "install") {
-    await mkdir14(path17.dirname(plan.log), { recursive: true });
+    await mkdir14(path18.dirname(plan.log), { recursive: true });
     for (const [command, args] of plan.disable) await exec(command, args, { allowFailure: true });
     for (const file of plan.files) {
-      await mkdir14(path17.dirname(file.path), { recursive: true });
+      await mkdir14(path18.dirname(file.path), { recursive: true });
       await writeFile13(file.path, file.content, { mode: 384 });
     }
     for (const [command, args] of plan.enable) await exec(command, args);
@@ -7368,11 +7368,11 @@ var init_arena_service = __esm({
     init_update_scheduler();
     SERVICE_NAME = "net.hrouter.market-pulse.arena";
     run2 = promisify3(execFile3);
-    root = path17.resolve(path17.dirname(fileURLToPath5(import.meta.url)), "..");
+    root = path18.resolve(path18.dirname(fileURLToPath5(import.meta.url)), "..");
     xml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     ps = (value) => `'${String(value).replaceAll("'", "''")}'`;
     unit = (value) => `"${String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%").replaceAll("$", "$$$$")}"`;
-    if (process.argv[1] && path17.resolve(process.argv[1]) === fileURLToPath5(import.meta.url) && !fileURLToPath5(import.meta.url).endsWith("server.bundle.mjs")) {
+    if (process.argv[1] && path18.resolve(process.argv[1]) === fileURLToPath5(import.meta.url) && !fileURLToPath5(import.meta.url).endsWith("server.bundle.mjs")) {
       main().catch((error2) => {
         console.error(error2.message);
         process.exit(1);
@@ -11565,8 +11565,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path18, errorMaps, issueData } = params;
-  const fullPath = [...path18, ...issueData.path || []];
+  const { data, path: path19, errorMaps, issueData } = params;
+  const fullPath = [...path19, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -11682,11 +11682,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path18, key) {
+  constructor(parent, value, path19, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path18;
+    this._path = path19;
     this._key = key;
   }
   get path() {
@@ -18345,9 +18345,9 @@ function callerFromClient(clientInfo) {
 import { spawn as spawn3 } from "node:child_process";
 import { randomBytes as randomBytes3, randomUUID as randomUUID6 } from "node:crypto";
 import { existsSync } from "node:fs";
-import { appendFile, mkdir as mkdir8, mkdtemp, readFile as readFile9, rename as rename8, rm as rm3, writeFile as writeFile7 } from "node:fs/promises";
-import os3 from "node:os";
-import path10 from "node:path";
+import { appendFile, mkdir as mkdir8, mkdtemp, readFile as readFile10, rename as rename8, rm as rm3, writeFile as writeFile7 } from "node:fs/promises";
+import os4 from "node:os";
+import path11 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // mcp/prompts.mjs
@@ -19824,6 +19824,70 @@ function createPaperBroker({ arena, accountId: accountId2, caller }) {
   };
 }
 
+// mcp/agent-models.mjs
+import { readFile as readFile9 } from "node:fs/promises";
+import os3 from "node:os";
+import path10 from "node:path";
+var EFFORTS = ["low", "medium", "high", "xhigh", "max"];
+var DEFAULT_EFFORT = "high";
+var CLAUDE = [
+  { id: "opus", label: "Opus", latest: true },
+  { id: "fable", label: "Fable" },
+  { id: "sonnet", label: "Sonnet" },
+  { id: "haiku", label: "Haiku" }
+];
+var FALLBACK = { codex: ["gpt-5.6-sol"], kimi: ["k3"] };
+var home = () => process.env.HOME || os3.homedir();
+async function readText(file) {
+  try {
+    return await readFile9(file, "utf8");
+  } catch {
+    return null;
+  }
+}
+async function codexModels(root2 = path10.join(home(), ".codex")) {
+  const cache3 = JSON.parse(await readText(path10.join(root2, "models_cache.json")) ?? "{}");
+  const config2 = await readText(path10.join(root2, "config.toml")) ?? "";
+  const configured = config2.match(/^model\s*=\s*"([^"]+)"/m)?.[1] ?? null;
+  const listed = (cache3.models ?? []).filter((model) => model.slug && model.visibility !== "hide").sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999)).map((model) => ({ id: model.slug, label: model.display_name ?? model.slug, efforts: (model.supported_reasoning_levels ?? []).map((level) => level.effort).filter((effort) => EFFORTS.includes(effort)) }));
+  const models = listed.length ? listed : FALLBACK.codex.map((id) => ({ id, label: id }));
+  if (configured && !models.some((model) => model.id === configured)) models.push({ id: configured, label: `${configured} (config.toml)` });
+  return { models: models.map((model, index) => ({ ...model, latest: index === 0 })), configured, source: listed.length ? "~/.codex/models_cache.json" : "built-in" };
+}
+async function kimiModels(root2 = path10.join(home(), ".kimi-code")) {
+  const config2 = await readText(path10.join(root2, "config.toml")) ?? "";
+  const configured = config2.match(/^default_model\s*=\s*"([^"]+)"/m)?.[1] ?? null;
+  const models = [];
+  for (const block of config2.split(/^\[models\."/m).slice(1)) {
+    const id = block.slice(0, block.indexOf('"'));
+    const efforts = (block.match(/^support_efforts\s*=\s*\[([^\]]*)\]/m)?.[1] ?? "").match(/"([^"]+)"/g)?.map((entry) => entry.slice(1, -1)).filter((effort) => EFFORTS.includes(effort)) ?? [];
+    models.push({ id, label: id.replace(/^kimi-code\//, ""), efforts });
+  }
+  const rank = (id) => id === configured && /\/k3/.test(id) ? 0 : /\/k3$/.test(id) ? 1 : /\/k3/.test(id) ? 2 : 3;
+  models.sort((a, b) => rank(a.id) - rank(b.id));
+  const list = models.length ? models : FALLBACK.kimi.map((id) => ({ id: `kimi-code/${id}`, label: id }));
+  return { models: list.map((model, index) => ({ ...model, latest: index === 0 })), configured, source: models.length ? "~/.kimi-code/config.toml" : "built-in" };
+}
+async function agentModels() {
+  const [codex, kimi] = await Promise.all([codexModels(), kimiModels()]);
+  return {
+    efforts: EFFORTS,
+    defaultEffort: DEFAULT_EFFORT,
+    agents: {
+      claude: { models: CLAUDE.map((model) => ({ ...model, efforts: EFFORTS })), configured: null, source: "Claude Code aliases", effortFlag: true },
+      workbuddy: { models: [], configured: null, source: null, effortFlag: false },
+      codex: { ...codex, effortFlag: true },
+      // Kimi Code has no per-run effort flag; it uses [thinking] effort from its own config.
+      kimi: { ...kimi, effortFlag: false }
+    }
+  };
+}
+function sanitizeEffort(value) {
+  if (value === void 0 || value === null || value === "") return void 0;
+  if (!EFFORTS.includes(value)) throw new Error(`effort must be one of ${EFFORTS.join(", ")}.`);
+  return value;
+}
+
 // mcp/review-gate.mjs
 var round9 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
 var finite9 = (value) => typeof value === "number" && Number.isFinite(value);
@@ -19964,6 +20028,12 @@ function sanitizeJob(input, current = {}) {
     if (!Number.isFinite(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 60) throw new ArenaError("timeoutMinutes must be between 1 and 60.");
     const next = { type: runner.type, timeoutMinutes, language: runner.language === "en" ? "en" : "zh-CN" };
     if (runner.model) next.model = String(runner.model).slice(0, 80);
+    try {
+      const effort = sanitizeEffort(runner.effort);
+      if (effort) next.effort = effort;
+    } catch (error2) {
+      throw new ArenaError(error2.message);
+    }
     if (runner.webSearch === false) next.webSearch = false;
     if (runner.command) next.command = String(runner.command).slice(0, 500);
     if (Array.isArray(runner.args)) next.args = runner.args.slice(0, 40).map((arg) => String(arg).slice(0, 2e3));
@@ -20017,7 +20087,7 @@ function sanitizeJob(input, current = {}) {
         enabled: true,
         roles,
         debate: input.team.debate === void 0 ? job.team?.debate ?? true : Boolean(input.team.debate),
-        analyst: analyst ? { type: analyst.type, ...analyst.model ? { model: String(analyst.model).slice(0, 80) } : {}, ...analyst.type === "acp" ? { command: String(analyst.command ?? "").slice(0, 500), args: (analyst.args ?? []).slice(0, 40).map(String) } : {} } : null,
+        analyst: analyst ? { type: analyst.type, ...analyst.model ? { model: String(analyst.model).slice(0, 80) } : {}, ...EFFORTS.includes(analyst.effort) ? { effort: analyst.effort } : {}, ...analyst.type === "acp" ? { command: String(analyst.command ?? "").slice(0, 500), args: (analyst.args ?? []).slice(0, 40).map(String) } : {} } : null,
         timeoutMinutes: Math.max(2, Math.min(20, Number(input.team.timeoutMinutes ?? job.team?.timeoutMinutes ?? 8) || 8))
       };
     }
@@ -20033,15 +20103,15 @@ function sanitizeJob(input, current = {}) {
 }
 function onPath(name, envPath = process.env.PATH ?? "") {
   const names = process.platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name];
-  for (const dir of envPath.split(path10.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path10.join(dir, candidate))) return path10.join(dir, candidate);
+  for (const dir of envPath.split(path11.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path11.join(dir, candidate))) return path11.join(dir, candidate);
   return null;
 }
 function workbuddyConfigDir(env = process.env) {
-  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path10.join(os3.homedir(), ".workbuddy");
+  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path11.join(os4.homedir(), ".workbuddy");
 }
 function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
-  if (type === "kimi") return onPath("kimi") ?? path10.join(os3.homedir(), ".local", "bin", "kimi");
+  if (type === "kimi") return onPath("kimi") ?? path11.join(os4.homedir(), ".local", "bin", "kimi");
   if (type === "workbuddy") {
     const bundled = "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy";
     return onPath("codebuddy") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codebuddy");
@@ -20073,6 +20143,7 @@ function agentInvocation({ job, account: account2, prompt, nodePath, bundlePath:
       "--verbose",
       "--no-session-persistence",
       ...runner.model ? ["--model", runner.model] : [],
+      ...runner.type === "claude" ? ["--effort", runner.effort ?? DEFAULT_EFFORT] : [],
       ...runner.maxBudgetUsd && runner.type === "claude" ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : [],
       ...skillText ? ["--append-system-prompt", skillText] : []
     ];
@@ -20117,6 +20188,9 @@ ${prompt}` : prompt, "--output-format", "stream-json", ...model ? ["-m", model] 
       "-c",
       'plugins."hrouter-market-pulse@hrouter-market-pulse".enabled=false',
       ...runner.model ? ["-m", runner.model] : [],
+      // Codex calls the top level "xhigh"; "max" maps onto it.
+      "-c",
+      `model_reasoning_effort=${toml((runner.effort ?? DEFAULT_EFFORT) === "max" ? "xhigh" : runner.effort ?? DEFAULT_EFFORT)}`,
       skillText ? `${skillText}
 
 ---
@@ -20169,7 +20243,7 @@ function createScheduler({
   spawnImpl = spawn3,
   strategyLoader = loadStrategies,
   nodePath = process.execPath,
-  bundlePath: bundlePath2 = fileURLToPath3(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath3(import.meta.url) : path10.resolve(path10.dirname(fileURLToPath3(import.meta.url)), "server.bundle.mjs"),
+  bundlePath: bundlePath2 = fileURLToPath3(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath3(import.meta.url) : path11.resolve(path11.dirname(fileURLToPath3(import.meta.url)), "server.bundle.mjs"),
   skillPath,
   tickMs = SCHEDULER_DEFAULTS.tickMs,
   leaseMs = SCHEDULER_DEFAULTS.leaseMs,
@@ -20179,10 +20253,10 @@ function createScheduler({
   onError = () => {
   }
 } = {}) {
-  const file = path10.join(arena.root, "schedules.json");
-  const runDir = path10.join(arena.root, "runs");
-  const eventDir = path10.join(runDir, "events");
-  const ownerId = `${os3.hostname()}:${process.pid}:${randomBytes3(4).toString("hex")}`;
+  const file = path11.join(arena.root, "schedules.json");
+  const runDir = path11.join(arena.root, "runs");
+  const eventDir = path11.join(runDir, "events");
+  const ownerId = `${os4.hostname()}:${process.pid}:${randomBytes3(4).toString("hex")}`;
   const running = /* @__PURE__ */ new Map();
   const agentRuns = /* @__PURE__ */ new Set();
   const live = /* @__PURE__ */ new Map();
@@ -20204,7 +20278,7 @@ function createScheduler({
   };
   async function readState() {
     try {
-      const state = JSON.parse(await readFile9(file, "utf8"));
+      const state = JSON.parse(await readFile10(file, "utf8"));
       return { jobs: state.jobs ?? [], done: state.done ?? {}, pools: state.pools ?? {}, reviews: state.reviews ?? {}, gate: state.gate ?? {} };
     } catch (error2) {
       if (error2.code === "ENOENT") return { jobs: [], done: {}, pools: {}, reviews: {}, gate: {} };
@@ -20230,7 +20304,7 @@ function createScheduler({
   const workbench = async () => arena.workbenchSettings ? arena.workbenchSettings().catch(() => ({})) : {};
   async function appendRun(accountId2, record2) {
     await mkdir8(runDir, { recursive: true });
-    await appendFile(path10.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
+    await appendFile(path11.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
 `, "utf8");
   }
   function eventWriter(runId) {
@@ -20238,7 +20312,7 @@ function createScheduler({
     });
     return {
       push(event) {
-        chain = chain.then(() => appendFile(path10.join(eventDir, `${runId}.jsonl`), `${JSON.stringify(event)}
+        chain = chain.then(() => appendFile(path11.join(eventDir, `${runId}.jsonl`), `${JSON.stringify(event)}
 `, "utf8")).catch(() => {
         });
       },
@@ -20249,7 +20323,7 @@ function createScheduler({
     if (!/^acc_[a-f0-9]{12}$/.test(accountId2 ?? "")) throw new ArenaError("accountId required.");
     let text2 = "";
     try {
-      text2 = await readFile9(path10.join(runDir, `${accountId2}.jsonl`), "utf8");
+      text2 = await readFile10(path11.join(runDir, `${accountId2}.jsonl`), "utf8");
     } catch (error2) {
       if (error2.code !== "ENOENT") throw error2;
     }
@@ -20267,7 +20341,7 @@ function createScheduler({
     if (!/^run_[a-f0-9]{12}$/.test(runId ?? "")) throw new ArenaError("Invalid run id.");
     if (live.has(runId)) return { runId, running: true, run: live.get(runId).record, events: live.get(runId).events };
     try {
-      const text2 = await readFile9(path10.join(eventDir, `${runId}.jsonl`), "utf8");
+      const text2 = await readFile10(path11.join(eventDir, `${runId}.jsonl`), "utf8");
       return { runId, running: false, events: text2.split("\n").filter(Boolean).map((line) => JSON.parse(line)) };
     } catch (error2) {
       if (error2.code === "ENOENT") return { runId, running: false, events: [] };
@@ -20276,10 +20350,10 @@ function createScheduler({
   }
   async function skillText(account2) {
     let base = null;
-    const candidates = [skillPath, path10.resolve(path10.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
+    const candidates = [skillPath, path11.resolve(path11.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
     for (const candidate of candidates) {
       try {
-        base = (await readFile9(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
+        base = (await readFile10(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
         break;
       } catch {
       }
@@ -20335,7 +20409,7 @@ function createScheduler({
     const writer = eventWriter(record2.id);
     live.set(record2.id, entry);
     emit({ type: "run-start", run: record2 });
-    const workDir = await mkdtemp(path10.join(os3.tmpdir(), "hrouter-round-"));
+    const workDir = await mkdtemp(path11.join(os4.tmpdir(), "hrouter-round-"));
     try {
       const effective = { ...job, runner };
       const baseIdentity = account2.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
@@ -20475,7 +20549,7 @@ ${prompt}` : prompt,
   const analystRunner = (job, fallback) => {
     const analyst = job.team?.analyst;
     if (!analyst) return { ...fallback, timeoutMinutes: job.team?.timeoutMinutes ?? 8 };
-    return { type: analyst.type, timeoutMinutes: job.team?.timeoutMinutes ?? 8, language: job.runner.language, ...analyst.model ? { model: analyst.model } : {}, ...analyst.command ? { command: analyst.command, args: analyst.args ?? [] } : {} };
+    return { type: analyst.type, timeoutMinutes: job.team?.timeoutMinutes ?? 8, language: job.runner.language, ...analyst.model ? { model: analyst.model } : {}, ...analyst.effort ? { effort: analyst.effort } : {}, ...analyst.command ? { command: analyst.command, args: analyst.args ?? [] } : {} };
   };
   const subRuns = /* @__PURE__ */ new Map();
   async function subAgent(job, account2, { role: role2, task, runner, trigger = "team", reports = [] }) {
@@ -20512,10 +20586,10 @@ ${prompt}` : prompt,
       });
     }
   }
-  const researchFile = path10.join(arena.root, "research.json");
+  const researchFile = path11.join(arena.root, "research.json");
   async function readResearch() {
     try {
-      return JSON.parse(await readFile9(researchFile, "utf8")).tasks ?? [];
+      return JSON.parse(await readFile10(researchFile, "utf8")).tasks ?? [];
     } catch (error2) {
       if (error2.code === "ENOENT") return [];
       throw error2;
@@ -20543,7 +20617,7 @@ ${prompt}` : prompt,
     const writer = eventWriter(record2.id);
     live.set(record2.id, entry);
     emit({ type: "run-start", run: record2 });
-    const workDir = await mkdtemp(path10.join(os3.tmpdir(), "hrouter-research-"));
+    const workDir = await mkdtemp(path11.join(os4.tmpdir(), "hrouter-research-"));
     let outcome;
     try {
       const skill = task.kind === "investor-panel" ? (await skillBody("investor-panel").catch(() => "")).replace(/^#\s.*\n/, "").trim() : null;
@@ -20882,7 +20956,7 @@ ${prompt}` : prompt,
         prompt,
         symbols,
         accountId: /^acc_[a-f0-9]{12}$/.test(input.accountId ?? "") ? input.accountId : null,
-        runner: { type: runner.type, ...runner.model ? { model: String(runner.model).slice(0, 80) } : {}, ...runner.type === "acp" ? { command: String(runner.command).slice(0, 500), args: (runner.args ?? []).slice(0, 40).map(String) } : {} },
+        runner: { type: runner.type, ...runner.model ? { model: String(runner.model).slice(0, 80) } : {}, ...EFFORTS.includes(runner.effort) ? { effort: runner.effort } : {}, ...runner.type === "acp" ? { command: String(runner.command).slice(0, 500), args: (runner.args ?? []).slice(0, 40).map(String) } : {} },
         language: input.language === "en" ? "en" : "zh-CN",
         status: "queued",
         createdAt: now()
@@ -21567,26 +21641,26 @@ function registerMarketDataTools(server2, { toolResult: toolResult2, toolError: 
 }
 
 // mcp/update-coordination.mjs
-import { mkdir as mkdir9, readFile as readFile10, writeFile as writeFile8, rename as rename9, rm as rm4, readdir as readdir4, stat as stat3 } from "node:fs/promises";
+import { mkdir as mkdir9, readFile as readFile11, writeFile as writeFile8, rename as rename9, rm as rm4, readdir as readdir4, stat as stat3 } from "node:fs/promises";
 import { rmSync } from "node:fs";
 import { randomUUID as randomUUID7 } from "node:crypto";
-import os4 from "node:os";
-import path11 from "node:path";
+import os5 from "node:os";
+import path12 from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-function updateHome(env = process.env, platform = process.platform, home = os4.homedir()) {
-  if (env.HROUTER_UPDATE_HOME) return path11.resolve(env.HROUTER_UPDATE_HOME);
-  return platform === "win32" ? path11.join(env.LOCALAPPDATA || path11.join(home, "AppData", "Local"), "HrouterMarketPulseUpdater") : path11.join(env.XDG_DATA_HOME || path11.join(home, ".local", "share"), "hrouter-market-pulse-updater");
+function updateHome(env = process.env, platform = process.platform, home2 = os5.homedir()) {
+  if (env.HROUTER_UPDATE_HOME) return path12.resolve(env.HROUTER_UPDATE_HOME);
+  return platform === "win32" ? path12.join(env.LOCALAPPDATA || path12.join(home2, "AppData", "Local"), "HrouterMarketPulseUpdater") : path12.join(env.XDG_DATA_HOME || path12.join(home2, ".local", "share"), "hrouter-market-pulse-updater");
 }
 async function readJson3(file, fallback = null) {
   try {
-    return JSON.parse(await readFile10(file, "utf8"));
+    return JSON.parse(await readFile11(file, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function atomicJson(file, data) {
-  await mkdir9(path11.dirname(file), { recursive: true, mode: 448 });
+  await mkdir9(path12.dirname(file), { recursive: true, mode: 448 });
   const temp = `${file}.${randomUUID7()}.tmp`;
   try {
     await writeFile8(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
@@ -21604,20 +21678,20 @@ function processAlive2(pid) {
     return error2.code !== "ESRCH";
   }
 }
-async function acquireLock(home, name, { waitMs = 0, alive = processAlive2 } = {}) {
-  await mkdir9(home, { recursive: true, mode: 448 });
-  const dir = path11.join(home, `${name}.lock`);
+async function acquireLock(home2, name, { waitMs = 0, alive = processAlive2 } = {}) {
+  await mkdir9(home2, { recursive: true, mode: 448 });
+  const dir = path12.join(home2, `${name}.lock`);
   const deadline = Date.now() + waitMs;
   for (; ; ) {
     try {
       await mkdir9(dir, { mode: 448 });
-      await atomicJson(path11.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
+      await atomicJson(path12.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
       return async () => {
         await rm4(dir, { recursive: true, force: true });
       };
     } catch (error2) {
       if (error2.code !== "EEXIST") throw error2;
-      const owner = await readJson3(path11.join(dir, "owner.json"));
+      const owner = await readJson3(path12.join(dir, "owner.json"));
       let stale = owner && !alive(owner.pid);
       if (!owner) {
         try {
@@ -21633,7 +21707,7 @@ async function acquireLock(home, name, { waitMs = 0, alive = processAlive2 } = {
         try {
           await mkdir9(reaping, { mode: 448 });
           reaper = true;
-          const current = await readJson3(path11.join(dir, "owner.json"));
+          const current = await readJson3(path12.join(dir, "owner.json"));
           let removable = current && !alive(current.pid);
           if (!current) {
             try {
@@ -21658,12 +21732,12 @@ async function acquireLock(home, name, { waitMs = 0, alive = processAlive2 } = {
     }
   }
 }
-async function acquireRuntimeLease(home = updateHome()) {
-  if (!await readJson3(path11.join(home, "state.json"))) return () => {
+async function acquireRuntimeLease(home2 = updateHome()) {
+  if (!await readJson3(path12.join(home2, "state.json"))) return () => {
   };
-  const unlock = await acquireLock(home, "activation", { waitMs: 12e4 });
+  const unlock = await acquireLock(home2, "activation", { waitMs: 12e4 });
   if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
-  const file = path11.join(home, "running", `${process.pid}-${randomUUID7()}.json`);
+  const file = path12.join(home2, "running", `${process.pid}-${randomUUID7()}.json`);
   try {
     await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
   } finally {
@@ -21680,18 +21754,18 @@ async function acquireRuntimeLease(home = updateHome()) {
 }
 
 // mcp/service.mjs
-import { mkdir as mkdir10, readFile as readFile11, rename as rename10, stat as stat4, writeFile as writeFile9 } from "node:fs/promises";
+import { mkdir as mkdir10, readFile as readFile12, rename as rename10, stat as stat4, writeFile as writeFile9 } from "node:fs/promises";
 import { randomUUID as randomUUID8 } from "node:crypto";
-import os5 from "node:os";
-import path12 from "node:path";
+import os6 from "node:os";
+import path13 from "node:path";
 var SERVICE_HEARTBEAT_MS = 3e4;
 var SERVICE_STALE_MS = 12e4;
 function serviceStatusFile(arenaRoot) {
-  return path12.join(arenaRoot, "service-status.json");
+  return path13.join(arenaRoot, "service-status.json");
 }
 async function readServiceStatus(arenaRoot, now = Date.now()) {
   try {
-    const status = JSON.parse(await readFile11(serviceStatusFile(arenaRoot), "utf8"));
+    const status = JSON.parse(await readFile12(serviceStatusFile(arenaRoot), "utf8"));
     const alive = now - Date.parse(status.heartbeatAt) < SERVICE_STALE_MS;
     return { ...status, state: alive ? "running" : "stopped" };
   } catch (error2) {
@@ -21706,7 +21780,7 @@ function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: 
   const write = async () => {
     const status = {
       pid: process.pid,
-      host: os5.hostname(),
+      host: os6.hostname(),
       version: version3,
       bundlePath: bundlePath2,
       port,
@@ -21747,9 +21821,9 @@ function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: 
 }
 
 // mcp/alerts.mjs
-import { mkdir as mkdir11, readFile as readFile12, rename as rename11, writeFile as writeFile10 } from "node:fs/promises";
+import { mkdir as mkdir11, readFile as readFile13, rename as rename11, writeFile as writeFile10 } from "node:fs/promises";
 import { randomUUID as randomUUID9 } from "node:crypto";
-import path13 from "node:path";
+import path14 from "node:path";
 var ALERT_INTERVAL_MS = 6e4;
 var KEEP = 500;
 var MAX_PER_PASS = 10;
@@ -21790,14 +21864,14 @@ ${alert.text}` } };
 }
 async function readSent(file) {
   try {
-    return JSON.parse(await readFile12(file, "utf8"));
+    return JSON.parse(await readFile13(file, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
   }
 }
 async function writeSent(file, value) {
-  await mkdir11(path13.dirname(file), { recursive: true });
+  await mkdir11(path14.dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.${randomUUID9()}.tmp`;
   await writeFile10(temporary, JSON.stringify(value, null, 1), "utf8");
   await rename11(temporary, file);
@@ -21805,7 +21879,7 @@ async function writeSent(file, value) {
 async function sendAlerts({ arena, scheduler, loadPreferences: loadPreferences2, fetchImpl = fetch, timeoutMs = 1e4, now = () => (/* @__PURE__ */ new Date()).toISOString() }) {
   const webhook = (await loadPreferences2())?.digestWebhook;
   if (!webhook?.url || webhook.enabled === false) return { sent: [], skipped: "no-webhook" };
-  const file = path13.join(arena.root, "alerts.json");
+  const file = path14.join(arena.root, "alerts.json");
   const state = await readSent(file);
   const alerts = await collectAlerts({ arena, scheduler });
   if (!state) {
@@ -21859,9 +21933,9 @@ import { fileURLToPath as fileURLToPath6 } from "node:url";
 // mcp/skill-import.mjs
 import { execFile as execFile2 } from "node:child_process";
 import { createHash as createHash4 } from "node:crypto";
-import { cp, mkdir as mkdir12, mkdtemp as mkdtemp2, readdir as readdir5, readFile as readFile13, rm as rm5, stat as stat5, writeFile as writeFile11 } from "node:fs/promises";
-import os6 from "node:os";
-import path14 from "node:path";
+import { cp, mkdir as mkdir12, mkdtemp as mkdtemp2, readdir as readdir5, readFile as readFile14, rm as rm5, stat as stat5, writeFile as writeFile11 } from "node:fs/promises";
+import os7 from "node:os";
+import path15 from "node:path";
 import { promisify as promisify2 } from "node:util";
 var run = promisify2(execFile2);
 var MAX_FILES = 20;
@@ -21883,9 +21957,9 @@ async function markdownFiles(dir) {
     if (depth > 2 || files.length >= MAX_FILES) return;
     for (const entry of await readdir5(current, { withFileTypes: true })) {
       if (entry.name.startsWith(".")) continue;
-      const full = path14.join(current, entry.name);
+      const full = path15.join(current, entry.name);
       if (entry.isDirectory() && depth < 2 && ["references", "api-reference", "docs"].includes(entry.name)) await walk(full, depth + 1);
-      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md") && files.length < MAX_FILES && (await stat5(full)).size <= MAX_BYTES) files.push(path14.relative(dir, full));
+      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md") && files.length < MAX_FILES && (await stat5(full)).size <= MAX_BYTES) files.push(path15.relative(dir, full));
     }
   }
   await walk(dir, 0);
@@ -21894,23 +21968,23 @@ async function markdownFiles(dir) {
 async function copySkill(sourceDir, { source, markets, name }) {
   let skillText;
   try {
-    skillText = await readFile13(path14.join(sourceDir, "SKILL.md"), "utf8");
+    skillText = await readFile14(path15.join(sourceDir, "SKILL.md"), "utf8");
   } catch {
     throw new SkillImportError(`${sourceDir} has no SKILL.md.`);
   }
   if (skillText.length > MAX_BYTES) throw new SkillImportError("SKILL.md is larger than 200 KB.");
   const described = describeSkill(skillText);
-  const folder = path14.basename(path14.resolve(sourceDir));
+  const folder = path15.basename(path15.resolve(sourceDir));
   const title = String(name || described.name || folder).slice(0, 60);
   const readable = [name, described.name, folder === "repo" ? null : folder].filter(Boolean).map(slug).find((value) => value !== "skill");
   const id = `imp-${readable ?? createHash4("sha1").update(title).digest("hex").slice(0, 10)}`.slice(0, 60);
-  const target = path14.join(importedDir(), id);
+  const target = path15.join(importedDir(), id);
   await rm5(target, { recursive: true, force: true });
   await mkdir12(target, { recursive: true });
   const files = await markdownFiles(sourceDir);
   for (const file of files) {
-    await mkdir12(path14.dirname(path14.join(target, file)), { recursive: true });
-    await cp(path14.join(sourceDir, file), path14.join(target, file));
+    await mkdir12(path15.dirname(path15.join(target, file)), { recursive: true });
+    await cp(path15.join(sourceDir, file), path15.join(target, file));
   }
   const meta = {
     id,
@@ -21922,12 +21996,12 @@ async function copySkill(sourceDir, { source, markets, name }) {
     files,
     importedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
-  await writeFile11(path14.join(target, "meta.json"), JSON.stringify(meta, null, 1));
+  await writeFile11(path15.join(target, "meta.json"), JSON.stringify(meta, null, 1));
   invalidateLibrary();
   return meta;
 }
-async function listClaudeSkills(home = os6.homedir()) {
-  const dir = path14.join(home, ".claude", "skills");
+async function listClaudeSkills(home2 = os7.homedir()) {
+  const dir = path15.join(home2, ".claude", "skills");
   let entries = [];
   try {
     entries = await readdir5(dir, { withFileTypes: true });
@@ -21937,21 +22011,21 @@ async function listClaudeSkills(home = os6.homedir()) {
   const skills = [];
   for (const entry of entries.filter((item) => item.isDirectory() || item.isSymbolicLink())) {
     try {
-      const text2 = await readFile13(path14.join(dir, entry.name, "SKILL.md"), "utf8");
-      skills.push({ name: entry.name, ...describeSkill(text2), path: path14.join(dir, entry.name) });
+      const text2 = await readFile14(path15.join(dir, entry.name, "SKILL.md"), "utf8");
+      skills.push({ name: entry.name, ...describeSkill(text2), path: path15.join(dir, entry.name) });
     } catch {
     }
   }
   return skills;
 }
-async function importSkill({ kind, path: folder, url, name, subdir, markets, home = os6.homedir(), gitImpl = run } = {}) {
+async function importSkill({ kind, path: folder, url, name, subdir, markets, home: home2 = os7.homedir(), gitImpl = run } = {}) {
   if (kind === "folder") {
-    if (!folder || !path14.isAbsolute(folder)) throw new SkillImportError("Give the absolute path of a folder that contains SKILL.md.");
+    if (!folder || !path15.isAbsolute(folder)) throw new SkillImportError("Give the absolute path of a folder that contains SKILL.md.");
     return copySkill(folder, { source: { kind, path: folder }, markets, name });
   }
   if (kind === "claude") {
     if (!/^[A-Za-z0-9._-]{1,80}$/.test(name ?? "")) throw new SkillImportError("Give the skill's folder name under ~/.claude/skills.");
-    return copySkill(path14.join(home, ".claude", "skills", name), { source: { kind, name }, markets });
+    return copySkill(path15.join(home2, ".claude", "skills", name), { source: { kind, name }, markets });
   }
   if (kind === "git") {
     let parsed;
@@ -21962,11 +22036,11 @@ async function importSkill({ kind, path: folder, url, name, subdir, markets, hom
     }
     if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new SkillImportError("Only public https Git URLs without credentials.");
     if (subdir && (!/^[A-Za-z0-9._/-]{1,200}$/.test(subdir) || subdir.includes(".."))) throw new SkillImportError("subdir must be a plain relative path.");
-    const temp = await mkdtemp2(path14.join(os6.tmpdir(), "hrouter-skill-"));
+    const temp = await mkdtemp2(path15.join(os7.tmpdir(), "hrouter-skill-"));
     try {
-      await gitImpl("git", ["clone", "--depth", "1", "--", parsed.href, path14.join(temp, "repo")], { timeout: 9e4, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
-      const { stdout } = await gitImpl("git", ["-C", path14.join(temp, "repo"), "rev-parse", "HEAD"], { timeout: 1e4 });
-      return await copySkill(path14.join(temp, "repo", subdir ?? ""), { source: { kind, url: parsed.href, subdir: subdir ?? null, commit: stdout.trim() }, markets, name });
+      await gitImpl("git", ["clone", "--depth", "1", "--", parsed.href, path15.join(temp, "repo")], { timeout: 9e4, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+      const { stdout } = await gitImpl("git", ["-C", path15.join(temp, "repo"), "rev-parse", "HEAD"], { timeout: 1e4 });
+      return await copySkill(path15.join(temp, "repo", subdir ?? ""), { source: { kind, url: parsed.href, subdir: subdir ?? null, commit: stdout.trim() }, markets, name });
     } finally {
       await rm5(temp, { recursive: true, force: true }).catch(() => {
       });
@@ -21976,12 +22050,12 @@ async function importSkill({ kind, path: folder, url, name, subdir, markets, hom
 }
 async function removeImported(id) {
   if (!/^imp-[a-z0-9-]{2,56}$/.test(id ?? "")) throw new SkillImportError("Only imported skills can be removed.");
-  await rm5(path14.join(importedDir(), id), { recursive: true, force: true });
+  await rm5(path15.join(importedDir(), id), { recursive: true, force: true });
   invalidateLibrary();
   return { removed: id };
 }
 async function updateImported(id, { gitImpl = run } = {}) {
-  const meta = JSON.parse(await readFile13(path14.join(importedDir(), id, "meta.json"), "utf8"));
+  const meta = JSON.parse(await readFile14(path15.join(importedDir(), id, "meta.json"), "utf8"));
   if (meta.source?.kind !== "git") throw new SkillImportError("Only skills imported from Git can be updated; re-import a folder to refresh it.");
   return importSkill({ kind: "git", url: meta.source.url, subdir: meta.source.subdir ?? void 0, name: meta.name, markets: meta.markets, gitImpl });
 }
@@ -21992,10 +22066,10 @@ async function github(pathname, fetchImpl) {
   if (!response.ok) throw new SkillImportError(`GitHub API HTTP ${response.status}`);
   return response.json();
 }
-async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, cacheFile = path14.join(importedDir(), ".upstream.json") } = {}) {
+async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, cacheFile = path15.join(importedDir(), ".upstream.json") } = {}) {
   if (!force) {
     try {
-      const cached4 = JSON.parse(await readFile13(cacheFile, "utf8"));
+      const cached4 = JSON.parse(await readFile14(cacheFile, "utf8"));
       if (Date.now() - Date.parse(cached4.checkedAt) < CACHE_MS) return cached4;
     } catch {
     }
@@ -22033,7 +22107,7 @@ async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, c
     }
   }
   const value = { checkedAt: (/* @__PURE__ */ new Date()).toISOString(), results, note: "\u5185\u7F6E skill \u662F\u6539\u7F16\u7248\uFF0C\u4E0A\u6E38\u66F4\u65B0\u4E0D\u4F1A\u81EA\u52A8\u8986\u76D6\uFF1A\u770B\u5DEE\u5F02\u540E\u7531\u7EF4\u62A4\u8005\u51B3\u5B9A\u662F\u5426\u8DDF\u8FDB\uFF1B\u5BFC\u5165\u7684 Git skill \u53EF\u4EE5\u4E00\u952E\u66F4\u65B0\u3002" };
-  await mkdir12(path14.dirname(cacheFile), { recursive: true }).catch(() => {
+  await mkdir12(path15.dirname(cacheFile), { recursive: true }).catch(() => {
   });
   await writeFile11(cacheFile, JSON.stringify(value, null, 1)).catch(() => {
   });
@@ -22044,7 +22118,7 @@ async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, c
 import { spawn as spawn4 } from "node:child_process";
 import { existsSync as existsSync2 } from "node:fs";
 import { readdir as readdir6, stat as stat6 } from "node:fs/promises";
-import path15 from "node:path";
+import path16 from "node:path";
 var AGENTS = [
   { id: "claude", name: "Claude Code", kind: "claude-cli" },
   { id: "codex", name: "Codex", kind: "codex-cli" },
@@ -22104,7 +22178,7 @@ async function dirSize(dir, depth = 0) {
     return 0;
   }
   for (const entry of entries) {
-    const full = path15.join(dir, entry.name);
+    const full = path16.join(dir, entry.name);
     if (entry.isDirectory()) total += await dirSize(full, depth + 1);
     else {
       try {
@@ -22121,7 +22195,7 @@ async function checkEnvironment({ arena, scheduler, language = "zh" }) {
   const pools = scheduler ? await scheduler.listPools().catch(() => []) : [];
   const agents = await Promise.all(AGENTS.map(async (agent) => {
     const command = agent.kind === "acp" ? onPath(agent.command) : defaultCommand(agent.id);
-    const installed = Boolean(command && (path15.isAbsolute(command) ? existsSync2(command) : onPath(command)));
+    const installed = Boolean(command && (path16.isAbsolute(command) ? existsSync2(command) : onPath(command)));
     const ver = installed ? await version(command) : null;
     const used = jobs.filter((job) => job.runner?.type === agent.id || agent.kind === "acp" && job.runner?.command === agent.command);
     const authFailure = used.find((job) => job.paused?.kind === "auth");
@@ -22173,13 +22247,13 @@ async function checkEnvironment({ arena, scheduler, language = "zh" }) {
 
 // mcp/http.mjs
 import { createServer } from "node:http";
-import { readFile as readFile15 } from "node:fs/promises";
+import { readFile as readFile16 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // mcp/workspace.mjs
 import { randomUUID as randomUUID10, createHash as createHash5 } from "node:crypto";
-import { mkdir as mkdir13, readFile as readFile14, rename as rename12, writeFile as writeFile12 } from "node:fs/promises";
-import path16 from "node:path";
+import { mkdir as mkdir13, readFile as readFile15, rename as rename12, writeFile as writeFile12 } from "node:fs/promises";
+import path17 from "node:path";
 
 // mcp/research.mjs
 function researchAsOf2(value = (/* @__PURE__ */ new Date()).toISOString()) {
@@ -22440,15 +22514,15 @@ var cleanText = (value, limit = 2e3) => String(value ?? "").trim().slice(0, limi
 var finite10 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
 async function readStore(name, fallback = []) {
   try {
-    return JSON.parse(await readFile14(path16.join(getStorageDir(), name), "utf8"));
+    return JSON.parse(await readFile15(path17.join(getStorageDir(), name), "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function writeStore(name, data) {
-  const target = path16.join(getStorageDir(), name);
-  await mkdir13(path16.dirname(target), { recursive: true });
+  const target = path17.join(getStorageDir(), name);
+  await mkdir13(path17.dirname(target), { recursive: true });
   const temp = `${target}.${randomUUID10()}.tmp`;
   await writeFile12(temp, JSON.stringify(data, null, 2));
   await rename12(temp, target);
@@ -23263,6 +23337,7 @@ data: ${JSON.stringify(message)}
         if (url.pathname === "/api/research") return respond(response, 200, { tasks: await (await schedulerReady).listResearch({ limit: Number(url.searchParams.get("limit")) || 50 }) });
         const reconcileRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/reconcile$/);
         if (reconcileRead) return respond(response, 200, await (await arenaReady).reconcile(reconcileRead[1]));
+        if (url.pathname === "/api/agent-models") return respond(response, 200, await agentModels());
         if (url.pathname === "/api/env") {
           const language = url.searchParams.get("lang") === "en" ? "en" : "zh";
           if (!envCache || envCache.language !== language || Date.now() - envCache.at > 6e4 || url.searchParams.get("fresh") === "1") envCache = { at: Date.now(), language, value: await checkEnvironment({ arena: await arenaReady, scheduler: await schedulerReady, language }) };
@@ -23309,7 +23384,7 @@ data: ${JSON.stringify(message)}
           return respond(
             response,
             200,
-            await readFile15(fileURLToPath4(new URL(name, assetRoot))),
+            await readFile16(fileURLToPath4(new URL(name, assetRoot))),
             type
           );
         }
@@ -23339,7 +23414,7 @@ data: ${JSON.stringify(message)}
           const extension = rest.split(".").at(-1);
           if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\.[a-z0-9]+$/.test(rest) || rest.includes("..") || !types[extension]) return respond(response, 404, { error: "Not found" });
           try {
-            const body = await readFile15(fileURLToPath4(new URL(`app/${rest}`, assetRoot)));
+            const body = await readFile16(fileURLToPath4(new URL(`app/${rest}`, assetRoot)));
             response.writeHead(200, { "Content-Type": types[extension], "Cache-Control": rest.startsWith("files/") ? "public, max-age=31536000, immutable" : "no-cache", "X-Content-Type-Options": "nosniff", "Content-Length": body.length });
             return response.end(body);
           } catch {
@@ -23792,10 +23867,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path18) {
-  if (!path18)
+function getElementAtPath(obj, path19) {
+  if (!path19)
     return obj;
-  return path18.reduce((acc, key) => acc?.[key], obj);
+  return path19.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -24115,11 +24190,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path18, issues) {
+function prefixIssues(path19, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path18);
+    iss.path.unshift(path19);
     return iss;
   });
 }
@@ -27532,11 +27607,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path18) {
-  if (path18.length === 0) {
+function getDotPath(path19) {
+  if (path19.length === 0) {
     return "object root";
   }
-  return path18.reduce((acc, seg, index) => {
+  return path19.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }

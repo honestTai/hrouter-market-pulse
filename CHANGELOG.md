@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Model and effort pickers, not tied to one provider.** Each agent's models come from the CLI's own files (Claude Code aliases, `~/.codex/models_cache.json`, `~/.kimi-code/config.toml`), newest first and selected by default; reasoning effort defaults to high (`--effort` for Claude Code, `model_reasoning_effort` for Codex; Kimi Code uses its own thinking setting). New route `/api/agent-models`.
 - **Everything left in the design doc, short of a real broker.** News relevance filtering; news / filing / data citations on orders and fills; demo mode removed (synthetic data now lives only in test fixtures).
 - **Order pipeline and live-trading prep.** Every order records intent → hard limits → discipline check → confirmation → matching, with dry runs and a reconciliation that rebuilds cash and positions from fills, dividends and splits.
 - **Autonomy levels.** Full / confirm key actions / suggest only. In the stricter levels orders become approval cards the owner confirms against a live re-check; agents cannot skip them.

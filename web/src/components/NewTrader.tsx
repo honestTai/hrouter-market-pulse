@@ -4,6 +4,7 @@ import { post, type AccountDetail, type Autonomy, type Market } from '@/lib/api'
 import { AGENT_NAME, AUTONOMY_NAME, MARKET_NAME, valueLabel, CHANGE_KEY } from '@/lib/format'
 import { locale, t } from '@/lib/i18n'
 import { useAction, useEnv, useLibrary } from '@/lib/queries'
+import { EffortField, latestModel, ModelField, useAgentModels } from './ModelPicker'
 import { AgentMark, Button, Dialog, Field, Input, Pill, Segmented, Select, Textarea, cn } from './ui'
 
 const DEFAULT_CASH: Record<Market, number> = { A: 1000000, HK: 1000000, US: 100000 }
@@ -24,6 +25,8 @@ export function NewTraderDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const [template, setTemplate] = useState<string>('a-share-swing')
   const [agent, setAgent] = useState('codex')
   const [model, setModel] = useState('')
+  const [effort, setEffort] = useState('high')
+  const models = useAgentModels()
   const [backup, setBackup] = useState('')
   const [prompt, setPrompt] = useState('')
   const [promptTouched, setPromptTouched] = useState(false)
@@ -45,12 +48,14 @@ export function NewTraderDialog({ open, onOpenChange }: { open: boolean; onOpenC
   }, [env.data])
   const quant = chosen?.builtinStrategy
   const agentChoice = agents.find((entry) => (entry.type === 'acp' ? `acp:${entry.command}` : entry.type) === agent)
+  // A new trader starts on the newest model its agent offers.
+  useEffect(() => { if (models.data) setModel(latestModel(models.data, agentChoice?.type ?? '')) }, [agent, models.data, agentChoice?.type])
 
   const create = useAction<Record<string, unknown>, AccountDetail>('/api/arena/accounts', { invalidate: [['leaderboard'], ['schedules']], success: (account) => t('已创建 {name}', { name: account.name }) })
 
   const submit = () => {
     const limits = { minCashPct: minCash === '' ? null : Number(minCash) }
-    const runner = quant ? { type: 'strategy', strategyId: chosen?.starterStrategy } : agentChoice ? { type: agentChoice.type, ...(model ? { model } : {}), ...(agentChoice.command ? { command: agentChoice.command, args: agentChoice.args } : {}) } : null
+    const runner = quant ? { type: 'strategy', strategyId: chosen?.starterStrategy } : agentChoice ? { type: agentChoice.type, ...(model ? { model } : {}), effort, ...(agentChoice.command ? { command: agentChoice.command, args: agentChoice.args } : {}) } : null
     const backupChoice = agents.find((entry) => (entry.type === 'acp' ? `acp:${entry.command}` : entry.type) === backup)
     create.mutate({
       name: name.trim() || `${quant ? t('量化') : AGENT_NAME[agentChoice?.type ?? ''] ?? agentChoice?.label ?? 'Agent'} · ${chosen?.name ?? MARKET_NAME[market]}`,
@@ -106,7 +111,10 @@ export function NewTraderDialog({ open, onOpenChange }: { open: boolean; onOpenC
               {!agents.length && <span className="text-[13px] text-ink-3">{t('没检测到 Agent CLI，去设置 → 环境检查看看。')}</span>}
             </div>
           </Field>
-          <Field label={t('模型')} hint={t('留空跟随 HRouter Desktop 当前配置。要和 Agent 对应：Kimi 的模型名别填到 Claude 上')}><Input value={model} onChange={(event) => setModel(event.target.value)} placeholder={agent === 'codex' ? 'gpt-6-astra' : agent === 'claude' ? 'claude-opus-5-5' : agent === 'kimi' ? 'k3-256k' : ''} /></Field>
+          <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+            <ModelField agent={agentChoice?.type ?? ''} value={model} onChange={setModel} />
+            <EffortField agent={agentChoice?.type ?? ''} model={model} value={effort} onChange={setEffort} />
+          </div>
           <Field label={t('备用 Agent')} hint={t('主 Agent 额度用尽或启动失败时代班复查')}>
             <Select value={backup} onChange={(event) => setBackup(event.target.value)}>
               <option value="">{t('不设置')}</option>

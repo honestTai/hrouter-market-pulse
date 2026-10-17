@@ -22,7 +22,7 @@ export function SettingsPage() {
   const section = search.section ?? 'env'
   return (
     <Page>
-      <PageHeader title={t('设置')} description={t('只在本机运行。模型和供应商在 HRouter Desktop 里切换，这里管 Agent、额度、提示词、费率、推送、券商连接和语言。')} />
+      <PageHeader title={t('设置')} description={t('只在本机运行。模型、供应商和登录用各 Agent 自己的配置；这里管 Agent、额度、提示词、费率、推送、券商连接和语言。')} />
       <div className="flex flex-wrap items-start gap-5">
         <nav aria-label={t('设置分组')} className="flex min-w-0 flex-[0_1_200px] flex-col gap-0.5">
           {SECTIONS.map(([id, label]) => (

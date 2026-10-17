@@ -104,7 +104,7 @@ function AgentStatus() {
           <Dot tone={agent.status === 'ok' ? 'ok' : agent.status === 'missing' ? 'muted' : agent.status === 'quota' ? 'warn' : 'bad'} label={agent.detail} />
         </Link>
       )) : <div className="text-xs text-ink-3">{t('检查中…')}</div>}
-      <div className="border-t border-line pt-2 text-xs text-ink-3">{t('模型跟随 HRouter Desktop 当前配置')}</div>
+      <div className="border-t border-line pt-2 text-xs text-ink-3">{t('模型默认用各 Agent 的最新版，推理强度默认高')}</div>
     </div>
   )
 }

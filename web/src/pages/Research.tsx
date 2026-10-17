@@ -15,6 +15,7 @@ import { collectEvidence, titleOf } from '@/lib/market'
 import { useAction, useResearchTasks, useRunEvents } from '@/lib/queries'
 import { useAgentOptions } from './trader/Settings'
 import { useMarketReport } from './Market'
+import { EffortField, latestModel, ModelField, useAgentModels } from '@/components/ModelPicker'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const STATE: Record<string, string> = { watch: t('观察'), candidate: t('候选评审'), hold: t('持有观察'), 'review-exit': t('退出评审'), inactive: t('已停用') }
@@ -111,6 +112,10 @@ function NewTaskDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpe
   const [prompt, setPrompt] = useState('')
   const [agent, setAgent] = useState('')
   const [model, setModel] = useState('')
+  const [effort, setEffort] = useState('high')
+  const agentModels = useAgentModels()
+  const agentType = options.find((entry) => entry.key === agent)?.runner.type ?? ''
+  useEffect(() => { if (agentModels.data) setModel(latestModel(agentModels.data, agentType)) }, [agentType, agentModels.data])
   useEffect(() => { if (!agent && options.length) setAgent(options[0].key) }, [options, agent])
   const create = useAction<Record<string, unknown>, ResearchTask>('/api/research', { invalidate: [['research-tasks']], success: t('已开始研究，进度会实时显示') })
   const symbolList = symbols.split(/[\s,，、]+/).map((entry) => entry.trim()).filter(Boolean)
@@ -119,7 +124,7 @@ function NewTaskDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpe
   const ready = autoTitle && agent && (!needsSymbols || symbolList.length) && (kind !== 'question' || prompt.trim().length >= 4)
   const submit = () => {
     const option = options.find((entry) => entry.key === agent)
-    create.mutate({ kind, title: autoTitle, symbols: symbolList, prompt, runner: { ...option!.runner, ...(model ? { model } : {}) } }, { onSuccess: (task) => { onCreated(task); onOpenChange(false); setTitle(''); setSymbols(''); setPrompt('') } })
+    create.mutate({ kind, title: autoTitle, symbols: symbolList, prompt, runner: { ...option!.runner, ...(model ? { model } : {}), effort } }, { onSuccess: (task) => { onCreated(task); onOpenChange(false); setTitle(''); setSymbols(''); setPrompt('') } })
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={t('新建研究任务')} description={t('Agent 只读运行：查行情、新闻、公告和市场数据，写一份报告。不会下单。')} width={620}>
@@ -129,9 +134,10 @@ function NewTaskDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpe
         {needsSymbols && <Field label={t('股票代码 *')} hint={t('最多 10 只，用逗号或空格分开')}><Input value={symbols} onChange={(event) => setSymbols(event.target.value)} placeholder="600519, 0700.HK, AAPL" /></Field>}
         <Field label={kind === 'question' ? t('研究问题 *') : t('补充说明（可选）')}><Textarea rows={3} value={prompt} onChange={(event) => setPrompt(event.target.value)} maxLength={2000} placeholder={kind === 'question' ? t('例如：固态电池产业链里，哪些公司今年有确定的量产订单？') : t('例如：重点看现金流和分红能力')} /></Field>
         <Field label={t('标题')}><Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={autoTitle || t('自动生成')} maxLength={80} /></Field>
-        <div className="grid grid-cols-2 gap-2.5 max-sm:grid-cols-1">
+        <div className="grid grid-cols-3 gap-2.5 max-md:grid-cols-1">
           <Field label={t('用哪个 Agent')} hint={t('Kimi Code 不能只读运行，这里不列')}><Select value={agent} onChange={(event) => setAgent(event.target.value)}>{options.length ? options.map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>) : <option value="">{t('没有可用的 Agent')}</option>}</Select></Field>
-          <Field label={t('模型')} hint={t('留空跟随 HRouter Desktop')}><Input value={model} onChange={(event) => setModel(event.target.value)} /></Field>
+          <ModelField agent={agentType} value={model} onChange={setModel} />
+          <EffortField agent={agentType} model={model} value={effort} onChange={setEffort} />
         </div>
         <div className="flex justify-end gap-2"><Button onClick={() => onOpenChange(false)}>{t('取消')}</Button><Button variant="primary" disabled={!ready} loading={create.isPending} onClick={submit}>{t('开始研究')}</Button></div>
       </div>

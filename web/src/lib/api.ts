@@ -92,7 +92,7 @@ export interface AccountDetail extends AccountSummary {
 
 export interface Leaderboard { generatedAt: string; groups: Array<{ market: Market; competition: string; currency: string; accounts: AccountSummary[] }>; matcher: { state: string; lastTickAt?: string }; service: { state: string } }
 
-export interface Runner { type: string; model?: string; timeoutMinutes?: number; strategyId?: string; params?: Record<string, unknown>; command?: string; args?: string[]; webSearch?: boolean }
+export interface Runner { type: string; model?: string; effort?: string; timeoutMinutes?: number; strategyId?: string; params?: Record<string, unknown>; command?: string; args?: string[]; webSearch?: boolean }
 export interface Job {
   accountId: string; enabled?: boolean; times: string[]; intervalMinutes?: number; runner: Runner; backup?: Runner; mode?: string
   strategy?: { strategyId: string; intervalMinutes: number; params: Record<string, unknown> }

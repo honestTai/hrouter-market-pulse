@@ -127,7 +127,14 @@ export async function main(argv = process.argv.slice(2)) {
     await mkdir(path.dirname(plan.log), { recursive: true });
     for (const [command, args] of plan.disable) await exec(command, args, { allowFailure: true });
     for (const file of plan.files) { await mkdir(path.dirname(file.path), { recursive: true }); await writeFile(file.path, file.content, { mode: 0o600 }); }
-    for (const [command, args] of plan.enable) await exec(command, args);
+    // launchctl bootout returns before the old job is gone; bootstrapping too early fails with
+    // "Bootstrap failed: 5: Input/output error". Retry for a few seconds instead of giving up.
+    for (const [command, args] of plan.enable) {
+      for (let attempt = 1; ; attempt += 1) {
+        try { await exec(command, args); break; }
+        catch (error) { if (attempt >= 10 || !/Bootstrap failed: (5|37)/.test(error.message)) throw error; await new Promise((resolve) => setTimeout(resolve, 1000)); }
+      }
+    }
     const port = serviceEnvironment().HROUTER_REPORT_PORT;
     let state = { reachable: false };
     for (let attempt = 0; attempt < 15 && !state.reachable; attempt += 1) { await new Promise((resolve) => setTimeout(resolve, 1000)); state = await health(port); }

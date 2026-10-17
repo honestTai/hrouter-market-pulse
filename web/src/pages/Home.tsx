@@ -40,7 +40,7 @@ export function HomePage() {
         <Card className="p-4"><Stat label="今日领先" value={leader ? <Signed value={leader.metrics.todayReturnPct} className="text-[20px]" /> : '—'} sub={leader?.name ?? '还没有交易员'} /></Card>
         <Card className="p-4"><Stat label="跑赢基准" value={<>{beating}<span className="text-sm text-ink-3"> / {accounts.length}</span></>} sub={[...new Set(accounts.map((account) => account.market))].map((key) => BENCHMARK_NAME[key]).join(' · ') || '—'} /></Card>
         <Card className="p-4"><Stat label="今日成交 / 被边界拦下" value={<>{fills}<span className="text-sm text-ink-3"> / {rejected}</span></>} sub="拦截原因在交易员页的时间线里" /></Card>
-        <Card className="p-4"><Stat label="今日用量" value={<>{compact(usage.data?.totals.tokens ?? 0)}<span className="text-sm text-ink-3"> tokens</span></>} sub={`复查 ${usage.data?.totals.reviews ?? 0} 次 · 策略执行 ${usage.data?.totals.strategyRuns ?? 0} 次（不花 token）`} /></Card>
+        <Card className="p-4"><Stat label="今日用量" value={<>{compact(usage.data?.totals.tokens ?? 0)}<span className="text-sm text-ink-3"> tokens</span></>} sub={`Agent 复查 ${usage.data?.totals.reviews ?? 0} 次 · 代码策略 ${usage.data?.totals.strategyRuns ?? 0} 次`} /></Card>
       </div>
 
       {attention > 0 && (

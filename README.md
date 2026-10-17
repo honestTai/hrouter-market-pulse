@@ -101,6 +101,8 @@ npm run service:install
 2. 在交易员「设置」里调前置提示词、边界和费率，在「设置 → 推送」里填推送地址（可选）。
 3. 之后你只看「工作台」和「报告」。
 
+想要 Mac / Windows 桌面客户端：`npm --prefix desktop ci && npm run build:desktop`，见 [桌面客户端](docs/WORKBENCH_UI.md#桌面客户端--desktop-app)。
+
 只想先看看界面：`npm run demo`，打开 <http://127.0.0.1:8787>（合成数据，不写入真实记录）。
 
 ## 安装到 Agent

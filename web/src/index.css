@@ -97,10 +97,14 @@ html, body, #app { height: 100%; }
 body { margin: 0; background: var(--c-bg); color: var(--c-ink); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .55; }
-:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+/* In the base layer so a component's own utilities (outline-none on the palette input) win. */
+@layer base { :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; } }
 ::selection { background: var(--c-accent-soft); }
 .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
-.scroll-thin::-webkit-scrollbar-thumb { background: var(--c-line-strong); border-radius: 8px; }
+/* Thumb only while the pointer is over the area, like the system's overlay scrollbars. */
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+.scroll-thin::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; }
+.scroll-thin:hover::-webkit-scrollbar-thumb { background: var(--c-line-strong); }
 @keyframes pulse-dot { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
 .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
 .tabular { font-variant-numeric: tabular-nums; }

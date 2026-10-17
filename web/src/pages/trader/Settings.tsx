@@ -112,7 +112,7 @@ function LimitsCard({ account }: { account: AccountDetail }) {
                 return <label key={board} className="flex items-center gap-1 text-[13px]"><input type="checkbox" className="size-4 accent-[var(--c-accent)]" checked={list.includes(board)} onChange={(event) => setDraft({ ...draft, [key]: event.target.checked ? [...list, board] : list.filter((entry) => entry !== board) })} />{label}</label>
               })}</div>
             ) : on ? (
-              <label className="flex h-9 items-center gap-1 rounded-[9px] border border-line-strong bg-surface px-2.5">
+              <label className="flex h-9 items-center gap-1 rounded-[9px] border border-line-strong bg-surface px-2.5 focus-within:border-accent">
                 <span className="sr-only">{spec.zh}</span>
                 <input type="number" min={spec.min} max={spec.max} step={spec.type === 'int' ? 1 : 0.1} value={String(draft[key] ?? '')} onChange={(event) => setDraft({ ...draft, [key]: event.target.value === '' ? null : Number(event.target.value) })} className="w-16 bg-transparent text-right font-mono outline-none" />
                 <span className="text-ink-3">{spec.type === 'pct' || key === 'maxChangePct' ? '%' : key === 'cooldownDays' ? '天' : key === 'minPrice' ? '元' : '只'}</span>

@@ -17,6 +17,20 @@ npm test && npm run check && npm run smoke
 
 > 常驻服务直接运行 `plugins/hrouter-market-pulse/mcp/server.bundle.mjs`，文件一变就会自动重启。本机有正在跑的模拟盘时，`npm run build` 会让它换成新代码。
 
+## 桌面客户端 / Desktop app
+
+`desktop/` 是 Tauri 2 桌面壳（和视频工作台同一套做法）：打开窗口时如果本机服务（端口 8780）没在跑，就用系统的 node 拉起安装包里的插件（`--service`），然后窗口直接打开服务自带的界面。关掉窗口服务继续跑，撮合、盯价和调度不受影响；已经用 `npm run service:install` 装了常驻服务的话直接连上。本机服务以外的链接用系统浏览器打开。安装包不带 Node，电脑上需要 Node 20+；构建需要 Rust。
+
+```bash
+npm run build                  # 先打包插件（安装包里带的就是 plugins/hrouter-market-pulse）
+npm --prefix desktop ci
+npm run build:desktop          # macOS 出 .app / .dmg；在 Windows 上运行同一条命令出 NSIS 安装包
+```
+
+产物在 `desktop/src-tauri/target/release/bundle/`。安装包没有签名，第一次打开要在「系统设置 → 隐私与安全性」里允许。服务日志在 `~/Library/Logs/net.hrouter.stockworkbench/service.log`（只有桌面端自己拉起服务时才写）。图标源图是 `desktop/icon.png`（用 HRouter Canvas 生图后裁成 macOS 圆角方块），改了之后运行 `npx --prefix desktop tauri icon desktop/icon.png -o desktop/src-tauri/icons` 重新生成各尺寸。
+
+MCP 和 ACP 不受影响：Agent 仍然通过插件里的 `server.bundle.mjs --stdio` 连接，桌面端只是同一个本机服务的窗口。
+
 ## 页面 / Pages
 
 | 路由 | 页面 | 内容 |

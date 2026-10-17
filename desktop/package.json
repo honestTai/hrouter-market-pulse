@@ -1,0 +1,14 @@
+{
+  "name": "hrouter-stock-workbench-desktop",
+  "version": "1.7.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node prepare-resources.mjs && tauri dev",
+    "build": "node prepare-resources.mjs && tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.0"
+  }
+}

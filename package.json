@@ -26,6 +26,7 @@
     "update:check": "node scripts/updater.mjs check",
     "smoke:updater": "node scripts/smoke-updater.mjs",
     "build:ui": "node scripts/build-ui.mjs",
+    "build:desktop": "npm --prefix desktop run build",
     "setup:futu": "node scripts/setup-futu.mjs",
     "connect": "node scripts/connect-agent.mjs",
     "service:install": "node scripts/arena-service.mjs install",

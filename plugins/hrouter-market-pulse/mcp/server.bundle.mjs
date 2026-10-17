@@ -33449,8 +33449,13 @@ if (service2) {
 }
 if (stdio) await server.connect(new StdioServerTransport());
 async function shutdown() {
+  setTimeout(() => process.exit(0), 1e4).unref();
   serviceLoop?.stop();
-  await new Promise((resolve) => dashboard ? dashboard.close(() => resolve()) : resolve());
+  await new Promise((resolve) => {
+    if (!dashboard) return resolve();
+    dashboard.close(() => resolve());
+    dashboard.closeAllConnections?.();
+  });
   await (await dashboard?.scheduler)?.stop?.().catch?.(() => {
   });
   await server.close();

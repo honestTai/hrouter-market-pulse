@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { ArenaError } from "./arena.mjs";
 import { getStorageDir } from "./core.mjs";
 import { getMarketSession } from "./market-rules.mjs";
-import { buildRoundPrompt } from "./prompts.mjs";
+import { TEAM_ROLES, buildQuestionPrompt, buildRoundPrompt, buildTeamPrompt } from "./prompts.mjs";
 import { classifyFailure, runAcpAgent, runAgent, streamFormat } from "./agent-runner.mjs";
 import { limitsText } from "./trader-settings.mjs";
 import { createTraderStrategyStore } from "./trader-strategies.mjs";
@@ -35,6 +35,7 @@ export const ACP_PRESETS = [
   { id: "gemini", name: "Gemini CLI", command: "gemini", args: ["--experimental-acp"] },
   { id: "opencode", name: "OpenCode", command: "opencode", args: ["acp"] },
 ];
+export const TEAM_ANALYSTS = ["technical", "news", "fundamental", "market", "risk"];
 export const SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 5, tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3, maxQueueMinutes: 10, defaultReviewMinutes: 10 });
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -108,6 +109,21 @@ export function sanitizeJob(input, current = {}) {
     if (input.wake !== undefined) job.wake = sanitizeWake(input.wake, job.wake);
     if (input.budget !== undefined) job.budget = sanitizeBudget(input.budget, job.budget);
   } catch (error) { if (error instanceof GateError) throw new ArenaError(error.message); throw error; }
+  // Team mode: read-only analysts (and optionally a bull / bear debate) report before each review.
+  if (input.team !== undefined) {
+    if (input.team === null || input.team.enabled === false) job.team = { ...(job.team ?? {}), ...(input.team ?? {}), enabled: false };
+    else {
+      const roles = [...new Set(input.team.roles ?? job.team?.roles ?? ["technical", "news", "market"])];
+      if (!roles.length || roles.some((role) => !TEAM_ANALYSTS.includes(role))) throw new ArenaError(`team.roles must be from ${TEAM_ANALYSTS.join(", ")}.`);
+      const analyst = input.team.analyst === undefined ? job.team?.analyst ?? null : input.team.analyst;
+      if (analyst && (!AGENT_TYPES.includes(analyst.type) || analyst.type === "command")) throw new ArenaError(`team.analyst.type must be one of ${AGENT_TYPES.filter((type) => type !== "command").join(", ")}.`);
+      job.team = {
+        enabled: true, roles, debate: input.team.debate === undefined ? job.team?.debate ?? true : Boolean(input.team.debate),
+        analyst: analyst ? { type: analyst.type, ...(analyst.model ? { model: String(analyst.model).slice(0, 80) } : {}), ...(analyst.type === "acp" ? { command: String(analyst.command ?? "").slice(0, 500), args: (analyst.args ?? []).slice(0, 40).map(String) } : {}) } : null,
+        timeoutMinutes: Math.max(2, Math.min(20, Number(input.team.timeoutMinutes ?? job.team?.timeoutMinutes ?? 8) || 8)),
+      };
+    }
+  }
   if (input.paused === false) delete job.paused;
   // An agent round itself takes minutes, so agents repeat at most every 10 minutes; code strategies every minute.
   if (job.intervalMinutes && job.runner && job.runner.type !== "strategy" && job.intervalMinutes < SCHEDULER_DEFAULTS.minAgentIntervalMinutes)
@@ -115,6 +131,8 @@ export function sanitizeJob(input, current = {}) {
   job.times ??= [];
   if (!job.times.length && !job.intervalMinutes) throw new ArenaError("Give at least one run time or a repeat interval.");
   if (!job.runner) throw new ArenaError("Give a runner.");
+  // Analysts must run read-only, which needs a per-run MCP environment; Kimi Code reads a fixed config.
+  if (job.team?.enabled && (job.team.analyst?.type ?? job.runner.type) === "kimi") throw new ArenaError("团队模式的分析员要能只读运行（Claude Code、Codex、WorkBuddy 或 ACP Agent）；Kimi Code 读固定的 MCP 配置，做不到只读。请给分析员另选一个 Agent。");
   return job;
 }
 
@@ -145,11 +163,12 @@ export function defaultCommand(type) {
 }
 
 // Build the headless command for an agent round. Only this plugin's MCP server is attached.
-export function agentInvocation({ job, account, prompt, nodePath, bundlePath, skillText, workDir, identity, dataDir = getStorageDir() }) {
+export function agentInvocation({ job, account, prompt, nodePath, bundlePath, skillText, workDir, identity, dataDir = getStorageDir(), readonly = false }) {
   const runner = job.runner;
   // Pin the data directory: agent CLIs start MCP servers with a minimal environment, and a server
-  // that resolved a different directory would not see this arena at all.
-  const env = { HROUTER_AGENT_ID: identity, HROUTER_NO_DASHBOARD: "1", HROUTER_REPORT_DIR: dataDir };
+  // that resolved a different directory would not see this arena at all. Read-only sub-agents
+  // (answering a question, team analysts) get HROUTER_READONLY: trading and settings tools refuse.
+  const env = { HROUTER_AGENT_ID: identity, HROUTER_NO_DASHBOARD: "1", HROUTER_REPORT_DIR: dataDir, ...(readonly ? { HROUTER_READONLY: "1" } : {}) };
   if (runner.type === "claude" || runner.type === "workbuddy") {
     const mcp = { mcpServers: { hrouter_market_pulse: { command: nodePath, args: [bundlePath, "--stdio"], env } } };
     const args = [
@@ -179,7 +198,7 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
       "exec", "--json", "--skip-git-repo-check", "--ephemeral", "-s", "read-only", "-C", workDir,
       "-c", `mcp_servers.hrouter_market_pulse.command=${toml(nodePath)}`,
       "-c", `mcp_servers.hrouter_market_pulse.args=${toml([bundlePath, "--stdio"])}`,
-      "-c", `mcp_servers.hrouter_market_pulse.env={ HROUTER_AGENT_ID = ${toml(identity)}, HROUTER_NO_DASHBOARD = "1", HROUTER_REPORT_DIR = ${toml(dataDir)} }`,
+      "-c", `mcp_servers.hrouter_market_pulse.env={ HROUTER_AGENT_ID = ${toml(identity)}, HROUTER_NO_DASHBOARD = "1", HROUTER_REPORT_DIR = ${toml(dataDir)}${readonly ? ', HROUTER_READONLY = "1"' : ""} }`,
       // Only this plugin's tools are pre-approved; shell stays read-only and nothing else is granted.
       "-c", 'mcp_servers.hrouter_market_pulse.default_tools_approval_mode="approve"',
       "-c", 'approval_policy="never"',
@@ -333,7 +352,7 @@ export function createScheduler({
   }
 
   // The prompt for one agent round, with every layer the owner configured.
-  async function promptFor(account, job, trigger, changes = null) {
+  async function promptFor(account, job, trigger, changes = null, team = []) {
     const settings = await workbench();
     const strategy = job.strategy ? await findStrategy(job.strategy.strategyId, account.id).then(({ strategy: found }) => found ? { id: found.id, version: found.version, intervalMinutes: job.strategy.intervalMinutes } : null).catch(() => null) : null;
     return buildRoundPrompt({
@@ -341,6 +360,7 @@ export function createScheduler({
       limits: account.limits ? limitsText(account.limits, account.limitStatus) : "", instructions: account.instructions ?? [],
       mode: job.mode === "director" || job.strategy ? "director" : "rounds", strategy, reviewMinutes: job.intervalMinutes ?? null, trigger: trigger === "wake" ? changes : null, changes: trigger === "wake" ? null : changes,
       autonomy: account.autonomy ?? null, approvals: (account.approvals ?? []).filter((entry) => ["pending", "approved", "rejected", "failed", "expired"].includes(entry.status)).slice(0, 5),
+      rules: account.rules ?? [], team,
       starter: account.template ? await loadLibrary().then((library) => { const template = library.templates.find((entry) => entry.id === account.template); return template && !template.builtinStrategy ? template.starterStrategy : null; }).catch(() => null) : null,
     });
   }
@@ -358,7 +378,9 @@ export function createScheduler({
     }
   }
 
-  async function runAgentRound(job, account, { record, runner }) {
+  // One agent CLI run. `task` replaces the round prompt for a read-only sub-agent (question, team
+  // role, dispatched task); `identity` lets team roles act as their own client.
+  async function runAgentRound(job, account, { record, runner, task = null }) {
     const entry = { record, events: [] };
     const writer = eventWriter(record.id);
     live.set(record.id, entry);
@@ -366,27 +388,30 @@ export function createScheduler({
     const workDir = await mkdtemp(path.join(os.tmpdir(), "hrouter-round-"));
     try {
       const effective = { ...job, runner };
-      const identity = account.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
-      const prompt = await promptFor(account, job, record.trigger, record.changes ?? null);
+      const baseIdentity = account.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
+      const identity = task?.identitySuffix ? `${baseIdentity}-${task.identitySuffix}`.slice(0, 60) : baseIdentity;
+      const readonly = Boolean(task);
+      const prompt = task?.prompt ?? await promptFor(account, job, record.trigger, record.changes ?? null, record.team ?? []);
       const skills = await skillText(account);
       const onEvent = (event) => { entry.events.push(event); if (entry.events.length > 400) entry.events.shift(); writer.push(event); emit({ type: "run-event", runId: record.id, accountId: record.accountId, event }); };
       let invocation;
       let result;
       if (runner.type === "acp") {
         // ACP agents get this plugin's MCP server through session/new and the skill text in the prompt.
-        const env = { HROUTER_AGENT_ID: identity, HROUTER_NO_DASHBOARD: "1", HROUTER_REPORT_DIR: getStorageDir() };
+        const env = { HROUTER_AGENT_ID: identity, HROUTER_NO_DASHBOARD: "1", HROUTER_REPORT_DIR: getStorageDir(), ...(readonly ? { HROUTER_READONLY: "1" } : {}) };
         invocation = { command: runner.command, args: runner.args ?? [] };
         result = await runAcpAgent({
           ...invocation, env, cwd: workDir, prompt: skills ? `${skills}\n\n---\n\n${prompt}` : prompt, timeoutMs: runner.timeoutMinutes * 60000, spawnImpl, onEvent,
           mcpServers: [{ name: "hrouter_market_pulse", command: nodePath, args: [bundlePath, "--stdio"], env: Object.entries(env).map(([name, value]) => ({ name, value })) }],
         });
       } else {
-        invocation = agentInvocation({ job: effective, account, prompt, nodePath, bundlePath, skillText: skills, workDir, identity });
+        invocation = agentInvocation({ job: effective, account, prompt, nodePath, bundlePath, skillText: skills, workDir, identity, readonly });
         result = await runAgent({ ...invocation, timeoutMs: runner.timeoutMinutes * 60000, spawnImpl, format: streamFormat(runner.type), tailBytes: SCHEDULER_DEFAULTS.tailBytes, onEvent });
       }
       const after = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
       const reported = Boolean(after.lastRoundAt && Date.parse(after.lastRoundAt) >= Date.parse(record.startedAt));
-      const status = result.timedOut ? "timeout" : result.exitCode === 0 && !result.streamError ? (reported ? "ok" : "no-round") : "failed";
+      // A sub-agent reports in its final text, not through arena_publish_report.
+      const status = result.timedOut ? "timeout" : result.exitCode === 0 && !result.streamError ? (task ? (result.text?.trim() ? "ok" : "no-round") : reported ? "ok" : "no-round") : "failed";
       const failure = status === "failed" || status === "timeout" ? classifyFailure(result, now()) : null;
       await writer.flush();
       return {
@@ -423,7 +448,8 @@ export function createScheduler({
   }
 
   // Execute one round for a job now. Never two at once for the same account and lane.
-  async function execute(job, { slot = null, trigger = "schedule", lane = "primary", changes = null } = {}) {
+  async function execute(job, { slot = null, trigger = "schedule", lane = "primary", changes = null, messageId = null } = {}) {
+    // Questions use the trader's own lane: never at the same time as its review.
     const key = lane === "strategy" ? `${job.accountId}:S` : job.accountId;
     if (running.has(key)) return { status: "skipped", reason: "already-running" };
     const isAgent = lane !== "strategy" && agentLane(job);
@@ -438,6 +464,7 @@ export function createScheduler({
       const record = (runner, extra = {}) => ({ id: `run_${randomBytes(6).toString("hex")}`, accountId: job.accountId, lane: lane === "strategy" ? "strategy" : runner.type === "strategy" ? "strategy" : "agent", runner: runner.type, model: runner.model ?? null, strategyId: lane === "strategy" ? job.strategy.strategyId : runner.strategyId ?? null, slot, trigger, ...(changes ? { changes } : {}), startedAt: now(), ...extra });
       const work = (async () => {
         if (lane === "strategy") return [await runStrategyLane(job, account, job.strategy, record({ type: "strategy" }))];
+        if (lane === "ask") return [await answerLane(job, account, messageId, record)];
         if (job.runner.type === "strategy") return [await runStrategyLane(job, account, { strategyId: job.runner.strategyId, params: job.runner.params }, record(job.runner))];
         const state = await readState();
         let runner = job.runner;
@@ -448,7 +475,9 @@ export function createScheduler({
           if (backup && !poolPaused(state, backup)) { runner = backup; backupFor = `${job.runner.type} ${blocked.kind}`; }
           else return [{ ...record(job.runner), status: "skipped", reason: "quota", finishedAt: now(), error: `${job.runner.type} 额度用尽，${blocked.pausedUntil} 恢复${job.backup ? "；备用 Agent 也不可用" : "；没有设置备用 Agent"}` }];
         }
-        const outcomes = [await runAgentRound(job, account, { record: record(runner, backupFor ? { backupFor } : {}), runner })];
+        // Team mode: read-only analysts (then a bull / bear debate) report before the trader decides.
+        const team = job.team?.enabled ? await runTeam(job, account, runner) : [];
+        const outcomes = [await runAgentRound(job, account, { record: record(runner, { ...(backupFor ? { backupFor } : {}), ...(team.length ? { team } : {}) }), runner })];
         const first = outcomes[0];
         if (first.failure?.kind === "quota") {
           await pausePool(runner, first.failure, first.id);
@@ -461,9 +490,53 @@ export function createScheduler({
       const outcomes = await work;
       for (const outcome of outcomes) await finishJob(job, outcome, lane === "strategy" ? "strategy" : "primary");
       // What the trader saw at the end of a review, for the next change check.
-      if (isAgent && outcomes.some((outcome) => ["ok", "no-round"].includes(outcome.status))) await rememberReview(job.accountId).catch((error) => onError(error));
+      if (isAgent && lane === "primary" && outcomes.some((outcome) => ["ok", "no-round"].includes(outcome.status))) await rememberReview(job.accountId).catch((error) => onError(error));
       return outcomes.at(-1);
     } finally { release(); running.delete(key); agentRuns.delete(key); }
+  }
+
+  const analystRunner = (job, fallback) => {
+    const analyst = job.team?.analyst;
+    if (!analyst) return { ...fallback, timeoutMinutes: job.team?.timeoutMinutes ?? 8 };
+    return { type: analyst.type, timeoutMinutes: job.team?.timeoutMinutes ?? 8, language: job.runner.language, ...(analyst.model ? { model: analyst.model } : {}), ...(analyst.command ? { command: analyst.command, args: analyst.args ?? [] } : {}) };
+  };
+  const subRuns = new Map(); // runId → promise of { role, runId, status, text }
+
+  // A read-only sub-agent run, logged on the trader's run log under the "team" lane.
+  async function subAgent(job, account, { role, task, runner, trigger = "team", reports = [] }) {
+    const record = { id: `run_${randomBytes(6).toString("hex")}`, accountId: job.accountId, lane: "team", role, runner: runner.type, model: runner.model ?? null, trigger, startedAt: now() };
+    const prompt = buildTeamPrompt({ account, role, task, reports, language: job.runner.language });
+    const outcome = await runAgentRound(job, account, { record, runner, task: { prompt, identitySuffix: "team" } }).catch((error) => ({ ...record, status: "failed", finishedAt: now(), error: error.message }));
+    await appendRun(job.accountId, outcome);
+    tokenCache.delete(job.accountId);
+    emit({ type: "run-end", run: outcome });
+    return { role, runId: outcome.id, status: outcome.status, text: String(outcome.stdoutTail ?? "").replace(/^…/, "").trim().slice(-1500) };
+  }
+
+  async function runTeam(job, account, runner) {
+    const analyst = analystRunner(job, runner);
+    const reports = await Promise.all(job.team.roles.map((role) => subAgent(job, account, { role, runner: analyst })));
+    if (!job.team.debate) return reports;
+    const usable = reports.filter((entry) => entry.status === "ok");
+    const debate = await Promise.all(["bull", "bear"].map((role) => subAgent(job, account, { role, runner: analyst, reports: usable })));
+    return [...reports, ...debate];
+  }
+
+  // Answer one open question from the owner, read-only, and store the answer on the account.
+  async function answerLane(job, account, messageId, record) {
+    const fresh = await arena.getAccount(job.accountId, { sync: false, limit: 20 });
+    const question = (fresh.messages ?? []).find((message) => message.id === messageId);
+    const base = record(job.runner, { lane: "ask", messageId });
+    if (!question || question.status !== "open") return { ...base, status: "skipped", reason: "no-question", finishedAt: now() };
+    const history = (fresh.messages ?? []).filter((message) => message.id !== messageId).slice(-6);
+    const until = new Date(Date.parse(now()) + job.runner.timeoutMinutes * 60000 + 60000).toISOString();
+    await arena.setReadonly(job.accountId, { until, runId: base.id, reason: "answering-question" });
+    try {
+      const outcome = await runAgentRound(job, fresh, { record: base, runner: job.runner, task: { prompt: buildQuestionPrompt({ account: fresh, question: question.text, history, language: job.runner.language }) } });
+      const text = String(outcome.stdoutTail ?? "").replace(/^…/, "").trim();
+      await arena.answerQuestion(job.accountId, messageId, { text: outcome.status === "ok" ? text : `没能回答：${outcome.error ?? outcome.status}`, runId: base.id, status: outcome.status === "ok" ? "answered" : "failed" });
+      return outcome;
+    } finally { await arena.clearReadonly(job.accountId, base.id).catch(() => {}); }
   }
 
   async function reviewAccount(accountId) {
@@ -521,6 +594,13 @@ export function createScheduler({
           await markDone(strategyKey, slots);
           if (!running.has(strategyKey)) { started.push(strategyKey); execute(job, { slot: slots.at(-1).key, lane: "strategy" }).catch((error) => onError(error)); }
         }
+      }
+      // An open question from the owner is answered as soon as the trader is free.
+      const openQuestion = agentLane(job) && !running.has(job.accountId) ? (await reviewAccount(job.accountId)).messages?.find((message) => message.kind === "question" && message.status === "open") : null;
+      if (openQuestion && agentRuns.size < cap) {
+        started.push(`${job.accountId}:ask`);
+        execute(job, { lane: "ask", trigger: "question", messageId: openQuestion.id }).catch((error) => onError(error));
+        continue;
       }
       const slots = dueSlots(job, account.market, at, done[job.accountId] ?? [], catchUpMinutes);
       const previous = reviews[job.accountId] ?? null;
@@ -684,14 +764,39 @@ export function createScheduler({
     async deleteJob(accountId) {
       return update((state) => { state.jobs = state.jobs.filter((job) => job.accountId !== accountId); delete state.done[accountId]; delete state.done[`${accountId}:S`]; return { deleted: accountId }; });
     },
-    async runNow(accountId, { lane = "primary", trigger = "manual" } = {}) {
+    async runNow(accountId, { lane = "primary", trigger = "manual", messageId = null } = {}) {
       const { jobs } = await readState();
       const job = jobs.find((entry) => entry.accountId === accountId);
       if (!job) throw new ArenaError("Configure a schedule for this account first.", "not_found", 404);
       if (lane === "strategy" && !job.strategy) throw new ArenaError("This trader has no code strategy yet.");
+      if (lane === "ask" && !agentLane(job)) throw new ArenaError("A pure code strategy cannot answer questions.");
       if (running.has(lane === "strategy" ? `${accountId}:S` : accountId)) return { status: "skipped", reason: "already-running" };
-      const promise = execute(job, { trigger, lane });
+      const promise = execute(job, { trigger: lane === "ask" ? "question" : trigger, lane, messageId });
       return { status: "started", wait: () => promise };
+    },
+    // The trader hands a task to a read-only sub-agent (one of its team roles) and collects it later.
+    async dispatch(accountId, { role = "technical", task = null } = {}) {
+      if (!TEAM_ROLES[role]) throw new ArenaError(`role must be one of ${Object.keys(TEAM_ROLES).join(", ")}.`);
+      const { jobs } = await readState();
+      const job = jobs.find((entry) => entry.accountId === accountId);
+      if (!job || !agentLane(job)) throw new ArenaError("Only an agent trader with a schedule can dispatch tasks.", "not_found", 404);
+      const runner = analystRunner(job, job.runner);
+      if (runner.type === "kimi") throw new ArenaError("派活需要能只读运行的分析员 Agent（Claude Code、Codex、WorkBuddy 或 ACP）。在交易员设置的团队模式里选一个分析员 Agent。");
+      if (subRuns.size >= 6) throw new ArenaError("At most 6 dispatched tasks at a time; collect some with arena_await_runs first.");
+      const account = await arena.getAccount(accountId, { sync: false, limit: 20 });
+      const runId = `run_${randomBytes(6).toString("hex")}`;
+      const promise = subAgent(job, account, { role, task: task ? String(task).slice(0, 2000) : null, runner, trigger: "dispatch" }).finally(() => setTimeout(() => subRuns.delete(runId), 600000).unref?.());
+      subRuns.set(runId, promise);
+      return { runId, role, status: "started" };
+    },
+    async awaitRuns(runIds = [], { timeoutMs = 300000 } = {}) {
+      const deadline = new Promise((resolve) => setTimeout(() => resolve("timeout"), Math.min(600000, timeoutMs)).unref?.());
+      return Promise.all(runIds.map(async (runId) => {
+        const promise = subRuns.get(runId);
+        if (!promise) return { runId, status: "unknown", text: "Not a task dispatched in this session (or already expired)." };
+        const result = await Promise.race([promise, deadline]);
+        return result === "timeout" ? { runId, status: "running" } : { ...result, dispatchId: runId };
+      }));
     },
     listRuns,
     runEvents,

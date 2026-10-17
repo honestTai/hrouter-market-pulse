@@ -1046,6 +1046,9 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       pendingRequests: (account.requests ?? []).filter((request) => request.status === "pending").length,
       instructions: activeInstructions(account, at), prompt: account.prompt ?? "",
       autonomy: { ...DEFAULT_AUTONOMY, ...account.autonomy },
+      rules: (account.rules ?? []).filter((rule) => rule.status === "active"),
+      messages: (account.messages ?? []).slice(-60),
+      readonly: account.readonly && Date.parse(account.readonly.until) > Date.parse(at) ? account.readonly : null,
       pendingApprovals: (account.approvals ?? []).filter((entry) => approvalStatus(entry, at) === "pending").length,
       approvals: (account.approvals ?? []).slice(-20).reverse().map((entry) => ({ ...entry, status: approvalStatus(entry, at) })),
     };
@@ -1068,6 +1071,11 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
     try { return task(); } catch (error) { if (error instanceof SettingsError) throw new ArenaError(error.message, error.code, error.status); throw error; }
   }
   const sanitizeRiskText = (text) => wrapSettings(() => sanitizePrompt(text));
+  function sanitizeRuleText(text) {
+    const value = String(text ?? "").trim().replace(/\s+/g, " ");
+    if (value.length < 4 || value.length > 300) throw new ArenaError("A rule is one sentence of 4–300 characters.");
+    return value;
+  }
 
   // Apply limit changes and record one change entry per key whose value actually changed.
   function applyLimitChanges(account, input, by, at, reason) {
@@ -1086,11 +1094,12 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
   // One pending request per key: a newer ask replaces the older one.
   function fileRequest(account, { key, to, reason, by, at }) {
     account.requests ??= [];
-    for (const request of account.requests) if (request.status === "pending" && request.key === key) Object.assign(request, { status: "superseded", resolvedAt: at });
-    const from = key === "prompt" ? account.prompt ?? "" : riskPolicyOf(account)[key] ?? null;
+    // A newer request for the same setting replaces the pending one; proposed rules are each their own.
+    if (key !== "rule") for (const request of account.requests) if (request.status === "pending" && request.key === key) Object.assign(request, { status: "superseded", resolvedAt: at });
+    const from = key === "prompt" ? account.prompt ?? "" : key === "rule" ? null : riskPolicyOf(account)[key] ?? null;
     const request = { id: shortId("req"), at, key, from, to: to ?? null, reason: reason ? String(reason).slice(0, 500) : null, by, status: "pending" };
     account.requests = [...account.requests, request].slice(-100);
-    addEvent(account, at, { type: "change-request", key, message: `Agent asked to change locked "${key}" from ${JSON.stringify(from)} to ${JSON.stringify(to)}.` });
+    addEvent(account, at, { type: "change-request", key, message: key === "rule" ? `交易员提议一条长期规则：${to}` : `Agent asked to change locked "${key}" from ${JSON.stringify(from)} to ${JSON.stringify(to)}.` });
     return request;
   }
 
@@ -1589,6 +1598,10 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
             account.prompt = wrapSettings(() => sanitizePrompt(final));
           } else if (request.key in LIMIT_SPECS) {
             applyLimitChanges(account, { [request.key]: final }, { kind: "owner", via: "ui", approved: request.id }, at, request.reason);
+          } else if (request.key === "rule") {
+            const text = sanitizeRuleText(final);
+            account.rules = [...(account.rules ?? []), { id: shortId("rul"), text, status: "active", createdAt: at, source: "proposal", requestId: request.id, proposedBy: request.by?.client ?? null }].slice(-100);
+            appendChange(account, changeEntry({ key: "rule", from: null, to: text, by: { kind: "owner", via: "ui", approved: request.id }, reason: request.reason, at }));
           }
         }
         Object.assign(request, { status: approve ? "approved" : "rejected", resolvedAt: at, resolvedValue: approve ? final : null, note: note ? String(note).slice(0, 500) : null });
@@ -1598,6 +1611,84 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
     },
 
     // ---- Owner instructions: short-lived orders injected into every round until they expire ----
+
+    // ---- Conversation: owner questions and the trader's answers; standing rules ----
+
+    async askTrader(id, { text } = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner asks questions here.", "forbidden", 403);
+      const question = String(text ?? "").trim().slice(0, 1000);
+      if (question.length < 2) throw new ArenaError("Write the question.");
+      return withLock(async () => {
+        const account = await load(id);
+        const message = { id: shortId("msg"), kind: "question", role: "owner", text: question, at: now(), status: "open" };
+        account.messages = [...(account.messages ?? []), message].slice(-200);
+        await save(account);
+        return message;
+      });
+    },
+
+    // The scheduler stores the trader's answer (or why it could not answer).
+    async answerQuestion(id, messageId, { text, runId = null, status = "answered" } = {}) {
+      return withLock(async () => {
+        const account = await load(id);
+        const question = (account.messages ?? []).find((entry) => entry.id === messageId);
+        if (!question) throw new ArenaError("Question not found.", "not_found", 404);
+        const at = now();
+        Object.assign(question, { status, answeredAt: at, runId });
+        const answer = { id: shortId("msg"), kind: "answer", role: "trader", text: String(text ?? "").trim().slice(0, 6000) || (status === "failed" ? "这次没能回答。" : ""), at, replyTo: messageId, runId, status };
+        account.messages = [...account.messages, answer].slice(-200);
+        await save(account);
+        return answer;
+      });
+    },
+
+    async addRule(id, { text } = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Agents propose rules with arena_propose_rule; the owner confirms them.", "forbidden", 403);
+      return withLock(async () => {
+        const account = await load(id);
+        const rule = { id: shortId("rul"), text: sanitizeRuleText(text), status: "active", createdAt: now(), source: "owner" };
+        account.rules = [...(account.rules ?? []), rule].slice(-100);
+        appendChange(account, changeEntry({ key: "rule", from: null, to: rule.text, by: { kind: "owner", via: "ui" }, at: rule.createdAt }));
+        await save(account);
+        return rule;
+      });
+    },
+
+    async revokeRule(id, ruleId, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner removes rules.", "forbidden", 403);
+      return withLock(async () => {
+        const account = await load(id);
+        const rule = (account.rules ?? []).find((entry) => entry.id === ruleId && entry.status === "active");
+        if (!rule) throw new ArenaError("Rule not found.", "not_found", 404);
+        Object.assign(rule, { status: "revoked", revokedAt: now() });
+        appendChange(account, changeEntry({ key: "rule", from: rule.text, to: null, by: { kind: "owner", via: "ui" }, at: rule.revokedAt }));
+        await save(account);
+        return rule;
+      });
+    },
+
+    // A trader suggests a standing rule ("from now on …"); it applies once the owner confirms it.
+    async proposeRule(id, { rule, reason } = {}, caller = {}) {
+      return withLock(async () => {
+        const account = await load(id);
+        assertActive(account);
+        const request = fileRequest(account, { key: "rule", to: sanitizeRuleText(rule), reason, by: changedBy(caller), at: now() });
+        await save(account);
+        return request;
+      });
+    },
+
+    // While the trader answers a question it may read but not trade or change settings.
+    async setReadonly(id, { until, runId, reason } = {}) {
+      return withLock(async () => { const account = await load(id); account.readonly = { until, runId, reason }; await save(account); return account.readonly; });
+    },
+    async clearReadonly(id, runId) {
+      return withLock(async () => { const account = await load(id); if (!runId || account.readonly?.runId === runId) delete account.readonly; await save(account); });
+    },
+    async readonlyState(id) {
+      const account = await load(id);
+      return account.readonly && Date.parse(account.readonly.until) > Date.parse(now()) ? account.readonly : null;
+    },
 
     // Owner approves or rejects an order that waits for confirmation. Approval re-places it with
     // the live quote and every limit checked again, as the agent that asked.
@@ -2166,5 +2257,6 @@ export function createMatcher({
 export function callerFromClient(clientInfo) {
   const override = process.env.HROUTER_AGENT_ID?.trim();
   const name = override || clientInfo?.name || "unknown-agent";
-  return { client: name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 60), clientVersion: clientInfo?.version ?? null, clientName: clientInfo?.name ?? null };
+  // HROUTER_READONLY marks a sub-agent (question answering, team analyst): it may read, never trade or change settings.
+  return { client: name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 60), clientVersion: clientInfo?.version ?? null, clientName: clientInfo?.name ?? null, ...(process.env.HROUTER_READONLY === "1" ? { readonly: true } : {}) };
 }

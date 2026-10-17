@@ -4,6 +4,8 @@ import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
 import { loadLibrary, skillBody, starterStrategyCode, templateDefaults } from "./skill-library.mjs";
+import { checkUpdates, importSkill, listClaudeSkills, removeImported, updateImported } from "./skill-import.mjs";
+import { dragonTiger, dragonTigerSeats, limitPool, marketRadar, shortlineEmotion } from "./market-data.mjs";
 import { checkEnvironment } from "./env-check.mjs";
 import { getMarketSession } from "./market-rules.mjs";
 import { readServiceStatus } from "./service.mjs";
@@ -16,6 +18,7 @@ import {
   buildReportHtml,
   createMarketReport,
   getReportPort,
+  scanMarket,
   loadPreferences,
   loadReport,
   savePreferences,
@@ -192,6 +195,29 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
           return respond(response, 200, Object.fromEntries(["A", "HK", "US"].map((market) => { const session = getMarketSession(market, at); return [market, { status: session.status, date: session.date, minute: session.minute, verified: session.verified, nextOpenAt: session.status === "open" ? null : nextOpen(market) }]; })));
         }
         if (url.pathname === "/api/library") return respond(response, 200, await loadLibrary());
+        if (url.pathname === "/api/library/updates") return respond(response, 200, await checkUpdates({ force: url.searchParams.get("force") === "1" }));
+        if (url.pathname === "/api/library/claude-skills") return respond(response, 200, { skills: await listClaudeSkills() });
+        // Market-wide real data for the radar page.
+        if (url.pathname === "/api/radar") return respond(response, 200, await marketRadar({ scan: scanMarket }));
+        if (url.pathname === "/api/market-data/emotion") return respond(response, 200, await shortlineEmotion({ date: url.searchParams.get("date") || undefined }));
+        if (url.pathname === "/api/market-data/dragon-tiger") {
+          const symbol = url.searchParams.get("symbol");
+          return respond(response, 200, symbol ? await dragonTigerSeats(symbol, { date: url.searchParams.get("date") || undefined }) : await dragonTiger({ date: url.searchParams.get("date") || undefined, limit: 100 }));
+        }
+        if (url.pathname === "/api/market-data/limit-pool") return respond(response, 200, await limitPool(url.searchParams.get("kind") || "up", { date: url.searchParams.get("date") || undefined }));
+        // Orders waiting for the owner across every trader, for the home page.
+        if (url.pathname === "/api/approvals") {
+          const arena = await arenaReady;
+          const rows = [];
+          for (const summary of await arena.listAccounts({ status: "active" })) {
+            const account = await arena.getAccount(summary.id, { sync: false, limit: 1 });
+            for (const approval of account.approvals ?? []) if (approval.status === "pending") rows.push({ ...approval, account: { id: account.id, name: account.name, market: account.market, currency: account.currency, agent: account.agent, model: account.model } });
+          }
+          return respond(response, 200, { approvals: rows.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)) });
+        }
+        if (url.pathname === "/api/research") return respond(response, 200, { tasks: await (await schedulerReady).listResearch({ limit: Number(url.searchParams.get("limit")) || 50 }) });
+        const reconcileRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/reconcile$/);
+        if (reconcileRead) return respond(response, 200, await (await arenaReady).reconcile(reconcileRead[1]));
         if (url.pathname === "/api/env") {
           if (!envCache || Date.now() - envCache.at > 60000 || url.searchParams.get("fresh") === "1") envCache = { at: Date.now(), value: await checkEnvironment({ arena: await arenaReady, scheduler: await schedulerReady }) };
           return respond(response, 200, { ...envCache.value });
@@ -280,7 +306,7 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
           } catch { return respond(response, 404, { error: "Not found" }); }
         }
         // Client-side routes of the workbench all get the same HTML shell.
-        const workbenchRoute = /^\/(traders(\/acc_[a-f0-9]{12})?|arena|market|research|reports|strategies|skills|schedule|settings)\/?$/.test(url.pathname);
+        const workbenchRoute = /^\/(traders(\/acc_[a-f0-9]{12})?|arena|market|radar|research|reports|strategies|skills|schedule|settings)\/?$/.test(url.pathname);
         if (
           url.pathname === "/" || workbenchRoute ||
           /^\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)
@@ -366,6 +392,20 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
             }
             return respond(response, 200, await scheduler.upsertJob(schedule[1], body));
           }
+          const approval = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/approvals\/(apr_[a-f0-9]{12})$/);
+          if (approval) return respond(response, 200, await arena.resolveApproval(approval[1], approval[2], { approve: body.approve === true, note: body.note }, dashboardCaller));
+          const message = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/messages$/);
+          if (message) {
+            const question = await arena.askTrader(message[1], { text: body.text }, dashboardCaller);
+            // Answer right away when the trader is free; otherwise the scheduler picks it up when it is.
+            const started = await (await schedulerReady).runNow(message[1], { lane: "ask", messageId: question.id }).catch((error) => ({ status: "queued", reason: error.message }));
+            started.wait?.().catch((error) => console.error(`Arena question: ${error.message}`));
+            return respond(response, 201, { message: question, status: started.status, reason: started.reason ?? null });
+          }
+          const rule = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/rules(?:\/(rul_[a-f0-9]{12})\/revoke)?$/);
+          if (rule) return respond(response, 200, rule[2] ? await arena.revokeRule(rule[1], rule[2], dashboardCaller) : await arena.addRule(rule[1], { text: body.text }, dashboardCaller));
+          const skillOverride = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/skills\/([a-z0-9-]{2,60})$/);
+          if (skillOverride) return respond(response, 200, await arena.setSkillOverride(skillOverride[1], skillOverride[2], body, dashboardCaller));
           const settings = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/(limits|prompt|locks|requests\/(req_[a-f0-9]{12}))$/);
           if (settings) {
             const [, id, action, requestId] = settings;
@@ -378,6 +418,24 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
           if (update) return respond(response, 200, update[2] ? await arena.deleteAccount(update[1]) : await arena.updateAccount(update[1], body));
           return respond(response, 404, { error: "Unknown arena action" });
         }
+        if (url.pathname === "/api/research") {
+          const scheduler = await schedulerReady;
+          const task = await scheduler.createResearch(body);
+          const started = await scheduler.startResearch(task.id);
+          started.wait?.().catch((error) => console.error(`Research: ${error.message}`));
+          return respond(response, 201, task);
+        }
+        const research = url.pathname.match(/^\/api\/research\/(res_[a-f0-9]{12})\/(retry|delete)$/);
+        if (research) {
+          const scheduler = await schedulerReady;
+          if (research[2] === "delete") return respond(response, 200, await scheduler.deleteResearch(research[1]));
+          const task = await scheduler.retryResearch(research[1]);
+          (await scheduler.startResearch(task.id)).wait?.().catch((error) => console.error(`Research: ${error.message}`));
+          return respond(response, 200, task);
+        }
+        if (url.pathname === "/api/library/import") return respond(response, 201, await importSkill({ kind: body.kind, path: body.path, url: body.url, name: body.name, subdir: body.subdir || undefined, markets: body.markets }));
+        const imported = url.pathname.match(/^\/api\/library\/imported\/(imp-[a-z0-9-]{2,56})\/(update|delete)$/);
+        if (imported) return respond(response, 200, imported[2] === "delete" ? await removeImported(imported[1]) : await updateImported(imported[1]));
         if (url.pathname.startsWith("/api/workbench")) {
           const arena = await arenaReady;
           if (url.pathname === "/api/workbench/fees") return respond(response, 200, await arena.setFees({ market: body.market, fees: body.fees, reason: body.reason }, dashboardCaller));

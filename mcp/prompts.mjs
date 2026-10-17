@@ -105,3 +105,35 @@ export function buildQuestionPrompt({ account, question, history = [], language 
       : "用你自己的记录回答：arena_get_account（委托、成交、报告、决策日志、策略版本），需要时再查行情工具。引用具体日期、价格和当时记下的理由；没有记录就直接说没有。如果主人要求「以后都这样」，用 arena_propose_rule 提一条规则，主人确认后生效。回答不超过 300 字。",
   ].join("\n\n");
 }
+
+export const RESEARCH_KINDS = {
+  question: { zh: "研究问题", en: "Research question" },
+  "deep-dive": { zh: "个股深度", en: "Stock deep dive" },
+  "investor-panel": { zh: "投资人评审", en: "Investor panel" },
+  market: { zh: "市场复盘", en: "Market recap" },
+};
+
+// A one-off, read-only research run the owner starts from the workbench.
+export function buildResearchPrompt({ kind = "question", title, symbols = [], prompt = "", skill = null, language = "zh-CN" }) {
+  const en = language === "en";
+  const list = symbols.length ? symbols.join(", ") : en ? "(none given)" : "（没指定）";
+  const tasks = {
+    question: en ? `Answer the owner's research question: ${prompt}` : `回答主人的研究问题：${prompt}`,
+    "deep-dive": en
+      ? `Deep dive on ${list}: price trend and key levels (get_quote, daily bars), recent news and filings (get_news, query_evidence), valuation and earnings quality, A-share dragon-tiger and margin data where relevant (get_dragon_tiger, get_margin), the main risks, and a conclusion (bullish / bearish / neutral) with what would prove it wrong.${prompt ? ` Owner's focus: ${prompt}` : ""}`
+      : `对 ${list} 做个股深度：行情趋势和关键价位（get_quote、日线）、最近的新闻和公告（get_news、query_evidence）、估值和盈利质量、A 股相关时看龙虎榜和融资（get_dragon_tiger、get_margin）、主要风险，最后给结论（看多 / 看空 / 中性）和失效条件。${prompt ? `主人关注：${prompt}` : ""}`,
+    "investor-panel": en
+      ? `Run the investor panel on ${list}: for each stock, Buffett, Munger, Graham, Lynch and Druckenmiller each give a stance (bullish / bearish / neutral), a confidence and one line of reasoning from their checklist, based on real data you fetched. Then the consensus and the main disagreement.${prompt ? ` Owner's focus: ${prompt}` : ""}`
+      : `对 ${list} 做投资人评审：每只股票由巴菲特、芒格、格雷厄姆、彼得·林奇、德鲁肯米勒按各自的检查清单给出看多 / 看空 / 中性、信心和一句理由，依据必须是你查到的真实数据。最后写共识和最大的分歧。${prompt ? `主人关注：${prompt}` : ""}`,
+    market: en
+      ? `Market recap: use get_market_radar, get_limit_up_pool kind=emotion, get_margin and get_stock_connect to describe today's breadth, mood stage, main themes and money flows, and list what to watch next session.${prompt ? ` Owner's focus: ${prompt}` : ""}`
+      : `市场复盘：用 get_market_radar、get_limit_up_pool kind=emotion、get_margin、get_stock_connect 说清今天的涨跌家数、情绪阶段、主线题材和资金，并列出下个交易日要观察的点。${prompt ? `主人关注：${prompt}` : ""}`,
+  };
+  return [
+    en ? `Research task: ${title}. This run is read-only: research and write the report; do not place orders or change any trader's settings.` : `研究任务：${title}。这一轮只读：只研究、写报告，不下单，不改任何交易员的设置。`,
+    en ? "Use only real data from the tools and cite sources with dates; say plainly what you could not find. Never invent prices, news or numbers." : "只用工具拿到的真实数据，引用来源和日期；拿不到的直接说拿不到，不能编价格、新闻或数字。",
+    ...(skill ? [en ? "Method to follow:" : "要遵循的方法：", skill] : []),
+    tasks[kind] ?? tasks.question,
+    en ? "Write the final report in Markdown, at most 1200 words, with a one-paragraph summary first." : "最后用 Markdown 写报告，不超过 1200 字，开头先写一段结论摘要。",
+  ].join("\n\n");
+}

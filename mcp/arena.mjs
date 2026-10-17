@@ -1058,7 +1058,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       orders: account.orders.slice(-limit).reverse(), trades: account.trades.slice(-limit).reverse(),
       journal: account.journal.slice(-limit).reverse(), equity: account.equity,
       strategyHistory: account.strategy.history, closedPositions: (account.closedPositions ?? []).slice(-limit).reverse(),
-      lotOverrides: account.lotOverrides ?? {},
+      lotOverrides: account.lotOverrides ?? {}, skillOverrides: account.skillOverrides ?? {},
       locks: account.locks ?? {}, requests: (account.requests ?? []).slice(-50).reverse(),
       changeLog: (account.changeLog ?? []).slice(-limit).reverse(),
       reports: (account.reports ?? []).slice(-limit).reverse(),
@@ -1611,6 +1611,32 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
     },
 
     // ---- Owner instructions: short-lived orders injected into every round until they expire ----
+
+    // The owner's layer on one of the trader's skills: parameters, extra rules, reference notes.
+    async setSkillOverride(id, skillId, input = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner customizes a trader's skills.", "forbidden", 403);
+      if (!/^[a-z0-9-]{2,60}$/.test(skillId ?? "")) throw new ArenaError("Invalid skill id.");
+      const params = input.params ?? {};
+      if (typeof params !== "object" || Array.isArray(params) || Object.keys(params).length > 30) throw new ArenaError("params must be an object of at most 30 entries.");
+      const references = input.references ?? [];
+      if (!Array.isArray(references) || references.length > 5) throw new ArenaError("At most 5 reference notes.");
+      const next = {
+        append: String(input.append ?? "").slice(0, 4000),
+        params: Object.fromEntries(Object.entries(params).map(([key, value]) => [String(key).slice(0, 40), String(value).slice(0, 200)])),
+        references: references.map((entry) => ({ name: String(entry?.name ?? "资料").slice(0, 80), text: String(entry?.text ?? "").slice(0, 20000) })).filter((entry) => entry.text.trim()),
+        updatedAt: now(),
+      };
+      return withLock(async () => {
+        const account = await load(id);
+        const before = account.skillOverrides?.[skillId] ?? null;
+        const empty = !next.append.trim() && !Object.keys(next.params).length && !next.references.length;
+        account.skillOverrides = { ...account.skillOverrides };
+        if (empty) delete account.skillOverrides[skillId]; else account.skillOverrides[skillId] = { ...next, version: (before?.version ?? 0) + 1 };
+        appendChange(account, changeEntry({ key: `skill:${skillId}`, from: before ? `v${before.version}` : null, to: empty ? null : `v${account.skillOverrides[skillId].version}`, by: { kind: "owner", via: "ui" }, reason: input.reason, at: now() }));
+        await save(account);
+        return { skillId, override: account.skillOverrides[skillId] ?? null };
+      });
+    },
 
     // ---- Conversation: owner questions and the trader's answers; standing rules ----
 

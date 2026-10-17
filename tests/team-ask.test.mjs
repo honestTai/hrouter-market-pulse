@@ -123,3 +123,28 @@ test("MCP tools refuse trades and settings in read-only runs but allow reading a
     await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
+
+test("research tasks run read-only with the chosen agent and keep the report", async () => {
+  const { arena, spawnImpl, calls, cleanup } = await setup();
+  try {
+    const scheduler = createScheduler({ arena, now: () => AT, spawnImpl, leaseMs: 60000 });
+    await assert.rejects(scheduler.createResearch({ kind: "question", title: "x", prompt: "为什么？", runner: { type: "kimi" } }), /Kimi Code/);
+    await assert.rejects(scheduler.createResearch({ kind: "deep-dive", title: "x", runner: { type: "codex" } }), /symbol/);
+    const task = await scheduler.createResearch({ kind: "investor-panel", title: "招行评审", symbols: ["600036.ss"], runner: { type: "codex" } });
+    assert.equal(task.status, "queued");
+    const outcome = await (await scheduler.startResearch(task.id)).wait();
+    assert.equal(outcome.status, "ok");
+    const [call] = await calls();
+    assert.equal(call.readonly, true);
+    assert.equal(call.identity, "research");
+    assert.match(call.prompt, /巴菲特[\s\S]*600036\.SS 做投资人评审/);
+    const [stored] = await scheduler.listResearch();
+    assert.equal(stored.status, "done");
+    assert.match(stored.result.text, /复查完毕/);
+    assert.equal((await scheduler.runEvents(stored.result.runId)).events.some((event) => event.t === "text"), true);
+    await scheduler.retryResearch(task.id);
+    assert.equal((await scheduler.listResearch())[0].status, "queued");
+    await scheduler.deleteResearch(task.id);
+    assert.equal((await scheduler.listResearch()).length, 0);
+  } finally { await cleanup(); }
+});

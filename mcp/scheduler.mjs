@@ -17,11 +17,11 @@ import { fileURLToPath } from "node:url";
 import { ArenaError } from "./arena.mjs";
 import { getStorageDir } from "./core.mjs";
 import { getMarketSession } from "./market-rules.mjs";
-import { TEAM_ROLES, buildQuestionPrompt, buildRoundPrompt, buildTeamPrompt } from "./prompts.mjs";
+import { RESEARCH_KINDS, TEAM_ROLES, buildQuestionPrompt, buildResearchPrompt, buildRoundPrompt, buildTeamPrompt } from "./prompts.mjs";
 import { classifyFailure, runAcpAgent, runAgent, streamFormat } from "./agent-runner.mjs";
 import { limitsText } from "./trader-settings.mjs";
 import { createTraderStrategyStore } from "./trader-strategies.mjs";
-import { loadLibrary, skillTextFor } from "./skill-library.mjs";
+import { loadLibrary, skillBody, skillTextFor, skillsVersion } from "./skill-library.mjs";
 import { createPaperBroker } from "./brokers.mjs";
 import { BUDGET_DEFAULTS, GATE_DEFAULTS, GateError, WAKE_DEFAULTS, budgetDecision, gateDecision, sanitizeBudget, sanitizeGate, sanitizeWake, snapshot, wakeDecision } from "./review-gate.mjs";
 import { localMarketTime } from "./market-rules.mjs";
@@ -417,6 +417,7 @@ export function createScheduler({
       return {
         ...record, status, finishedAt: now(), command: invocation.command, exitCode: result.exitCode, durationMs: result.durationMs, error: result.error ?? result.streamError ?? null,
         stdoutTail: result.text || result.stdout, stderrTail: result.stderr, reported, usage: result.usage, sessionId: result.sessionId, events: result.events.length, failure,
+        skillsVersion: skillsVersion(skills),
       };
     } finally {
       live.delete(record.id);
@@ -539,6 +540,64 @@ export function createScheduler({
     } finally { await arena.clearReadonly(job.accountId, base.id).catch(() => {}); }
   }
 
+  // ---- Research tasks: one-off read-only agent runs the owner starts from the workbench ----
+  const researchFile = path.join(arena.root, "research.json");
+  async function readResearch() {
+    try { return JSON.parse(await readFile(researchFile, "utf8")).tasks ?? []; } catch (error) { if (error.code === "ENOENT") return []; throw error; }
+  }
+  const updateResearch = (mutate) => arena.withLock(async () => {
+    const tasks = await readResearch();
+    const result = await mutate(tasks);
+    await mkdir(arena.root, { recursive: true });
+    const temporary = `${researchFile}.${process.pid}.${randomUUID()}.tmp`;
+    await writeFile(temporary, JSON.stringify({ tasks: tasks.slice(-200) }, null, 1), "utf8");
+    await rename(temporary, researchFile);
+    return result;
+  });
+  const researchRunning = new Set();
+
+  async function runResearch(task) {
+    researchRunning.add(task.id);
+    const runner = { ...task.runner, timeoutMinutes: task.runner.timeoutMinutes ?? 15, language: task.language ?? "zh-CN" };
+    const record = { id: `run_${randomBytes(6).toString("hex")}`, accountId: task.accountId ?? null, lane: "research", runner: runner.type, model: runner.model ?? null, trigger: "research", researchId: task.id, startedAt: now() };
+    await updateResearch((tasks) => { const entry = tasks.find((item) => item.id === task.id); if (entry) Object.assign(entry, { status: "running", startedAt: record.startedAt, runId: record.id }); });
+    const entry = { record, events: [] };
+    const writer = eventWriter(record.id);
+    live.set(record.id, entry);
+    emit({ type: "run-start", run: record });
+    const workDir = await mkdtemp(path.join(os.tmpdir(), "hrouter-research-"));
+    let outcome;
+    try {
+      const skill = task.kind === "investor-panel" ? (await skillBody("investor-panel").catch(() => "")).replace(/^#\s.*\n/, "").trim() : null;
+      const prompt = buildResearchPrompt({ ...task, skill, language: runner.language });
+      const onEvent = (event) => { entry.events.push(event); if (entry.events.length > 400) entry.events.shift(); writer.push(event); emit({ type: "run-event", runId: record.id, accountId: null, event }); };
+      const identity = "research";
+      let result;
+      if (runner.type === "acp") {
+        const env = { HROUTER_AGENT_ID: identity, HROUTER_NO_DASHBOARD: "1", HROUTER_REPORT_DIR: getStorageDir(), HROUTER_READONLY: "1" };
+        result = await runAcpAgent({ command: runner.command, args: runner.args ?? [], env, cwd: workDir, prompt, timeoutMs: runner.timeoutMinutes * 60000, spawnImpl, onEvent, mcpServers: [{ name: "hrouter_market_pulse", command: nodePath, args: [bundlePath, "--stdio"], env: Object.entries(env).map(([name, value]) => ({ name, value })) }] });
+      } else {
+        const invocation = agentInvocation({ job: { runner }, account: { id: "research" }, prompt, nodePath, bundlePath, skillText: null, workDir, identity, readonly: true });
+        result = await runAgent({ ...invocation, timeoutMs: runner.timeoutMinutes * 60000, spawnImpl, format: streamFormat(runner.type), tailBytes: 12000, onEvent });
+      }
+      await writer.flush();
+      const ok = !result.timedOut && result.exitCode === 0 && !result.streamError && String(result.text ?? "").trim();
+      outcome = { ...record, status: result.timedOut ? "timeout" : ok ? "ok" : "failed", finishedAt: now(), usage: result.usage, error: result.error ?? result.streamError ?? null, text: String(result.text || result.stdout || "").trim().slice(-12000), failure: ok ? null : classifyFailure(result, now()) };
+    } catch (error) {
+      outcome = { ...record, status: "failed", finishedAt: now(), error: error.message, text: "" };
+    } finally {
+      live.delete(record.id);
+      researchRunning.delete(task.id);
+      await rm(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {});
+    }
+    await updateResearch((tasks) => {
+      const item = tasks.find((candidate) => candidate.id === task.id);
+      if (item) Object.assign(item, { status: outcome.status === "ok" ? "done" : "failed", finishedAt: outcome.finishedAt, result: { text: outcome.text, usage: outcome.usage ?? null, error: outcome.error ?? outcome.failure?.message ?? null, runId: record.id } });
+    });
+    emit({ type: "run-end", run: { ...outcome, text: undefined } });
+    return outcome;
+  }
+
   async function reviewAccount(accountId) {
     return arena.getAccount(accountId, { sync: false, limit: 30 });
   }
@@ -654,7 +713,13 @@ export function createScheduler({
       started.push(job.accountId);
       execute(job, { slot: slots.at(-1).key, changes }).catch((error) => onError(error));
     }
-    last = { at, role, started, waiting, running: [...running.keys()] };
+    // Research tasks queue behind trader reviews: one at a time, within the concurrency cap.
+    if (!researchRunning.size && agentRuns.size < cap) {
+      // The dashboard starts a new task itself; the service only picks up ones left waiting.
+      const next = (await readResearch()).find((task) => task.status === "queued" && Date.parse(at) - Date.parse(task.createdAt) > 30000);
+      if (next) { started.push(next.id); runResearch(next).catch((error) => onError(error)); }
+    }
+    last = { at, role, started, waiting, running: [...running.keys(), ...[...researchRunning].map((id) => `research:${id}`)] };
     return last;
   }
 
@@ -797,6 +862,50 @@ export function createScheduler({
         const result = await Promise.race([promise, deadline]);
         return result === "timeout" ? { runId, status: "running" } : { ...result, dispatchId: runId };
       }));
+    },
+    async createResearch(input = {}) {
+      const kind = RESEARCH_KINDS[input.kind] ? input.kind : "question";
+      const title = String(input.title ?? "").trim().slice(0, 80);
+      const prompt = String(input.prompt ?? "").trim().slice(0, 2000);
+      const symbols = [...new Set((Array.isArray(input.symbols) ? input.symbols : []).map((symbol) => String(symbol).trim().toUpperCase()).filter((symbol) => /^[A-Z0-9.^-]{1,20}$/.test(symbol)))].slice(0, 10);
+      if (!title) throw new ArenaError("Give the task a title.");
+      if (kind === "question" && prompt.length < 4) throw new ArenaError("Write the research question.");
+      if (["deep-dive", "investor-panel"].includes(kind) && !symbols.length) throw new ArenaError("Give at least one stock symbol.");
+      const runner = input.runner ?? {};
+      if (!AGENT_TYPES.includes(runner.type) || runner.type === "command") throw new ArenaError(`runner.type must be one of ${AGENT_TYPES.filter((type) => type !== "command").join(", ")}.`);
+      if (runner.type === "kimi") throw new ArenaError("研究任务要只读运行，Kimi Code 读固定的 MCP 配置做不到；请选 Claude Code、Codex、WorkBuddy 或 ACP Agent。");
+      if (runner.type === "acp" && !runner.command) throw new ArenaError("An ACP runner needs its command.");
+      const task = {
+        id: `res_${randomBytes(6).toString("hex")}`, kind, title, prompt, symbols, accountId: /^acc_[a-f0-9]{12}$/.test(input.accountId ?? "") ? input.accountId : null,
+        runner: { type: runner.type, ...(runner.model ? { model: String(runner.model).slice(0, 80) } : {}), ...(runner.type === "acp" ? { command: String(runner.command).slice(0, 500), args: (runner.args ?? []).slice(0, 40).map(String) } : {}) },
+        language: input.language === "en" ? "en" : "zh-CN", status: "queued", createdAt: now(),
+      };
+      await updateResearch((tasks) => { tasks.push(task); });
+      return task;
+    },
+    async listResearch({ limit = 50 } = {}) {
+      return (await readResearch()).slice(-limit).reverse().map((task) => ({ ...task, running: researchRunning.has(task.id) }));
+    },
+    async retryResearch(id) {
+      return updateResearch((tasks) => {
+        const task = tasks.find((entry) => entry.id === id);
+        if (!task) throw new ArenaError("Research task not found.", "not_found", 404);
+        if (task.status === "running" && researchRunning.has(id)) throw new ArenaError("Still running.", "conflict", 409);
+        Object.assign(task, { status: "queued", result: null, startedAt: null, finishedAt: null });
+        return task;
+      });
+    },
+    async deleteResearch(id) {
+      if (researchRunning.has(id)) throw new ArenaError("Still running.", "conflict", 409);
+      return updateResearch((tasks) => { const index = tasks.findIndex((entry) => entry.id === id); if (index < 0) throw new ArenaError("Research task not found.", "not_found", 404); tasks.splice(index, 1); return { deleted: id }; });
+    },
+    // Start a queued task right away (the owner clicked run) instead of waiting for the next tick.
+    async startResearch(id) {
+      const task = (await readResearch()).find((entry) => entry.id === id);
+      if (!task) throw new ArenaError("Research task not found.", "not_found", 404);
+      if (researchRunning.has(id)) return { status: "running" };
+      const promise = runResearch(task);
+      return { status: "started", wait: () => promise };
     },
     listRuns,
     runEvents,

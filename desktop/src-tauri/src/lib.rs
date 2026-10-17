@@ -121,13 +121,15 @@ pub fn run() {
             let handle = app.handle().clone();
             let nav = handle.clone();
             let popup = handle.clone();
-            let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+            let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("HRouter 股票工作台")
                 .inner_size(1440.0, 920.0)
                 .min_inner_size(1100.0, 720.0)
-                .center()
-                .title_bar_style(tauri::TitleBarStyle::Overlay)
-                .hidden_title(true)
+                .center();
+            // 只有 macOS 有透明标题栏；Windows 用系统标题栏
+            #[cfg(target_os = "macos")]
+            let builder = builder.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            let window = builder
                 .on_navigation(move |url| {
                     // 窗口里只打开加载页和本机服务，其他地址交给浏览器
                     if is_service(url) || matches!(url.scheme(), "tauri" | "asset") || url.host_str() == Some("tauri.localhost") {

@@ -149,3 +149,48 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
     assert.equal(poolKey({ type: "acp", command: "gemini" }), "acp:gemini");
   } finally { await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
+
+test("review gate: unchanged slots are skipped, a fill wakes the trader early", async () => {
+  const { arena: _unused, root, spawnImpl, cleanup } = await setup();
+  let clock = "2026-10-15T01:46:00.000Z"; // 09:46 Shanghai
+  const arena = createArena({ root: path.join(root, "gate"), quoteCacheMs: 0, now: () => clock, quoteProvider: async (symbol) => ({ symbol, price: 10, asOf: clock, provider: "test" }) });
+  const idle = async (scheduler) => { for (let i = 0; i < 200 && scheduler.status().running.length; i += 1) await new Promise((resolve) => setTimeout(resolve, 20)); };
+  try {
+    const account = await arena.createAccount({ name: "C", model: "gpt", market: "A" }, { client: "codex-gate" });
+    const scheduler = createScheduler({ arena, now: () => clock, spawnImpl, leaseMs: 60000 });
+    await scheduler.upsertJob(account.id, { intervalMinutes: 10, times: [], runner: { type: "codex", timeoutMinutes: 1 } });
+    assert.deepEqual((await scheduler.tick()).started, [account.id], "first review of the day always runs");
+    await idle(scheduler);
+    const [job] = await scheduler.listJobs();
+    assert.equal(job.lastReviewAt, clock);
+
+    clock = "2026-10-15T01:56:00.000Z";
+    assert.deepEqual((await scheduler.tick()).started, [], "nothing changed: the agent is not woken");
+    assert.equal((await scheduler.listJobs())[0].gateToday.skipped, 1);
+
+    clock = "2026-10-15T01:58:00.000Z";
+    await arena.placeOrder({ accountId: account.id, symbol: "600036", side: "BUY", quantity: 100, reason: "Owner test buy for the gate." }, { client: "dashboard" });
+    assert.deepEqual((await scheduler.tick()).started, [account.id], "a fill wakes the trader before its next slot");
+    await idle(scheduler);
+    const woken = (await scheduler.listRuns({ accountId: account.id })).find((run) => run.trigger === "wake");
+    assert.match(woken.changes, /新成交 1 笔/);
+    assert.equal((await scheduler.listJobs())[0].gateToday.wakes, 1);
+
+    await scheduler.stop();
+  } finally { await cleanup(); }
+});
+
+test("gate and wake decisions", async () => {
+  const { changesSince, gateDecision, wakeDecision, snapshot, sanitizeGate } = await import("../mcp/review-gate.mjs");
+  const base = { positions: [{ symbol: "A", name: "甲", quantity: 100, lastPrice: 10 }], openOrders: [], trades: [], events: [], instructions: [], approvals: [] };
+  const previous = snapshot(base, "2026-10-15T02:00:00.000Z");
+  assert.deepEqual(changesSince(previous, base), []);
+  const moved = { ...base, positions: [{ ...base.positions[0], lastPrice: 10.25 }] };
+  assert.deepEqual(changesSince(previous, moved).map((change) => [change.text, change.urgent]), [["甲 自上次复查涨 2.5%", false]]);
+  const crashed = { ...base, positions: [{ ...base.positions[0], lastPrice: 9.5 }], instructions: [{ id: "ins_1", text: "今天不碰半导体" }] };
+  assert.equal(wakeDecision({ previous, account: crashed, at: "2026-10-15T02:10:00.000Z" }), "主人的新指令：今天不碰半导体；甲 自上次复查跌 5%");
+  assert.equal(wakeDecision({ previous, account: crashed, at: "2026-10-15T02:03:00.000Z" }), null, "too soon after the last review");
+  assert.equal(wakeDecision({ previous, account: crashed, at: "2026-10-15T02:10:00.000Z", wakesToday: 10 }), null, "daily wake cap");
+  assert.equal(gateDecision({ previous, account: base, at: "2026-10-15T03:05:00.000Z", sameDay: true }).run, true, "quiet for over an hour");
+  assert.equal(gateDecision({ gate: sanitizeGate({ enabled: false }), previous, account: base, at: "2026-10-15T02:10:00.000Z", sameDay: true }).run, true);
+});

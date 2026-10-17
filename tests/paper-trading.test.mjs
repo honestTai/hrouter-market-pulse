@@ -201,19 +201,22 @@ test("paper: serialized cross-instance operations prevent duplicate side effects
   assert.equal((await first).status, "acknowledged");
   assert.equal(f.calls.filter((r) => r.action === "submit").length, 1);
 });
-test("paper: demo HTTP refuses account access, enabling, evaluation and execution, with origin checks", async () => {
-  const server = startDashboard({ port: 0, demo: true }); await server.ready;
+test("paper: dashboard keeps the bridge off until enabled and rejects cross-origin writes", async () => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), "paper-http-"));
+  const previous = process.env.HROUTER_REPORT_DIR;
+  process.env.HROUTER_REPORT_DIR = dataDir;
+  const server = startDashboard({ port: 0, matcher: false }); await server.ready;
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const status = await (await fetch(base + "/api/paper/status")).json();
-    assert.equal(status.demoDisabled, true); assert.deepEqual(status.samples, []);
-    for (const action of ["connect", "refresh", "policy", "evaluate", "submit", "cancel"]) {
-      const r = await fetch(`${base}/api/paper/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ORDER) });
-      assert.equal(r.status, 409);
-    }
+    assert.equal(status.bridgeEnabled, false);
     const cross = await fetch(`${base}/api/paper/submit`, { method: "POST", headers: { Origin: "https://evil.example", "Content-Type": "application/json" }, body: JSON.stringify(ORDER) });
     assert.equal(cross.status, 403);
-  } finally { await new Promise((r) => server.close(r)); }
+  } finally {
+    await new Promise((r) => server.close(r));
+    if (previous === undefined) delete process.env.HROUTER_REPORT_DIR; else process.env.HROUTER_REPORT_DIR = previous;
+    await rm(dataDir, { recursive: true, force: true });
+  }
 });
 test("paper: optional Python bridge contracts run against mocked official SDK (no connection)", (t) => {
   const python = process.env.HROUTER_TEST_PYTHON || (process.platform === "win32" ? "python" : "python3");

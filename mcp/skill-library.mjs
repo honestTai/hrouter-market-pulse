@@ -1,15 +1,40 @@
 // Built-in trader skill library: adapted third-party methods plus trader templates and starter
 // strategies. Skills a trader is bound to travel with every round as part of its system prompt.
 
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getStorageDir } from "./core.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 let cached = null;
 
 export function libraryDir() {
   return process.env.HROUTER_LIBRARY_DIR || path.resolve(here, "..", "library");
+}
+
+// Skills the owner imported (a folder, a Git repository or ~/.claude/skills); stored as Markdown only.
+export function importedDir() {
+  return path.join(getStorageDir(), "skills-imported");
+}
+
+export function invalidateLibrary() { cached = null; }
+
+async function importedSkills() {
+  let entries = [];
+  try { entries = await readdir(importedDir(), { withFileTypes: true }); } catch { return []; }
+  const skills = [];
+  for (const entry of entries.filter((item) => item.isDirectory() && /^imp-[a-z0-9-]{2,56}$/.test(item.name))) {
+    try {
+      const meta = JSON.parse(await readFile(path.join(importedDir(), entry.name, "meta.json"), "utf8"));
+      skills.push({
+        id: entry.name, name: meta.name, category: "imported", markets: meta.markets ?? ["A", "HK", "US"], source: "imported", upstream: [], status: "available",
+        summary: meta.summary ?? "", imported: meta, sourceInfo: { repo: meta.source?.url ?? meta.source?.path ?? meta.source?.name ?? "local", url: meta.source?.url ?? null, commit: meta.source?.commit ?? null, license: meta.license ?? "未声明", licenseFile: null },
+      });
+    } catch { /* broken import: skip */ }
+  }
+  return skills;
 }
 
 async function readJson(name) {
@@ -21,7 +46,7 @@ export async function loadLibrary() {
   const [catalog, templates] = await Promise.all([readJson("catalog.json"), readJson("templates.json")]);
   const value = {
     sources: catalog.sources, note: catalog.note,
-    skills: catalog.skills.map((skill) => ({ ...skill, sourceInfo: catalog.sources[skill.source] ?? null })),
+    skills: [...catalog.skills.map((skill) => ({ ...skill, sourceInfo: catalog.sources[skill.source] ?? null })), ...await importedSkills()],
     templates: templates.templates, discipline: templates.discipline,
   };
   cached = { dir: libraryDir(), value };
@@ -30,6 +55,7 @@ export async function loadLibrary() {
 
 export async function skillBody(id) {
   if (!/^[a-z0-9-]{2,60}$/.test(id ?? "")) throw new Error(`Invalid skill id ${id}`);
+  if (id.startsWith("imp-")) return readFile(path.join(importedDir(), id, "SKILL.md"), "utf8");
   return readFile(path.join(libraryDir(), "skills", id, "SKILL.md"), "utf8");
 }
 
@@ -47,14 +73,31 @@ export async function skillsFor(account) {
   return ids.map((id) => library.skills.find((skill) => skill.id === id)).filter((skill) => skill && skill.status === "available" && skill.markets.includes(account.market));
 }
 
+// The trader's own layer on top of a base skill: changed parameters, extra rules, its own notes.
+export function overrideText(override) {
+  if (!override) return "";
+  const parts = [];
+  const params = Object.entries(override.params ?? {});
+  if (params.length) parts.push(`本交易员改过的参数：${params.map(([key, value]) => `${key} = ${value}`).join("；")}`);
+  if (override.append?.trim()) parts.push(`本交易员追加的规则：\n${override.append.trim()}`);
+  for (const reference of override.references ?? []) parts.push(`本交易员的参考资料「${reference.name}」：\n${String(reference.text).slice(0, 3000)}`);
+  return parts.length ? `### 本交易员的定制（覆盖上面的通用说法）\n\n${parts.join("\n\n")}` : "";
+}
+
 export async function skillTextFor(account) {
   const skills = await skillsFor(account).catch(() => []);
   const parts = [];
   for (const skill of skills) {
-    try { parts.push(`## 流派 / 纪律 skill：${skill.name}\n\n${(await skillBody(skill.id)).replace(/^#\s.*\n/, "").trim()}`); } catch { /* missing file: skip */ }
+    try {
+      const custom = overrideText(account.skillOverrides?.[skill.id]);
+      parts.push(`## 流派 / 纪律 skill：${skill.name}\n\n${(await skillBody(skill.id)).replace(/^---[\s\S]*?---\s*/, "").replace(/^#\s.*\n/, "").trim()}${custom ? `\n\n${custom}` : ""}`);
+    } catch { /* missing file: skip */ }
   }
   return parts.join("\n\n---\n\n");
 }
+
+// A short fingerprint of the exact skill text a round ran with, so a review can match it.
+export const skillsVersion = (text) => (text ? createHash("sha1").update(text).digest("hex").slice(0, 10) : null);
 
 // Fields a template contributes to a new account; the owner's explicit input always wins.
 export async function templateDefaults(templateId, input = {}) {

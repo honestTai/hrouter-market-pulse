@@ -17,7 +17,6 @@
     "build": "node scripts/build.mjs",
     "test": "node scripts/test.mjs",
     "start": "node mcp/server.bundle.mjs --dashboard",
-    "demo": "node mcp/server.bundle.mjs --demo",
     "check": "node --check mcp/server.bundle.mjs",
     "smoke": "node scripts/smoke-local.mjs",
     "version": "node scripts/sync-version.mjs",

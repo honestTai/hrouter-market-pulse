@@ -46,10 +46,24 @@ function policyText(policy) {
   return parts.length ? `Owner risk policy: ${parts.join(", ")}.` : "Owner risk policy: no limits set.";
 }
 
+// Tools a read-only run (answering the owner's question, a team analyst) may not use.
+const MUTATING = new Set([
+  "arena_register_account", "arena_place_order", "arena_set_exits", "arena_cancel_order", "arena_log_decision", "arena_update_strategy", "arena_publish_report",
+  "arena_set_watchlist", "arena_set_limits", "arena_set_prompt", "arena_set_fees", "arena_set_cadence", "arena_write_strategy", "arena_rollback_strategy",
+  "arena_request_confirmation", "arena_dispatch",
+]);
+
 export function registerArenaTools(server, { toolResult, toolError }) {
   const caller = () => callerFromClient(server.server.getClientVersion?.());
+  // One scheduler per MCP process, so tasks a trader dispatches can be collected in the same session.
+  let toolScheduler = null;
+  const scheduler = () => (toolScheduler ??= createScheduler({ arena: getArena() }));
   const register = (name, config, handler) => server.registerTool(name, config, async (input) => {
     try {
+      if (MUTATING.has(name) && !(name === "arena_place_order" && input?.dryRun)) {
+        const readonly = caller().readonly ? "read-only sub-agent" : input?.accountId ? (await getArena().readonlyState(input.accountId).catch(() => null))?.reason : null;
+        if (readonly) throw new Error(`This run is read-only (${readonly}): answer or report, do not trade or change settings. Use arena_propose_rule to suggest a standing rule.`);
+      }
       const [data, summary] = await handler(input ?? {});
       return toolResult(data, summary);
     } catch (error) {
@@ -122,8 +136,8 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       "Market orders need an open session. Limit orders rest and a background matcher fills them every 1-2 minutes during the session when the price is marketable; 'day' orders expire at the session close, 'gtc' after 30 days.",
       "One account may take at most a configured share of the day's volume (default 5%); larger orders fill partially and the rest keeps resting. Suspended stocks (no trades today) do not fill.",
       "BUY orders may carry stopLoss / takeProfit (price or % of average cost); the matcher sells at market when a fresh quote crosses the level, subject to T+1 and limit-down.",
-      "Hard limits (see arena_get_account limits / limitStatus; default: keep 20% cash) reject buys that break them. Change unlocked limits with arena_set_limits.",
-      "Always give the reason (thesis, signal, risk) so the decision can be reviewed later. Rejections are recorded and count against discipline metrics.",
+      "Hard limits (see arena_get_account limits / limitStatus; default: keep 20% cash) reject buys that break them. Change unlocked limits with arena_set_limits.", "If the owner set autonomy to confirm or suggest (arena_get_account autonomy), qualifying orders are filed as approvals and placed only when the owner confirms; use dryRun to check first.",
+      "Always give the reason (thesis, signal, risk) and cite the news / filings you relied on, so the decision can be reviewed later. Every order also stores the quote it saw (source, bid / ask, time, freshness). Rejections are recorded and count against discipline metrics.",
     ].join(" "),
     inputSchema: {
       accountId,
@@ -137,11 +151,24 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       confidence: z.number().min(0).max(1).optional().describe("Your subjective probability the trade works (0–1); used for calibration review."),
       horizon: z.string().max(40).optional().describe("Intended holding period, e.g. '3d', '2w'."),
       clientOrderId: z.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional().describe("Idempotency key: retries with the same id return the original order."),
+      requireApproval: z.boolean().optional().describe("Ask the owner to confirm this order before it is placed, even when your autonomy would not require it (for unusual or large decisions)."),
+      dryRun: z.boolean().optional().describe("Check the order against every rule and hard limit (and whether the owner must confirm it) without placing anything."),
+      citations: z.array(z.object({
+        kind: z.enum(["news", "filing", "data", "report"]).optional(),
+        title: z.string().min(1).max(200),
+        url: z.string().max(500).optional(),
+        source: z.string().max(80).optional(),
+        publishedAt: z.string().max(40).optional(),
+      })).max(8).optional().describe("The news, filings or data this decision relies on (from get_news, query_evidence, scan_market …). Stored with the order and its fills so the owner can check them; never cite something you did not read."),
       ...exitFields,
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, async (input) => {
     const result = await getArena().placeOrder(input, caller());
+    if (result.dryRun) return [result, result.ok
+      ? `DRY RUN OK: ${input.side} ${input.quantity} ${input.symbol} ≈ ${result.estimate?.value ?? "?"}${result.needsApproval ? ` — would wait for the owner (${result.needsApproval})` : ""}${result.warnings.length ? `. Warnings: ${result.warnings.join("; ")}` : ""}`
+      : `DRY RUN REJECTED: ${result.error}`];
+    if (result.pendingApproval) return [result, `WAITING FOR OWNER: ${result.pendingApproval.reason}. ${input.side} ${input.quantity} ${input.symbol} [${result.pendingApproval.id}] expires ${result.pendingApproval.expiresAt}. ${result.note} Check its status later with arena_get_account (approvals).`];
     const { order, trade } = result;
     const summary = order.status === "rejected"
       ? `REJECTED: ${order.rejectReason}`
@@ -401,6 +428,66 @@ export function registerArenaTools(server, { toolResult, toolError }) {
   }, async ({ id }) => {
     const code = await starterStrategyCode(id);
     return [{ id, code }, code];
+  });
+
+  register("arena_propose_rule", {
+    title: "Propose a standing rule",
+    description: "Suggest a standing rule for this trader (e.g. when the owner says \"from now on, never chase stocks up more than 5%\"). The owner confirms or rejects it in the workbench; confirmed rules are added to every round's prompt. Allowed in read-only runs.",
+    inputSchema: { accountId, rule: z.string().min(4).max(300).describe("One sentence the trader will follow every round."), reason: z.string().min(4).max(500) },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  }, async ({ accountId: id, rule, reason }) => {
+    const request = await getArena().proposeRule(id, { rule, reason }, caller());
+    return [request, `Proposed rule [${request.id}] — waiting for the owner: ${rule}`];
+  });
+
+  register("arena_check_rules", {
+    title: "Check an order against the rules",
+    description: "Dry-run an order: lot size, T+1, price band, cash, every hard limit (cash floor, holdings, per-position, per-industry, risk per trade, boards, chasing …), whether the owner must confirm it, and discipline warnings (no stop, no sources). Nothing is placed or recorded.",
+    inputSchema: {
+      accountId, symbol: z.string().min(1).max(20), side: z.enum(["BUY", "SELL"]), quantity: z.number().int().positive().max(10000000),
+      orderType: z.enum(["market", "limit"]).default("market"), limitPrice: z.number().positive().optional(), ...exitFields,
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  }, async (input) => {
+    const result = await getArena().placeOrder({ ...input, reason: "Rule check (dry run), nothing placed.", dryRun: true }, caller());
+    return [result, result.ok ? `OK${result.needsApproval ? `, the owner must confirm (${result.needsApproval})` : ""}${result.warnings.length ? `. Warnings: ${result.warnings.join("; ")}` : ""}` : `Would be rejected: ${result.error}`];
+  });
+
+  register("arena_request_confirmation", {
+    title: "Ask the owner to confirm orders",
+    description: "File one or more orders as approval cards for the owner, whatever your autonomy level: use it for unusual, large or high-risk decisions. Each order is placed at the live quote, with every limit re-checked, only when the owner confirms it. Check the outcome later in arena_get_account (approvals).",
+    inputSchema: {
+      accountId, summary: z.string().min(10).max(1000).describe("What you propose and why, for the owner."),
+      orders: z.array(z.object({
+        symbol: z.string().min(1).max(20), side: z.enum(["BUY", "SELL"]), quantity: z.number().int().positive().max(10000000),
+        orderType: z.enum(["market", "limit"]).default("market"), limitPrice: z.number().positive().optional(), reason: z.string().min(10).max(2000), ...exitFields,
+      })).min(1).max(5),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  }, async ({ accountId: id, summary, orders }) => {
+    const results = [];
+    for (const order of orders) results.push(await getArena().placeOrder({ accountId: id, ...order, reason: `${order.reason}\n\n${summary}`.slice(0, 2000), requireApproval: true }, caller()));
+    return [{ results }, results.map((result, index) => result.pendingApproval ? `${orders[index].side} ${orders[index].symbol}: waiting for the owner [${result.pendingApproval.id}]` : `${orders[index].side} ${orders[index].symbol}: ${result.error ?? result.order?.status}`).join("\n")];
+  });
+
+  register("arena_dispatch", {
+    title: "Dispatch a task to a team analyst",
+    description: "Hand a research task to a read-only sub-agent on your team (roles: technical, news, fundamental, market, risk, bull, bear). It runs with the analyst agent configured for your team (it cannot trade) and reports in text; collect the result with arena_await_runs. At most 6 at a time.",
+    inputSchema: { accountId, role: z.enum(["technical", "news", "fundamental", "market", "risk", "bull", "bear"]), task: z.string().min(10).max(2000).describe("What to research and report, e.g. which symbols and what question.") },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  }, async ({ accountId: id, role, task }) => {
+    const started = await scheduler().dispatch(id, { role, task });
+    return [started, `Dispatched ${role} [${started.runId}]; collect it with arena_await_runs.`];
+  });
+
+  register("arena_await_runs", {
+    title: "Collect dispatched tasks",
+    description: "Wait (up to timeoutSeconds, max 600) for tasks started with arena_dispatch in this session and return their reports. Tasks still running come back as running; call again later.",
+    inputSchema: { runIds: z.array(z.string().regex(/^run_[a-f0-9]{12}$/)).min(1).max(6), timeoutSeconds: z.number().int().min(5).max(600).default(300) },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ runIds, timeoutSeconds = 300 }) => {
+    const results = await scheduler().awaitRuns(runIds, { timeoutMs: timeoutSeconds * 1000 });
+    return [{ results }, results.map((entry) => `[${entry.role ?? entry.runId}] ${entry.status}${entry.text ? `: ${entry.text.slice(0, 400)}` : ""}`).join("\n\n")];
   });
 
   register("arena_leaderboard", {

@@ -1031,23 +1031,79 @@ export function calculatePositionBudget(input) {
 
 // News for A-share / HK names comes from East Money first (per-stock feed plus full-text search);
 // Yahoo's search mostly returns unrelated English headlines for them. US names try Yahoo first.
-export async function getNews(query, count = 5, { symbol } = {}) {
+// Words that identify one security in a headline: its code, ticker, name and short name.
+export function newsKeys({ symbol, name } = {}) {
+  const keys = new Set();
+  if (symbol) {
+    const plain = String(symbol).toUpperCase().replace(/\.(SS|SZ|BJ|HK)$/, "");
+    if (/^\d{4,6}$/.test(plain)) { keys.add(plain); if (/\.HK$/i.test(symbol)) keys.add(plain.padStart(5, "0")); }
+    else if (/^[A-Z][A-Z0-9.-]{0,9}$/.test(plain) && plain.length >= 2) keys.add(plain);
+  }
+  const value = String(name ?? "").trim();
+  if (value && !/^[\d.A-Z^-]+$/.test(value)) {
+    keys.add(value);
+    const short = value.replace(/(股份有限公司|有限公司|股份|控股|集团|-SW|-W|-S|Ａ|Ａ股|\s*(Inc\.?|Corp\.?|Corporation|Ltd\.?|Limited|Holdings?|Group|plc|N\.V\.|S\.A\.))$/i, "").trim();
+    if (short.length >= 2 && short !== value) keys.add(short);
+  }
+  return [...keys];
+}
+
+// Keep items that name the security; feeds already tagged to the stock pass as they are.
+export function filterRelevantNews(items, keys) {
+  if (!keys.length) return { items, dropped: 0 };
+  const lowered = keys.map((key) => key.toLowerCase());
+  const kept = items.filter((item) => item.tagged || lowered.some((key) => `${item.title ?? ""} ${item.summary ?? ""}`.toLowerCase().includes(key)));
+  return { items: kept, dropped: items.length - kept.length };
+}
+
+const securityNames = new Map();
+async function securityName(symbol) {
+  if (securityNames.has(symbol)) return securityNames.get(symbol);
+  let name = null;
+  try {
+    const code = String(symbol).replace(/\.(SS|SZ|BJ|HK)$/i, "");
+    const payload = await fetchJson(`${EASTMONEY_SUGGEST}?input=${encodeURIComponent(code)}&type=14&count=1`, 6000, false);
+    name = payload?.QuotationCodeTable?.Data?.[0]?.Name ?? null;
+  } catch { /* the code alone still identifies it */ }
+  securityNames.set(symbol, name);
+  return name;
+}
+
+// News for a company, symbol or theme. For one security, results that do not mention it are
+// dropped (a full-text search returns loosely related pages); theme searches are not filtered.
+export async function getNewsDetailed(query, count = 5, { symbol } = {}) {
   const boundedCount = Math.max(0, Math.min(10, Number(count) || 5));
+  // Only an explicit symbol, or a query typed as a code / ticker, names one security; anything
+  // else ("固态电池", "AI chips") is a theme search.
+  const typedSymbol = /^(\d{4,6}(\.(SS|SZ|BJ|HK))?|HK\d{1,5}|[A-Z]{1,5}([.-][A-Z])?)$/.test(String(query).trim());
+  let resolved = null;
+  try { resolved = symbol ? normalizeSymbol(symbol) : typedSymbol ? normalizeSymbol(query) : null; } catch { /* not a symbol */ }
   let market = null;
-  try { market = marketFromSymbol(symbol ?? query); } catch { /* free-text query */ }
-  const chinese = /[\u4e00-\u9fff]/u.test(String(query)) || (market && market !== "US" && /\d/.test(String(symbol ?? query)));
+  try { market = resolved ? marketFromSymbol(resolved) : null; } catch { /* unknown market */ }
+  const chinese = /[\u4e00-\u9fff]/u.test(String(query)) || (market && market !== "US");
+  const name = resolved ? (typedSymbol ? await securityName(resolved) : String(query)) : null;
+  const keys = resolved ? newsKeys({ symbol: resolved, name }) : [];
+  // Ask for a few more so filtering still leaves enough.
+  const fetchCount = keys.length ? Math.min(20, boundedCount * 2) : boundedCount;
+  const tagged = (items) => items.map((item) => ({ ...item, tagged: true }));
   const sources = chinese
-    ? [() => searchEastmoneyNews(query, boundedCount), () => getEastmoneyNews(symbol ?? query, boundedCount), () => getYahooNews(query, boundedCount)]
-    : [() => getYahooNews(query, boundedCount), () => getEastmoneyNews(symbol ?? query, boundedCount), () => searchEastmoneyNews(query, boundedCount)];
+    ? [() => searchEastmoneyNews(query, fetchCount), () => getEastmoneyNews(symbol ?? query, fetchCount).then(tagged), () => getYahooNews(query, fetchCount)]
+    : [() => getYahooNews(query, fetchCount), () => getEastmoneyNews(symbol ?? query, fetchCount).then(tagged), () => searchEastmoneyNews(query, fetchCount)];
   const errors = [];
+  let dropped = 0;
   for (const source of sources) {
     try {
-      const items = await source();
-      if (items.length) return items;
+      const filtered = filterRelevantNews(await source(), keys);
+      dropped += filtered.dropped;
+      if (filtered.items.length) return { items: filtered.items.slice(0, boundedCount).map(({ tagged: _, ...item }) => item), dropped, keys };
     } catch (error) { errors.push(error.message); }
   }
   if (errors.length === sources.length) throw new Error(`新闻源均不可用 / news unavailable: ${errors.join("; ")}`);
-  return [];
+  return { items: [], dropped, keys };
+}
+
+export async function getNews(query, count = 5, options = {}) {
+  return (await getNewsDetailed(query, count, options)).items;
 }
 
 // East Money full-text news search: works for any keyword (company, theme, sector, policy).
@@ -1529,10 +1585,10 @@ export async function scanMarket({ market = "A", view = "stocks", sort = "change
   const bounded = Math.max(1, Math.min(100, Number(limit) || 30));
   const fid = SCAN_SORTS[sort] ?? "f3";
   if (view === "sectors" || view === "concepts") {
-    const payload = await fetchJson(`${EASTMONEY_LIST}?pn=1&pz=${bounded}&po=${order === "asc" ? 0 : 1}&np=1&fltt=2&invt=2&fid=${fid}&fs=${view === "concepts" ? "m:90+t:3" : "m:90+t:2"}&fields=f2,f3,f6,f8,f12,f14,f62,f104,f105,f128,f140`, 10000, false);
+    const payload = await fetchJson(`${EASTMONEY_LIST}?pn=1&pz=${bounded}&po=${order === "asc" ? 0 : 1}&np=1&fltt=2&invt=2&fid=${fid}&fs=${view === "concepts" ? "m:90+t:3" : "m:90+t:2"}&fields=f2,f3,f6,f8,f12,f14,f62,f104,f105,f128,f140,f141`, 10000, false);
     return {
       market: "A", view, sort, asOf: new Date().toISOString(), source: "East Money",
-      rows: (payload?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, changePct: number(row.f3), amount: number(row.f6), turnoverPct: number(row.f8), mainNetInflow: number(row.f62), advancers: row.f104 ?? null, decliners: row.f105 ?? null, leader: row.f128 ? { name: row.f128, symbol: scanSymbol(row.f140, null, "A") } : null })),
+      rows: (payload?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, changePct: number(row.f3), amount: number(row.f6), turnoverPct: number(row.f8), mainNetInflow: number(row.f62), advancers: row.f104 ?? null, decliners: row.f105 ?? null, leader: row.f128 ? { name: row.f128, symbol: scanSymbol(row.f140, Number(row.f141), "A") } : null })),
     };
   }
   let fs;

@@ -7,6 +7,7 @@ import test from "node:test";
 const dataDir = await mkdtemp(path.join(os.tmpdir(), "arena-http-"));
 process.env.HROUTER_REPORT_DIR = dataDir;
 const { startDashboard } = await import("../mcp/http.mjs");
+const { createSeededArena } = await import("./fixtures/arena-seed.mjs");
 
 async function withServer(options, run) {
   const server = startDashboard({ port: 0, ...options });
@@ -21,22 +22,6 @@ async function withServer(options, run) {
 
 test.after(() => rm(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
 
-test("demo dashboard serves a labelled synthetic arena without touching real data", async () => {
-  await withServer({ demo: true }, async (call) => {
-    const board = await call("/api/arena/leaderboard");
-    assert.equal(board.status, 200);
-    assert.equal(board.body.demo, true);
-    const china = board.body.groups.find((group) => group.market === "A");
-    assert.equal(china.accounts.length, 4);
-    assert.ok(china.accounts.every((account) => account.demo && account.curve.length > 10));
-    assert.deepEqual(china.accounts.map((account) => account.rank), [1, 2, 3, 4]);
-    const detail = await call(`/api/arena/accounts/${china.accounts[0].id}`);
-    assert.equal(detail.status, 200);
-    assert.ok(detail.body.trades.length > 0);
-    assert.ok(detail.body.journal.length > 0);
-  });
-});
-
 test("real dashboard creates, lists, edits, archives and deletes accounts", async () => {
   await withServer({}, async (call) => {
     const created = await call("/api/arena/accounts", { name: "Sonnet swing", model: "claude-sonnet-5-5", market: "US", agentLabel: "Claude Code", strategySummary: "Swing trades on mega caps." });
@@ -45,7 +30,6 @@ test("real dashboard creates, lists, edits, archives and deletes accounts", asyn
     assert.equal(created.body.initialCash, 100000);
     const id = created.body.id;
     const board = await call("/api/arena/leaderboard");
-    assert.equal(board.body.demo, false);
     assert.equal(board.body.groups[0].accounts[0].id, id);
     const renamed = await call(`/api/arena/accounts/${id}`, { name: "Sonnet swing v2" });
     assert.equal(renamed.body.name, "Sonnet swing v2");
@@ -101,21 +85,20 @@ test("dashboard exposes matcher status, owner-only risk policy, digests and the 
   });
 });
 
-test("demo dashboard shows run health, risk policy and a seeded digest", async () => {
-  await withServer({ demo: true }, async (call) => {
+test("dashboard shows run health, risk policy and digests from a seeded arena", async () => {
+  await withServer({ arena: await createSeededArena() }, async (call) => {
     const board = await call("/api/arena/leaderboard");
     const china = board.body.groups.find((group) => group.market === "A");
     assert.ok(china.accounts.some((account) => account.health.status === "missed"));
     assert.ok(china.accounts.every((account) => account.riskPolicy.maxDrawdownPct === 15));
     const digests = await call("/api/arena/digests");
-    assert.equal(digests.body.demo, true);
     assert.ok(digests.body.digests.length >= 1);
     assert.equal((await call("/api/arena/digests", { send: true })).status, 409);
   });
 });
 
 test("dashboard lists are paged and filtered on the server", async () => {
-  await withServer({ demo: true }, async (call) => {
+  await withServer({ arena: await createSeededArena() }, async (call) => {
     const board = await call("/api/arena/leaderboard");
     const account = board.body.groups.find((group) => group.market === "A").accounts[0];
     const detail = (await call(`/api/arena/accounts/${account.id}`)).body;

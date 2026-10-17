@@ -32,6 +32,7 @@ export const LIMIT_SPECS = {
   maxPositions: { type: "int", min: 1, max: 200, zh: "最多持有几只", en: "Max holdings", hint: "到上限后只能卖，或在已有持仓上加" },
   maxPositionPct: { type: "pct", min: 1, max: 100, zh: "单只最大仓位", en: "Max per position", hint: "单只市值占总资产的上限" },
   maxExposurePct: { type: "pct", min: 1, max: 100, zh: "总仓位上限", en: "Max exposure", hint: "所有持仓市值合计的上限" },
+  maxIndustryPct: { type: "pct", min: 1, max: 100, zh: "单行业上限", en: "Max per industry", hint: "同一行业的持仓市值占总资产的上限（行业用东方财富分类；查不到行业的股票不计入）" },
   maxNewPerDay: { type: "int", min: 1, max: 100, zh: "每天最多新开几只", en: "New positions per day", hint: "防止一天换手过多" },
   maxOrdersPerDay: { type: "int", min: 1, max: 500, zh: "每天最多几笔买单", en: "Buy orders per day", hint: "防止来回折腾；卖出不受限" },
   maxRiskPerTradePct: { type: "pct", min: 0.1, max: 20, zh: "单笔最大风险", en: "Max risk per trade", hint: "（买入价 − 止损价）× 股数 ÷ 总资产；开了之后买单必须带止损" },
@@ -96,9 +97,26 @@ export function todayActivity(account, now) {
   return { today, ordersToday: ordersToday.length, newToday: opened };
 }
 
+// Industry of every held or pending symbol as recorded on positions and orders, plus fresh lookups.
+export function knownIndustries(account, extra = {}) {
+  const map = {};
+  for (const position of Object.values(account.positions)) if (position.industry) map[position.symbol] = position.industry;
+  for (const order of account.orders) if (order.status === "open" && order.industry) map[order.symbol] = order.industry;
+  return { ...map, ...Object.fromEntries(Object.entries(extra).filter(([, industry]) => industry)) };
+}
+
+// Market value per industry (held positions plus resting buys), as % of equity.
+export function industryExposure(account, value, industries = knownIndustries(account)) {
+  const totals = new Map();
+  const add = (industry, amount) => { if (industry) totals.set(industry, (totals.get(industry) ?? 0) + amount); };
+  for (const position of value.positions) add(industries[position.symbol], position.marketValue);
+  for (const order of account.orders) if (order.status === "open" && order.side === "BUY") add(industries[order.symbol], order.reserved);
+  return [...totals.entries()].map(([industry, amount]) => ({ industry, value: round(amount), pct: value.equity > 0 ? round(amount / value.equity * 100, 2) : 0 })).sort((a, b) => b.value - a.value);
+}
+
 // Why a buy breaks one of the hard limits, or null. `value` is the account valuation; `order`
 // carries symbol, quantity, price estimate, stop level and the observed quote.
-export function limitViolation(account, limits, value, { symbol, addValue, quantity, price, stopPrice, quote, now, pending }) {
+export function limitViolation(account, limits, value, { symbol, addValue, quantity, price, stopPrice, quote, now, pending, industries: fresh = {} }) {
   if (value.equity <= 0) return null;
   const held = Boolean(account.positions[symbol]);
   const pendingBuys = pending.filter((order) => order.side === "BUY");
@@ -133,6 +151,15 @@ export function limitViolation(account, limits, value, { symbol, addValue, quant
       if (days < limits.cooldownDays) return `${label("cooldownDays")}：${symbol} 在 ${dayOf(lastSell.at, account.market)} 卖出，${limits.cooldownDays} 天内不能买回。`;
     }
   }
+  if (finite(limits.maxIndustryPct)) {
+    const industries = knownIndustries(account, fresh);
+    const industry = industries[symbol];
+    if (industry) {
+      const current = industryExposure(account, value, industries).find((entry) => entry.industry === industry)?.value ?? 0;
+      const pct = (current + addValue) / value.equity * 100;
+      if (pct > limits.maxIndustryPct + 1e-9) return `${label("maxIndustryPct")}：买入后「${industry}」行业占总资产 ${round(pct, 1)}%，上限 ${limits.maxIndustryPct}%。`;
+    }
+  }
   if (Array.isArray(limits.excludeBoards) && limits.excludeBoards.length) {
     const board = boardOf(symbol, quote);
     if (board && limits.excludeBoards.includes(board)) return `${label("excludeBoards")}：${symbol} 属于${BOARD_LABELS[board]}，在禁止范围里。`;
@@ -157,6 +184,8 @@ export function limitStatus(account, limits, value, now) {
   if (finite(limits.maxPositions)) status.positionsLeft = Math.max(0, limits.maxPositions - holdings);
   if (finite(limits.maxNewPerDay)) status.newLeftToday = Math.max(0, limits.maxNewPerDay - activity.newToday.size);
   if (finite(limits.maxOrdersPerDay)) status.ordersLeftToday = Math.max(0, limits.maxOrdersPerDay - activity.ordersToday);
+  const industries = industryExposure(account, value);
+  if (industries.length) status.industries = industries.slice(0, 8);
   return status;
 }
 

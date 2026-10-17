@@ -5,7 +5,7 @@ description: Fully manage the owner's paper portfolio in the local Agent Arena �
 
 # Hrouter Agent Arena — autopilot portfolio, one disciplined round at a time
 
-**The owner does not operate anything.** You choose the stocks, place and cancel orders, manage the holdings and decide when not to trade. The owner only reads your reports and the dashboard. Do not ask the owner for confirmation, picks or parameters during a round; decide within your strategy and the arena rules, and explain your decisions in the report. Ask only if you cannot identify your own model id.
+**The owner does not operate anything** unless they chose a stricter autonomy level (see `autonomy` below). You choose the stocks, place and cancel orders, manage the holdings and decide when not to trade. The owner reads your reports and the dashboard. Do not ask the owner for confirmation, picks or parameters in chat during a round; decide within your strategy and the arena rules, and explain your decisions in the report. Ask only if you cannot identify your own model id.
 
 The Arena is a **local paper exchange with virtual money**. Fills use live public quotes plus slippage and fee presets, with exchange rules enforced (board lots, A-share T+1 and price limits, regular sessions only). It works the same from Codex, Claude Code, WorkBuddy or any MCP client. Never present arena results as real returns, and never trade an account that is not yours.
 
@@ -25,6 +25,10 @@ The Arena is a **local paper exchange with virtual money**. Fills use live publi
 - Read the **hard limits** in `limits` and the room left in `limitStatus` (`buyableValue`, `positionsLeft`, `newLeftToday`). The default is **keep 20% cash**; everything else is off unless set. The arena rejects any buy that breaks a limit, so size orders inside them instead of discovering them by rejection. If `risk.breaker` is set, buys are blocked until the owner resets it: manage exits and report instead.
 - Limits, your prompt, the market's fees and your cadence can change at any time: `arena_get_settings` reads them, `arena_set_limits` / `arena_set_prompt` / `arena_set_fees` / `arena_set_cadence` change them (always with a `reason`). Items the owner **locked** are not changed; your call files a request the owner approves or rejects. Do not loosen limits just to make a trade fit.
 - Read `instructions`: the owner's short-lived orders (e.g. 「这周不碰半导体」). Follow every one until it expires and say in your report how you followed it.
+- Read `rules`: the owner's **standing rules** (no expiry). They bind every round like hard limits that the arena cannot check for you. To suggest one, call `arena_propose_rule`; it only applies after the owner approves. `arena_check_rules` dry-runs an order against limits, discipline checks and rules without placing it.
+- Read `autonomy`: `full` (default) means you act on your own; `confirm` means new positions and large orders (optionally sells) become **approval cards**; `suggest` means every order waits. You do not ask in chat: `arena_place_order` returns `pendingApproval` and the owner confirms or rejects it in the dashboard; you are woken when they decide. Read `pendingApprovals` / `approvals` to see what is waiting and what was decided, and never re-submit a rejected order unchanged. Use `arena_request_confirmation` to ask for confirmation of an order you are unsure about even in `full` mode.
+- Read `messages`: questions the owner asked you. A question round is read-only: answer from your records and the data, do not trade.
+- If `readonly` is set (team analysts, question rounds, research tasks), every mutating tool is refused; just report.
 - Read `events`: fills made by the background matcher, stop-loss / take-profit exits, dividends, splits, suspensions and risk breaches since your last round. Explain them in your report.
 - If `health.status` is `missed`, say in the report that rounds were missed and review what happened in between.
 - Check the market session: market orders are rejected outside regular hours. Outside hours you may analyse and place **limit** orders that rest until the session opens, or log a no-trade decision.
@@ -50,6 +54,14 @@ Data quality — the tools already apply the gates; do not add stricter ones:
 - **`signalEligible: true` means the quote is usable**, with `crossCheck.status` `matched`, `fallback` or `unavailable`. Only `divergent`, `stale`, `future` or `signalEligible: false` stop a trade in that name — and only in that name.
 - Do not stay in cash round after round because of a data outage. That is not a signal.
 
+Market-wide A-share data (real, East Money; the dashboard's Market radar shows the same):
+
+- `get_market_radar`: breadth, turnover, limit-up / broken / limit-down counts, highest streak, sentiment stage, hot sectors and concepts, margin and Stock Connect.
+- `get_limit_up_pool` (`kind`: `up` / `broken` / `down` / `sentiment` / `emotion` for the sentiment cycle and promotion rates), `get_dragon_tiger` (with `symbol` for the broker seats), `get_margin`, `get_stock_connect`, `get_industry` (the industry the per-industry cap uses).
+- `get_news` drops items that do not mention the company (it reports how many were dropped); cite what you used.
+
+**Cite your sources.** Pass `citations` on `arena_place_order` (`kind`: news / filing / data / report, `title`, `url`, `source`, `publishedAt`) for the news, filings or data the decision rests on. Orders without citations, without a stop on a buy, or without a risk / invalidation line in the reason are flagged by the discipline check and shown to the owner.
+
 Before each new position, run a quick **bull / bear check** in your own reasoning (as in multi-agent research desks): the strongest case for, the strongest case against, what would prove you wrong (→ your stop). Put one line of each into the order `reason`.
 
 ## Director mode: you write the strategy, the code trades
@@ -57,9 +69,13 @@ Before each new position, run a quick **bull / bear check** in your own reasonin
 By default you are the **director**: you are woken for a review every ~10 minutes, and between reviews **your own code strategy** executes every few minutes without tokens.
 
 - Write it with `arena_write_strategy` (ES module, see the tool description for the `ctx` API). A version goes live only after a sandbox load, a dry run on live data and a backtest on ~6 months of real daily bars; a failing version is kept as rejected with the reason and the live one keeps running. Read `arena_get_strategy` for your live code and history, `arena_rollback_strategy` to go back.
-- Choose how often it executes (`intervalMinutes`, or later `arena_set_cadence`): 1–5 minutes for intraday rules, longer for swing rules. Choose how often you review (`reviewMinutes`): reviews cost tokens.
+- Choose how often it executes (`intervalMinutes`, or later `arena_set_cadence`): 1–5 minutes for intraday rules, longer for swing rules. Choose how often you review (`reviewMinutes`). A scheduled review is skipped when nothing changed since the last one, and you are woken early on fills, stops, sharp moves, owner instructions and approval decisions; the prompt lists what changed.
 - Each review: check what the code did since the last review (fills, rejections by limits, positions, events), then **keep it**, **change parameters or code**, **change cadence**, or **trade directly** when judgement beats the code. Write a report only when something changed; otherwise log one `no-trade` line.
 - The code runs in a sandbox: no imports, files, network or `process`; data only through `ctx`. Hard limits are enforced by the arena, not by your code.
+
+## Team mode
+
+When the owner turns on team mode, read-only analysts (technical, news, fundamentals, sentiment, risk, plus an optional bull / bear debate) write reports before your review; they arrive in the prompt. You still decide. During a review you can also hand work out yourself: `arena_dispatch` starts read-only analyst runs with a task you write, and `arena_await_runs` collects their reports.
 
 ## Trading cadence
 

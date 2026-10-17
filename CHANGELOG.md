@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Everything left in the design doc, short of a real broker.** News relevance filtering; news / filing / data citations on orders and fills; demo mode removed (synthetic data now lives only in test fixtures).
+- **Order pipeline and live-trading prep.** Every order records intent → hard limits → discipline check → confirmation → matching, with dry runs and a reconciliation that rebuilds cash and positions from fills, dividends and splits.
+- **Autonomy levels.** Full / confirm key actions / suggest only. In the stricter levels orders become approval cards the owner confirms against a live re-check; agents cannot skip them.
+- **Talk to your trader.** Ask questions (answered read-only), give instructions, and set standing rules. Traders can propose rules for the owner to approve.
+- **Team mode.** Read-only analysts and an optional bull / bear debate report before each review. New tools: `arena_dispatch`, `arena_await_runs`, `arena_request_confirmation`, `arena_check_rules`, `arena_propose_rule`.
+- **Review timing.** Scripts skip unchanged review slots and wake the trader early on fills, stops, sharp moves, instructions and approval decisions. Token budgets and cost displays were dropped.
+- **Real A-share market-wide data** from East Money:
+  - industries, with a per-industry position cap;
+  - the dragon-tiger list and broker seats;
+  - limit-up, broken and limit-down pools with streaks;
+  - the sentiment cycle and promotion rates;
+  - margin and Stock Connect.
+  It comes with new MCP tools (`get_market_radar`, `get_dragon_tiger`, `get_limit_up_pool`, `get_margin`, `get_stock_connect`, `get_industry`), a Market radar page, and hot-money and macro-timing templates with four new skills.
+- **Skill customization, import and updates.** Per-trader parameters, extra rules and reference notes, with versions. Imports come from Git, a local folder or `~/.claude/skills` (Markdown only). Upstream update checks are included.
+- **Research tasks** run read-only with the agent you pick: research question, stock deep dive, investor panel, market recap.
+- **Instant alerts** to the digest webhook: orders waiting for confirmation, drawdown breakers, paused traders and exhausted quota. Each is sent once.
+- **English UI** (Settings → General → Language), with a test that every UI string has an English entry. Long panels can go full screen.
 - **Desktop app** (`desktop/`, Tauri 2, same approach as the video workbench): opens the workbench in its own window, starts the local service from the bundled plugin if it is not running, keeps it running after the window closes, and opens outside links in the browser. `npm run build:desktop` produces a macOS `.app` / `.dmg` (NSIS installer on Windows). MCP and ACP are unchanged.
 - **Fix: the resident service no longer hangs when it restarts.** With a workbench page open, its live-events stream kept the HTTP server from closing, so after a plugin update the service stopped listening but never exited and was not restarted. Shutdown now closes open connections and force-exits after 10 seconds.
 - UI: the ⌘K search box and text fields no longer show a second hard focus outline; the sidebar scrollbar only appears on hover; the title bar drags the window in the desktop app.

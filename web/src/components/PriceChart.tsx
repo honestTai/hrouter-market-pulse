@@ -4,6 +4,7 @@ import { chartBars, type Item } from '@/lib/market'
 import { compact, isNumber, num } from '@/lib/format'
 import { prefs } from '@/lib/prefs'
 import { Empty } from './ui'
+import { t } from '@/lib/i18n'
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
@@ -56,16 +57,16 @@ export function PriceChart({ item, timeframe, type, range, averages, height = 32
     } catch (caught) { setError((caught as Error).message) }
     return () => { observer?.disconnect(); chart?.remove() }
   }, [rows, all, type, timeframe, averages, height, item.changePct, prefs.colors()])
-  if (!rows.length) return <Empty title="暂无可用图表数据">不会用模拟价格或缺失的 OHLC 补齐图表。</Empty>
+  if (!rows.length) return <Empty title={t('暂无可用图表数据')}>{t('不会用模拟价格或缺失的 OHLC 补齐图表。')}</Empty>
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap gap-3 font-mono text-xs text-ink-2">
-        <span>开 <b className="text-ink">{num(row?.open)}</b></span><span>高 <b className="text-ink">{num(row?.high)}</b></span><span>低 <b className="text-ink">{num(row?.low)}</b></span><span>收 <b className="text-ink">{num(row?.close)}</b></span><span>量 <b className="text-ink">{compact(row?.volume)}</b></span>
+        <span>{t('开')} <b className="text-ink">{num(row?.open)}</b></span><span>{t('高')} <b className="text-ink">{num(row?.high)}</b></span><span>{t('低')} <b className="text-ink">{num(row?.low)}</b></span><span>{t('收')} <b className="text-ink">{num(row?.close)}</b></span><span>{t('量')} <b className="text-ink">{compact(row?.volume)}</b></span>
         {averages && timeframe === 'daily' && <><span style={{ color: '#d8a04b' }}>● MA20</span><span style={{ color: '#7b83c7' }}>● MA60</span></>}
       </div>
-      {error && <p role="alert" className="m-0 text-xs text-bad">图表暂不可用：{error}</p>}
-      <div ref={host} style={{ height }} aria-label={`${item.symbol} 价格与成交量图`} />
-      <div className="flex justify-between text-[11px] text-ink-3"><span>{rows.length} 个有效样本 · {timeframe === 'daily' ? '日线' : '分时'}</span><span>历史数据，不是预测</span></div>
+      {error && <p role="alert" className="m-0 text-xs text-bad">{t('图表暂不可用：{error}', { error })}</p>}
+      <div ref={host} style={{ height }} aria-label={t('{symbol} 价格与成交量图', { symbol: item.symbol })} />
+      <div className="flex justify-between text-[11px] text-ink-3"><span>{t('{n} 个有效样本', { n: rows.length })} · {timeframe === 'daily' ? t('日线') : t('分时')}</span><span>{t('历史数据，不是预测')}</span></div>
     </div>
   )
 }

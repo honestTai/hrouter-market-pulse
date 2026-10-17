@@ -8,6 +8,7 @@ import { TradersPage } from './pages/Traders'
 import { TraderPage } from './pages/Trader'
 import { ArenaPage } from './pages/Arena'
 import { MarketPage } from './pages/Market'
+import { RadarPage } from './pages/Radar'
 import { ResearchPage } from './pages/Research'
 import { ReportsPage } from './pages/Reports'
 import { StrategiesPage } from './pages/Strategies'
@@ -44,7 +45,11 @@ const trader = createRoute({
 })
 const arena = createRoute({ getParentRoute: () => rootRoute, path: '/arena', component: ArenaPage })
 const market = createRoute({ getParentRoute: () => rootRoute, path: '/market', component: MarketPage })
-const research = createRoute({ getParentRoute: () => rootRoute, path: '/research', component: ResearchPage })
+const radar = createRoute({ getParentRoute: () => rootRoute, path: '/radar', component: RadarPage })
+const research = createRoute({
+  getParentRoute: () => rootRoute, path: '/research', component: ResearchPage,
+  validateSearch: (search: Record<string, unknown>) => ({ new: typeof search.new === 'string' ? search.new : undefined, task: typeof search.task === 'string' ? search.task : undefined }),
+})
 const reports = createRoute({ getParentRoute: () => rootRoute, path: '/reports', component: ReportsPage })
 const strategies = createRoute({ getParentRoute: () => rootRoute, path: '/strategies', component: StrategiesPage })
 const skills = createRoute({ getParentRoute: () => rootRoute, path: '/skills', component: SkillsPage })
@@ -54,7 +59,7 @@ const settings = createRoute({
   validateSearch: (search: Record<string, unknown>) => ({ section: typeof search.section === 'string' ? search.section : undefined }),
 })
 
-export const router = createRouter({ routeTree: rootRoute.addChildren([home, traders, trader, arena, market, research, reports, strategies, skills, schedule, settings]), defaultPreload: 'intent' })
+export const router = createRouter({ routeTree: rootRoute.addChildren([home, traders, trader, arena, radar, market, research, reports, strategies, skills, schedule, settings]), defaultPreload: 'intent' })
 
 declare module '@tanstack/react-router' {
   interface Register { router: typeof router }

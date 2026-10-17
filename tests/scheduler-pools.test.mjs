@@ -150,7 +150,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
   } finally { await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
 
-test("review gate: unchanged slots are skipped, a fill wakes the trader early, a token budget slows it down", async () => {
+test("review gate: unchanged slots are skipped, a fill wakes the trader early", async () => {
   const { arena: _unused, root, spawnImpl, cleanup } = await setup();
   let clock = "2026-10-15T01:46:00.000Z"; // 09:46 Shanghai
   const arena = createArena({ root: path.join(root, "gate"), quoteCacheMs: 0, now: () => clock, quoteProvider: async (symbol) => ({ symbol, price: 10, asOf: clock, provider: "test" }) });
@@ -165,7 +165,7 @@ test("review gate: unchanged slots are skipped, a fill wakes the trader early, a
     assert.equal(job.lastReviewAt, clock);
 
     clock = "2026-10-15T01:56:00.000Z";
-    assert.deepEqual((await scheduler.tick()).started, [], "nothing changed: no tokens spent");
+    assert.deepEqual((await scheduler.tick()).started, [], "nothing changed: the agent is not woken");
     assert.equal((await scheduler.listJobs())[0].gateToday.skipped, 1);
 
     clock = "2026-10-15T01:58:00.000Z";
@@ -176,17 +176,12 @@ test("review gate: unchanged slots are skipped, a fill wakes the trader early, a
     assert.match(woken.changes, /新成交 1 笔/);
     assert.equal((await scheduler.listJobs())[0].gateToday.wakes, 1);
 
-    await scheduler.upsertJob(account.id, { budget: { dailyTokens: 10000, slowAtPct: 20 } });
-    clock = "2026-10-15T02:06:00.000Z";
-    await arena.placeOrder({ accountId: account.id, symbol: "600036", side: "BUY", quantity: 100, reason: "Second owner buy to make a change." }, { client: "dashboard" });
-    assert.deepEqual((await scheduler.tick()).started, [], "over 20% of the budget: every other slot only");
-    assert.equal((await scheduler.listJobs())[0].gateToday.budgetSkips, 1);
     await scheduler.stop();
   } finally { await cleanup(); }
 });
 
-test("gate, wake and budget decisions", async () => {
-  const { changesSince, gateDecision, wakeDecision, budgetDecision, snapshot, sanitizeGate } = await import("../mcp/review-gate.mjs");
+test("gate and wake decisions", async () => {
+  const { changesSince, gateDecision, wakeDecision, snapshot, sanitizeGate } = await import("../mcp/review-gate.mjs");
   const base = { positions: [{ symbol: "A", name: "甲", quantity: 100, lastPrice: 10 }], openOrders: [], trades: [], events: [], instructions: [], approvals: [] };
   const previous = snapshot(base, "2026-10-15T02:00:00.000Z");
   assert.deepEqual(changesSince(previous, base), []);
@@ -198,7 +193,4 @@ test("gate, wake and budget decisions", async () => {
   assert.equal(wakeDecision({ previous, account: crashed, at: "2026-10-15T02:10:00.000Z", wakesToday: 10 }), null, "daily wake cap");
   assert.equal(gateDecision({ previous, account: base, at: "2026-10-15T03:05:00.000Z", sameDay: true }).run, true, "quiet for over an hour");
   assert.equal(gateDecision({ gate: sanitizeGate({ enabled: false }), previous, account: base, at: "2026-10-15T02:10:00.000Z", sameDay: true }).run, true);
-  assert.deepEqual(budgetDecision({ budget: { dailyTokens: 1000, slowAtPct: 80 }, tokensToday: 1200 }).mode, "stop");
-  assert.equal(budgetDecision({ budget: { dailyTokens: 1000, slowAtPct: 80 }, tokensToday: 850, previous, at: "2026-10-15T02:30:00.000Z", intervalMinutes: 10 }).run, true);
-  assert.equal(budgetDecision({ budget: { dailyTokens: 1000, slowAtPct: 80 }, tokensToday: 850, previous, at: "2026-10-15T02:10:00.000Z", intervalMinutes: 10 }).run, false);
 });

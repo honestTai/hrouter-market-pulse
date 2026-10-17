@@ -4,6 +4,7 @@ import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { Loader2, Lock, LockOpen, X } from 'lucide-react'
 import { isNumber, num, pct } from '@/lib/format'
+import { t } from '@/lib/i18n'
 
 export const cn = (...values: ClassValue[]) => twMerge(clsx(values))
 
@@ -73,7 +74,7 @@ export function Dot({ tone, pulse, label }: { tone: 'ok' | 'warn' | 'bad' | 'acc
 }
 
 export function Spinner({ className }: { className?: string }) {
-  return <Loader2 className={cn('size-4 animate-spin text-ink-3', className)} aria-label="加载中" />
+  return <Loader2 className={cn('size-4 animate-spin text-ink-3', className)} aria-label={t('加载中')} />
 }
 
 export function Empty({ title, children, className, action }: { title: string; children?: ReactNode; className?: string; action?: ReactNode }) {
@@ -104,7 +105,7 @@ export function Dialog({ open, onOpenChange, title, description, children, width
               <RD.Title className="m-0 text-lg font-bold">{title}</RD.Title>
               {description ? <RD.Description className="mt-1 text-[13px] text-ink-2">{description}</RD.Description> : <RD.Description className="sr-only">{title}</RD.Description>}
             </div>
-            <RD.Close aria-label="关闭" className="rounded-md p-1 text-ink-3 hover:bg-sunken"><X className="size-4" /></RD.Close>
+            <RD.Close aria-label={t('关闭')} className="rounded-md p-1 text-ink-3 hover:bg-sunken"><X className="size-4" /></RD.Close>
           </div>
           {children}
         </RD.Content>
@@ -167,7 +168,7 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
 
 export function LockButton({ locked, onChange, label }: { locked: boolean; onChange: (value: boolean) => void; label: string }) {
   return (
-    <button type="button" aria-pressed={locked} aria-label={locked ? `${label}：已锁定，Agent 不能改` : `${label}：未锁定`} title={locked ? '已锁定：Agent 改不了，只能你改' : '未锁定：Agent 可以通过 MCP 改'} onClick={() => onChange(!locked)}
+    <button type="button" aria-pressed={locked} aria-label={locked ? t('{label}：已锁定，Agent 不能改', { label }) : t('{label}：未锁定', { label })} title={locked ? t('已锁定：Agent 改不了，只能你改') : t('未锁定：Agent 可以通过 MCP 改')} onClick={() => onChange(!locked)}
       className={cn('flex size-9 shrink-0 items-center justify-center rounded-[9px] border', locked ? 'border-accent-line bg-accent-soft text-accent-ink' : 'border-line bg-surface text-ink-3 hover:text-ink-2')}>
       {locked ? <Lock className="size-4" /> : <LockOpen className="size-4" />}
     </button>
@@ -208,15 +209,15 @@ export function Mono({ children, className }: { children: ReactNode; className?:
 }
 
 export function Pager({ total, offset, limit, onChange }: { total: number; offset: number; limit: number; onChange: (offset: number) => void }) {
-  if (total <= limit) return total ? <div className="text-xs text-ink-3">共 {total} 条</div> : null
+  if (total <= limit) return total ? <div className="text-xs text-ink-3">{t('共 {n} 条', { n: total })}</div> : null
   const page = Math.floor(offset / limit) + 1
   const pages = Math.ceil(total / limit)
   return (
     <div className="flex items-center gap-2 text-xs text-ink-3">
-      <span>共 {total} 条 · 第 {page} / {pages} 页</span>
+      <span>{t('共 {n} 条 · 第 {page} / {pages} 页', { n: total, page, pages })}</span>
       <span className="flex-1" />
-      <Button size="sm" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - limit))}>上一页</Button>
-      <Button size="sm" disabled={offset + limit >= total} onClick={() => onChange(offset + limit)}>下一页</Button>
+      <Button size="sm" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - limit))}>{t('上一页')}</Button>
+      <Button size="sm" disabled={offset + limit >= total} onClick={() => onChange(offset + limit)}>{t('下一页')}</Button>
     </div>
   )
 }

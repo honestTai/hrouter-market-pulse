@@ -16,7 +16,7 @@ A stock-research and paper-trading plugin for **Codex, Claude Code, Kimi Code, W
 
 ![Agent Arena: overlaid return curves and comparison (synthetic demo data)](docs/images/arena-zh.png)
 
-> Screenshots use the labelled **synthetic data** of `npm run demo`. Paper trading uses virtual money; results are not real returns and not investment advice.
+> Screenshots use labelled **synthetic test data**; the workbench itself only uses live quotes and real records. Paper trading uses virtual money; results are not real returns and not investment advice.
 
 ## Features
 
@@ -102,7 +102,7 @@ Open <http://127.0.0.1:8780/>, then:
 
 Desktop app for macOS / Windows: `npm --prefix desktop ci && npm run build:desktop`, see [WORKBENCH_UI.md](docs/WORKBENCH_UI.md#桌面客户端--desktop-app).
 
-Just looking: `npm run demo` and open <http://127.0.0.1:8787> (synthetic data, nothing saved).
+The UI is in Chinese by default; switch to English in Settings → General → Language.
 
 ## Install into your agent
 

@@ -1,14 +1,13 @@
 // Decide when an agent review is worth its tokens. Scripts look first: a scheduled review is skipped
 // when nothing changed since the last one (and the quiet period has not run out), and a review starts
 // early when something the trader must react to happens (a fill, a stop, an owner instruction or
-// decision, a sharp move in a holding). A daily token budget slows reviews down, then stops them.
+// decision, a sharp move in a holding).
 
 const round = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
 const finite = (value) => typeof value === "number" && Number.isFinite(value);
 
 export const GATE_DEFAULTS = Object.freeze({ enabled: true, movePct: 2, maxQuietMinutes: 60 });
 export const WAKE_DEFAULTS = Object.freeze({ enabled: true, movePct: 4, minMinutes: 5, maxPerDay: 10 });
-export const BUDGET_DEFAULTS = Object.freeze({ dailyTokens: null, slowAtPct: 80 });
 
 const URGENT_EVENTS = {
   "stop-loss": "止损触发", "take-profit": "止盈触发", "risk-breaker": "回撤熔断", "exit-deferred": "止损没能执行",
@@ -39,14 +38,6 @@ export function sanitizeWake(input, current = WAKE_DEFAULTS) {
   if (input.movePct !== undefined) next.movePct = bounded(input.movePct, 1, 30, "wake.movePct");
   if (input.minMinutes !== undefined) next.minMinutes = bounded(input.minMinutes, 3, 120, "wake.minMinutes", true);
   if (input.maxPerDay !== undefined) next.maxPerDay = bounded(input.maxPerDay, 0, 50, "wake.maxPerDay", true);
-  return next;
-}
-
-export function sanitizeBudget(input, current = BUDGET_DEFAULTS) {
-  if (input === null) return { ...BUDGET_DEFAULTS };
-  const next = { ...BUDGET_DEFAULTS, ...current };
-  if (input.dailyTokens !== undefined) next.dailyTokens = input.dailyTokens === null || input.dailyTokens === "" ? null : bounded(input.dailyTokens, 10000, 100000000, "budget.dailyTokens", true);
-  if (input.slowAtPct !== undefined) next.slowAtPct = bounded(input.slowAtPct, 10, 100, "budget.slowAtPct", true);
   return next;
 }
 
@@ -119,14 +110,3 @@ export function wakeDecision({ wake = WAKE_DEFAULTS, gate = GATE_DEFAULTS, previ
   return urgent.length ? urgent.map((change) => change.text).join("；") : null;
 }
 
-// Budget state for today: run normally, slow (every other slot) or stop.
-export function budgetDecision({ budget = BUDGET_DEFAULTS, tokensToday = 0, previous, at, intervalMinutes }) {
-  if (!finite(budget.dailyTokens)) return { mode: "normal" };
-  const usedPct = round(tokensToday / budget.dailyTokens * 100, 1);
-  if (tokensToday >= budget.dailyTokens) return { mode: "stop", usedPct, reason: `今天已用 ${tokensToday} tokens，达到预算 ${budget.dailyTokens}` };
-  if (usedPct >= budget.slowAtPct) {
-    const slow = !previous || !intervalMinutes || minutesBetween(previous.at, at) >= intervalMinutes * 2;
-    return { mode: "slow", usedPct, run: slow, reason: `今天已用预算的 ${usedPct}%，降频：每两个时段复查一次` };
-  }
-  return { mode: "normal", usedPct };
-}

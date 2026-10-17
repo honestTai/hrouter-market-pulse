@@ -9,7 +9,6 @@
 | `npm run service:install` | 安装常驻服务（推荐）：开机自启，盘中撮合、止损止盈、按时调起 Agent 与策略、收盘日报 | 8780（`HROUTER_ARENA_PORT`） |
 | `npm run service:status` / `service:uninstall` / `service:run` | 查看 / 卸载 / 前台调试常驻服务 | |
 | `npm start` | 只启动真实数据工作台（不跑调度） | 8787 起（`HROUTER_REPORT_PORT`） |
-| `npm run demo` | 合成演示数据，修改只保存在本次进程内存 | 8787 起 |
 
 Agent 客户端（Codex、Claude Code、WorkBuddy 等）启动插件时会自带一个面板，从 8787 起自动取空闲端口；所有面板读写同一份数据。通过插件市场安装、手里没有源码时，用插件里的 bundle：`node <插件目录>/mcp/server.bundle.mjs --install-service`。
 

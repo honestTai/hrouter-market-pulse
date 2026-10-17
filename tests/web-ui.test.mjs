@@ -91,7 +91,7 @@ test("UI: server serves workbench routes, guards bundle paths and keeps the rese
     assert.ok(response.ok, await response.clone().text()); return response.json();
   };
   try {
-    for (const route of ["/", "/traders", "/traders/acc_0123456789ab", "/arena", "/market", "/research", "/reports", "/strategies", "/skills", "/schedule", "/settings"]) {
+    for (const route of ["/", "/traders", "/traders/acc_0123456789ab", "/arena", "/radar", "/market", "/research", "/reports", "/strategies", "/skills", "/schedule", "/settings"]) {
       const response = await fetch(base + route);
       assert.equal(response.status, 200, route);
       assert.match(await response.text(), /assets\/app\/app\.js/);

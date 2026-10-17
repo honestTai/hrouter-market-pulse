@@ -3,6 +3,7 @@ import { registerArenaTools } from "./arena-tools.mjs";
 import { registerMarketDataTools } from "./market-data-tools.mjs";
 import { acquireRuntimeLease } from "./update-coordination.mjs";
 import { startServiceLoop } from "./service.mjs";
+import { startAlertLoop } from "./alerts.mjs";
 import { fileURLToPath } from "node:url";
 import { startDashboard } from "./http.mjs";
 import {
@@ -1043,7 +1044,9 @@ const releaseUpdateLease = service ? () => {} : await acquireRuntimeLease();
 const dashboard = headless ? null : startDashboard({ scheduler: service });
 await dashboard?.ready;
 let serviceLoop = null;
+let alertLoop = null;
 if (service) {
+  alertLoop = startAlertLoop({ arena: await dashboard.arena, scheduler: await dashboard.scheduler, loadPreferences });
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena, scheduler: await dashboard.scheduler, version: typeof __HROUTER_VERSION__ === "string" ? __HROUTER_VERSION__ : "development",
     bundlePath: fileURLToPath(import.meta.url), port: dashboard.address()?.port, onExit: () => shutdown(),
@@ -1056,6 +1059,7 @@ async function shutdown() {
   // The service manager only restarts a process that has exited, so never hang on the way out.
   setTimeout(() => process.exit(0), 10000).unref();
   serviceLoop?.stop();
+  alertLoop?.stop();
   await new Promise((resolve) => {
     if (!dashboard) return resolve();
     dashboard.close(() => resolve());

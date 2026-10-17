@@ -23,7 +23,7 @@ import { limitsText } from "./trader-settings.mjs";
 import { createTraderStrategyStore } from "./trader-strategies.mjs";
 import { loadLibrary, skillBody, skillTextFor, skillsVersion } from "./skill-library.mjs";
 import { createPaperBroker } from "./brokers.mjs";
-import { BUDGET_DEFAULTS, GATE_DEFAULTS, GateError, WAKE_DEFAULTS, budgetDecision, gateDecision, sanitizeBudget, sanitizeGate, sanitizeWake, snapshot, wakeDecision } from "./review-gate.mjs";
+import { GATE_DEFAULTS, GateError, WAKE_DEFAULTS, gateDecision, sanitizeGate, sanitizeWake, snapshot, wakeDecision } from "./review-gate.mjs";
 import { localMarketTime } from "./market-rules.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
@@ -103,11 +103,10 @@ export function sanitizeJob(input, current = {}) {
       job.strategy = { strategyId: strategy.strategyId, intervalMinutes: interval, params: strategy.params && typeof strategy.params === "object" && !Array.isArray(strategy.params) ? strategy.params : {} };
     }
   }
-  // When a review is worth its tokens: skip unchanged slots, wake early on events, a daily budget.
+  // When a review is worth its tokens: skip unchanged slots, wake early on events.
   try {
     if (input.gate !== undefined) job.gate = sanitizeGate(input.gate, job.gate);
     if (input.wake !== undefined) job.wake = sanitizeWake(input.wake, job.wake);
-    if (input.budget !== undefined) job.budget = sanitizeBudget(input.budget, job.budget);
   } catch (error) { if (error instanceof GateError) throw new ArenaError(error.message); throw error; }
   // Team mode: read-only analysts (and optionally a bull / bear debate) report before each review.
   if (input.team !== undefined) {
@@ -435,7 +434,6 @@ export function createScheduler({
 
   async function finishJob(job, outcome, lane) {
     await appendRun(job.accountId, outcome);
-    tokenCache.delete(job.accountId);
     await update((state) => {
       const stored = state.jobs.find((entry) => entry.accountId === job.accountId);
       if (!stored) return;
@@ -509,7 +507,6 @@ export function createScheduler({
     const prompt = buildTeamPrompt({ account, role, task, reports, language: job.runner.language });
     const outcome = await runAgentRound(job, account, { record, runner, task: { prompt, identitySuffix: "team" } }).catch((error) => ({ ...record, status: "failed", finishedAt: now(), error: error.message }));
     await appendRun(job.accountId, outcome);
-    tokenCache.delete(job.accountId);
     emit({ type: "run-end", run: outcome });
     return { role, runId: outcome.id, status: outcome.status, text: String(outcome.stdoutTail ?? "").replace(/^…/, "").trim().slice(-1500) };
   }
@@ -611,21 +608,11 @@ export function createScheduler({
     const at = now();
     await update((state) => {
       const today = dayOf(at, market);
-      const current = state.gate?.[accountId]?.date === today ? state.gate[accountId] : { date: today, skipped: 0, wakes: 0, budgetSkips: 0 };
+      const current = state.gate?.[accountId]?.date === today ? state.gate[accountId] : { date: today, skipped: 0, wakes: 0 };
       current[field] = (current[field] ?? 0) + 1;
       current[`last_${field}`] = { at, reason };
       state.gate = { ...state.gate, [accountId]: current };
     });
-  }
-  const tokenCache = new Map();
-  async function tokensToday(accountId, market) {
-    const hit = tokenCache.get(accountId);
-    if (hit && Date.now() - hit.at < 60000) return hit.tokens;
-    const today = dayOf(now(), market);
-    const runs = (await listRuns({ accountId, limit: SCHEDULER_DEFAULTS.runLogLimit })).filter((run) => run.lane === "agent" && dayOf(run.startedAt, market) === today);
-    const tokens = runs.reduce((sum, run) => sum + (run.usage?.inputTokens ?? 0) + (run.usage?.outputTokens ?? 0), 0);
-    tokenCache.set(accountId, { at: Date.now(), tokens });
-    return tokens;
   }
 
   async function markDone(key, slots) {
@@ -669,9 +656,8 @@ export function createScheduler({
         // Between slots: wake the trader early when something it must react to happened.
         if (agentLane(job) && !running.has(job.accountId) && agentRuns.size < cap && getMarketSession(account.market, at).status === "open") {
           const wake = { ...WAKE_DEFAULTS, ...job.wake };
-          const budget = budgetDecision({ budget: { ...BUDGET_DEFAULTS, ...job.budget }, tokensToday: await tokensToday(job.accountId, account.market), previous, at, intervalMinutes: job.intervalMinutes });
           const wakesToday = gateState?.[job.accountId]?.date === today ? gateState[job.accountId].wakes ?? 0 : 0;
-          const reason = budget.mode === "normal" ? wakeDecision({ wake, gate: { ...GATE_DEFAULTS, ...job.gate }, previous, account: await reviewAccount(job.accountId), at, wakesToday }) : null;
+          const reason = wakeDecision({ wake, gate: { ...GATE_DEFAULTS, ...job.gate }, previous, account: await reviewAccount(job.accountId), at, wakesToday });
           if (reason) {
             await countGate(job.accountId, account.market, "wakes", reason);
             started.push(job.accountId);
@@ -703,9 +689,7 @@ export function createScheduler({
       await markDone(job.accountId, slots);
       let changes = null;
       if (agentLane(job)) {
-        // Scripts look first: an agent review only runs when something changed or the budget allows.
-        const budget = budgetDecision({ budget: { ...BUDGET_DEFAULTS, ...job.budget }, tokensToday: await tokensToday(job.accountId, account.market), previous, at, intervalMinutes: job.intervalMinutes });
-        if (budget.mode === "stop" || (budget.mode === "slow" && !budget.run)) { await countGate(job.accountId, account.market, "budgetSkips", budget.reason); continue; }
+        // Scripts look first: an agent review only runs when something changed.
         const decision = gateDecision({ gate: { ...GATE_DEFAULTS, ...job.gate }, previous, account: await reviewAccount(job.accountId), at, sameDay: previous ? dayOf(previous.at, account.market) === today : false });
         if (!decision.run) { await countGate(job.accountId, account.market, "skipped", decision.reason); continue; }
         if (decision.changes?.length) changes = decision.reason;
@@ -741,7 +725,7 @@ export function createScheduler({
           ...job, running: running.has(job.accountId), strategyRunning: running.has(`${job.accountId}:S`), queued: queued.has(job.accountId),
           unhealthy: (job.consecutiveFailures ?? 0) >= SCHEDULER_DEFAULTS.failureThreshold || Boolean(job.paused),
           pool: pool && Date.parse(pool.pausedUntil) > at ? pool : null,
-          ...(agentLane(job) ? { gate: { ...GATE_DEFAULTS, ...job.gate }, wake: { ...WAKE_DEFAULTS, ...job.wake }, budget: { ...BUDGET_DEFAULTS, ...job.budget }, gateToday: gate?.[job.accountId] ?? null, lastReviewAt: reviews?.[job.accountId]?.at ?? null } : {}),
+          ...(agentLane(job) ? { gate: { ...GATE_DEFAULTS, ...job.gate }, wake: { ...WAKE_DEFAULTS, ...job.wake }, gateToday: gate?.[job.accountId] ?? null, lastReviewAt: reviews?.[job.accountId]?.at ?? null } : {}),
         };
       });
     },

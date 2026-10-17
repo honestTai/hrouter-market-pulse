@@ -17,7 +17,7 @@
 
 ![Agent 竞技场：多个 Agent 的收益曲线与横向对比（合成演示数据）](docs/images/arena-zh.png)
 
-> 截图均为 `npm run demo` 的**合成演示数据**。模拟盘使用虚拟资金，结果不代表真实收益，也不构成投资建议。
+> 截图里是测试用的**合成数据**，工作台本身只用真实行情和真实记录。模拟盘使用虚拟资金，结果不代表真实收益，也不构成投资建议。
 
 ## 功能一览
 
@@ -103,7 +103,7 @@ npm run service:install
 
 想要 Mac / Windows 桌面客户端：`npm --prefix desktop ci && npm run build:desktop`，见 [桌面客户端](docs/WORKBENCH_UI.md#桌面客户端--desktop-app)。
 
-只想先看看界面：`npm run demo`，打开 <http://127.0.0.1:8787>（合成数据，不写入真实记录）。
+界面默认中文，「设置 → 通用 → 语言」可以切到英文。
 
 ## 安装到 Agent
 

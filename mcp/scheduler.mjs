@@ -415,38 +415,42 @@ export function createScheduler({
   async function execute(job, { slot = null, trigger = "schedule", lane = "primary" } = {}) {
     const key = lane === "strategy" ? `${job.accountId}:S` : job.accountId;
     if (running.has(key)) return { status: "skipped", reason: "already-running" };
-    const account = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
-    if (account.status !== "active") return { status: "skipped", reason: "inactive" };
-    const record = (runner, extra = {}) => ({ id: `run_${randomBytes(6).toString("hex")}`, accountId: job.accountId, lane: lane === "strategy" ? "strategy" : runner.type === "strategy" ? "strategy" : "agent", runner: runner.type, model: runner.model ?? null, strategyId: lane === "strategy" ? job.strategy.strategyId : runner.strategyId ?? null, slot, trigger, startedAt: now(), ...extra });
     const isAgent = lane !== "strategy" && agentLane(job);
-    const work = (async () => {
-      if (lane === "strategy") return [await runStrategyLane(job, account, job.strategy, record({ type: "strategy" }))];
-      if (job.runner.type === "strategy") return [await runStrategyLane(job, account, { strategyId: job.runner.strategyId, params: job.runner.params }, record(job.runner))];
-      const state = await readState();
-      let runner = job.runner;
-      let backupFor = null;
-      const blocked = poolPaused(state, job.runner);
-      if (blocked) {
-        const backup = backupRunner(job);
-        if (backup && !poolPaused(state, backup)) { runner = backup; backupFor = `${job.runner.type} ${blocked.kind}`; }
-        else return [{ ...record(job.runner), status: "skipped", reason: "quota", finishedAt: now(), error: `${job.runner.type} 额度用尽，${blocked.pausedUntil} 恢复${job.backup ? "；备用 Agent 也不可用" : "；没有设置备用 Agent"}` }];
-      }
-      const outcomes = [await runAgentRound(job, account, { record: record(runner, backupFor ? { backupFor } : {}), runner })];
-      const first = outcomes[0];
-      if (first.failure?.kind === "quota") {
-        await pausePool(runner, first.failure, first.id);
-        const backup = backupRunner(job);
-        if (!backupFor && backup && !poolPaused(await readState(), backup)) outcomes.push(await runAgentRound(job, account, { record: record(backup, { backupFor: `${runner.type} quota`, trigger: "backup" }), runner: backup }));
-      }
-      return outcomes;
-    })();
-    running.set(key, work);
+    // Claim the slot before the first await: a tick launches jobs without waiting, so a late claim
+    // would let the next job in the same tick slip past the concurrency cap.
+    let release;
+    running.set(key, new Promise((resolve) => { release = resolve; }));
     if (isAgent) agentRuns.add(key);
     try {
+      const account = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
+      if (account.status !== "active") return { status: "skipped", reason: "inactive" };
+      const record = (runner, extra = {}) => ({ id: `run_${randomBytes(6).toString("hex")}`, accountId: job.accountId, lane: lane === "strategy" ? "strategy" : runner.type === "strategy" ? "strategy" : "agent", runner: runner.type, model: runner.model ?? null, strategyId: lane === "strategy" ? job.strategy.strategyId : runner.strategyId ?? null, slot, trigger, startedAt: now(), ...extra });
+      const work = (async () => {
+        if (lane === "strategy") return [await runStrategyLane(job, account, job.strategy, record({ type: "strategy" }))];
+        if (job.runner.type === "strategy") return [await runStrategyLane(job, account, { strategyId: job.runner.strategyId, params: job.runner.params }, record(job.runner))];
+        const state = await readState();
+        let runner = job.runner;
+        let backupFor = null;
+        const blocked = poolPaused(state, job.runner);
+        if (blocked) {
+          const backup = backupRunner(job);
+          if (backup && !poolPaused(state, backup)) { runner = backup; backupFor = `${job.runner.type} ${blocked.kind}`; }
+          else return [{ ...record(job.runner), status: "skipped", reason: "quota", finishedAt: now(), error: `${job.runner.type} 额度用尽，${blocked.pausedUntil} 恢复${job.backup ? "；备用 Agent 也不可用" : "；没有设置备用 Agent"}` }];
+        }
+        const outcomes = [await runAgentRound(job, account, { record: record(runner, backupFor ? { backupFor } : {}), runner })];
+        const first = outcomes[0];
+        if (first.failure?.kind === "quota") {
+          await pausePool(runner, first.failure, first.id);
+          const backup = backupRunner(job);
+          if (!backupFor && backup && !poolPaused(await readState(), backup)) outcomes.push(await runAgentRound(job, account, { record: record(backup, { backupFor: `${runner.type} quota`, trigger: "backup" }), runner: backup }));
+        }
+        return outcomes;
+      })();
+      running.set(key, work);
       const outcomes = await work;
       for (const outcome of outcomes) await finishJob(job, outcome, lane === "strategy" ? "strategy" : "primary");
       return outcomes.at(-1);
-    } finally { running.delete(key); agentRuns.delete(key); }
+    } finally { release(); running.delete(key); agentRuns.delete(key); }
   }
 
   async function markDone(key, slots) {

@@ -291,7 +291,9 @@ export function createScheduler({
     if (!/^acc_[a-f0-9]{12}$/.test(accountId ?? "")) throw new ArenaError("accountId required.");
     let text = "";
     try { text = await readFile(path.join(runDir, `${accountId}.jsonl`), "utf8"); } catch (error) { if (error.code !== "ENOENT") throw error; }
-    const rows = text.split("\n").filter(Boolean).slice(-SCHEDULER_DEFAULTS.runLogLimit).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
+    // Records written before lanes existed: a strategy runner is the strategy lane, anything else an agent round.
+    const rows = text.split("\n").filter(Boolean).slice(-SCHEDULER_DEFAULTS.runLogLimit).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean)
+      .map((row) => (row.lane ? row : { ...row, lane: row.runner === "strategy" ? "strategy" : "agent" }));
     const inFlight = [...live.values()].filter((entry) => entry.record.accountId === accountId && !rows.some((row) => row.id === entry.record.id)).map((entry) => ({ ...entry.record, status: "running", events: entry.events.length }));
     return [...rows.slice(-limit).reverse(), ...inFlight].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt)).slice(0, limit);
   }
@@ -619,6 +621,32 @@ export function createScheduler({
     },
     listRuns,
     runEvents,
+    // Exactly what the next agent round would send: the prompt and the skill text.
+    async previewPrompt(accountId) {
+      const { jobs } = await readState();
+      const job = jobs.find((entry) => entry.accountId === accountId) ?? { runner: { type: "claude" }, intervalMinutes: SCHEDULER_DEFAULTS.defaultReviewMinutes, mode: "director" };
+      const account = await arena.getAccount(accountId, { sync: false, limit: 1 });
+      const skills = await skillText(account);
+      return { prompt: await promptFor(account, job, "schedule"), skills, chars: (skills?.length ?? 0) + (await promptFor(account, job, "schedule")).length };
+    },
+    // Tokens, cost and run counts per trader since a time (default: start of today, local).
+    async usage({ since } = {}) {
+      const from = Date.parse(since ?? new Date(new Date(now()).setHours(0, 0, 0, 0)).toISOString());
+      const { jobs } = await readState();
+      const rows = [];
+      for (const job of jobs) {
+        const runs = (await listRuns({ accountId: job.accountId, limit: SCHEDULER_DEFAULTS.runLogLimit })).filter((run) => Date.parse(run.startedAt) >= from);
+        const agentRuns = runs.filter((run) => run.lane === "agent" && run.status !== "skipped");
+        rows.push({
+          accountId: job.accountId, reviews: agentRuns.length, strategyRuns: runs.filter((run) => run.lane === "strategy").length,
+          inputTokens: agentRuns.reduce((sum, run) => sum + (run.usage?.inputTokens ?? 0), 0), outputTokens: agentRuns.reduce((sum, run) => sum + (run.usage?.outputTokens ?? 0), 0),
+          costUsd: agentRuns.reduce((sum, run) => sum + (run.usage?.costUsd ?? 0), 0), failed: runs.filter((run) => ["failed", "timeout"].includes(run.status)).length,
+          byRunner: Object.entries(agentRuns.reduce((map, run) => ({ ...map, [run.runner]: (map[run.runner] ?? 0) + (run.usage?.inputTokens ?? 0) + (run.usage?.outputTokens ?? 0) }), {})).map(([runner, tokens]) => ({ runner, tokens })),
+        });
+      }
+      const sum = (key) => rows.reduce((total, row) => total + row[key], 0);
+      return { since: new Date(from).toISOString(), traders: rows, totals: { reviews: sum("reviews"), strategyRuns: sum("strategyRuns"), tokens: sum("inputTokens") + sum("outputTokens"), costUsd: Math.round(sum("costUsd") * 100) / 100, failed: sum("failed") } };
+    },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     start({ initialDelayMs = 3000 } = {}) {
       if (timer) return this;

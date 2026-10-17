@@ -187,11 +187,8 @@ try {
   });
   assert.equal(denied.status, 403);
   for (const name of [
-    "dashboard.css",
-    "dashboard.js",
-    "dashboard.js.LEGAL.txt",
-    "vendor/lightweight-charts.js",
-    "vendor/lucide.js",
+    "app/app.css",
+    "app/app.js",
   ])
     assert.equal(
       (await fetch(`http://127.0.0.1:${port}/assets/${name}`)).status,

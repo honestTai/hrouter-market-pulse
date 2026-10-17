@@ -6,6 +6,7 @@ import { createScheduler } from "./scheduler.mjs";
 import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
 import { loadLibrary, skillBody, starterStrategyCode, templateDefaults } from "./skill-library.mjs";
 import { checkEnvironment } from "./env-check.mjs";
+import { getMarketSession } from "./market-rules.mjs";
 import { readServiceStatus } from "./service.mjs";
 import { describeStrategy, loadStrategies } from "./strategies/index.mjs";
 import { createServer } from "node:http";
@@ -35,17 +36,7 @@ import { queryEvidence } from "./foundation.mjs";
 import { buildThesisScorecard, projectCatalystCalendar } from "./research.mjs";
 
 const assets = new Map([
-  ["/assets/dashboard.js", ["dashboard.js", "text/javascript; charset=utf-8"]],
-  ["/assets/dashboard.css", ["dashboard.css", "text/css; charset=utf-8"]],
-  ["/assets/dashboard.js.LEGAL.txt", ["dashboard.js.LEGAL.txt", "text/plain; charset=utf-8"]],
-  [
-    "/assets/vendor/lightweight-charts.js",
-    ["vendor/lightweight-charts.js", "text/javascript; charset=utf-8"],
-  ],
-  [
-    "/assets/vendor/lucide.js",
-    ["vendor/lucide.js", "text/javascript; charset=utf-8"],
-  ],
+  ["/assets/vendor/LICENSE-lightweight-charts", ["vendor/LICENSE-lightweight-charts", "text/plain; charset=utf-8"]],
 ]);
 const assetRoot = new URL("../assets/", import.meta.url);
 const jsonType = "application/json; charset=utf-8";
@@ -187,6 +178,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           return respond(response, 200, await (await arenaReady).history(history[1], url.searchParams.get("kind"), { ...paging, side, type: url.searchParams.get("type") || undefined, symbol: url.searchParams.get("symbol") || undefined }));
         }
         if (url.pathname === "/api/arena/pools") return respond(response, 200, { pools: await (await schedulerReady).listPools() });
+        if (url.pathname === "/api/arena/usage") return respond(response, 200, await (await schedulerReady).usage({ since: url.searchParams.get("since") || undefined }));
         const runEvents = url.pathname.match(/^\/api\/arena\/run-events\/(run_[a-f0-9]{12})$/);
         if (runEvents) return respond(response, 200, await (await schedulerReady).runEvents(runEvents[1]));
         // Live run events for this process's scheduler (the service); other views poll run-events.
@@ -198,6 +190,12 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           const heartbeat = setInterval(() => response.write(": ping\n\n"), 20000);
           request.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
           return;
+        }
+        if (url.pathname === "/api/markets") {
+          const at = new Date().toISOString();
+          // Next regular open for markets that are not trading now (scan forward minute-by-hour).
+          const nextOpen = (market) => { for (let hour = 0; hour <= 24 * 10; hour += 0.25) { const probe = new Date(Date.now() + hour * 3600000).toISOString(); if (getMarketSession(market, probe).status === "open") return probe; } return null; };
+          return respond(response, 200, Object.fromEntries(["A", "HK", "US"].map((market) => { const session = getMarketSession(market, at); return [market, { status: session.status, date: session.date, minute: session.minute, verified: session.verified, nextOpenAt: session.status === "open" ? null : nextOpen(market) }]; })));
         }
         if (url.pathname === "/api/library") return respond(response, 200, await loadLibrary());
         if (url.pathname === "/api/env") {
@@ -213,6 +211,8 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           const [meta, current] = await Promise.all([store.meta(strategyRead[1]), store.code(strategyRead[1], version).catch(() => null)]);
           return respond(response, 200, { strategyId: traderStrategyId(strategyRead[1]), ...meta, code: current?.code ?? null, version: current?.version ?? null });
         }
+        const promptPreview = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/prompt-preview$/);
+        if (promptPreview) return respond(response, 200, await (await schedulerReady).previewPrompt(promptPreview[1]));
         const settingsRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/settings$/);
         if (settingsRead) return respond(response, 200, { demo, ...(await (await arenaReady).getSettings(settingsRead[1])) });
         if (url.pathname === "/api/workbench/settings") return respond(response, 200, { demo, ...(await (await arenaReady).workbenchSettings()) });
@@ -276,8 +276,22 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             demo ? demoReport : JSON.parse(await loadReport(id, "json")),
           );
         }
+        // Workbench UI bundle (Vite build): only known file types under /assets/app/, no traversal.
+        if (url.pathname.startsWith("/assets/app/")) {
+          const rest = url.pathname.slice("/assets/app/".length);
+          const types = { js: "text/javascript; charset=utf-8", css: "text/css; charset=utf-8", woff2: "font/woff2", woff: "font/woff", svg: "image/svg+xml", png: "image/png", txt: "text/plain; charset=utf-8" };
+          const extension = rest.split(".").at(-1);
+          if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\.[a-z0-9]+$/.test(rest) || rest.includes("..") || !types[extension]) return respond(response, 404, { error: "Not found" });
+          try {
+            const body = await readFile(fileURLToPath(new URL(`app/${rest}`, assetRoot)));
+            response.writeHead(200, { "Content-Type": types[extension], "Cache-Control": rest.startsWith("files/") ? "public, max-age=31536000, immutable" : "no-cache", "X-Content-Type-Options": "nosniff", "Content-Length": body.length });
+            return response.end(body);
+          } catch { return respond(response, 404, { error: "Not found" }); }
+        }
+        // Client-side routes of the workbench all get the same HTML shell.
+        const workbenchRoute = /^\/(traders(\/acc_[a-f0-9]{12})?|arena|market|research|reports|strategies|skills|schedule|settings)\/?$/.test(url.pathname);
         if (
-          url.pathname === "/" ||
+          url.pathname === "/" || workbenchRoute ||
           /^\/runs\/[A-Za-z0-9_-]+$/.test(url.pathname)
         ) {
           try {
@@ -285,7 +299,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
               ? demoReport
               : JSON.parse(
                   await loadReport(
-                    url.pathname === "/"
+                    url.pathname === "/" || workbenchRoute
                       ? "latest"
                       : url.pathname.split("/").at(-1),
                     "json",
@@ -317,7 +331,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             const account = await arena.createAccount({ ...body, ...defaults, agentLabel: body.agentLabel || undefined }, dashboardCaller);
             if (!demo) {
               const scheduler = await schedulerReady;
-              const interval = defaults.cadence?.reviewMinutes ?? (await readPreferences())?.defaultAgentIntervalMinutes ?? 10;
+              const interval = Number(body.reviewMinutes) || defaults.cadence?.reviewMinutes || (await readPreferences())?.defaultAgentIntervalMinutes || 10;
               let schedule = { created: false };
               if (body.runner && body.runner.type !== "strategy") {
                 // The owner chose the agent (and backup) in the new-trader flow.

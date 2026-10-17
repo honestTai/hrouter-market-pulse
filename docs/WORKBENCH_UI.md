@@ -1,0 +1,48 @@
+# 工作台界面 / Workbench UI
+
+## 技术栈与构建 / Stack and build
+
+- 和 HRouter 视频工作台同一套：React 19 + TypeScript + Vite 6 + Tailwind CSS 4，TanStack Router / Query，Radix Dialog，Lucide 图标，sonner 通知，Geist 字体；K 线用 TradingView Lightweight Charts 5。
+- 源码在 `web/`，`npm run build:ui` 用 Vite 打包到 `assets/app/`（`app.js`、`app.css`、字体在 `files/`）。全部本地打包，不加载 CDN；许可证见 `THIRD_PARTY_NOTICES.md`。
+- 本机服务返回同一个 HTML 外壳（`mcp/dashboard.mjs`，内嵌最新行情报告），前端路由负责各页面。旧链接 `?view=arena` 等会跳到新页面。
+- 开发时可以 `npx vite --config web/vite.config.ts`，把 `/api` 代理到 `HROUTER_PREVIEW_PORT`（默认 8790）上运行的面板。
+
+```bash
+npm ci
+npm run build:ui       # 只打包界面
+npm run build          # 界面 + MCP bundle + 可安装插件
+npx tsc -p web         # 类型检查
+npm test && npm run check && npm run smoke
+```
+
+> 常驻服务直接运行 `plugins/hrouter-market-pulse/mcp/server.bundle.mjs`，文件一变就会自动重启。本机有正在跑的模拟盘时，`npm run build` 会让它换成新代码。
+
+## 页面 / Pages
+
+| 路由 | 页面 | 内容 |
+| --- | --- | --- |
+| `/` | 工作台 | 今日领先、跑赢基准、成交 / 被拦、用量；需要你看的事（锁定项申请、配置错误暂停、额度用尽）；交易员卡片；正在运行、额度池 |
+| `/traders` | 交易员 | 卡片 / 列表；新建交易员（市场、流派模板、Agent 与备用、提示词与边界、节奏） |
+| `/traders/:id` | 交易员页 | 概览（时间线、跟交易员说话 / 指令、组合与边界用量、持仓、复查过程）、策略（版本、代码、上线检查、节奏、回退）、设置（三层前置提示词与完整预览、边界与锁、费率、Agent 与工作方式、流派 skill、归档）、报告、委托与成交、修改记录与申请 |
+| `/arena` | 竞技场 | 收益曲线叠加、排行榜（含 tokens 与每百万 token 超额）、按模型 / Agent / 流派对比 |
+| `/market` | 市场 | 指数、自选、K 线与分时、技术指标、数据核验、相关证据、管理自选 |
+| `/research` | 研究 | 证据与事件（同步官方来源）、研究记录（可证伪论据、追加式复盘） |
+| `/reports` | 报告 | 交易员报告与收盘日报，筛选、分页、生成与推送 |
+| `/strategies` | 策略库 | 交易员写的代码策略、内置量化策略、起始策略 |
+| `/skills` | Skill 库 | 内置交易员 skill（来源、许可证、市场、数据状态）与交易员模板 |
+| `/schedule` | 定时任务 | 所有调度、启停、立即运行、额度池 |
+| `/settings` | 设置 | 环境检查、Agent 管理（CLI / ACP、并发上限）、额度池、全局与市场提示词、三个市场的费率与锁、推送、富途模拟盘、外观与红涨绿跌 |
+
+## 结构 / Layout
+
+| 路径 | 职责 |
+| --- | --- |
+| `web/src/main.tsx` · `router.tsx` | 挂载、路由、旧链接跳转、实时事件 |
+| `web/src/lib/api.ts` · `queries.ts` | 接口类型、查询与写操作（带通知和缓存刷新）、SSE |
+| `web/src/lib/format.ts` · `market.ts` · `prefs.ts` | 展示格式（缺失数字显示「—」）、行情与证据整理（不补造 OHLC）、外观偏好 |
+| `web/src/components/ui.tsx` | 按钮、卡片、标签、开关、锁、分段、页签、分页、对话框、Agent 图标、涨跌数字 |
+| `web/src/components/Shell.tsx` · `Palette.tsx` | 顶栏、侧栏 / 窄栏、市场时钟、Agent 状态；⌘K 搜索 |
+| `web/src/components/trader-bits.tsx` · `NewTrader.tsx` | 交易员卡片与状态、申请 / 暂停 / 额度卡片；新建交易员 |
+| `web/src/pages/*` · `pages/trader/*` | 各页面；交易员页的策略、设置、历史页签 |
+
+界面目前只有中文。

@@ -532,6 +532,8 @@ export function computeMetrics(account, { benchmarkPrice = null, now = new Date(
     turnover: initial > 0 ? round(account.trades.reduce((sum, trade) => sum + trade.gross, 0) / initial, 2) : 0,
     ordersPlaced: account.orders.length,
     ordersRejected: account.orders.filter((order) => order.status === "rejected").length,
+    todayFills: account.trades.filter((trade) => localMarketTime(trade.at, account.market)?.date === today).length,
+    todayRejected: account.orders.filter((order) => order.status === "rejected" && localMarketTime(order.closedAt ?? order.createdAt, account.market)?.date === today).length,
     openOrders: openOrders(account).length,
     decisionsLogged: account.journal.length,
     reportsPublished: (account.reports ?? []).length,

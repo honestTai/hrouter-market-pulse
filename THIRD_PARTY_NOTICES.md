@@ -6,9 +6,13 @@ Hrouter Market Pulse source code is MIT licensed. Included dependencies retain t
 | --- | --- | --- |
 | TradingView Lightweight Charts 5.2.1 | Apache-2.0 | Financial charts |
 | React / React DOM 19.3.0 | MIT | Component rendering and client lifecycle |
-| Radix Themes 3.3.0 and Radix UI primitives | MIT | Accessible dialogs, menus, tabs and theme components |
-| Lucide React 1.52.0 | ISC | React interface icons |
-| Lucide 1.42.0 | ISC | Legacy compatible vendor asset |
+| Radix UI Dialog 1.3.1 | MIT | Accessible dialogs |
+| TanStack Router 1.170 / TanStack Query 5.104 | MIT | Routing and data fetching |
+| Tailwind CSS 4.3.3 | MIT | Styles (compiled at build time) |
+| sonner 2.0.8 | MIT | Notifications |
+| clsx 2.1.1 / tailwind-merge 3.7.0 | MIT | Class names |
+| Lucide React 1.52.0 | ISC | Interface icons |
+| Geist and Geist Mono (Fontsource 5.3.0) | SIL OFL 1.1 | Interface fonts |
 | Model Context Protocol TypeScript SDK | MIT | MCP transport and tools |
 | Zod | MIT | Input schemas |
 
@@ -16,7 +20,7 @@ Lightweight Charts is copyright TradingView, Inc.; its supplied copyright notice
 
 Lucide is maintained by its contributors; see https://lucide.dev/ and `assets/vendor/LICENSE-lucide` for its full copyright and license text.
 
-React and Radix license texts are retained in `assets/vendor/licenses/`; linked JavaScript notices are retained at `assets/dashboard.js.LEGAL.txt`. Browser dependencies are bundled locally, not loaded from a CDN.
+React, Radix, TanStack and font license texts are retained in `assets/vendor/licenses/`. Browser dependencies and fonts are bundled locally into `assets/app/`, not loaded from a CDN.
 
 Bundled direct and transitive dependencies have their license texts collected in `assets/vendor/licenses/` by the build process. Market data, issuer documents, names and exchange marks remain subject to their owners' terms. The MIT license for this software does not grant redistribution rights to third-party market data.
 

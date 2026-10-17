@@ -126,15 +126,15 @@ test("renders a responsive report without unescaped content", () => {
     }],
   };
   const html = buildReportHtml(report);
-  assert.match(html, /Hrouter Market Pulse/);
+  assert.match(html, /HRouter 股票工作台/);
   assert.match(html, /\\u003cApple\\u003e/);
   assert.doesNotMatch(html, /<Apple>/);
-  assert.match(html, /\/assets\/dashboard\.css/);
+  assert.match(html, /\/assets\/app\/app\.css/);
 });
 
 test("renders an empty usable dashboard shell", () => {
   const html = buildEmptyHtml();
   assert.match(html, /"empty":true/);
   assert.match(html, /"items":\[\]/);
-  assert.match(html, /\/assets\/dashboard\.js/);
+  assert.match(html, /\/assets\/app\/app\.js/);
 });

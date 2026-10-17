@@ -7,15 +7,10 @@ await import("./build-ui.mjs");
 await mkdir("assets/vendor", { recursive: true });
 for (const [source, destination] of [
   [
-    "node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js",
-    "assets/vendor/lightweight-charts.js",
-  ],
-  ["node_modules/lucide/dist/umd/lucide.min.js", "assets/vendor/lucide.js"],
-  [
     "node_modules/lightweight-charts/LICENSE",
     "assets/vendor/LICENSE-lightweight-charts",
   ],
-  ["node_modules/lucide/LICENSE", "assets/vendor/LICENSE-lucide"],
+  ["node_modules/lucide-react/LICENSE", "assets/vendor/LICENSE-lucide"],
 ])
   await copyFile(source, destination);
 await mkdir("assets/vendor/licenses", { recursive: true });

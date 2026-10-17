@@ -11,7 +11,7 @@ test("dashboard serializes untrusted report titles without terminating the data 
     /id="report-data" type="application\/json">([\s\S]*?)<\/script>/,
   )[1];
   assert.equal(JSON.parse(embedded).items[0].name, title);
-  assert.match(html, /\/assets\/dashboard\.js/);
+  assert.match(html, /\/assets\/app\/app\.js/);
   assert.doesNotMatch(html, /http-equiv="refresh"/);
 });
 

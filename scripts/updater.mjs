@@ -160,7 +160,7 @@ export async function verifyHealth(root, run = runCommand) {
             } else if (msg.id === 3) {
               const port = msg.result?.structuredContent?.reportPort;
               if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid dashboard port");
-              for (const route of ["/health", "/", "/assets/dashboard.js", "/assets/vendor/lightweight-charts.js"]) {
+              for (const route of ["/health", "/", "/assets/app/app.js", "/assets/app/app.css"]) {
                 const response = await fetch(`http://127.0.0.1:${port}${route}`, { signal: AbortSignal.timeout(5000) });
                 await response.body?.cancel();
                 if (!response.ok) throw new Error(`Dashboard health check failed: ${route}`);

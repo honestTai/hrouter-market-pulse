@@ -5,6 +5,7 @@ import { createDemoArena } from "./arena-demo.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
 import { loadLibrary, skillBody, starterStrategyCode, templateDefaults } from "./skill-library.mjs";
+import { checkEnvironment } from "./env-check.mjs";
 import { readServiceStatus } from "./service.mjs";
 import { describeStrategy, loadStrategies } from "./strategies/index.mjs";
 import { createServer } from "node:http";
@@ -109,6 +110,7 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
     return runScheduler && !demo ? scheduler.start() : scheduler;
   });
   let refreshedAt = 0;
+  let envCache = null;
   const server = createServer(async (request, response) => {
     try {
       const host = request.headers.host;
@@ -198,6 +200,10 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           return;
         }
         if (url.pathname === "/api/library") return respond(response, 200, await loadLibrary());
+        if (url.pathname === "/api/env") {
+          if (!envCache || Date.now() - envCache.at > 60000 || url.searchParams.get("fresh") === "1") envCache = { at: Date.now(), value: await checkEnvironment({ arena: await arenaReady, scheduler: await schedulerReady }) };
+          return respond(response, 200, { demo, ...envCache.value });
+        }
         const librarySkill = url.pathname.match(/^\/api\/library\/(skills|strategies)\/([a-z0-9-]{2,60})$/);
         if (librarySkill) return respond(response, 200, librarySkill[1] === "skills" ? { id: librarySkill[2], body: await skillBody(librarySkill[2]) } : { id: librarySkill[2], code: await starterStrategyCode(librarySkill[2]) });
         const strategyRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/strategy$/);

@@ -178,3 +178,91 @@ export function resetTime(text, at = new Date().toISOString()) {
   if (/5-hour/i.test(text)) return new Date(base + 60 * 60000).toISOString();
   return new Date(base + 60 * 60000).toISOString();
 }
+
+// ---------------------------------------------------------------------------
+// Agent Client Protocol (ACP): JSON-RPC 2.0 over stdio, one message per line.
+// initialize → session/new (with this plugin's MCP server) → session/prompt; the agent streams
+// session/update notifications and asks session/request_permission, which an unattended round
+// answers with "allow" (the agent's own sandbox and the MCP tool surface bound what it can do).
+// ---------------------------------------------------------------------------
+
+export function runAcpAgent({ command, args = [], env, cwd, prompt, mcpServers = [], timeoutMs, spawnImpl, onEvent = () => {}, inheritedEnv = process.env }) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const events = [];
+    const push = (event) => { const entry = { ...event, at: new Date().toISOString(), seq: events.length }; events.push(entry); if (events.length > 400) events.splice(0, events.length - 400); try { onEvent(entry); } catch { /* ignore */ } };
+    let child;
+    try {
+      const inherited = Object.fromEntries(Object.entries(inheritedEnv).filter(([key]) => !/^(CLAUDE|CLAUDECODE|CODEX_THREAD|CODEX_SESSION|MCP_)/.test(key)));
+      child = spawnImpl(command, args, { cwd, env: { ...inherited, ...env }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    } catch (error) {
+      resolve({ exitCode: null, error: error.message, stdout: "", stderr: "", durationMs: 0, timedOut: false, events, usage: null, text: "", sessionId: null });
+      return;
+    }
+    push({ t: "start", command });
+    let nextId = 1;
+    let stderr = "";
+    let stdout = "";
+    let sessionId = null;
+    let timedOut = false;
+    let settled = false;
+    const chunks = [];
+    const texts = [];
+    const pending = new Map();
+    const send = (message) => { try { child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`); } catch { /* closed */ } };
+    const request = (method, params) => new Promise((ok, fail) => { const id = nextId++; pending.set(id, { ok, fail }); send({ id, method, params }); });
+    const flush = () => { const text = chunks.splice(0).join(""); if (text.trim()) { texts.push(text); push({ t: "text", text }); } };
+    const finish = (extra) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      flush();
+      push({ t: "end", ok: !extra.error && !timedOut });
+      resolve({ exitCode: extra.error ? 1 : 0, stdout: tail(stdout, 6000), stderr: tail(stderr, 6000), durationMs: Date.now() - started, timedOut, events, usage: null, text: tail(texts.join("\n"), 4000), sessionId, streamError: extra.error ?? null, error: extra.error ?? null });
+      try { child.stdin.end(); } catch { /* closed */ }
+      setTimeout(() => { try { child.kill("SIGTERM"); } catch { /* gone */ } }, 1500).unref?.();
+    };
+    const timer = setTimeout(() => { timedOut = true; finish({ error: `timed out after ${Math.round(timeoutMs / 60000)} min` }); }, timeoutMs);
+    child.stderr?.on("data", (chunk) => { stderr = tail(stderr + chunk, 6000); });
+    child.on("error", (error) => finish({ error: error.code === "ENOENT" ? `Command not found: ${command}` : error.message }));
+    child.on("close", (code) => { for (const { fail } of pending.values()) fail(new Error(`agent exited (${code})${stderr ? `: ${stderr.trim().split("\n").at(-1)}` : ""}`)); pending.clear(); });
+    readline.createInterface({ input: child.stdout }).on("line", (line) => {
+      stdout = tail(`${stdout}${line}\n`, 12000);
+      let message;
+      try { message = JSON.parse(line); } catch { return; }
+      if (message.id !== undefined && !message.method) {
+        const waiter = pending.get(message.id);
+        if (!waiter) return;
+        pending.delete(message.id);
+        if (message.error) waiter.fail(new Error(message.error.message ?? JSON.stringify(message.error))); else waiter.ok(message.result);
+        return;
+      }
+      if (message.method === "session/request_permission") {
+        const options = message.params?.options ?? [];
+        const allow = options.find((option) => option.kind === "allow_always") ?? options.find((option) => option.kind === "allow_once") ?? options[0];
+        send({ id: message.id, result: { outcome: allow ? { outcome: "selected", optionId: allow.optionId } : { outcome: "cancelled" } } });
+        return;
+      }
+      if (message.method && message.id !== undefined) { send({ id: message.id, error: { code: -32601, message: `Not supported: ${message.method}` } }); return; }
+      if (message.method === "session/update") {
+        const update = message.params?.update ?? {};
+        if (update.sessionUpdate === "agent_message_chunk" && update.content?.type === "text") chunks.push(update.content.text);
+        else if (update.sessionUpdate === "tool_call") {
+          flush();
+          push({ t: "tool", id: update.toolCallId, name: update.title ?? update.kind ?? "tool", input: update.rawInput ?? {} });
+          if (update.status === "completed" || update.status === "failed") push({ t: "tool_result", id: update.toolCallId, ok: update.status === "completed", preview: preview(update.content) });
+        } else if (update.sessionUpdate === "tool_call_update" && (update.status === "completed" || update.status === "failed"))
+          push({ t: "tool_result", id: update.toolCallId, ok: update.status === "completed", preview: preview(update.content ?? update.rawOutput) });
+      }
+    });
+    (async () => {
+      try {
+        await request("initialize", { protocolVersion: 1, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false } });
+        const session = await request("session/new", { cwd, mcpServers });
+        sessionId = session?.sessionId ?? null;
+        const result = await request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] });
+        finish(result?.stopReason === "refusal" ? { error: "agent refused" } : {});
+      } catch (error) { finish({ error: error.message }); }
+    })();
+  });
+}

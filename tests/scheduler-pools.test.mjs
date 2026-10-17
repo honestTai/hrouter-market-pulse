@@ -117,3 +117,35 @@ test("failures are classified from what the CLIs actually print", () => {
   assert.equal(resetTime("try again in 2 hours", AT), new Date(Date.parse(AT) + 2 * 3600000).toISOString());
   assert.equal(poolKey({ type: "kimi" }), "kimi");
 });
+
+test("ACP agents get the plugin's MCP server and stream text and tool calls", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "acp-test-"));
+  try {
+    const arena = createArena({ root, quoteCacheMs: 0, now: () => AT, quoteProvider: async (symbol) => ({ symbol, price: 10, asOf: AT, provider: "test" }) });
+    const script = path.join(root, "acp-agent.mjs");
+    await writeFile(script, `import readline from "node:readline";
+const out = (m) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...m }) + "\\n");
+readline.createInterface({ input: process.stdin }).on("line", (line) => {
+  const m = JSON.parse(line);
+  if (m.method === "initialize") out({ id: m.id, result: { protocolVersion: 1 } });
+  if (m.method === "session/new") { process.stderr.write("mcp:" + m.params.mcpServers[0].name + "\\n"); out({ id: m.id, result: { sessionId: "acp_1" } }); }
+  if (m.method === "session/prompt") {
+    out({ method: "session/update", params: { sessionId: "acp_1", update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "arena_get_account", status: "completed", content: [{ type: "content", content: { type: "text", text: "ok" } }] } } });
+    out({ method: "session/update", params: { sessionId: "acp_1", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "复查完毕" } } } });
+    out({ id: m.id, result: { stopReason: "end_turn" } });
+  }
+});
+`);
+    const account = await arena.createAccount({ name: "G", model: "gemini-3", market: "A" }, { client: "gemini-cli" });
+    const scheduler = createScheduler({ arena, now: () => AT, leaseMs: 60000 });
+    await scheduler.upsertJob(account.id, { intervalMinutes: 10, times: [], runner: { type: "acp", command: process.execPath, args: [script], timeoutMinutes: 1 } });
+    const run = await (await scheduler.runNow(account.id)).wait();
+    assert.equal(run.runner, "acp");
+    assert.equal(run.status, "no-round", run.error);
+    assert.equal(run.sessionId, "acp_1");
+    assert.match(run.stderrTail, /mcp:hrouter_market_pulse/);
+    const { events } = await scheduler.runEvents(run.id);
+    assert.deepEqual(events.filter((event) => ["tool", "tool_result", "text"].includes(event.t)).map((event) => event.t), ["tool", "tool_result", "text"]);
+    assert.equal(poolKey({ type: "acp", command: "gemini" }), "acp:gemini");
+  } finally { await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
+});

@@ -18,15 +18,21 @@ import { ArenaError } from "./arena.mjs";
 import { getStorageDir } from "./core.mjs";
 import { getMarketSession } from "./market-rules.mjs";
 import { buildRoundPrompt } from "./prompts.mjs";
-import { classifyFailure, runAgent, streamFormat } from "./agent-runner.mjs";
+import { classifyFailure, runAcpAgent, runAgent, streamFormat } from "./agent-runner.mjs";
 import { limitsText } from "./trader-settings.mjs";
 import { createTraderStrategyStore } from "./trader-strategies.mjs";
 import { loadLibrary, skillTextFor } from "./skill-library.mjs";
 import { createPaperBroker } from "./brokers.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
-export const RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "command", "strategy"];
-export const AGENT_TYPES = ["claude", "codex", "kimi", "workbuddy", "command"];
+export const RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "acp", "command", "strategy"];
+export const AGENT_TYPES = ["claude", "codex", "kimi", "workbuddy", "acp", "command"];
+// Agents reachable over the Agent Client Protocol. Owners can add any other ACP command.
+export const ACP_PRESETS = [
+  { id: "kimi-acp", name: "Kimi Code (ACP)", command: "kimi", args: ["acp"] },
+  { id: "gemini", name: "Gemini CLI", command: "gemini", args: ["--experimental-acp"] },
+  { id: "opencode", name: "OpenCode", command: "opencode", args: ["acp"] },
+];
 export const SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 5, tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3, maxQueueMinutes: 10, defaultReviewMinutes: 10 });
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -66,6 +72,7 @@ export function sanitizeJob(input, current = {}) {
       next.maxBudgetUsd = budget;
     }
     if (runner.type === "command" && (!next.command || !(next.args ?? []).some((arg) => arg.includes("{prompt}")))) throw new ArenaError("A command runner needs a command and at least one argument containing {prompt}.");
+    if (runner.type === "acp" && !next.command) throw new ArenaError("An ACP runner needs the agent's command (e.g. gemini with args [\"--experimental-acp\"]).");
     if (runner.type === "strategy") {
       if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(runner.strategyId ?? "")) throw new ArenaError("A strategy runner needs a strategyId.");
       next.strategyId = runner.strategyId;
@@ -78,7 +85,8 @@ export function sanitizeJob(input, current = {}) {
     if (input.backup === null || input.backup === "") delete job.backup;
     else {
       if (!AGENT_TYPES.includes(input.backup.type) || input.backup.type === "command") throw new ArenaError(`backup.type must be one of ${AGENT_TYPES.filter((type) => type !== "command").join(", ")}.`);
-      job.backup = { type: input.backup.type, ...(input.backup.model ? { model: String(input.backup.model).slice(0, 80) } : {}) };
+      if (input.backup.type === "acp" && !input.backup.command) throw new ArenaError("An ACP backup needs its command.");
+      job.backup = { type: input.backup.type, ...(input.backup.model ? { model: String(input.backup.model).slice(0, 80) } : {}), ...(input.backup.type === "acp" ? { command: String(input.backup.command).slice(0, 500), args: (input.backup.args ?? []).slice(0, 40).map(String) } : {}) };
     }
   }
   // Director mode: the agent reviews on its own cadence while a code strategy executes in between.
@@ -219,7 +227,7 @@ export function inferRunner(account) {
 }
 
 // Quota pools: one CLI login is one quota window, shared by every trader that runs on it.
-export const poolKey = (runner) => (runner.type === "command" ? `command:${runner.command ?? ""}` : runner.type);
+export const poolKey = (runner) => (runner.type === "command" || runner.type === "acp" ? `${runner.type}:${runner.command ?? ""}` : runner.type);
 const agentLane = (job) => job.runner?.type !== "strategy";
 const PAUSING_FAILURES = new Set(["auth", "config", "missing"]);
 
@@ -349,11 +357,22 @@ export function createScheduler({
       const effective = { ...job, runner };
       const identity = account.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
       const prompt = await promptFor(account, job, record.trigger);
-      const invocation = agentInvocation({ job: effective, account, prompt, nodePath, bundlePath, skillText: await skillText(account), workDir, identity });
-      const result = await runAgent({
-        ...invocation, timeoutMs: runner.timeoutMinutes * 60000, spawnImpl, format: streamFormat(runner.type), tailBytes: SCHEDULER_DEFAULTS.tailBytes,
-        onEvent: (event) => { entry.events.push(event); if (entry.events.length > 400) entry.events.shift(); writer.push(event); emit({ type: "run-event", runId: record.id, accountId: record.accountId, event }); },
-      });
+      const skills = await skillText(account);
+      const onEvent = (event) => { entry.events.push(event); if (entry.events.length > 400) entry.events.shift(); writer.push(event); emit({ type: "run-event", runId: record.id, accountId: record.accountId, event }); };
+      let invocation;
+      let result;
+      if (runner.type === "acp") {
+        // ACP agents get this plugin's MCP server through session/new and the skill text in the prompt.
+        const env = { HROUTER_AGENT_ID: identity, HROUTER_NO_DASHBOARD: "1", HROUTER_REPORT_DIR: getStorageDir() };
+        invocation = { command: runner.command, args: runner.args ?? [] };
+        result = await runAcpAgent({
+          ...invocation, env, cwd: workDir, prompt: skills ? `${skills}\n\n---\n\n${prompt}` : prompt, timeoutMs: runner.timeoutMinutes * 60000, spawnImpl, onEvent,
+          mcpServers: [{ name: "hrouter_market_pulse", command: nodePath, args: [bundlePath, "--stdio"], env: Object.entries(env).map(([name, value]) => ({ name, value })) }],
+        });
+      } else {
+        invocation = agentInvocation({ job: effective, account, prompt, nodePath, bundlePath, skillText: skills, workDir, identity });
+        result = await runAgent({ ...invocation, timeoutMs: runner.timeoutMinutes * 60000, spawnImpl, format: streamFormat(runner.type), tailBytes: SCHEDULER_DEFAULTS.tailBytes, onEvent });
+      }
       const after = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
       const reported = Boolean(after.lastRoundAt && Date.parse(after.lastRoundAt) >= Date.parse(record.startedAt));
       const status = result.timedOut ? "timeout" : result.exitCode === 0 && !result.streamError ? (reported ? "ok" : "no-round") : "failed";
@@ -369,7 +388,7 @@ export function createScheduler({
     }
   }
 
-  const backupRunner = (job) => job.backup ? { timeoutMinutes: job.runner.timeoutMinutes, language: job.runner.language, ...(job.runner.webSearch === false ? { webSearch: false } : {}), type: job.backup.type, ...(job.backup.model ? { model: job.backup.model } : {}) } : null;
+  const backupRunner = (job) => job.backup ? { timeoutMinutes: job.runner.timeoutMinutes, language: job.runner.language, ...(job.runner.webSearch === false ? { webSearch: false } : {}), type: job.backup.type, ...(job.backup.model ? { model: job.backup.model } : {}), ...(job.backup.command ? { command: job.backup.command, args: job.backup.args ?? [] } : {}) } : null;
 
   async function pausePool(runner, failure, runId) {
     await update((state) => { state.pools[poolKey(runner)] = { pausedUntil: failure.resetAt, kind: failure.kind, message: failure.message ?? null, at: now(), runId }; });

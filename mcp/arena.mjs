@@ -1401,6 +1401,13 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       });
     },
 
+    // Non-binding ownership check for tools that act on an account without trading it.
+    assertTrader(account, caller = {}) {
+      if (!caller?.client || caller.client === "dashboard") return;
+      if (account.agent?.client && account.agent.client !== caller.client)
+        throw new ArenaError(`Account ${account.id} belongs to agent "${account.agent.client}", not "${caller.client}".`, "forbidden", 403);
+    },
+
     // ---- Trader settings: limits, prompt, locks and change requests ---------------------------
 
     async getSettings(id) {

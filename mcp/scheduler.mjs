@@ -20,6 +20,7 @@ import { getMarketSession } from "./market-rules.mjs";
 import { buildRoundPrompt } from "./prompts.mjs";
 import { classifyFailure, runAgent, streamFormat } from "./agent-runner.mjs";
 import { limitsText } from "./trader-settings.mjs";
+import { createTraderStrategyStore } from "./trader-strategies.mjs";
 import { createPaperBroker } from "./brokers.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
@@ -241,6 +242,9 @@ export function createScheduler({
   let role = "idle";
   let last = null;
 
+  const traderStore = createTraderStrategyStore(arena.root, now);
+  // Agent-written strategies (trader-<id>) come from the trader's version store and run sandboxed.
+  const resolver = resolveStrategy ?? ((strategyId) => (strategyId.startsWith("trader-") ? traderStore.resolve(strategyId) : null));
   const emit = (message) => { for (const listener of listeners) { try { listener(message); } catch { /* ignore */ } } };
 
   async function readState() {
@@ -299,7 +303,9 @@ export function createScheduler({
   }
 
   async function findStrategy(strategyId, accountId) {
-    if (resolveStrategy) { const found = await resolveStrategy(strategyId, accountId); if (found) return { strategy: found, errors: [] }; }
+    const found = await resolver(strategyId, accountId);
+    if (found) return { strategy: found, errors: [] };
+    if (strategyId.startsWith("trader-")) return { strategy: null, errors: ["这个交易员还没有通过检查的代码策略"] };
     const { strategies, errors } = await strategyLoader();
     return { strategy: strategies.get(strategyId) ?? null, errors };
   }

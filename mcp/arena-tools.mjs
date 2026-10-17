@@ -5,6 +5,16 @@ import { ARENA_MARKETS, callerFromClient, getArena } from "./arena.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { loadPreferences, marketFromSymbol, savePreferences } from "./core.mjs";
 import { BOARD_OPTIONS, DEFAULT_FEES, LIMIT_SPECS, limitsText } from "./trader-settings.mjs";
+import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId, writeTraderStrategy } from "./trader-strategies.mjs";
+
+const STRATEGY_API = [
+  "Write an ES module: export default { id, name, version, markets, description, params: { key: { type: 'integer'|'number'|'boolean'|'enum'|'symbols', default, min, max, label } }, async run(ctx) { … } }.",
+  "ctx: now, market, account (cash, positions with lots, metrics.equity), params (validated), universe (your stock pool),",
+  "await ctx.history(symbol, { days }) → completed daily bars oldest first ({ sessionDate, open, high, low, close, volume }); await ctx.quote(symbol) → live quote (price, bid, ask, changePct, signalEligible);",
+  "await ctx.intraday(symbol) → today's completed minute bars ({ time, price, volume, vwap }); await ctx.scan({ sort, boards, minAmount, limit }) → whole-market ranking; ctx.sellable(symbol); ctx.log(text); ctx.indicators.sma(values, n).",
+  "Return { targets: [{ symbol, weight 0–1, reason }] } or { orders: [{ symbol, side, quantity, reason }] }, optionally exits: { stopLossPct, takeProfitPct } for new buys and report: { title, summary }.",
+  "No imports, require, process, fetch or eval: the code runs in a sandbox with only ctx for data. Hard limits are enforced by the arena, not by your code.",
+].join(" ");
 
 const accountId = z.string().regex(/^acc_[a-f0-9]{12}$/).describe("Arena account id (acc_…) returned by arena_register_account or arena_my_accounts.");
 const market = z.enum(["A", "HK", "US"]);
@@ -316,6 +326,54 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       result.applied.strategyMinutes !== undefined ? `strategy every ${result.applied.strategyMinutes} min` : null,
     ].filter(Boolean);
     return [result, `${parts.length ? `Now: ${parts.join(", ")}.` : "Nothing changed."}${result.requested.length ? ` Locked by the owner, filed as request(s): ${result.requested.map((entry) => entry.key).join(", ")}.` : ""}`];
+  });
+
+  register("arena_write_strategy", {
+    title: "Write your code strategy",
+    description: [
+      "Publish a new version of your own code strategy. It runs automatically at the frequency you set (no tokens), while you review every few minutes as the director.",
+      "Before going live the version is loaded in a sandbox, dry-run on live data (orders computed, not placed) and backtested on real daily bars (about 6 months, closes, fees and slippage). A failing version is kept as rejected with the reason and the current live version keeps running.",
+      STRATEGY_API,
+    ].join(" "),
+    inputSchema: {
+      accountId,
+      code: z.string().min(40).max(60000).describe("The whole ES module source."),
+      changeNote: z.string().min(4).max(500).describe("What changed and why."),
+      params: z.record(z.any()).optional().describe("Parameter values for this version (defaults come from the module's params)."),
+      universe: z.array(z.string().max(20)).max(40).optional().describe("Symbols to run and backtest on; default your stock pool, then holdings."),
+      intervalMinutes: z.number().int().min(1).max(240).optional().describe("How often the strategy executes during the session (default: current, else 5)."),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  }, async (input) => {
+    const arena = getArena();
+    const result = await writeTraderStrategy({ arena, scheduler: createScheduler({ arena }), store: createTraderStrategyStore(arena.root), ...input, caller: caller() });
+    if (result.status !== "live") return [result, `v${result.version} REJECTED at ${result.rejectedAt}: ${result.error}${result.live ? ` · v${result.live} keeps running.` : " · no live version yet."}`];
+    const bt = result.backtest;
+    return [result, `v${result.version} is LIVE, executing every ${result.intervalMinutes} min. Dry run: ${result.dryRun.orders.length} order(s). Backtest ${bt.from}–${bt.to}: ${bt.totalReturnPct}% (max DD ${bt.maxDrawdownPct}%, benchmark ${bt.benchmarkReturnPct ?? "—"}%, ${bt.trades} trades).${result.previous?.backtest ? ` Previous v${result.previous.version}: ${result.previous.backtest.totalReturnPct}% / ${result.previous.backtest.maxDrawdownPct}%.` : ""}${bt.notes.length ? ` Notes: ${bt.notes.join(" ")}` : ""}`];
+  });
+
+  register("arena_get_strategy", {
+    title: "Get your code strategy",
+    description: "Read your live code strategy (source), its parameters, schedule and every earlier version with its checks, backtest and status.",
+    inputSchema: { accountId, version: z.number().int().positive().optional().describe("A specific version's source; default the live one.") },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ accountId: id, version }) => {
+    const store = createTraderStrategyStore(getArena().root);
+    const [meta, current] = await Promise.all([store.meta(id), store.code(id, version)]);
+    const job = (await createScheduler({ arena: getArena() }).listJobs()).find((entry) => entry.accountId === id);
+    return [{ strategyId: traderStrategyId(id), live: meta.live, versions: meta.versions, code: current?.code ?? null, schedule: job ? { reviewMinutes: job.intervalMinutes ?? null, strategy: job.strategy ?? (job.runner?.type === "strategy" ? { strategyId: job.runner.strategyId, intervalMinutes: job.intervalMinutes } : null), mode: job.mode ?? null } : null },
+      meta.live ? `Live: v${meta.live} of ${meta.versions.length} version(s).` : "No live code strategy yet. Write one with arena_write_strategy."];
+  });
+
+  register("arena_rollback_strategy", {
+    title: "Roll back your code strategy",
+    description: "Make an earlier version that passed its checks live again.",
+    inputSchema: { accountId, version: z.number().int().positive(), reason: z.string().max(500).optional() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ accountId: id, version }) => {
+    const arena = getArena();
+    const entry = await rollbackTraderStrategy({ arena, scheduler: createScheduler({ arena }), store: createTraderStrategyStore(arena.root), accountId: id, version, caller: caller() });
+    return [entry, `v${entry.version} is live again.`];
   });
 
   register("arena_leaderboard", {

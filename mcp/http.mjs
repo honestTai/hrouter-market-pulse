@@ -3,6 +3,7 @@ import { getPaperService } from "./paper.mjs";
 import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
 import { createDemoArena } from "./arena-demo.mjs";
 import { createScheduler } from "./scheduler.mjs";
+import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
 import { readServiceStatus } from "./service.mjs";
 import { describeStrategy, loadStrategies } from "./strategies/index.mjs";
 import { createServer } from "node:http";
@@ -195,6 +196,13 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           request.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
           return;
         }
+        const strategyRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/strategy$/);
+        if (strategyRead) {
+          const store = createTraderStrategyStore((await arenaReady).root);
+          const version = Number(url.searchParams.get("version")) || undefined;
+          const [meta, current] = await Promise.all([store.meta(strategyRead[1]), store.code(strategyRead[1], version).catch(() => null)]);
+          return respond(response, 200, { strategyId: traderStrategyId(strategyRead[1]), ...meta, code: current?.code ?? null, version: current?.version ?? null });
+        }
         const settingsRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/settings$/);
         if (settingsRead) return respond(response, 200, { demo, ...(await (await arenaReady).getSettings(settingsRead[1])) });
         if (url.pathname === "/api/workbench/settings") return respond(response, 200, { demo, ...(await (await arenaReady).workbenchSettings()) });
@@ -316,6 +324,8 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             }
             return respond(response, 201, digest);
           }
+          const rollback = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/strategy\/rollback$/);
+          if (rollback) return respond(response, 200, await rollbackTraderStrategy({ arena, scheduler: await schedulerReady, store: createTraderStrategyStore(arena.root), accountId: rollback[1], version: body.version, caller: dashboardCaller }));
           const pool = url.pathname.match(/^\/api\/arena\/pools\/([a-z0-9:._/-]{1,200})\/clear$/);
           if (pool) return respond(response, 200, await (await schedulerReady).clearPool(decodeURIComponent(pool[1])));
           const instruction = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/instructions(?:\/(ins_[a-f0-9]{12})\/revoke)?$/);

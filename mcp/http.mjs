@@ -4,6 +4,7 @@ import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
 import { createDemoArena } from "./arena-demo.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
+import { loadLibrary, skillBody, starterStrategyCode, templateDefaults } from "./skill-library.mjs";
 import { readServiceStatus } from "./service.mjs";
 import { describeStrategy, loadStrategies } from "./strategies/index.mjs";
 import { createServer } from "node:http";
@@ -196,6 +197,9 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           request.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
           return;
         }
+        if (url.pathname === "/api/library") return respond(response, 200, await loadLibrary());
+        const librarySkill = url.pathname.match(/^\/api\/library\/(skills|strategies)\/([a-z0-9-]{2,60})$/);
+        if (librarySkill) return respond(response, 200, librarySkill[1] === "skills" ? { id: librarySkill[2], body: await skillBody(librarySkill[2]) } : { id: librarySkill[2], code: await starterStrategyCode(librarySkill[2]) });
         const strategyRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/strategy$/);
         if (strategyRead) {
           const store = createTraderStrategyStore((await arenaReady).root);
@@ -303,11 +307,20 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
         if (url.pathname.startsWith("/api/arena/")) {
           const arena = await arenaReady;
           if (url.pathname === "/api/arena/accounts") {
-            const account = await arena.createAccount({ ...body, agentLabel: body.agentLabel || undefined }, dashboardCaller);
+            const defaults = await templateDefaults(body.template, body);
+            const account = await arena.createAccount({ ...body, ...defaults, agentLabel: body.agentLabel || undefined }, dashboardCaller);
             if (!demo) {
-              const interval = (await readPreferences())?.defaultAgentIntervalMinutes ?? 15;
-              const schedule = await (await schedulerReady).ensureDefaultSchedule(account.id, interval).catch((error) => ({ created: false, reason: error.message }));
-              account.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type } : null;
+              const scheduler = await schedulerReady;
+              const interval = defaults.cadence?.reviewMinutes ?? (await readPreferences())?.defaultAgentIntervalMinutes ?? 10;
+              let schedule = { created: false };
+              if (body.runner && body.runner.type !== "strategy") {
+                // The owner chose the agent (and backup) in the new-trader flow.
+                schedule = { created: true, job: await scheduler.upsertJob(account.id, { intervalMinutes: interval, times: [], mode: "director", runner: { timeoutMinutes: 20, ...body.runner }, ...(body.backup ? { backup: body.backup } : {}) }) };
+              } else if (defaults.builtinStrategy || body.runner?.type === "strategy") {
+                const strategyId = body.runner?.strategyId ?? defaults.starterStrategy;
+                schedule = { created: true, job: await scheduler.upsertJob(account.id, { intervalMinutes: defaults.cadence?.strategyMinutes ?? 5, times: [], runner: { type: "strategy", strategyId, params: body.runner?.params ?? {}, timeoutMinutes: 5 } }) };
+              } else schedule = await scheduler.ensureDefaultSchedule(account.id, interval).catch((error) => ({ created: false, reason: error.message }));
+              account.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type, mode: schedule.job.mode ?? null } : null;
             }
             return respond(response, 201, account);
           }

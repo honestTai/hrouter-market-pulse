@@ -29,6 +29,19 @@ Reference skills: `earnings-analysis`, `earnings-preview`, `thesis-tracker`, and
 The upstream license is retained at `licenses/financial-services-APACHE-2.0.txt`.
 Hrouter's adaptations (2026-10-04) use its own evidence contracts, deterministic comparisons, append-only journals, bilingual UI and existing safety gates. They do not bundle Anthropic's runtime, its connector configuration, or commercial financial datasets. Reference examples are not investment recommendations. Data-provider access, caching and redistribution require separate authorization.
 
+## Built-in trader skill library
+
+`library/` adapts the methods of the following open-source trading skills to this workbench's own, verified data tools. Upstream scripts, data clients and API keys are not bundled or executed; each adapted skill credits its source in its first lines. `library/catalog.json` records the exact upstream commit each adaptation was read from. Personas are stylized approximations of public investment philosophies, not the people themselves and not endorsements. Nothing here is investment advice.
+
+| Upstream | Commit | License | Used for | License text |
+| --- | --- | --- | --- | --- |
+| [tradermonty/claude-trading-skills](https://github.com/tradermonty/claude-trading-skills) | b29c6dfc | MIT | pre-trade gate, position sizing, loss circuit breaker and exposure posture, trade review, CANSLIM, VCP | `licenses/tradermonty-claude-trading-skills-LICENSE.txt` |
+| [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) | e8f5503e | Apache-2.0 | analyst / bull-bear / trader / risk / portfolio-manager role structure | `licenses/TauricResearch-TradingAgents-LICENSE.txt` |
+| [virattt/ai-hedge-fund](https://github.com/virattt/ai-hedge-fund) | 78b779c1 | MIT | investor panel checklists (Buffett, Munger, Graham, Lynch, Druckenmiller) | `licenses/virattt-ai-hedge-fund-LICENSE.txt` |
+| [shouldnotappearcalm/a-share-skill](https://github.com/shouldnotappearcalm/a-share-skill) | 8874bd1c | MIT | A-share trend pullback rules and parameters, MACD trend resonance grading; starter strategies `trend-pullback`, `macd-resonance` | `licenses/shouldnotappearcalm-a-share-skill-LICENSE.txt` |
+| [wbh604/UZI-Skill](https://github.com/wbh604/UZI-Skill) | 2c5505d9 | MIT | listed only (hot-money / LHB skills need data not yet available) | `licenses/wbh604-UZI-Skill-LICENSE.txt` |
+| [simonlin1212/vibe-astock](https://github.com/simonlin1212/vibe-astock) | d5bf80d2 | Apache-2.0 | listed only (emotion-cycle skills need data not yet available) | `licenses/simonlin1212-vibe-astock-LICENSE.txt` |
+
 ## Optional Futu bridge
 
 The locally authored Python bridge calls the separately installed official `futu-api` SDK (pinned at 10.11.7108 in `bridges/futu/requirements.txt`). The SDK/OpenD are not bundled in the plugin. Their licenses, account permissions, API limits, market-data terms and simulation limitations apply separately. The adapter is not affiliated with or endorsed by Futu, and does not grant access to paid data or real-money trading.

@@ -1019,7 +1019,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       latestReport: account.reports?.length ? (({ id, at, title, summary, sentiment }) => ({ id, at, title, summary, sentiment }))(account.reports.at(-1)) : null,
       watchlist: account.watchlist ?? null,
       riskPolicy: riskPolicyOf(account), limits: riskPolicyOf(account), limitStatus: limitStatus(account, riskPolicyOf(account), value, at),
-      risk, health, lastRoundAt: health.lastRoundAt, alerts, template: account.template ?? null,
+      risk, health, lastRoundAt: health.lastRoundAt, alerts, template: account.template ?? null, skills: account.skills ?? null,
       pendingRequests: (account.requests ?? []).filter((request) => request.status === "pending").length,
       instructions: activeInstructions(account, at), prompt: account.prompt ?? "",
     };
@@ -1100,6 +1100,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         riskPolicy: input.limits ? sanitizeRiskPolicy(input.limits, NEW_ACCOUNT_LIMITS) : { ...NEW_ACCOUNT_LIMITS },
         prompt: input.prompt ? sanitizePrompt(input.prompt) : "", locks: {}, requests: [], changeLog: [],
         ...(input.template ? { template: String(input.template).slice(0, 60) } : {}),
+        ...(Array.isArray(input.skills) ? { skills: input.skills.filter((id) => /^[a-z0-9-]{2,60}$/.test(id)).slice(0, 20) } : {}),
         benchmark: { symbol: config.benchmark, name: config.benchmarkName, startPrice: null, startAt: null },
         positions: {}, orders: [], trades: [], journal: [], equity: [{ at, equity: round(initialCash), cash: round(initialCash), marketValue: 0 }],
         createdAt: at, updatedAt: at, createdBy: caller.client ?? "dashboard",
@@ -1634,6 +1635,12 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
           }
         }
         if (input.unbindAgent) account.agent.client = null;
+        if (input.skills !== undefined) {
+          if (input.skills !== null && !Array.isArray(input.skills)) throw new ArenaError("skills must be a list of skill ids, or null for the template's.");
+          const next = input.skills === null ? null : input.skills.filter((id) => /^[a-z0-9-]{2,60}$/.test(id)).slice(0, 20);
+          appendChange(account, changeEntry({ key: "skills", from: account.skills ?? null, to: next, by: { kind: "owner", via: "ui" }, at: now() }));
+          if (next === null) delete account.skills; else account.skills = next;
+        }
         // The owner's risk policy and liquidity cap are dashboard-only: no MCP tool reaches this method.
         if (input.riskPolicy !== undefined) {
           if (!input.riskPolicy || typeof input.riskPolicy !== "object" || Array.isArray(input.riskPolicy)) throw new ArenaError("riskPolicy must be an object.");

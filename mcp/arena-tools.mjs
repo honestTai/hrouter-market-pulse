@@ -6,6 +6,7 @@ import { createScheduler } from "./scheduler.mjs";
 import { loadPreferences, marketFromSymbol, savePreferences } from "./core.mjs";
 import { BOARD_OPTIONS, DEFAULT_FEES, LIMIT_SPECS, limitsText } from "./trader-settings.mjs";
 import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId, writeTraderStrategy } from "./trader-strategies.mjs";
+import { loadLibrary, starterStrategyCode, templateDefaults } from "./skill-library.mjs";
 
 const STRATEGY_API = [
   "Write an ES module: export default { id, name, version, markets, description, params: { key: { type: 'integer'|'number'|'boolean'|'enum'|'symbols', default, min, max, label } }, async run(ctx) { … } }.",
@@ -72,10 +73,12 @@ export function registerArenaTools(server, { toolResult, toolError }) {
       initialCash: z.number().min(1000).max(1e10).optional().describe("Leave unset to use the competition default so accounts stay comparable."),
       competition: z.string().min(1).max(40).optional().describe("Group name; only accounts in the same market and competition are ranked together. Default 'default'."),
       agentLabel: z.string().max(60).optional().describe("Human-friendly agent name, e.g. 'Claude Code', 'Codex', 'WorkBuddy'."),
+      template: z.string().max(40).optional().describe("Trader template (see arena_skill_library): a-share-swing, value, growth-momentum, quant-rotation. Binds its skills and starting prompt."),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   }, async (input) => {
-    const account = await getArena().createAccount(input, caller());
+    const defaults = await templateDefaults(input.template, input);
+    const account = await getArena().createAccount({ ...input, ...defaults }, caller());
     // The owner's default: every agent account repeats a round every N minutes in session.
     const schedule = await createScheduler({ arena: getArena() }).ensureDefaultSchedule(account.id, (await loadPreferences()).defaultAgentIntervalMinutes).catch((error) => ({ created: false, reason: error.message }));
     account.schedule = schedule.created ? { intervalMinutes: schedule.job.intervalMinutes, runner: schedule.job.runner.type } : null;
@@ -374,6 +377,30 @@ export function registerArenaTools(server, { toolResult, toolError }) {
     const arena = getArena();
     const entry = await rollbackTraderStrategy({ arena, scheduler: createScheduler({ arena }), store: createTraderStrategyStore(arena.root), accountId: id, version, caller: caller() });
     return [entry, `v${entry.version} is live again.`];
+  });
+
+  register("arena_skill_library", {
+    title: "Trader skill library",
+    description: "List the built-in trader templates and skills (discipline, team roles, investor panel, CANSLIM, VCP, A-share trend pullback, MACD resonance, …) with their source repository, license, markets and whether the data they need is available.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async () => {
+    const library = await loadLibrary();
+    const text = [
+      "Templates:", ...library.templates.map((template) => `- ${template.id} · ${template.name} [${template.markets.join("/")}] ${template.status === "available" ? "" : `(needs ${template.requires?.join(", ")})`}`),
+      "Skills:", ...library.skills.map((skill) => `- ${skill.id} · ${skill.name} [${skill.markets.join("/")}] ${skill.sourceInfo?.repo ?? ""} ${skill.sourceInfo?.license ?? ""}${skill.status === "available" ? "" : ` (needs ${skill.requires?.join(", ")})`}`),
+    ].join("\n");
+    return [library, text];
+  });
+
+  register("arena_get_starter_strategy", {
+    title: "Get a starter strategy",
+    description: "Read the source of a built-in starter strategy (trend-pullback, macd-resonance) to adapt and publish with arena_write_strategy.",
+    inputSchema: { id: z.enum(["trend-pullback", "macd-resonance"]) },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ id }) => {
+    const code = await starterStrategyCode(id);
+    return [{ id, code }, code];
   });
 
   register("arena_leaderboard", {

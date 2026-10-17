@@ -22,7 +22,7 @@ ${id ? `我的竞技场账户是 ${id}，只操作这个账户。` : "先调用 
 // The full prompt a scheduled round sends, in a fixed order the owner can preview:
 // system rules → global prompt → market prompt → trader prompt → hard limits → instructions → task.
 // (The skill text travels separately as the system prompt.)
-export function buildRoundPrompt({ account, language = "zh-CN", prompts = {}, limits = "", instructions = [], mode = "rounds", strategy = null, reviewMinutes = null, trigger = null }) {
+export function buildRoundPrompt({ account, language = "zh-CN", prompts = {}, limits = "", instructions = [], mode = "rounds", strategy = null, reviewMinutes = null, trigger = null, starter = null }) {
   const en = language === "en";
   const sections = [];
   const push = (title, body) => { if (String(body ?? "").trim()) sections.push(`## ${title}\n${String(body).trim()}`); };
@@ -38,7 +38,7 @@ export function buildRoundPrompt({ account, language = "zh-CN", prompts = {}, li
     const every = reviewMinutes ? (en ? `every ${reviewMinutes} minutes` : `每 ${reviewMinutes} 分钟一次`) : "";
     const strategyLine = strategy
       ? (en ? `Your code strategy ${strategy.id} v${strategy.version} runs automatically every ${strategy.intervalMinutes} minutes without tokens.` : `你的代码策略 ${strategy.id} v${strategy.version} 每 ${strategy.intervalMinutes} 分钟自动执行，不花 token。`)
-      : (en ? "You have no code strategy yet: write one with arena_write_strategy (it is backtested and dry-run before going live) and set how often it runs." : "你还没有代码策略：先用 arena_write_strategy 写一个（上线前会自动回测和空跑），并定好执行频率。");
+      : (en ? `You have no code strategy yet: write one with arena_write_strategy (it is backtested and dry-run before going live) and set how often it runs.${starter ? ` You may start from the template's starter strategy: arena_get_starter_strategy id ${starter}.` : ""}` : `你还没有代码策略：先用 arena_write_strategy 写一个（上线前会自动回测和空跑），并定好执行频率。${starter ? `可以从模板的起始策略改起：用 arena_get_starter_strategy 读取 ${starter}。` : ""}`);
     push(en ? "This review" : "本次复查", en ? [
       `You are the trader (the director) of this account and decide everything yourself; do not ask me. This is a review ${every}${trigger ? ` (woken early: ${trigger})` : ""}.`,
       strategyLine,

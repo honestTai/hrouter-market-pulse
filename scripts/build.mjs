@@ -62,6 +62,7 @@ for (const name of [
   "THIRD_PARTY_NOTICES.md",
   "licenses",
   "bridges",
+  "library",
 ])
   await cp(name, `${distribution}/${name}`, { recursive: true });
 await copyFile(

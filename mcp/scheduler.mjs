@@ -21,6 +21,7 @@ import { buildRoundPrompt } from "./prompts.mjs";
 import { classifyFailure, runAgent, streamFormat } from "./agent-runner.mjs";
 import { limitsText } from "./trader-settings.mjs";
 import { createTraderStrategyStore } from "./trader-strategies.mjs";
+import { loadLibrary, skillTextFor } from "./skill-library.mjs";
 import { createPaperBroker } from "./brokers.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
@@ -296,10 +297,13 @@ export function createScheduler({
     } catch (error) { if (error.code === "ENOENT") return { runId, running: false, events: [] }; throw error; }
   }
 
-  async function skillText() {
+  // The arena skill plus the trader's bound library skills (its template's, or its own list).
+  async function skillText(account) {
+    let base = null;
     const candidates = [skillPath, path.resolve(path.dirname(bundlePath), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
-    for (const candidate of candidates) { try { return (await readFile(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, ""); } catch { /* next */ } }
-    return null;
+    for (const candidate of candidates) { try { base = (await readFile(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, ""); break; } catch { /* next */ } }
+    const library = account ? await skillTextFor(account).catch(() => "") : "";
+    return [base, library].filter(Boolean).join("\n\n---\n\n") || null;
   }
 
   async function findStrategy(strategyId, accountId) {
@@ -318,6 +322,7 @@ export function createScheduler({
       account, language: job.runner.language, prompts: { global: settings.prompts?.global, market: settings.prompts?.[account.market] },
       limits: account.limits ? limitsText(account.limits, account.limitStatus) : "", instructions: account.instructions ?? [],
       mode: job.mode === "director" || job.strategy ? "director" : "rounds", strategy, reviewMinutes: job.intervalMinutes ?? null, trigger: trigger === "schedule" || trigger === "manual" ? null : trigger,
+      starter: account.template ? await loadLibrary().then((library) => { const template = library.templates.find((entry) => entry.id === account.template); return template && !template.builtinStrategy ? template.starterStrategy : null; }).catch(() => null) : null,
     });
   }
 
@@ -344,7 +349,7 @@ export function createScheduler({
       const effective = { ...job, runner };
       const identity = account.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
       const prompt = await promptFor(account, job, record.trigger);
-      const invocation = agentInvocation({ job: effective, account, prompt, nodePath, bundlePath, skillText: await skillText(), workDir, identity });
+      const invocation = agentInvocation({ job: effective, account, prompt, nodePath, bundlePath, skillText: await skillText(account), workDir, identity });
       const result = await runAgent({
         ...invocation, timeoutMs: runner.timeoutMinutes * 60000, spawnImpl, format: streamFormat(runner.type), tailBytes: SCHEDULER_DEFAULTS.tailBytes,
         onEvent: (event) => { entry.events.push(event); if (entry.events.length > 400) entry.events.shift(); writer.push(event); emit({ type: "run-event", runId: record.id, accountId: record.accountId, event }); },

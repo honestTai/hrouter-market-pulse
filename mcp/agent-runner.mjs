@@ -218,9 +218,14 @@ export function runAcpAgent({ command, args = [], env, cwd, prompt, mcpServers =
       clearTimeout(timer);
       flush();
       push({ t: "end", ok: !extra.error && !timedOut });
-      resolve({ exitCode: extra.error ? 1 : 0, stdout: tail(stdout, 6000), stderr: tail(stderr, 6000), durationMs: Date.now() - started, timedOut, events, usage: null, text: tail(texts.join("\n"), 4000), sessionId, streamError: extra.error ?? null, error: extra.error ?? null });
+      const result = { exitCode: extra.error ? 1 : 0, stdout: tail(stdout, 6000), stderr: tail(stderr, 6000), durationMs: Date.now() - started, timedOut, events, usage: null, text: tail(texts.join("\n"), 4000), sessionId, streamError: extra.error ?? null, error: extra.error ?? null };
+      // Resolve only once the agent has exited (asked by closing stdin, then killed), so the caller
+      // can remove its working directory; Windows refuses to delete a directory a process still uses.
       try { child.stdin.end(); } catch { /* closed */ }
-      setTimeout(() => { try { child.kill("SIGTERM"); } catch { /* gone */ } }, 1500).unref?.();
+      if (child.exitCode !== null || child.signalCode !== null) { resolve(result); return; }
+      const kill = setTimeout(() => { try { child.kill("SIGTERM"); } catch { /* gone */ } }, 1500);
+      const giveUp = setTimeout(() => resolve(result), 5000);
+      child.once("close", () => { clearTimeout(kill); clearTimeout(giveUp); resolve(result); });
     };
     const timer = setTimeout(() => { timedOut = true; finish({ error: `timed out after ${Math.round(timeoutMs / 60000)} min` }); }, timeoutMs);
     child.stderr?.on("data", (chunk) => { stderr = tail(stderr + chunk, 6000); });

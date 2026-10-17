@@ -386,7 +386,8 @@ export function createScheduler({
       };
     } finally {
       live.delete(record.id);
-      await rm(workDir, { recursive: true, force: true });
+      // A lingering agent process can keep the directory busy on Windows; a leftover temp dir must not fail the round.
+      await rm(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {});
     }
   }
 

@@ -17814,17 +17814,27 @@ function runAcpAgent({ command, args = [], env, cwd, prompt, mcpServers = [], ti
       clearTimeout(timer);
       flush();
       push({ t: "end", ok: !extra.error && !timedOut });
-      resolve({ exitCode: extra.error ? 1 : 0, stdout: tail(stdout, 6e3), stderr: tail(stderr, 6e3), durationMs: Date.now() - started, timedOut, events, usage: null, text: tail(texts.join("\n"), 4e3), sessionId, streamError: extra.error ?? null, error: extra.error ?? null });
+      const result = { exitCode: extra.error ? 1 : 0, stdout: tail(stdout, 6e3), stderr: tail(stderr, 6e3), durationMs: Date.now() - started, timedOut, events, usage: null, text: tail(texts.join("\n"), 4e3), sessionId, streamError: extra.error ?? null, error: extra.error ?? null };
       try {
         child.stdin.end();
       } catch {
       }
-      setTimeout(() => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolve(result);
+        return;
+      }
+      const kill = setTimeout(() => {
         try {
           child.kill("SIGTERM");
         } catch {
         }
-      }, 1500).unref?.();
+      }, 1500);
+      const giveUp = setTimeout(() => resolve(result), 5e3);
+      child.once("close", () => {
+        clearTimeout(kill);
+        clearTimeout(giveUp);
+        resolve(result);
+      });
     };
     const timer = setTimeout(() => {
       timedOut = true;
@@ -19287,7 +19297,8 @@ ${prompt}` : prompt,
       };
     } finally {
       live.delete(record2.id);
-      await rm3(workDir, { recursive: true, force: true });
+      await rm3(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {
+      });
     }
   }
   const backupRunner = (job) => job.backup ? { timeoutMinutes: job.runner.timeoutMinutes, language: job.runner.language, ...job.runner.webSearch === false ? { webSearch: false } : {}, type: job.backup.type, ...job.backup.model ? { model: job.backup.model } : {}, ...job.backup.command ? { command: job.backup.command, args: job.backup.args ?? [] } : {} } : null;

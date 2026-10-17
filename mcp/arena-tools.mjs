@@ -301,6 +301,23 @@ export function registerArenaTools(server, { toolResult, toolError }) {
     return [result, `${result.market} fees: ${Object.entries(result.fees).map(([key, value]) => `${key} ${value}`).join(", ")}.`];
   });
 
+  register("arena_set_cadence", {
+    title: "Set review and strategy cadence",
+    description: [
+      "Change how often you (the agent) are woken for a review, and how often your code strategy executes. Reviews cost tokens; strategy executions do not.",
+      "reviewMinutes 5–240, strategyMinutes 1–240. Items the owner locked become a change request instead.",
+    ].join(" "),
+    inputSchema: { accountId, reviewMinutes: z.number().int().min(5).max(240).optional(), strategyMinutes: z.number().int().min(1).max(240).optional(), reason: z.string().min(4).max(500) },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ accountId: id, reviewMinutes, strategyMinutes, reason }) => {
+    const result = await createScheduler({ arena: getArena() }).setCadence(id, { reviewMinutes, strategyMinutes, reason }, caller());
+    const parts = [
+      result.applied.reviewMinutes !== undefined ? `review every ${result.applied.reviewMinutes} min` : null,
+      result.applied.strategyMinutes !== undefined ? `strategy every ${result.applied.strategyMinutes} min` : null,
+    ].filter(Boolean);
+    return [result, `${parts.length ? `Now: ${parts.join(", ")}.` : "Nothing changed."}${result.requested.length ? ` Locked by the owner, filed as request(s): ${result.requested.map((entry) => entry.key).join(", ")}.` : ""}`];
+  });
+
   register("arena_leaderboard", {
     title: "Arena leaderboard",
     description: "Rank all agents' accounts by total return within each market and competition, with drawdown, Sharpe, win rate, fees, turnover, benchmark and excess return.",

@@ -17,12 +17,15 @@ import { fileURLToPath } from "node:url";
 import { ArenaError } from "./arena.mjs";
 import { getStorageDir } from "./core.mjs";
 import { getMarketSession } from "./market-rules.mjs";
-import { roundPrompt } from "./prompts.mjs";
+import { buildRoundPrompt } from "./prompts.mjs";
+import { classifyFailure, runAgent, streamFormat } from "./agent-runner.mjs";
+import { limitsText } from "./trader-settings.mjs";
 import { createPaperBroker } from "./brokers.mjs";
 import { loadStrategies, resolveParams, runStrategyRound } from "./strategies/index.mjs";
 
 export const RUNNER_TYPES = ["claude", "codex", "kimi", "workbuddy", "command", "strategy"];
-export const SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 5, tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3 });
+export const AGENT_TYPES = ["claude", "codex", "kimi", "workbuddy", "command"];
+export const SCHEDULER_DEFAULTS = Object.freeze({ minAgentIntervalMinutes: 5, tickMs: 30000, leaseMs: 120000, catchUpMinutes: 90, timeoutMinutes: 20, tailBytes: 6000, runLogLimit: 300, failureThreshold: 3, maxQueueMinutes: 10, defaultReviewMinutes: 10 });
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const minuteOf = (time) => { const [, h, m] = time.match(TIME); return Number(h) * 60 + Number(m); };
@@ -68,6 +71,26 @@ export function sanitizeJob(input, current = {}) {
     }
     job.runner = next;
   }
+  // Backup agent: runs the round when the primary's CLI is out of quota or fails to start.
+  if (input.backup !== undefined) {
+    if (input.backup === null || input.backup === "") delete job.backup;
+    else {
+      if (!AGENT_TYPES.includes(input.backup.type) || input.backup.type === "command") throw new ArenaError(`backup.type must be one of ${AGENT_TYPES.filter((type) => type !== "command").join(", ")}.`);
+      job.backup = { type: input.backup.type, ...(input.backup.model ? { model: String(input.backup.model).slice(0, 80) } : {}) };
+    }
+  }
+  // Director mode: the agent reviews on its own cadence while a code strategy executes in between.
+  if (input.strategy !== undefined) {
+    if (input.strategy === null) delete job.strategy;
+    else {
+      const strategy = input.strategy;
+      if (!/^[a-z0-9][a-z0-9:-]{1,60}$/.test(strategy.strategyId ?? "")) throw new ArenaError("strategy.strategyId is required.");
+      const interval = Number(strategy.intervalMinutes ?? 5);
+      if (!Number.isInteger(interval) || interval < 1 || interval > 240) throw new ArenaError("strategy.intervalMinutes must be 1–240.");
+      job.strategy = { strategyId: strategy.strategyId, intervalMinutes: interval, params: strategy.params && typeof strategy.params === "object" && !Array.isArray(strategy.params) ? strategy.params : {} };
+    }
+  }
+  if (input.paused === false) delete job.paused;
   // An agent round itself takes minutes, so agents repeat at most every 10 minutes; code strategies every minute.
   if (job.intervalMinutes && job.runner && job.runner.type !== "strategy" && job.intervalMinutes < SCHEDULER_DEFAULTS.minAgentIntervalMinutes)
     throw new ArenaError(`Agent rounds take several minutes; use an interval of at least ${SCHEDULER_DEFAULTS.minAgentIntervalMinutes} minutes (code strategies may run every minute).`);
@@ -115,7 +138,7 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
       "-p", prompt, "--mcp-config", JSON.stringify(mcp), "--strict-mcp-config",
       // Web search/fetch let the agent research news itself when the plugin's feeds come up empty.
       "--allowedTools", runner.webSearch === false ? "mcp__hrouter_market_pulse" : "mcp__hrouter_market_pulse,WebSearch,WebFetch", "--permission-mode", "dontAsk",
-      "--output-format", "text", "--no-session-persistence",
+      "--output-format", "stream-json", "--verbose", "--no-session-persistence",
       ...(runner.model ? ["--model", runner.model] : []),
       ...(runner.maxBudgetUsd && runner.type === "claude" ? ["--max-budget-usd", String(runner.maxBudgetUsd)] : []),
       ...(skillText ? ["--append-system-prompt", skillText] : []),
@@ -129,13 +152,13 @@ export function agentInvocation({ job, account, prompt, nodePath, bundlePath, sk
     // Kimi Code reads MCP servers and its OAuth login from ~/.kimi-code; it has no per-run MCP flag,
     // so the plugin must be registered there. Prompt mode runs tools without asking (and rejects --auto).
     const model = runner.model ? (runner.model.includes("/") ? runner.model : `kimi-code/${runner.model}`) : null;
-    const args = ["-p", skillText ? `${skillText}\n\n---\n\n${prompt}` : prompt, "--output-format", "text", ...(model ? ["-m", model] : [])];
+    const args = ["-p", skillText ? `${skillText}\n\n---\n\n${prompt}` : prompt, "--output-format", "stream-json", ...(model ? ["-m", model] : [])];
     return { command: runner.command || defaultCommand("kimi"), args, env, cwd: workDir };
   }
   if (runner.type === "codex") {
     const toml = (value) => JSON.stringify(value);
     const args = [
-      "exec", "--skip-git-repo-check", "--ephemeral", "-s", "read-only", "-C", workDir,
+      "exec", "--json", "--skip-git-repo-check", "--ephemeral", "-s", "read-only", "-C", workDir,
       "-c", `mcp_servers.hrouter_market_pulse.command=${toml(nodePath)}`,
       "-c", `mcp_servers.hrouter_market_pulse.args=${toml([bundlePath, "--stdio"])}`,
       "-c", `mcp_servers.hrouter_market_pulse.env={ HROUTER_AGENT_ID = ${toml(identity)}, HROUTER_NO_DASHBOARD = "1", HROUTER_REPORT_DIR = ${toml(dataDir)} }`,
@@ -181,31 +204,6 @@ export function dueSlots(job, market, at, done, catchUpMinutes = SCHEDULER_DEFAU
   return fixed;
 }
 
-function runChild({ command, args, env, cwd, timeoutMs, spawnImpl, tailBytes }) {
-  return new Promise((resolve) => {
-    const started = Date.now();
-    let stdout = "";
-    let stderr = "";
-    let timedOut = false;
-    let child;
-    try {
-      // Drop the parent agent session's variables (e.g. when started from inside Claude Code) so the
-      // child CLI starts as a fresh, independent session with its own login.
-      const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(CLAUDE|CLAUDECODE|CODEX_THREAD|CODEX_SESSION|MCP_)/.test(key)));
-      child = spawnImpl(command, args, { cwd, env: { ...inherited, ...env }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
-    } catch (error) {
-      resolve({ exitCode: null, error: error.message, stdout: "", stderr: "", durationMs: 0, timedOut: false });
-      return;
-    }
-    child.stdout?.on("data", (chunk) => { stdout = tail(stdout + chunk, tailBytes * 2); });
-    child.stderr?.on("data", (chunk) => { stderr = tail(stderr + chunk, tailBytes * 2); });
-    const kill = (signal) => { try { process.platform === "win32" ? child.kill(signal) : process.kill(-child.pid, signal); } catch { try { child.kill(signal); } catch { /* gone */ } } };
-    const timer = setTimeout(() => { timedOut = true; kill("SIGTERM"); setTimeout(() => kill("SIGKILL"), 10000).unref?.(); }, timeoutMs);
-    child.on("error", (error) => { clearTimeout(timer); resolve({ exitCode: null, error: error.code === "ENOENT" ? `Command not found: ${command}` : error.message, stdout: tail(stdout, tailBytes), stderr: tail(stderr, tailBytes), durationMs: Date.now() - started, timedOut }); });
-    child.on("close", (code, signal) => { clearTimeout(timer); resolve({ exitCode: code, signal, stdout: tail(stdout, tailBytes), stderr: tail(stderr, tailBytes), durationMs: Date.now() - started, timedOut }); });
-  });
-}
-
 // Which CLI runs an account's rounds, inferred from the agent that owns it. Null for strategies or unknown hosts.
 export function inferRunner(account) {
   const text = `${account.agent?.client ?? ""} ${account.agent?.label ?? ""}`.toLowerCase();
@@ -218,24 +216,36 @@ export function inferRunner(account) {
   return null;
 }
 
+// Quota pools: one CLI login is one quota window, shared by every trader that runs on it.
+export const poolKey = (runner) => (runner.type === "command" ? `command:${runner.command ?? ""}` : runner.type);
+const agentLane = (job) => job.runner?.type !== "strategy";
+const PAUSING_FAILURES = new Set(["auth", "config", "missing"]);
+
 export function createScheduler({
   arena, now = arena.now, spawnImpl = spawn, strategyLoader = loadStrategies, nodePath = process.execPath,
   bundlePath = fileURLToPath(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath(import.meta.url) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "server.bundle.mjs"),
   skillPath, tickMs = SCHEDULER_DEFAULTS.tickMs, leaseMs = SCHEDULER_DEFAULTS.leaseMs, catchUpMinutes = SCHEDULER_DEFAULTS.catchUpMinutes,
-  strategyDeps = {}, onError = () => {},
+  strategyDeps = {}, resolveStrategy = null, onError = () => {},
 } = {}) {
   const file = path.join(arena.root, "schedules.json");
   const runDir = path.join(arena.root, "runs");
+  const eventDir = path.join(runDir, "events");
   const ownerId = `${os.hostname()}:${process.pid}:${randomBytes(4).toString("hex")}`;
-  const running = new Map();
+  const running = new Map(); // accountId → agent / primary lane, `${accountId}:S` → strategy lane
+  const agentRuns = new Set();
+  const live = new Map(); // runId → { record, events }
+  const queued = new Map();
+  const listeners = new Set();
   let timer = null;
   let ticking = null;
   let role = "idle";
   let last = null;
 
+  const emit = (message) => { for (const listener of listeners) { try { listener(message); } catch { /* ignore */ } } };
+
   async function readState() {
-    try { const state = JSON.parse(await readFile(file, "utf8")); return { jobs: state.jobs ?? [], done: state.done ?? {} }; }
-    catch (error) { if (error.code === "ENOENT") return { jobs: [], done: {} }; throw error; }
+    try { const state = JSON.parse(await readFile(file, "utf8")); return { jobs: state.jobs ?? [], done: state.done ?? {}, pools: state.pools ?? {} }; }
+    catch (error) { if (error.code === "ENOENT") return { jobs: [], done: {}, pools: {} }; throw error; }
   }
   async function writeState(state) {
     await mkdir(arena.root, { recursive: true });
@@ -244,10 +254,24 @@ export function createScheduler({
     await rename(temporary, file);
   }
   const update = (mutate) => arena.withLock(async () => { const state = await readState(); const result = await mutate(state); await writeState(state); return result; });
+  const poolPaused = (state, runner) => {
+    const pool = state.pools[poolKey(runner)];
+    return pool && Date.parse(pool.pausedUntil) > Date.parse(now()) ? pool : null;
+  };
+  const workbench = async () => (arena.workbenchSettings ? arena.workbenchSettings().catch(() => ({})) : {});
 
   async function appendRun(accountId, record) {
     await mkdir(runDir, { recursive: true });
     await appendFile(path.join(runDir, `${accountId}.jsonl`), `${JSON.stringify(record)}\n`, "utf8");
+  }
+
+  // Events are appended as they stream, so any process (another dashboard) can follow a live run.
+  function eventWriter(runId) {
+    let chain = mkdir(eventDir, { recursive: true }).catch(() => {});
+    return {
+      push(event) { chain = chain.then(() => appendFile(path.join(eventDir, `${runId}.jsonl`), `${JSON.stringify(event)}\n`, "utf8")).catch(() => {}); },
+      flush: () => chain,
+    };
   }
 
   async function listRuns({ accountId, limit = 50 } = {}) {
@@ -255,7 +279,17 @@ export function createScheduler({
     let text = "";
     try { text = await readFile(path.join(runDir, `${accountId}.jsonl`), "utf8"); } catch (error) { if (error.code !== "ENOENT") throw error; }
     const rows = text.split("\n").filter(Boolean).slice(-SCHEDULER_DEFAULTS.runLogLimit).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
-    return rows.slice(-limit).reverse();
+    const inFlight = [...live.values()].filter((entry) => entry.record.accountId === accountId && !rows.some((row) => row.id === entry.record.id)).map((entry) => ({ ...entry.record, status: "running", events: entry.events.length }));
+    return [...rows.slice(-limit).reverse(), ...inFlight].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt)).slice(0, limit);
+  }
+
+  async function runEvents(runId) {
+    if (!/^run_[a-f0-9]{12}$/.test(runId ?? "")) throw new ArenaError("Invalid run id.");
+    if (live.has(runId)) return { runId, running: true, run: live.get(runId).record, events: live.get(runId).events };
+    try {
+      const text = await readFile(path.join(eventDir, `${runId}.jsonl`), "utf8");
+      return { runId, running: false, events: text.split("\n").filter(Boolean).map((line) => JSON.parse(line)) };
+    } catch (error) { if (error.code === "ENOENT") return { runId, running: false, events: [] }; throw error; }
   }
 
   async function skillText() {
@@ -264,53 +298,127 @@ export function createScheduler({
     return null;
   }
 
-  // Execute one round for a job now. Never two at once for the same account.
-  async function execute(job, { slot = null, trigger = "schedule" } = {}) {
-    if (running.has(job.accountId)) return { status: "skipped", reason: "already-running" };
+  async function findStrategy(strategyId, accountId) {
+    if (resolveStrategy) { const found = await resolveStrategy(strategyId, accountId); if (found) return { strategy: found, errors: [] }; }
+    const { strategies, errors } = await strategyLoader();
+    return { strategy: strategies.get(strategyId) ?? null, errors };
+  }
+
+  // The prompt for one agent round, with every layer the owner configured.
+  async function promptFor(account, job, trigger) {
+    const settings = await workbench();
+    const strategy = job.strategy ? await findStrategy(job.strategy.strategyId, account.id).then(({ strategy: found }) => found ? { id: found.id, version: found.version, intervalMinutes: job.strategy.intervalMinutes } : null).catch(() => null) : null;
+    return buildRoundPrompt({
+      account, language: job.runner.language, prompts: { global: settings.prompts?.global, market: settings.prompts?.[account.market] },
+      limits: account.limits ? limitsText(account.limits, account.limitStatus) : "", instructions: account.instructions ?? [],
+      mode: job.mode === "director" || job.strategy ? "director" : "rounds", strategy, reviewMinutes: job.intervalMinutes ?? null, trigger: trigger === "schedule" || trigger === "manual" ? null : trigger,
+    });
+  }
+
+  async function runStrategyLane(job, account, { strategyId, params }, record) {
+    const { strategy, errors } = await findStrategy(strategyId, account.id);
+    if (!strategy) return { ...record, status: "failed", finishedAt: now(), error: `Strategy ${strategyId} not found${errors.length ? ` (${errors.join("; ")})` : ""}.` };
+    const caller = { client: account.agent.client ?? `strategy-${strategy.id}` };
+    const broker = createPaperBroker({ arena, accountId: job.accountId, caller });
+    try {
+      const round = await runStrategyRound({ strategy, params, broker, now, runId: record.id, ...strategyDeps });
+      return { ...record, status: "ok", finishedAt: now(), orders: round.orders, logs: round.logs.slice(-20), strategyVersion: strategy.version };
+    } catch (error) {
+      return { ...record, status: "failed", finishedAt: now(), error: error.message, strategyVersion: strategy.version };
+    }
+  }
+
+  async function runAgentRound(job, account, { record, runner }) {
+    const entry = { record, events: [] };
+    const writer = eventWriter(record.id);
+    live.set(record.id, entry);
+    emit({ type: "run-start", run: record });
+    const workDir = await mkdtemp(path.join(os.tmpdir(), "hrouter-round-"));
+    try {
+      const effective = { ...job, runner };
+      const identity = account.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
+      const prompt = await promptFor(account, job, record.trigger);
+      const invocation = agentInvocation({ job: effective, account, prompt, nodePath, bundlePath, skillText: await skillText(), workDir, identity });
+      const result = await runAgent({
+        ...invocation, timeoutMs: runner.timeoutMinutes * 60000, spawnImpl, format: streamFormat(runner.type), tailBytes: SCHEDULER_DEFAULTS.tailBytes,
+        onEvent: (event) => { entry.events.push(event); if (entry.events.length > 400) entry.events.shift(); writer.push(event); emit({ type: "run-event", runId: record.id, accountId: record.accountId, event }); },
+      });
+      const after = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
+      const reported = Boolean(after.lastRoundAt && Date.parse(after.lastRoundAt) >= Date.parse(record.startedAt));
+      const status = result.timedOut ? "timeout" : result.exitCode === 0 && !result.streamError ? (reported ? "ok" : "no-round") : "failed";
+      const failure = status === "failed" || status === "timeout" ? classifyFailure(result, now()) : null;
+      await writer.flush();
+      return {
+        ...record, status, finishedAt: now(), command: invocation.command, exitCode: result.exitCode, durationMs: result.durationMs, error: result.error ?? result.streamError ?? null,
+        stdoutTail: result.text || result.stdout, stderrTail: result.stderr, reported, usage: result.usage, sessionId: result.sessionId, events: result.events.length, failure,
+      };
+    } finally {
+      live.delete(record.id);
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }
+
+  const backupRunner = (job) => job.backup ? { timeoutMinutes: job.runner.timeoutMinutes, language: job.runner.language, ...(job.runner.webSearch === false ? { webSearch: false } : {}), type: job.backup.type, ...(job.backup.model ? { model: job.backup.model } : {}) } : null;
+
+  async function pausePool(runner, failure, runId) {
+    await update((state) => { state.pools[poolKey(runner)] = { pausedUntil: failure.resetAt, kind: failure.kind, message: failure.message ?? null, at: now(), runId }; });
+    emit({ type: "pool", key: poolKey(runner), pausedUntil: failure.resetAt });
+  }
+
+  async function finishJob(job, outcome, lane) {
+    await appendRun(job.accountId, outcome);
+    await update((state) => {
+      const stored = state.jobs.find((entry) => entry.accountId === job.accountId);
+      if (!stored) return;
+      if (lane === "strategy") { stored.strategyLastRun = { id: outcome.id, status: outcome.status, at: outcome.finishedAt }; return; }
+      stored.lastRun = { id: outcome.id, status: outcome.status, at: outcome.finishedAt };
+      if (outcome.status === "skipped") return;
+      stored.consecutiveFailures = outcome.status === "ok" ? 0 : (stored.consecutiveFailures ?? 0) + 1;
+      if (outcome.failure && PAUSING_FAILURES.has(outcome.failure.kind)) stored.paused = { kind: outcome.failure.kind, message: outcome.failure.message ?? outcome.error ?? null, at: outcome.finishedAt, runId: outcome.id };
+    });
+    emit({ type: "run-end", run: outcome });
+  }
+
+  // Execute one round for a job now. Never two at once for the same account and lane.
+  async function execute(job, { slot = null, trigger = "schedule", lane = "primary" } = {}) {
+    const key = lane === "strategy" ? `${job.accountId}:S` : job.accountId;
+    if (running.has(key)) return { status: "skipped", reason: "already-running" };
     const account = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
     if (account.status !== "active") return { status: "skipped", reason: "inactive" };
-    const runId = `run_${randomBytes(6).toString("hex")}`;
-    const startedAt = now();
-    const record = { id: runId, accountId: job.accountId, runner: job.runner.type, model: job.runner.model ?? null, strategyId: job.runner.strategyId ?? null, slot, trigger, startedAt };
+    const record = (runner, extra = {}) => ({ id: `run_${randomBytes(6).toString("hex")}`, accountId: job.accountId, lane: lane === "strategy" ? "strategy" : runner.type === "strategy" ? "strategy" : "agent", runner: runner.type, model: runner.model ?? null, strategyId: lane === "strategy" ? job.strategy.strategyId : runner.strategyId ?? null, slot, trigger, startedAt: now(), ...extra });
+    const isAgent = lane !== "strategy" && agentLane(job);
     const work = (async () => {
-      if (job.runner.type === "strategy") {
-        const { strategies, errors } = await strategyLoader();
-        const strategy = strategies.get(job.runner.strategyId);
-        if (!strategy) return { ...record, status: "failed", finishedAt: now(), error: `Strategy ${job.runner.strategyId} not found${errors.length ? ` (${errors.join("; ")})` : ""}.` };
-        const caller = { client: account.agent.client ?? `strategy-${strategy.id}` };
-        const broker = createPaperBroker({ arena, accountId: job.accountId, caller });
-        try {
-          const round = await runStrategyRound({ strategy, params: job.runner.params, broker, now, runId, ...strategyDeps });
-          return { ...record, status: "ok", finishedAt: now(), orders: round.orders, logs: round.logs.slice(-20), strategyVersion: strategy.version };
-        } catch (error) {
-          return { ...record, status: "failed", finishedAt: now(), error: error.message };
-        }
+      if (lane === "strategy") return [await runStrategyLane(job, account, job.strategy, record({ type: "strategy" }))];
+      if (job.runner.type === "strategy") return [await runStrategyLane(job, account, { strategyId: job.runner.strategyId, params: job.runner.params }, record(job.runner))];
+      const state = await readState();
+      let runner = job.runner;
+      let backupFor = null;
+      const blocked = poolPaused(state, job.runner);
+      if (blocked) {
+        const backup = backupRunner(job);
+        if (backup && !poolPaused(state, backup)) { runner = backup; backupFor = `${job.runner.type} ${blocked.kind}`; }
+        else return [{ ...record(job.runner), status: "skipped", reason: "quota", finishedAt: now(), error: `${job.runner.type} 额度用尽，${blocked.pausedUntil} 恢复${job.backup ? "；备用 Agent 也不可用" : "；没有设置备用 Agent"}` }];
       }
-      const workDir = await mkdtemp(path.join(os.tmpdir(), "hrouter-round-"));
-      try {
-        const identity = account.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
-        const prompt = roundPrompt({ account, language: job.runner.language });
-        const invocation = agentInvocation({ job, account, prompt, nodePath, bundlePath, skillText: await skillText(), workDir, identity });
-        const result = await runChild({ ...invocation, timeoutMs: job.runner.timeoutMinutes * 60000, spawnImpl, tailBytes: SCHEDULER_DEFAULTS.tailBytes });
-        const after = await arena.getAccount(job.accountId, { sync: false, limit: 1 });
-        const reported = Boolean(after.lastRoundAt && Date.parse(after.lastRoundAt) >= Date.parse(startedAt));
-        const status = result.timedOut ? "timeout" : result.exitCode === 0 ? (reported ? "ok" : "no-round") : "failed";
-        return { ...record, status, finishedAt: now(), command: invocation.command, exitCode: result.exitCode, durationMs: result.durationMs, error: result.error ?? null, stdoutTail: result.stdout, stderrTail: result.stderr, reported };
-      } finally { await rm(workDir, { recursive: true, force: true }); }
+      const outcomes = [await runAgentRound(job, account, { record: record(runner, backupFor ? { backupFor } : {}), runner })];
+      const first = outcomes[0];
+      if (first.failure?.kind === "quota") {
+        await pausePool(runner, first.failure, first.id);
+        const backup = backupRunner(job);
+        if (!backupFor && backup && !poolPaused(await readState(), backup)) outcomes.push(await runAgentRound(job, account, { record: record(backup, { backupFor: `${runner.type} quota`, trigger: "backup" }), runner: backup }));
+      }
+      return outcomes;
     })();
-    running.set(job.accountId, work);
+    running.set(key, work);
+    if (isAgent) agentRuns.add(key);
     try {
-      const outcome = await work;
-      await appendRun(job.accountId, outcome);
-      await update((state) => {
-        const stored = state.jobs.find((entry) => entry.accountId === job.accountId);
-        if (stored) {
-          stored.lastRun = { id: outcome.id, status: outcome.status, at: outcome.finishedAt };
-          stored.consecutiveFailures = outcome.status === "ok" ? 0 : (stored.consecutiveFailures ?? 0) + 1;
-        }
-      });
-      return outcome;
-    } finally { running.delete(job.accountId); }
+      const outcomes = await work;
+      for (const outcome of outcomes) await finishJob(job, outcome, lane === "strategy" ? "strategy" : "primary");
+      return outcomes.at(-1);
+    } finally { running.delete(key); agentRuns.delete(key); }
+  }
+
+  async function markDone(key, slots) {
+    await update((state) => { state.done[key] = [...(state.done[key] ?? []), ...slots.map((slot) => slot.key)].slice(-600); });
   }
 
   async function tickOnce() {
@@ -319,28 +427,49 @@ export function createScheduler({
     if (!lease.owner) { role = "standby"; last = { at, role }; return last; }
     role = "leader";
     const { jobs, done } = await readState();
+    const cap = (await workbench()).maxConcurrentAgents ?? 4;
     const started = [];
-    for (const job of jobs.filter((entry) => entry.enabled !== false)) {
+    const waiting = [];
+    for (const job of jobs.filter((entry) => entry.enabled !== false && !entry.paused)) {
       let account;
       try { account = await arena.getAccount(job.accountId, { sync: false, limit: 1 }); } catch { continue; }
       if (account.status !== "active") continue;
+      // Strategy lane of a director job: code executes on its own cadence, no tokens.
+      if (job.strategy && agentLane(job)) {
+        const strategyKey = `${job.accountId}:S`;
+        const slots = dueSlots({ intervalMinutes: job.strategy.intervalMinutes, times: [] }, account.market, at, done[strategyKey] ?? [], catchUpMinutes);
+        if (slots.length) {
+          await markDone(strategyKey, slots);
+          if (!running.has(strategyKey)) { started.push(strategyKey); execute(job, { slot: slots.at(-1).key, lane: "strategy" }).catch((error) => onError(error)); }
+        }
+      }
       const slots = dueSlots(job, account.market, at, done[job.accountId] ?? [], catchUpMinutes);
-      if (!slots.length) continue;
+      if (!slots.length) { queued.delete(job.accountId); continue; }
       if (running.has(job.accountId)) {
         // A repeat slot that arrives while the previous round is still going is skipped, not queued,
         // so slow rounds never chain back-to-back.
         const skipped = slots.filter((slot) => slot.repeat);
-        if (skipped.length) await update((state) => { state.done[job.accountId] = [...(state.done[job.accountId] ?? []), ...skipped.map((slot) => slot.key)].slice(-600); });
+        if (skipped.length) await markDone(job.accountId, skipped);
         continue;
       }
+      if (agentLane(job) && agentRuns.size >= cap) {
+        // At the concurrency cap: wait a few ticks, then give the slot up instead of piling up.
+        const since = queued.get(job.accountId) ?? Date.parse(at);
+        queued.set(job.accountId, since);
+        if (Date.parse(at) - since > SCHEDULER_DEFAULTS.maxQueueMinutes * 60000) {
+          queued.delete(job.accountId);
+          await markDone(job.accountId, slots);
+          await appendRun(job.accountId, { id: `run_${randomBytes(6).toString("hex")}`, accountId: job.accountId, lane: "agent", runner: job.runner.type, model: job.runner.model ?? null, slot: slots.at(-1).key, trigger: "schedule", startedAt: at, finishedAt: at, status: "skipped", reason: "queue-full", error: `同时运行的 Agent 已达上限 ${cap} 个，排队超过 ${SCHEDULER_DEFAULTS.maxQueueMinutes} 分钟，跳过这一轮。` });
+        } else waiting.push(job.accountId);
+        continue;
+      }
+      queued.delete(job.accountId);
       // Mark every due slot before launching so a crash or a second leader never double-runs it.
-      await update((state) => {
-        state.done[job.accountId] = [...(state.done[job.accountId] ?? []), ...slots.map((slot) => slot.key)].slice(-600);
-      });
+      await markDone(job.accountId, slots);
       started.push(job.accountId);
       execute(job, { slot: slots.at(-1).key }).catch((error) => onError(error));
     }
-    last = { at, role, started, running: [...running.keys()] };
+    last = { at, role, started, waiting, running: [...running.keys()] };
     return last;
   }
 
@@ -354,48 +483,113 @@ export function createScheduler({
     ownerId,
     tick,
     async listJobs() {
-      const { jobs } = await readState();
-      return jobs.map((job) => ({ ...job, running: running.has(job.accountId), unhealthy: (job.consecutiveFailures ?? 0) >= SCHEDULER_DEFAULTS.failureThreshold }));
+      const { jobs, pools } = await readState();
+      const at = Date.parse(now());
+      return jobs.map((job) => {
+        const pool = agentLane(job) ? pools[poolKey(job.runner)] : null;
+        return {
+          ...job, running: running.has(job.accountId), strategyRunning: running.has(`${job.accountId}:S`), queued: queued.has(job.accountId),
+          unhealthy: (job.consecutiveFailures ?? 0) >= SCHEDULER_DEFAULTS.failureThreshold || Boolean(job.paused),
+          pool: pool && Date.parse(pool.pausedUntil) > at ? pool : null,
+        };
+      });
+    },
+    async listPools() {
+      const { jobs, pools } = await readState();
+      const at = Date.parse(now());
+      const keys = new Set([...Object.keys(pools), ...jobs.filter(agentLane).flatMap((job) => [poolKey(job.runner), ...(job.backup ? [poolKey(job.backup)] : [])])]);
+      return [...keys].map((key) => ({
+        key, paused: Boolean(pools[key] && Date.parse(pools[key].pausedUntil) > at), ...(pools[key] ?? {}),
+        traders: jobs.filter((job) => agentLane(job) && poolKey(job.runner) === key).map((job) => job.accountId),
+        backups: jobs.filter((job) => job.backup && poolKey(job.backup) === key).map((job) => job.accountId),
+      }));
+    },
+    async clearPool(key) {
+      return update((state) => { delete state.pools[key]; return { cleared: key }; });
+    },
+    async resumeJob(accountId) {
+      return update((state) => {
+        const job = state.jobs.find((entry) => entry.accountId === accountId);
+        if (!job) throw new ArenaError("No schedule for this account.", "not_found", 404);
+        delete job.paused;
+        job.consecutiveFailures = 0;
+        return job;
+      });
     },
     async upsertJob(accountId, input) {
       const account = await arena.getAccount(accountId, { sync: false, limit: 1 });
-      if (input.runner?.type === "strategy") {
-        const { strategies } = await strategyLoader();
-        const strategy = strategies.get(input.runner.strategyId);
-        if (!strategy) throw new ArenaError(`Unknown strategy ${input.runner.strategyId}.`);
+      for (const strategyInput of [input.runner?.type === "strategy" ? input.runner : null, input.strategy ?? null].filter(Boolean)) {
+        const { strategy } = await findStrategy(strategyInput.strategyId, accountId);
+        if (!strategy) throw new ArenaError(`Unknown strategy ${strategyInput.strategyId}.`);
         if (!strategy.markets.includes(account.market)) throw new ArenaError(`${strategy.id} does not support the ${account.market} market.`);
-        resolveParams(strategy, input.runner.params);
+        resolveParams(strategy, strategyInput.params);
       }
       return update((state) => {
         const index = state.jobs.findIndex((job) => job.accountId === accountId);
         const job = { ...sanitizeJob(input, index >= 0 ? state.jobs[index] : { enabled: true }), accountId, updatedAt: now() };
+        if (input.mode !== undefined) { if (!["director", "rounds"].includes(input.mode)) throw new ArenaError("mode must be director or rounds."); job.mode = input.mode; }
+        // Any edit by the owner clears a configuration pause: they have looked at it.
+        delete job.paused;
         if (index >= 0) state.jobs[index] = job; else state.jobs.push(job);
         return job;
       });
     },
-    // Give a new agent account the owner's default repeat schedule, unless it already has one.
-    async ensureDefaultSchedule(accountId, intervalMinutes = 15) {
+    // Review cadence and strategy frequency, changeable by the owner or (unless locked) the trader itself.
+    async setCadence(accountId, { reviewMinutes, strategyMinutes, reason } = {}, caller = {}) {
+      const requested = [];
+      const changes = {};
+      for (const [key, value] of [["reviewMinutes", reviewMinutes], ["strategyMinutes", strategyMinutes]]) {
+        if (value === undefined) continue;
+        if (await arena.checkLock?.(accountId, key, caller)) { requested.push(await arena.requestChange(accountId, { key, to: value, reason }, caller)); continue; }
+        changes[key] = value;
+      }
+      const job = await update((state) => {
+        const stored = state.jobs.find((entry) => entry.accountId === accountId);
+        if (!stored) throw new ArenaError("This trader has no schedule yet; configure it in the dashboard first.", "not_found", 404);
+        if (changes.reviewMinutes !== undefined) {
+          const value = Number(changes.reviewMinutes);
+          if (!Number.isInteger(value) || value < SCHEDULER_DEFAULTS.minAgentIntervalMinutes || value > 240) throw new ArenaError(`reviewMinutes must be ${SCHEDULER_DEFAULTS.minAgentIntervalMinutes}–240.`);
+          stored.intervalMinutes = value;
+        }
+        if (changes.strategyMinutes !== undefined) {
+          if (!stored.strategy) throw new ArenaError("No code strategy yet; write one with arena_write_strategy first.");
+          const value = Number(changes.strategyMinutes);
+          if (!Number.isInteger(value) || value < 1 || value > 240) throw new ArenaError("strategyMinutes must be 1–240.");
+          stored.strategy.intervalMinutes = value;
+        }
+        stored.updatedAt = now();
+        return stored;
+      });
+      if (Object.keys(changes).length && arena.logCadenceChange) await arena.logCadenceChange(accountId, changes, caller, reason);
+      return { job, applied: changes, requested };
+    },
+    // Give a new agent account the owner's default schedule, unless it already has one: the agent
+    // reviews every N minutes as the director and writes its own code strategy.
+    async ensureDefaultSchedule(accountId, intervalMinutes = SCHEDULER_DEFAULTS.defaultReviewMinutes) {
       if (!intervalMinutes) return { created: false, reason: "default schedule disabled" };
       const { jobs } = await readState();
       if (jobs.some((job) => job.accountId === accountId)) return { created: false, reason: "already scheduled" };
       const account = await arena.getAccount(accountId, { sync: false, limit: 1 });
       const runner = inferRunner(account);
       if (!runner) return { created: false, reason: "no CLI runner for this agent" };
-      const job = await this.upsertJob(accountId, { intervalMinutes, times: [], runner: { ...runner, timeoutMinutes: SCHEDULER_DEFAULTS.timeoutMinutes } });
+      const job = await this.upsertJob(accountId, { intervalMinutes, times: [], mode: "director", runner: { ...runner, timeoutMinutes: SCHEDULER_DEFAULTS.timeoutMinutes } });
       return { created: true, job };
     },
     async deleteJob(accountId) {
-      return update((state) => { state.jobs = state.jobs.filter((job) => job.accountId !== accountId); delete state.done[accountId]; return { deleted: accountId }; });
+      return update((state) => { state.jobs = state.jobs.filter((job) => job.accountId !== accountId); delete state.done[accountId]; delete state.done[`${accountId}:S`]; return { deleted: accountId }; });
     },
-    async runNow(accountId) {
+    async runNow(accountId, { lane = "primary", trigger = "manual" } = {}) {
       const { jobs } = await readState();
       const job = jobs.find((entry) => entry.accountId === accountId);
       if (!job) throw new ArenaError("Configure a schedule for this account first.", "not_found", 404);
-      if (running.has(accountId)) return { status: "skipped", reason: "already-running" };
-      const promise = execute(job, { trigger: "manual" });
+      if (lane === "strategy" && !job.strategy) throw new ArenaError("This trader has no code strategy yet.");
+      if (running.has(lane === "strategy" ? `${accountId}:S` : accountId)) return { status: "skipped", reason: "already-running" };
+      const promise = execute(job, { trigger, lane });
       return { status: "started", wait: () => promise };
     },
     listRuns,
+    runEvents,
+    subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     start({ initialDelayMs = 3000 } = {}) {
       if (timer) return this;
       const loop = async () => { await tick(); if (timer) timer = setTimeout(loop, tickMs); };
@@ -410,6 +604,6 @@ export function createScheduler({
       await Promise.allSettled([...running.values()]);
       await arena.releaseLease("scheduler", ownerId).catch(() => {});
     },
-    status: () => ({ ownerId, role, last, running: [...running.keys()] }),
+    status: () => ({ ownerId, role, last, running: [...running.keys()], agentRuns: agentRuns.size, queued: [...queued.keys()] }),
   };
 }

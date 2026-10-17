@@ -182,6 +182,19 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
           const side = ["BUY", "SELL"].includes(url.searchParams.get("side")) ? url.searchParams.get("side") : undefined;
           return respond(response, 200, await (await arenaReady).history(history[1], url.searchParams.get("kind"), { ...paging, side, type: url.searchParams.get("type") || undefined, symbol: url.searchParams.get("symbol") || undefined }));
         }
+        if (url.pathname === "/api/arena/pools") return respond(response, 200, { pools: await (await schedulerReady).listPools() });
+        const runEvents = url.pathname.match(/^\/api\/arena\/run-events\/(run_[a-f0-9]{12})$/);
+        if (runEvents) return respond(response, 200, await (await schedulerReady).runEvents(runEvents[1]));
+        // Live run events for this process's scheduler (the service); other views poll run-events.
+        if (url.pathname === "/api/events") {
+          const scheduler = await schedulerReady;
+          response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", Connection: "keep-alive" });
+          response.write(`event: hello\ndata: ${JSON.stringify({ at: new Date().toISOString(), scheduler: scheduler.status().role })}\n\n`);
+          const unsubscribe = scheduler.subscribe((message) => response.write(`event: ${message.type}\ndata: ${JSON.stringify(message)}\n\n`));
+          const heartbeat = setInterval(() => response.write(": ping\n\n"), 20000);
+          request.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
+          return;
+        }
         const settingsRead = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/settings$/);
         if (settingsRead) return respond(response, 200, { demo, ...(await (await arenaReady).getSettings(settingsRead[1])) });
         if (url.pathname === "/api/workbench/settings") return respond(response, 200, { demo, ...(await (await arenaReady).workbenchSettings()) });
@@ -303,13 +316,21 @@ export function startDashboard({ port = getReportPort(), demo = false, matcher: 
             }
             return respond(response, 201, digest);
           }
-          const schedule = url.pathname.match(/^\/api\/arena\/schedules\/(acc_[a-f0-9]{12})(\/delete|\/run)?$/);
+          const pool = url.pathname.match(/^\/api\/arena\/pools\/([a-z0-9:._/-]{1,200})\/clear$/);
+          if (pool) return respond(response, 200, await (await schedulerReady).clearPool(decodeURIComponent(pool[1])));
+          const instruction = url.pathname.match(/^\/api\/arena\/accounts\/(acc_[a-f0-9]{12})\/instructions(?:\/(ins_[a-f0-9]{12})\/revoke)?$/);
+          if (instruction) return respond(response, 200, instruction[2]
+            ? await arena.revokeInstruction(instruction[1], instruction[2], dashboardCaller)
+            : await arena.addInstruction(instruction[1], { text: body.text, days: body.days ?? 3 }, dashboardCaller));
+          const schedule = url.pathname.match(/^\/api\/arena\/schedules\/(acc_[a-f0-9]{12})(\/delete|\/run|\/resume|\/cadence)?$/);
           if (schedule) {
             const scheduler = await schedulerReady;
             if (schedule[2] === "/delete") return respond(response, 200, await scheduler.deleteJob(schedule[1]));
+            if (schedule[2] === "/resume") return respond(response, 200, await scheduler.resumeJob(schedule[1]));
+            if (schedule[2] === "/cadence") return respond(response, 200, await scheduler.setCadence(schedule[1], body, dashboardCaller));
             if (schedule[2] === "/run") {
               if (demo) return respond(response, 409, { error: "演示模式不运行 Agent 或策略 / Demo mode does not run agents or strategies." });
-              const started = await scheduler.runNow(schedule[1]);
+              const started = await scheduler.runNow(schedule[1], { lane: body.lane === "strategy" ? "strategy" : "primary" });
               started.wait?.().catch((error) => console.error(`Arena run: ${error.message}`));
               return respond(response, 202, { status: started.status, reason: started.reason ?? null });
             }

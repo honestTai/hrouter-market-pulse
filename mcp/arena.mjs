@@ -1021,6 +1021,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       riskPolicy: riskPolicyOf(account), limits: riskPolicyOf(account), limitStatus: limitStatus(account, riskPolicyOf(account), value, at),
       risk, health, lastRoundAt: health.lastRoundAt, alerts, template: account.template ?? null,
       pendingRequests: (account.requests ?? []).filter((request) => request.status === "pending").length,
+      instructions: activeInstructions(account, at), prompt: account.prompt ?? "",
     };
     if (!detail) return summary;
     return {
@@ -1029,7 +1030,7 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
       journal: account.journal.slice(-limit).reverse(), equity: account.equity,
       strategyHistory: account.strategy.history, closedPositions: (account.closedPositions ?? []).slice(-limit).reverse(),
       lotOverrides: account.lotOverrides ?? {},
-      prompt: account.prompt ?? "", locks: account.locks ?? {}, requests: (account.requests ?? []).slice(-50).reverse(),
+      locks: account.locks ?? {}, requests: (account.requests ?? []).slice(-50).reverse(),
       changeLog: (account.changeLog ?? []).slice(-limit).reverse(),
       reports: (account.reports ?? []).slice(-limit).reverse(),
       events: (account.events ?? []).slice(-limit).reverse().map(({ dedupe, ...event }) => event),
@@ -1066,6 +1067,8 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
     addEvent(account, at, { type: "change-request", key, message: `Agent asked to change locked "${key}" from ${JSON.stringify(from)} to ${JSON.stringify(to)}.` });
     return request;
   }
+
+  const activeInstructions = (account, at) => (account.instructions ?? []).filter((entry) => entry.status === "active" && Date.parse(entry.expiresAt) > Date.parse(at));
 
   function markRound(account, kind, at = now()) {
     account.lastRoundAt = at;
@@ -1509,6 +1512,47 @@ export function createArena({ root = path.join(getStorageDir(), "arena"), quoteP
         Object.assign(request, { status: approve ? "approved" : "rejected", resolvedAt: at, resolvedValue: approve ? final : null, note: note ? String(note).slice(0, 500) : null });
         await save(account);
         return { request, limits: riskPolicyOf(account), prompt: account.prompt ?? "" };
+      });
+    },
+
+    // ---- Owner instructions: short-lived orders injected into every round until they expire ----
+
+    async addInstruction(id, { text, days = 3 } = {}, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner gives instructions, from the dashboard.", "forbidden", 403);
+      const body = String(text ?? "").trim();
+      if (!body || body.length > 500) throw new ArenaError("Instruction text is required (at most 500 characters).");
+      const span = Number(days);
+      if (!Number.isFinite(span) || span < 0.04 || span > 60) throw new ArenaError("days must be between 1 hour and 60 days.");
+      return withLock(async () => {
+        const account = await load(id);
+        const at = now();
+        const entry = { id: shortId("ins"), text: body, at, expiresAt: new Date(Date.parse(at) + span * 86400000).toISOString(), status: "active" };
+        account.instructions = [...(account.instructions ?? []), entry].slice(-100);
+        appendChange(account, changeEntry({ key: "instruction", from: null, to: body, by: { kind: "owner", via: "ui" }, at }));
+        await save(account);
+        return { instruction: entry, instructions: activeInstructions(account, at) };
+      });
+    },
+
+    async revokeInstruction(id, instructionId, caller = {}) {
+      if (!isOwner(caller)) throw new ArenaError("Only the owner revokes instructions.", "forbidden", 403);
+      return withLock(async () => {
+        const account = await load(id);
+        const entry = (account.instructions ?? []).find((item) => item.id === instructionId);
+        if (!entry) throw new ArenaError(`Instruction ${instructionId} not found.`, "not_found", 404);
+        Object.assign(entry, { status: "revoked", revokedAt: now() });
+        await save(account);
+        return { instruction: entry, instructions: activeInstructions(account, now()) };
+      });
+    },
+
+    // Cadence lives in the schedule; the change log lives with the account.
+    async logCadenceChange(id, changes, caller = {}, reason) {
+      return withLock(async () => {
+        const account = await load(id);
+        const at = now();
+        for (const [key, to] of Object.entries(changes)) appendChange(account, changeEntry({ key, from: null, to, by: changedBy(caller), reason, at }));
+        await save(account);
       });
     },
 

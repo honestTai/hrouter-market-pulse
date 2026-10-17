@@ -8,6 +8,8 @@ import { AGENT_NAME, MARKET_NAME } from '@/lib/format'
 import { AgentMark, Dot, cn } from './ui'
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform)
+// Opened inside the Tauri desktop app (desktop/): the window has no native title bar there.
+const inDesktopApp = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 type MarketState = Record<string, { status: string; date: string; minute: number; nextOpenAt: string | null }>
 export const useMarkets = () => useQuery({ queryKey: ['markets'], queryFn: ({ signal }) => get<MarketState>('/api/markets', signal), refetchInterval: 60_000 })
@@ -24,9 +26,10 @@ function nextOpenText(at: string | null, market: string) {
 export function TitleBar() {
   const { data: health, isError } = useQuery({ queryKey: ['health'], queryFn: ({ signal }) => get<{ ok: boolean; version: string; demo: boolean }>('/health', signal), refetchInterval: 15_000 })
   const { data: markets } = useMarkets()
+  // In the desktop app this header drags the window and leaves room for the window buttons.
   return (
-    <header className="flex h-10 shrink-0 select-none items-center gap-3 border-b border-line bg-surface px-4">
-      <div className="flex-1 text-center text-[13px] font-medium text-ink-2">HRouter 股票工作台</div>
+    <header data-tauri-drag-region className={cn('flex h-10 shrink-0 select-none items-center gap-3 border-b border-line bg-surface px-4', inDesktopApp && 'pl-20')}>
+      <div data-tauri-drag-region className="flex-1 text-center text-[13px] font-medium text-ink-2">HRouter 股票工作台</div>
       {isError ? (
         <span className="inline-flex items-center gap-1.5 rounded-full border border-bad-line bg-bad-soft px-2 py-px text-xs text-bad"><Dot tone="bad" />本机服务未连接</span>
       ) : health ? (

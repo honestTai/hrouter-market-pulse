@@ -100,6 +100,8 @@ Open <http://127.0.0.1:8780/>, then:
 2. Tune prompts, limits and fees under the trader's Settings and, optionally, a push webhook under Settings → Push.
 3. From then on, read Home and Reports.
 
+Desktop app for macOS / Windows: `npm --prefix desktop ci && npm run build:desktop`, see [WORKBENCH_UI.md](docs/WORKBENCH_UI.md#桌面客户端--desktop-app).
+
 Just looking: `npm run demo` and open <http://127.0.0.1:8787> (synthetic data, nothing saved).
 
 ## Install into your agent

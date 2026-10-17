@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HRouter 股票工作台</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f4f5f7; --ink: #111827; --ink-2: #6b7280; --bad: #b42318; --line: #e5e7eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0f1115; --ink: #e5e7eb; --ink-2: #9ca3af; --bad: #f97066; --line: #262a33; } }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; display: grid; place-items: center; -webkit-user-select: none; user-select: none; }
+  .drag { position: fixed; inset: 0 0 auto 0; height: 40px; }
+  .box { text-align: center; max-width: 440px; padding: 0 24px; }
+  .mark { width: 44px; height: 44px; border-radius: 12px; background: var(--ink); color: var(--bg); display: inline-grid; place-items: center; font-weight: 700; font-size: 20px; }
+  h1 { font-size: 16px; margin: 14px 0 4px; }
+  p { color: var(--ink-2); margin: 0; }
+  .spin { width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--ink-2); border-radius: 50%; display: inline-block; vertical-align: -3px; margin-right: 6px; animation: r 0.8s linear infinite; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  .error { color: var(--bad); white-space: pre-wrap; -webkit-user-select: text; user-select: text; }
+</style>
+</head>
+<body>
+<div class="drag" data-tauri-drag-region></div>
+<div class="box">
+  <div class="mark">H</div>
+  <h1>HRouter 股票工作台</h1>
+  <p id="status"><span class="spin"></span>正在连接本机服务…</p>
+</div>
+<script>
+  window.showError = (message) => {
+    const status = document.getElementById("status");
+    status.className = "error";
+    status.textContent = message;
+  };
+</script>
+</body>
+</html>

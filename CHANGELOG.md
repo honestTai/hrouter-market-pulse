@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Desktop app** (`desktop/`, Tauri 2, same approach as the video workbench): opens the workbench in its own window, starts the local service from the bundled plugin if it is not running, keeps it running after the window closes, and opens outside links in the browser. `npm run build:desktop` produces a macOS `.app` / `.dmg` (NSIS installer on Windows). MCP and ACP are unchanged.
+- **Fix: the resident service no longer hangs when it restarts.** With a workbench page open, its live-events stream kept the HTTP server from closing, so after a plugin update the service stopped listening but never exited and was not restarted. Shutdown now closes open connections and force-exits after 10 seconds.
+- UI: the ⌘K search box and text fields no longer show a second hard focus outline; the sidebar scrollbar only appears on hover; the title bar drags the window in the desktop app.
+
 ## 1.7.0 — HRouter 股票工作台: local multi-agent trader workbench
 
 - **Trader settings that are enforced, not suggested.** Hard limits checked before every buy (keep cash — default 20% —, max holdings, per-position %, new positions and buy orders per day, risk per trade with a required stop, re-buy cooldown, excluded boards, minimum price, no chasing, drawdown breaker). Layered prompts (global → market → trader) with a full preview. Per-market fee schedules (commission, minimum, waive-minimum, stamp duty, …). Everything is editable from the UI and from MCP tools (`arena_get_settings`, `arena_set_limits`, `arena_set_prompt`, `arena_set_fees`, `arena_set_cadence`); the owner can lock any item, and an agent's change to a locked item becomes a request the owner approves. Every change is logged with who made it and why. Existing accounts get keep-20%-cash once.

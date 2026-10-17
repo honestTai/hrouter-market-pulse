@@ -1050,8 +1050,15 @@ if (service) {
 if (stdio) await server.connect(new StdioServerTransport());
 
 async function shutdown() {
+  // The service manager only restarts a process that has exited, so never hang on the way out.
+  setTimeout(() => process.exit(0), 10000).unref();
   serviceLoop?.stop();
-  await new Promise((resolve) => (dashboard ? dashboard.close(() => resolve()) : resolve()));
+  await new Promise((resolve) => {
+    if (!dashboard) return resolve();
+    dashboard.close(() => resolve());
+    // Open pages keep a live-events stream (SSE) that never ends on its own; close() would wait for it forever.
+    dashboard.closeAllConnections?.();
+  });
   await (await dashboard?.scheduler)?.stop?.().catch?.(() => {});
   await server.close();
   releaseUpdateLease();

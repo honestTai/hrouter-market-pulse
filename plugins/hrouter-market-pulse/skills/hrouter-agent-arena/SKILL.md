@@ -22,7 +22,9 @@ The Arena is a **local paper exchange with virtual money**. Fills use live publi
 ## 2. Review state before deciding
 
 - `arena_get_account` syncs quotes and returns cash, available cash, positions (with T+1 sellable state implied by lots), open orders, recent trades, journal and metrics.
-- Read the owner's `riskPolicy` (max single position %, max total exposure %, drawdown circuit breaker) and `risk` state. Agents cannot change it; size orders inside it. If `risk.breaker` is set, buys are blocked until the owner resets it: manage exits and report instead.
+- Read the **hard limits** in `limits` and the room left in `limitStatus` (`buyableValue`, `positionsLeft`, `newLeftToday`). The default is **keep 20% cash**; everything else is off unless set. The arena rejects any buy that breaks a limit, so size orders inside them instead of discovering them by rejection. If `risk.breaker` is set, buys are blocked until the owner resets it: manage exits and report instead.
+- Limits, your prompt, the market's fees and your cadence can change at any time: `arena_get_settings` reads them, `arena_set_limits` / `arena_set_prompt` / `arena_set_fees` / `arena_set_cadence` change them (always with a `reason`). Items the owner **locked** are not changed; your call files a request the owner approves or rejects. Do not loosen limits just to make a trade fit.
+- Read `instructions`: the owner's short-lived orders (e.g. 「这周不碰半导体」). Follow every one until it expires and say in your report how you followed it.
 - Read `events`: fills made by the background matcher, stop-loss / take-profit exits, dividends, splits, suspensions and risk breaches since your last round. Explain them in your report.
 - If `health.status` is `missed`, say in the report that rounds were missed and review what happened in between.
 - Check the market session: market orders are rejected outside regular hours. Outside hours you may analyse and place **limit** orders that rest until the session opens, or log a no-trade decision.
@@ -50,9 +52,18 @@ Data quality — the tools already apply the gates; do not add stricter ones:
 
 Before each new position, run a quick **bull / bear check** in your own reasoning (as in multi-agent research desks): the strongest case for, the strongest case against, what would prove you wrong (→ your stop). Put one line of each into the order `reason`.
 
+## Director mode: you write the strategy, the code trades
+
+By default you are the **director**: you are woken for a review every ~10 minutes, and between reviews **your own code strategy** executes every few minutes without tokens.
+
+- Write it with `arena_write_strategy` (ES module, see the tool description for the `ctx` API). A version goes live only after a sandbox load, a dry run on live data and a backtest on ~6 months of real daily bars; a failing version is kept as rejected with the reason and the live one keeps running. Read `arena_get_strategy` for your live code and history, `arena_rollback_strategy` to go back.
+- Choose how often it executes (`intervalMinutes`, or later `arena_set_cadence`): 1–5 minutes for intraday rules, longer for swing rules. Choose how often you review (`reviewMinutes`): reviews cost tokens.
+- Each review: check what the code did since the last review (fills, rejections by limits, positions, events), then **keep it**, **change parameters or code**, **change cadence**, or **trade directly** when judgement beats the code. Write a report only when something changed; otherwise log one `no-trade` line.
+- The code runs in a sandbox: no imports, files, network or `process`; data only through `ctx`. Hard limits are enforced by the arena, not by your code.
+
 ## Trading cadence
 
-You run every ~15 minutes during the session. Each round should do something useful: re-scan, re-rank the pool, review exits, and act when your rules say so. Guidelines from public LLM trading competitions: the worst results came from over-trading and changing the plan every round; the best kept a plan, sized positions and used stops. So:
+Without a code strategy you run full rounds every few minutes during the session. Each round should do something useful: re-scan, re-rank the pool, review exits, and act when your rules say so. Guidelines from public LLM trading competitions: the worst results came from over-trading and changing the plan every round; the best kept a plan, sized positions and used stops. So:
 
 - Be decisive when the setup is there (buy the full planned size or a clear first tranche) and use your cash: a strategy that keeps >50% cash for days without a reason is not following "fully managed".
 - Do not churn: no buy-then-sell of the same name in one day without a stop / thesis break, and remember A-share T+1.

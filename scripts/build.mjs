@@ -1,9 +1,9 @@
 import { build } from "esbuild";
-import { mkdir, copyFile, cp, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, copyFile, cp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
 const manifest = JSON.parse(await readFile(".codex-plugin/plugin.json", "utf8"));
 if (manifest.version.split("+")[0] !== pkg.version) throw new Error("Run npm run version to synchronize plugin metadata before building");
-await import("./build-ui.mjs");
+const { uiPackages, packageOf } = await import("./build-ui.mjs");
 await mkdir("assets/vendor", { recursive: true });
 for (const [source, destination] of [
   [
@@ -13,31 +13,7 @@ for (const [source, destination] of [
   ["node_modules/lucide-react/LICENSE", "assets/vendor/LICENSE-lucide"],
 ])
   await copyFile(source, destination);
-await mkdir("assets/vendor/licenses", { recursive: true });
-for (const entry of await readdir("node_modules", { withFileTypes: true })) {
-  if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-  const packages = entry.name.startsWith("@")
-    ? (await readdir(`node_modules/${entry.name}`)).map(
-        (name) => `${entry.name}/${name}`,
-      )
-    : [entry.name];
-  for (const name of packages) {
-    const dir = `node_modules/${name}`;
-    for (const file of await readdir(dir)) {
-      if (!/^(LICENSE|LICENCE|COPYING|NOTICE)(\.(md|txt))?$/i.test(file))
-        continue;
-      try {
-        await writeFile(
-          `assets/vendor/licenses/${name.replaceAll("/", "-")}-${file}`,
-          (await readFile(`${dir}/${file}`, "utf8")).replaceAll("\r\n", "\n"),
-        );
-      } catch (error) {
-        if (error.code !== "EISDIR") throw error;
-      }
-    }
-  }
-}
-await build({
+const server = await build({
   entryPoints: ["mcp/server.mjs"],
   bundle: true,
   platform: "node",
@@ -45,7 +21,26 @@ await build({
   target: "node20",
   define: { __HROUTER_VERSION__: JSON.stringify(pkg.version) },
   outfile: "mcp/server.bundle.mjs",
+  metafile: true,
 });
+// License texts for every package bundled into the server or the UI, and nothing else
+// (build tools such as Vite and TypeScript are not distributed).
+const shipped = new Map([...uiPackages, ...Object.keys(server.metafile.inputs).map(packageOf).filter(Boolean)].map((entry) => [entry.dir, entry.name]));
+await rm("assets/vendor/licenses", { recursive: true, force: true });
+await mkdir("assets/vendor/licenses", { recursive: true });
+for (const [dir, name] of [...shipped].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const file of await readdir(dir)) {
+    if (!/^(LICENSE|LICENCE|COPYING|NOTICE)(\.(md|txt))?$/i.test(file)) continue;
+    try {
+      await writeFile(
+        `assets/vendor/licenses/${name.replaceAll("/", "-")}-${file}`,
+        (await readFile(`${dir}/${file}`, "utf8")).replaceAll("\r\n", "\n"),
+      );
+    } catch (error) {
+      if (error.code !== "EISDIR") throw error;
+    }
+  }
+}
 const distribution = "plugins/hrouter-market-pulse";
 await mkdir(`${distribution}/mcp`, { recursive: true });
 for (const name of [
@@ -58,8 +53,11 @@ for (const name of [
   "licenses",
   "bridges",
   "library",
-])
+]) {
+  // Replace rather than merge, so files removed from the source do not linger in the package.
+  await rm(`${distribution}/${name}`, { recursive: true, force: true });
   await cp(name, `${distribution}/${name}`, { recursive: true });
+}
 await copyFile(
   "mcp/server.bundle.mjs",
   `${distribution}/mcp/server.bundle.mjs`,

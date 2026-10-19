@@ -215,7 +215,7 @@ test("paper: dashboard keeps the bridge off until enabled and rejects cross-orig
   } finally {
     await new Promise((r) => server.close(r));
     if (previous === undefined) delete process.env.HROUTER_REPORT_DIR; else process.env.HROUTER_REPORT_DIR = previous;
-    await rm(dataDir, { recursive: true, force: true });
+    await rm(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
 test("paper: optional Python bridge contracts run against mocked official SDK (no connection)", (t) => {

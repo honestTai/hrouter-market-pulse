@@ -5,7 +5,7 @@ import { createScheduler } from "./scheduler.mjs";
 import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
 import { loadLibrary, skillBody, starterStrategyCode, templateDefaults } from "./skill-library.mjs";
 import { checkUpdates, importSkill, listClaudeSkills, removeImported, updateImported } from "./skill-import.mjs";
-import { dragonTiger, dragonTigerSeats, limitPool, marketRadar, shortlineEmotion } from "./market-data.mjs";
+import { dragonTiger, dragonTigerSeats, globalRadar, limitPool, marketRadar, shortlineEmotion } from "./market-data.mjs";
 import { checkEnvironment } from "./env-check.mjs";
 import { agentModels } from "./agent-models.mjs";
 import { getMarketSession } from "./market-rules.mjs";
@@ -199,7 +199,10 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
         if (url.pathname === "/api/library/updates") return respond(response, 200, await checkUpdates({ force: url.searchParams.get("force") === "1" }));
         if (url.pathname === "/api/library/claude-skills") return respond(response, 200, { skills: await listClaudeSkills() });
         // Market-wide real data for the radar page.
-        if (url.pathname === "/api/radar") return respond(response, 200, await marketRadar({ scan: scanMarket }));
+        if (url.pathname === "/api/radar") {
+          const market = url.searchParams.get("market");
+          return respond(response, 200, market === "HK" || market === "US" ? await globalRadar(market) : await marketRadar({ scan: scanMarket }));
+        }
         if (url.pathname === "/api/market-data/emotion") return respond(response, 200, await shortlineEmotion({ date: url.searchParams.get("date") || undefined }));
         if (url.pathname === "/api/market-data/dragon-tiger") {
           const symbol = url.searchParams.get("symbol");

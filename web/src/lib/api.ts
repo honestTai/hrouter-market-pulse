@@ -155,6 +155,16 @@ export interface Radar {
   sectors: { rows: Array<{ code: string; name: string; changePct: number | null; amount: number | null; mainNetInflow: number | null; advancers: number | null; decliners: number | null; leader: { name: string; symbol: string } | null }>; error?: string }
   concepts: { rows: Array<{ code: string; name: string; changePct: number | null; amount: number | null; mainNetInflow: number | null; leader: { name: string; symbol: string } | null }>; error?: string }
 }
+export interface GlobalMover { symbol: string; name: string; price: number | null; changePct: number | null; amount: number | null }
+type Part<T> = T & { error?: undefined } | { error: string }
+export interface GlobalRadar {
+  generatedAt: string; market: 'HK' | 'US'; currency: string; session: { status: string; date?: string }
+  indices: Array<{ code: string; name: string; price: number | null; change: number | null; changePct: number | null }> | { error: string }
+  breadth: Part<{ source: string; total: number | null; advancers: number; decliners: number }>
+  gainers: Part<{ source: string; rows: GlobalMover[] }>; losers: Part<{ source: string; rows: GlobalMover[] }>; active: Part<{ source: string; rows: GlobalMover[] }>
+  southbound?: Part<{ source: string; rows: Array<{ date: string; turnover: number | null; netBuy: number | null; leader: string | null; leaderChangePct: number | null }> }>
+  chinaAdrs?: Part<{ source: string; rows: GlobalMover[] }>
+}
 export interface Emotion {
   date: string; previousDate: string | null
   promotion: Array<{ boards: number; candidates: number; promoted: number; ratePct: number; names: string[] }>

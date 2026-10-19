@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { filterRelevantNews, newsKeys } from "../mcp/core.mjs";
 import {
-  aShareDataDate, industriesOf, parseBreadth, parseConnect, parseDragonTiger, parseIndustries, parseMarketMargin, parsePool, parseSeats, sentimentFrom, symbolFromCode,
+  aShareDataDate, countSigned, industriesOf, parseBreadth, parseSinaHk, parseSinaUs, parseTencentIndices, parseConnect, parseDragonTiger, parseIndustries, parseMarketMargin, parsePool, parseSeats, sentimentFrom, symbolFromCode,
 } from "../mcp/market-data.mjs";
 
 test("news for one security keeps only items that name it; theme searches are not filtered", () => {
@@ -102,4 +102,25 @@ test("radar boards: drop duplicate industry levels and one-stock boards", async 
     { name: "国防军工", changePct: 4.4, amount: 3, advancers: 90, decliners: 10 },
   ];
   assert.deepEqual(boardsWorthShowing({ rows }).rows.map((row) => row.name), ["航空装备Ⅲ", "国防军工"]);
+});
+
+test("HK / US breadth is counted by binary search over change-sorted pages", async () => {
+  // 250 risers, 30 flat, 120 fallers, served 100 (or 20) a page in descending order.
+  const all = [...Array(250).fill(1.5), ...Array(30).fill(0), ...Array(120).fill(-2)].map((changePct) => ({ changePct }));
+  for (const size of [100, 20]) {
+    const pages = []
+    const load = (asc) => async (page) => { pages.push(page); const list = asc ? [...all].reverse() : all; return list.slice((page - 1) * size, page * size); };
+    assert.equal(await countSigned(load(false), { maxPages: Math.ceil(all.length / size), pageSize: size }), 250);
+    assert.equal(await countSigned(load(true), { asc: true, maxPages: Math.ceil(all.length / size), pageSize: size }), 120);
+    assert.ok(pages.length < all.length / size * 2, "fetches far fewer pages than the whole list");
+  }
+});
+
+test("Sina and Tencent fallbacks parse into the radar's row shape", () => {
+  assert.deepEqual(parseSinaHk([{ symbol: "00700", name: "腾讯控股", lasttrade: "417.8", changepercent: "-1.2", amount: "7901198756" }]), [{ symbol: "0700.HK", name: "腾讯控股", price: 417.8, changePct: -1.2, amount: 7901198756 }]);
+  const us = parseSinaUs(`/*<script></script>*/\nx({"count":"18306","data":[{"name":"NVIDIA","cname":"英伟达公司","symbol":"NVDA","price":"214.13","chg":"-1.43","volume":"100"}]});`);
+  assert.equal(us.total, 18306);
+  assert.deepEqual(us.rows, [{ symbol: "NVDA", name: "英伟达公司", price: 214.13, changePct: -1.43, amount: 21413 }]);
+  const indices = parseTencentIndices('v_hkHSI="100~恒生指数~HSI~24186.830~24062.720~24321.450~1~0~0~1~0~0~0~0~0~0~0~0~0~1~0~0~0~0~0~0~0~0~0~0.0~2026/10/16 18:31:15~124.110~0.52~24392.300";\nv_us.INX="200~标普500~.INX~7659.44~7744.06~7745.32~1~0~0~1~0~0~0~0~0~0~0~0~0~1~0~0~0~0~0~0~0~0~0~~2026-10-16 16:42:08~-84.62~-1.09~7756.84";');
+  assert.deepEqual(indices.map((row) => [row.code, row.name, row.price, row.change, row.changePct]), [["hkHSI", "恒生指数", 24186.83, 124.11, 0.52], ["us.INX", "标普500", 7659.44, -84.62, -1.09]]);
 });

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { QueryClient, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { get, post, qs, type AccountDetail, type Approval, type Emotion, type EnvReport, type Job, type Leaderboard, type Library, type Pool, type Radar, type Reconcile, type ResearchTask, type Run, type RunEvent, type Schedules, type SkillUpdate, type TraderSettings, type TraderStrategy, type Usage, type WorkbenchSettings } from './api'
+import { get, post, qs, type AccountDetail, type Approval, type Emotion, type EnvReport, type Job, type Leaderboard, type Library, type Pool, type Radar, type GlobalRadar, type Reconcile, type ResearchTask, type Run, type RunEvent, type Schedules, type SkillUpdate, type TraderSettings, type TraderStrategy, type Usage, type WorkbenchSettings } from './api'
 import { isEnglish, t } from './i18n'
 
 export const queryClient = new QueryClient({
@@ -45,7 +45,8 @@ export const useTraderStrategy = (id: string | undefined, version?: number) => u
 
 export const useApprovals = () => useQuery({ queryKey: ['approvals'], queryFn: ({ signal }) => get<{ approvals: Approval[] }>('/api/approvals', signal), refetchInterval: () => (visible() ? 20_000 : false) })
 export const useReconcile = (id: string | undefined, enabled = true) => useQuery({ queryKey: ['reconcile', id], enabled: Boolean(id) && enabled, queryFn: ({ signal }) => get<Reconcile>(`/api/arena/accounts/${id}/reconcile`, signal), staleTime: 60_000 })
-export const useRadar = () => useQuery({ queryKey: ['radar'], queryFn: ({ signal }) => get<Radar>('/api/radar', signal), refetchInterval: () => (visible() ? 60_000 : false), staleTime: 50_000 })
+export const useRadar = (enabled = true) => useQuery({ queryKey: ['radar'], queryFn: ({ signal }) => get<Radar>('/api/radar', signal), enabled, refetchInterval: () => (visible() ? 60_000 : false), staleTime: 50_000 })
+export const useGlobalRadar = (market: 'HK' | 'US' | null) => useQuery({ queryKey: ['radar', market], queryFn: ({ signal }) => get<GlobalRadar>(`/api/radar?market=${market}`, signal), enabled: Boolean(market), refetchInterval: () => (visible() ? 60_000 : false), staleTime: 50_000 })
 export const useEmotion = () => useQuery({ queryKey: ['emotion'], queryFn: ({ signal }) => get<Emotion>('/api/market-data/emotion', signal), staleTime: 120_000 })
 export const useResearchTasks = () => useQuery({ queryKey: ['research-tasks'], queryFn: ({ signal }) => get<{ tasks: ResearchTask[] }>('/api/research', signal), refetchInterval: (query) => (visible() && query.state.data?.tasks.some((task) => ['queued', 'running'].includes(task.status)) ? 4_000 : visible() ? 30_000 : false) })
 export const useSkillUpdates = (force = false) => useQuery({ queryKey: ['skill-updates', force], queryFn: ({ signal }) => get<{ checkedAt: string; results: SkillUpdate[]; note: string }>(`/api/library/updates${force ? '?force=1' : ''}`, signal), staleTime: 600_000, retry: 0 })

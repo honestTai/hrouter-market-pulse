@@ -6,8 +6,7 @@ import { AGENT_NAME, agentKind, AUTONOMY_NAME, BENCHMARK_NAME, changeLabel, chan
 import { isEnglish, locale, t } from '@/lib/i18n'
 import { useAccount, useAction, useJob, useRunEvents, useRuns } from '@/lib/queries'
 import { ApprovalCard, jobState } from '@/components/trader-bits'
-import { AgentMark, Button, Card, CardTitle, Dot, Empty, ErrorNote, Pill, Segmented, Select, Signed, Spinner, Tabs, Textarea, cn } from '@/components/ui'
-import { Expandable } from '@/components/Expandable'
+import { AgentMark, Button, Card, CardTitle, Dot, Empty, ErrorNote, Pill, Segmented, Select, Signed, Spinner, Drawer, Tabs, Textarea, cn } from '@/components/ui'
 import { Markdown } from '@/components/Markdown'
 import { TraderStrategyTab } from './trader/Strategy'
 import { TraderSettingsTab } from './trader/Settings'
@@ -145,9 +144,8 @@ function Overview({ account, job }: { account: AccountDetail; job: Job | undefin
   const { items, strategyRuns, day, gate } = useTimeline(account, list, job)
   const isToday = day === new Date().toDateString()
   const dayLabel = isToday ? t('今天') : new Intl.DateTimeFormat(locale(), { month: 'numeric', day: 'numeric', weekday: 'short' }).format(new Date(day))
-  const live = list.find((run) => run.status === 'running' && run.lane !== 'strategy')
   const [selected, setSelected] = useState<string | null>(null)
-  const focus = selected ?? live?.id ?? list.find((run) => run.lane === 'agent')?.id ?? null
+  const focus = selected
   const pending = (account.approvals ?? []).filter((entry) => entry.status === 'pending')
   return (
     <div className="flex flex-col gap-4">
@@ -188,7 +186,7 @@ function Overview({ account, job }: { account: AccountDetail; job: Job | undefin
           <Holdings account={account} />
         </aside>
       </div>
-      {focus && <RunProcess runId={focus} run={list.find((run) => run.id === focus)} />}
+      {focus && <RunProcess runId={focus} run={list.find((run) => run.id === focus)} onClose={() => setSelected(null)} />}
     </div>
   )
 }
@@ -411,46 +409,70 @@ function Holdings({ account }: { account: AccountDetail }) {
   )
 }
 
-function RunProcess({ runId, run }: { runId: string; run: Run | undefined }) {
+// Tool arguments as short key: value pairs; the account id is the same on every call, so it is left out.
+function argSummary(input: unknown) {
+  if (!input || typeof input !== 'object') return input === undefined ? '' : String(input)
+  return Object.entries(input as Record<string, unknown>).filter(([key]) => key !== 'accountId').map(([key, value]) => {
+    const text = typeof value === 'string' ? value.split('\n')[0] : JSON.stringify(value)
+    return `${key}: ${text.length > 80 ? `${text.slice(0, 80)}…` : text}`
+  }).join(' · ')
+}
+
+function ToolStep({ event, result, running }: { event: RunEvent; result: RunEvent | undefined; running: boolean }) {
+  const [open, setOpen] = useState(false)
+  const args = argSummary(event.input)
+  const detail = Boolean(result?.preview) || args.length > 0
+  return (
+    <div className="rounded-lg border border-line bg-surface-2">
+      <button type="button" disabled={!detail} onClick={() => setOpen(!open)} className="flex w-full items-center gap-2 px-3 py-2 text-left disabled:cursor-default">
+        <Dot tone={result ? (result.ok ? 'ok' : 'bad') : 'accent'} pulse={!result && running} />
+        <span className="shrink-0 font-mono text-xs font-semibold">{String(event.name ?? '').replace('mcp__hrouter_market_pulse__', '')}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-3">{args}</span>
+        <span className="shrink-0 font-mono text-[11px] text-ink-3">{time(event.at)}</span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2 border-t border-line px-3 py-2">
+          {args && <pre className="m-0 whitespace-pre-wrap break-all font-mono text-[11px] text-ink-2">{JSON.stringify(event.input ?? {}, null, 2)}</pre>}
+          {result?.preview && <pre className={cn('m-0 max-h-[320px] overflow-auto whitespace-pre-wrap break-all rounded-md bg-sunken p-2 font-mono text-[11px] scroll-thin', result.ok ? 'text-ink-2' : 'text-bad')}>{result.preview}</pre>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RunProcess({ runId, run, onClose }: { runId: string; run: Run | undefined; onClose: () => void }) {
   const events = useRunEvents(runId, run?.status === 'running')
   const list = (events.data?.events ?? []).filter((event) => ['tool', 'tool_result', 'text', 'error', 'usage'].includes(event.t))
   const results = new Map(list.filter((event) => event.t === 'tool_result').map((event) => [(event as RunEvent & { id?: string }).id, event]))
+  const steps = list.filter((event) => event.t !== 'tool_result')
+  const tools = steps.filter((event) => event.t === 'tool').length
   const title = !run ? t('运行过程') : run.lane === 'ask' ? t('回答问题的过程') : run.lane === 'team' ? t('{role}的过程', { role: TEAM_ROLE[run.role ?? ''] ?? t('团队分析') }) : t('本次复查过程')
+  const meta = run && [AGENT_NAME[run.runner] ?? run.runner, dateTime(run.startedAt), RUN_STATUS[run.status] ?? run.status, run.durationMs ? `${Math.round(run.durationMs / 1000)}s` : null, run.usage ? t('{a} 入 / {b} 出 tokens', { a: compact(run.usage.inputTokens), b: compact(run.usage.outputTokens) }) : null, tools ? t('{n} 次工具调用', { n: tools }) : null, run.skillsVersion ? `skill ${run.skillsVersion}` : null].filter(Boolean).join(' · ')
   return (
-    <Expandable title={title}>
-      <Card className="p-4">
-        <CardTitle extra={run && <span className="text-xs text-ink-3">{AGENT_NAME[run.runner] ?? run.runner} · {dateTime(run.startedAt)} · {RUN_STATUS[run.status] ?? run.status}{run.usage ? ` · ${t('{a} 入 / {b} 出 tokens', { a: compact(run.usage.inputTokens), b: compact(run.usage.outputTokens) })}` : ''}{run.durationMs ? ` · ${Math.round(run.durationMs / 1000)}s` : ''}{run.skillsVersion ? ` · skill ${run.skillsVersion}` : ''}</span>}>{title}</CardTitle>
-        {run?.changes && <p className="m-0 mt-2 text-xs text-ink-2">{run.trigger === 'wake' ? t('提前叫醒的原因：') : t('自上次复查以来的变化：')}{run.changes}</p>}
-        {run?.team?.length ? (
-          <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-2">
-            {run.team.map((entry) => (
-              <div key={entry.runId} className="rounded-[10px] border border-line bg-surface-2 p-3">
-                <div className="flex items-center gap-1.5 text-xs font-semibold"><Dot tone={entry.status === 'ok' ? 'ok' : 'bad'} />{TEAM_ROLE[entry.role] ?? entry.role}</div>
-                <p className="m-0 mt-1 line-clamp-6 whitespace-pre-wrap text-xs text-ink-2">{entry.text || t('（没交报告）')}</p>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        {events.isLoading ? <Spinner className="mt-3" /> : list.length ? (
-          <ol className="mt-3 flex flex-col overflow-hidden rounded-[10px] border border-line">
-            {list.filter((event) => event.t !== 'tool_result').map((event, index) => {
-              const result = event.t === 'tool' ? results.get((event as RunEvent & { id?: string }).id) : undefined
-              return (
-                <li key={index} className="flex items-start gap-2 border-b border-line bg-surface-2 px-3 py-2 text-[13px] last:border-b-0">
-                  {event.t === 'tool' ? <Dot tone={result ? (result.ok ? 'ok' : 'bad') : 'accent'} pulse={!result && run?.status === 'running'} /> : event.t === 'error' ? <Dot tone="bad" /> : event.t === 'usage' ? <Dot tone="muted" /> : <Dot tone="accent" />}
-                  <span className="min-w-0 flex-1">
-                    {event.t === 'tool' && <><span className="font-mono text-xs">{String(event.name ?? '').replace('mcp__hrouter_market_pulse__', '')}</span> <span className="break-all font-mono text-xs text-ink-3">{JSON.stringify(event.input ?? {}).slice(0, 120)}</span>{result?.preview && <span className="mt-0.5 block truncate text-xs text-ink-3">{result.preview}</span>}</>}
-                    {event.t === 'text' && <span className="whitespace-pre-wrap break-words">{event.text}</span>}
-                    {event.t === 'error' && <span className="text-bad">{event.message}</span>}
-                    {event.t === 'usage' && <span className="text-xs text-ink-3">{t('用量 {a} 入 / {b} 出', { a: compact(event.inputTokens), b: compact(event.outputTokens) })}</span>}
-                  </span>
-                  <span className="font-mono text-[11px] text-ink-3">{time(event.at)}</span>
-                </li>
-              )
-            })}
-          </ol>
-        ) : <div className="mt-3 text-[13px] text-ink-3">{run?.status === 'running' ? t('等第一条事件…') : run?.error ? <span className="text-bad">{run.error}</span> : t('这一轮没有记录过程（旧版本的运行只保存了输出结尾）。')}{run && !list.length && run.stdoutTail && <div className="mt-2 max-h-[420px] overflow-auto rounded-lg bg-surface-2 p-3 text-ink scroll-thin"><Markdown text={run.stdoutTail.replace(/^…/, '')} className="text-[13px]" /></div>}</div>}
-      </Card>
-    </Expandable>
+    <Drawer open onOpenChange={(value) => { if (!value) onClose() }} title={title} extra={meta}>
+      {run?.changes && <p className="m-0 mb-3 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink-2">{run.trigger === 'wake' ? t('提前叫醒的原因：') : t('自上次复查以来的变化：')}{run.changes}</p>}
+      {run?.team?.length ? (
+        <div className="mb-3 grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-2">
+          {run.team.map((entry) => (
+            <div key={entry.runId} className="rounded-[10px] border border-line bg-surface-2 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold"><Dot tone={entry.status === 'ok' ? 'ok' : 'bad'} />{TEAM_ROLE[entry.role] ?? entry.role}</div>
+              <p className="m-0 mt-1 line-clamp-6 whitespace-pre-wrap text-xs text-ink-2">{entry.text || t('（没交报告）')}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {events.isLoading ? <Spinner /> : steps.length ? (
+        <ol className="m-0 flex list-none flex-col gap-2 p-0">
+          {steps.map((event, index) => (
+            <li key={index}>
+              {event.t === 'tool' && <ToolStep event={event} result={results.get(event.id)} running={run?.status === 'running'} />}
+              {event.t === 'text' && <div className="border-l-2 border-accent-line py-0.5 pl-3"><Markdown text={event.text ?? ''} className="text-[13px]" /></div>}
+              {event.t === 'error' && <div className="rounded-lg border border-bad-line bg-bad-soft px-3 py-2 text-[13px] text-bad">{event.message}</div>}
+              {event.t === 'usage' && <div className="px-1 text-xs text-ink-3">{t('用量 {a} 入 / {b} 出', { a: compact(event.inputTokens), b: compact(event.outputTokens) })}</div>}
+            </li>
+          ))}
+        </ol>
+      ) : <div className="text-[13px] text-ink-3">{run?.status === 'running' ? t('等第一条事件…') : run?.error ? <span className="text-bad">{run.error}</span> : t('这一轮没有记录过程（旧版本的运行只保存了输出结尾）。')}{run && !steps.length && run.stdoutTail && <div className="mt-2 rounded-lg bg-surface-2 p-3 text-ink"><Markdown text={run.stdoutTail.replace(/^…/, '')} className="text-[13px]" /></div>}</div>}
+    </Drawer>
   )
 }

@@ -2,7 +2,7 @@
 // sentiment, margin, Stock Connect and industry classification. Read-only, public sources.
 import { z } from "zod";
 import { scanMarket } from "./core.mjs";
-import { dragonTiger, dragonTigerSeats, industriesOf, limitPool, limitUpSentiment, marketMargin, marketRadar, shortlineEmotion, stockConnect, stockMargin } from "./market-data.mjs";
+import { dragonTiger, dragonTigerSeats, globalRadar, industriesOf, limitPool, limitUpSentiment, marketMargin, marketRadar, shortlineEmotion, stockConnect, stockMargin } from "./market-data.mjs";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Trading date YYYY-MM-DD; default: today once the A-share session opened, else the last session.");
 const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
@@ -20,9 +20,20 @@ export function registerMarketDataTools(server, { toolResult, toolError }) {
 
   register("get_market_radar", {
     title: "Market radar",
-    description: "One call for the A-share market mood: index breadth (advancers / decliners), limit-up count, broken-board rate, the consecutive-board ladder and hot industries, top dragon-tiger net buys, margin balance trend, Stock Connect turnover and the strongest sectors and concepts. Use it at the start of a round to judge risk appetite. All public East Money data with dates; missing parts say why.",
-    inputSchema: {},
-  }, async () => {
+    description: "One call for the A-share market mood: index breadth (advancers / decliners), limit-up count, broken-board rate, the consecutive-board ladder and hot industries, top dragon-tiger net buys, margin balance trend, Stock Connect turnover and the strongest sectors and concepts. Use it at the start of a round to judge risk appetite. Pass market HK or US for those markets instead: headline indices, whole-market advancers / decliners, top gainers and losers (with a turnover floor), most traded names, plus southbound flow (HK) or US-listed Chinese stocks (US). All public data with dates; missing parts say why.",
+    inputSchema: { market: z.enum(["A", "HK", "US"]).default("A") },
+  }, async ({ market = "A" } = {}) => {
+    if (market !== "A") {
+      const radar = await globalRadar(market);
+      const b = radar.breadth;
+      const names = (part) => (part.rows ?? []).slice(0, 5).map((row) => `${row.name} ${row.changePct > 0 ? "+" : ""}${row.changePct}%`).join("、") || part.error;
+      const lines = [
+        Array.isArray(radar.indices) ? radar.indices.map((index) => `${index.name} ${index.price}（${index.changePct > 0 ? "+" : ""}${index.changePct}%）`).join("，") : `指数：${radar.indices.error}`,
+        b.advancers !== undefined ? `涨 ${b.advancers} / 跌 ${b.decliners}` : `涨跌家数：${b.error}`,
+        `领涨：${names(radar.gainers)}`, `领跌：${names(radar.losers)}`, `成交最活跃：${names(radar.active)}`,
+      ];
+      return [radar, lines.join("\n")];
+    }
     const radar = await marketRadar({ scan: scanMarket });
     const s = radar.sentiment;
     const b = radar.breadth;

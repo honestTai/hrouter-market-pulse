@@ -45,7 +45,8 @@ const trader = createRoute({
 })
 const arena = createRoute({ getParentRoute: () => rootRoute, path: '/arena', component: ArenaPage })
 const market = createRoute({ getParentRoute: () => rootRoute, path: '/market', component: MarketPage })
-const radar = createRoute({ getParentRoute: () => rootRoute, path: '/radar', component: RadarPage })
+const radar = createRoute({ getParentRoute: () => rootRoute, path: '/radar', component: RadarPage,
+  validateSearch: (search: Record<string, unknown>) => ({ market: search.market === 'HK' || search.market === 'US' ? search.market as 'HK' | 'US' : undefined }) })
 const research = createRoute({
   getParentRoute: () => rootRoute, path: '/research', component: ResearchPage,
   validateSearch: (search: Record<string, unknown>) => ({ new: typeof search.new === 'string' ? search.new : undefined, task: typeof search.task === 'string' ? search.task : undefined }),

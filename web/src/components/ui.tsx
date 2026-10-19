@@ -114,6 +114,29 @@ export function Dialog({ open, onOpenChange, title, description, children, width
   )
 }
 
+/** A panel that slides in from the right edge, for detail that belongs next to what was clicked. */
+export function Drawer({ open, onOpenChange, title, extra, children, width = 720 }: {
+  open: boolean; onOpenChange: (value: boolean) => void; title: string; extra?: ReactNode; children: ReactNode; width?: number
+}) {
+  return (
+    <RD.Root open={open} onOpenChange={onOpenChange}>
+      <RD.Portal>
+        <RD.Overlay className="fixed inset-0 z-40 bg-black/20" />
+        <RD.Content style={{ width }} className="fixed inset-y-0 right-0 z-50 flex max-w-full flex-col border-l border-line bg-surface shadow-2xl">
+          <div className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-3.5">
+            <div className="min-w-0 flex-1">
+              <RD.Title className="m-0 text-[15px] font-bold">{title}</RD.Title>
+              {extra ? <RD.Description asChild><div className="mt-0.5 text-xs text-ink-3">{extra}</div></RD.Description> : <RD.Description className="sr-only">{title}</RD.Description>}
+            </div>
+            <RD.Close aria-label={t('关闭')} className="rounded-md p-1 text-ink-3 hover:bg-sunken"><X className="size-4" /></RD.Close>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-5 scroll-thin max-sm:p-3">{children}</div>
+        </RD.Content>
+      </RD.Portal>
+    </RD.Root>
+  )
+}
+
 /** 涨跌数字：颜色跟随红涨绿跌 / 绿涨红跌设置，正负号永远写出来 */
 export function Signed({ value, digits = 2, suffix = '%', className }: { value: number | null | undefined; digits?: number; suffix?: '%' | ''; className?: string }) {
   if (!isNumber(value)) return <span className={cn('font-mono text-ink-3', className)}>—</span>

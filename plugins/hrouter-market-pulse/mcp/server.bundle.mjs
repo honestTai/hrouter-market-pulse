@@ -15895,6 +15895,142 @@ async function shortlineEmotion({ date: date4, at, lookback = 10, quotesImpl = g
     return { date: day, previousDate: yesterday?.date ?? null, source: `${SOURCE} \u6DA8\u505C\u677F\u884C\u60C5`, promotion, moneyEffect, cycle, failedDates: daily.filter((entry) => entry.error).map((entry) => entry.date) };
   });
 }
+var CLIST = "https://push2.eastmoney.com/api/qt/clist/get";
+var SINA_HK = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHKStockData";
+var SINA_US = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/x/US_CategoryService.getList";
+var GLOBAL_MARKETS = {
+  HK: { fs: "m:128+t:3,m:128+t:4,m:128+t:1,m:128+t:2", currency: "HKD", indices: [["100.HSI", "hkHSI"], ["100.HSCEI", "hkHSCEI"], ["124.HSTECH", "hkHSTECH"]] },
+  US: { fs: "m:105,m:106,m:107", currency: "USD", indices: [["100.DJIA", "usDJI"], ["100.SPX", "us.INX"], ["100.NDX", "us.IXIC"]] }
+};
+var MIN_MOVER_AMOUNT = 5e6;
+var eastmoneyDownUntil = 0;
+async function eastmoneyFirst(primary, fallback) {
+  if (Date.now() >= eastmoneyDownUntil) {
+    try {
+      return await primary();
+    } catch {
+      eastmoneyDownUntil = Date.now() + 5 * 6e4;
+    }
+  }
+  return fallback();
+}
+async function getText(url, { referer = "https://finance.sina.com.cn/", encoding = "utf-8", timeoutMs = 1e4 } = {}) {
+  const response = await fetch(url, { headers: { "User-Agent": UA, Referer: referer }, signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new MarketDataError(`HTTP ${response.status}`);
+  return new TextDecoder(encoding).decode(await response.arrayBuffer());
+}
+function globalSymbol(code, market2) {
+  return market2 === "HK" ? `${String(Number(code)).padStart(4, "0")}.HK` : String(code).replace(/_/g, "-");
+}
+function parseMovers(payload, market2) {
+  return (payload?.data?.diff ?? []).map((row) => ({ symbol: globalSymbol(row.f12, market2), name: row.f14, price: finite5(row.f2), changePct: round5(finite5(row.f3)), amount: round5(finite5(row.f6), 0) }));
+}
+function parseSinaHk(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({ symbol: globalSymbol(row.symbol, "HK"), name: row.name, price: finite5(Number(row.lasttrade)), changePct: round5(finite5(Number(row.changepercent))), amount: round5(finite5(Number(row.amount)), 0) }));
+}
+function parseSinaUs(text2) {
+  const json = String(text2).slice(String(text2).indexOf("x(") + 2, String(text2).lastIndexOf(")"));
+  const payload = JSON.parse(json || "{}");
+  return {
+    total: Number(payload.count) || null,
+    rows: (payload.data ?? []).map((row) => {
+      const price = finite5(Number(row.price));
+      const volume = finite5(Number(row.volume));
+      return { symbol: globalSymbol(row.symbol, "US"), name: row.cname || row.name, price, changePct: round5(finite5(Number(row.chg))), amount: price && volume ? round5(price * volume, 0) : null };
+    })
+  };
+}
+async function rankedPage(market2, { sort = "change", asc = false, page = 1, size = 100 } = {}) {
+  const spec = GLOBAL_MARKETS[market2];
+  return eastmoneyFirst(async () => {
+    const payload = await getJson(`${CLIST}?pn=${page}&pz=${size}&po=${asc ? 0 : 1}&np=1&fltt=2&invt=2&fid=${sort === "amount" ? "f6" : "f3"}&fs=${spec.fs}&fields=f2,f3,f6,f12,f14`);
+    return { source: SOURCE, total: payload?.data?.total ?? null, rows: parseMovers(payload, market2) };
+  }, async () => {
+    if (market2 === "HK") return { source: "Sina Finance", total: null, rows: parseSinaHk(JSON.parse(await getText(`${SINA_HK}?page=${page}&num=${size}&sort=${sort === "amount" ? "amount" : "changepercent"}&asc=${asc ? 1 : 0}&node=qbgg_hk`))) };
+    return { source: "Sina Finance", ...parseSinaUs(await getText(`${SINA_US}?page=${page}&num=${size}&sort=${sort === "amount" ? "volume" : "chg"}&asc=${asc ? 1 : 0}&market=&id=`)) };
+  });
+}
+async function countSigned(load, { asc = false, maxPages = 200, pageSize = 100 } = {}) {
+  const hit = (value) => value !== null && (asc ? value < 0 : value > 0);
+  const changes = async (page) => (await load(page)).map((row) => row.changePct);
+  let low = 1, high = maxPages;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    const rows = await changes(middle);
+    if (rows.length && hit(rows.at(-1))) low = middle + 1;
+    else high = middle;
+  }
+  return (low - 1) * pageSize + (await changes(low)).filter(hit).length;
+}
+async function globalBreadth(market2) {
+  return cached(`breadth:${market2}`, 3e5, async () => {
+    const first = await rankedPage(market2, { size: 100 });
+    if (market2 === "HK" && first.source !== SOURCE) throw new MarketDataError("\u4E1C\u65B9\u8D22\u5BCC\u6682\u65F6\u62D2\u7EDD\u8FDE\u63A5\uFF0C\u5907\u7528\u6765\u6E90\u4E0D\u63D0\u4F9B\u6E2F\u80A1\u5168\u5E02\u573A\u6DA8\u8DCC\u5BB6\u6570");
+    const pageSize = Math.max(1, first.rows.length);
+    const maxPages = first.total ? Math.ceil(first.total / pageSize) : 60;
+    const load = (asc) => (page) => rankedPage(market2, { asc, page, size: pageSize }).then((result) => result.rows);
+    const [advancers, decliners] = await Promise.all([countSigned(load(false), { maxPages, pageSize }), countSigned(load(true), { asc: true, maxPages, pageSize })]);
+    return { source: first.source, total: first.total, advancers, decliners };
+  });
+}
+function parseTencentIndices(text2) {
+  return String(text2).split(";").map((line) => line.match(/v_([^=]+)="([^"]*)"/)).filter(Boolean).map(([, code, body]) => {
+    const parts = body.split("~");
+    return { code, name: parts[1], price: finite5(Number(parts[3])), change: round5(finite5(Number(parts[31]))), changePct: round5(finite5(Number(parts[32]))), at: parts[30] || null };
+  }).filter((row) => row.price);
+}
+async function globalIndices(market2) {
+  const spec = GLOBAL_MARKETS[market2];
+  return cached(`indices:${market2}`, 6e4, () => eastmoneyFirst(
+    async () => ((await getJson(`${ULIST}?fltt=2&secids=${spec.indices.map(([secid]) => secid).join(",")}&fields=f2,f3,f4,f12,f14`))?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, price: finite5(row.f2), change: round5(finite5(row.f4)), changePct: round5(finite5(row.f3)) })),
+    async () => parseTencentIndices(await getText(`https://qt.gtimg.cn/q=${spec.indices.map(([, code]) => code).join(",")}`, { referer: "https://gu.qq.com/", encoding: "gbk" }))
+  ));
+}
+async function globalRadar(market2, { at } = {}) {
+  const spec = GLOBAL_MARKETS[market2];
+  if (!spec) throw new MarketDataError(`Unknown market ${market2}`);
+  const settle = async (promise) => {
+    try {
+      return { ok: true, value: await promise };
+    } catch (error2) {
+      return { ok: false, error: error2.message };
+    }
+  };
+  const part = (result) => result.ok ? result.value : { error: result.error };
+  const movers = (asc) => cached(`movers:${market2}:${asc}`, 6e4, async () => {
+    const result = await rankedPage(market2, { asc });
+    return { source: result.source, rows: result.rows.filter((row) => row.price && (row.amount ?? 0) >= MIN_MOVER_AMOUNT).slice(0, 12) };
+  });
+  const active = () => cached(`active:${market2}`, 6e4, async () => {
+    const result = await rankedPage(market2, { sort: "amount" });
+    return { source: result.source, rows: result.rows.filter((row) => row.price).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)).slice(0, 12) };
+  });
+  const [indices, breadth, gainers, losers, mostActive, extra] = await Promise.all([
+    settle(globalIndices(market2)),
+    settle(globalBreadth(market2)),
+    settle(movers(false)),
+    settle(movers(true)),
+    settle(active()),
+    market2 === "HK" ? settle(stockConnect({ days: 10 }).then((connect) => ({ southbound: { source: connect.source, rows: connect.rows.filter((row) => row.channel === "\u5357\u5411\u5408\u8BA1") } }))) : settle(cached("china-adr", 6e4, () => eastmoneyFirst(
+      async () => ({ chinaAdrs: { source: SOURCE, rows: parseMovers(await getJson(`${CLIST}?pn=1&pz=12&po=1&np=1&fltt=2&invt=2&fid=f6&fs=b:MK0201&fields=f2,f3,f6,f12,f14`), "US").filter((row) => row.price) } }),
+      async () => {
+        throw new MarketDataError("\u4E1C\u65B9\u8D22\u5BCC\u6682\u65F6\u62D2\u7EDD\u8FDE\u63A5\uFF0C\u4E2D\u6982\u80A1\u5217\u8868\u53EA\u6709\u5B83\u63D0\u4F9B\uFF0C\u7A0D\u540E\u4F1A\u81EA\u52A8\u91CD\u8BD5");
+      }
+    )))
+  ]);
+  return {
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    market: market2,
+    currency: spec.currency,
+    session: getMarketSession(market2, at ?? (/* @__PURE__ */ new Date()).toISOString()),
+    indices: part(indices),
+    breadth: part(breadth),
+    gainers: part(gainers),
+    losers: part(losers),
+    active: part(mostActive),
+    ...extra.ok ? extra.value : market2 === "HK" ? { southbound: { error: extra.error } } : { chinaAdrs: { error: extra.error } }
+  };
+}
 
 // mcp/approvals.mjs
 var round6 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
@@ -21578,9 +21714,22 @@ function registerMarketDataTools(server2, { toolResult: toolResult2, toolError: 
   });
   register("get_market_radar", {
     title: "Market radar",
-    description: "One call for the A-share market mood: index breadth (advancers / decliners), limit-up count, broken-board rate, the consecutive-board ladder and hot industries, top dragon-tiger net buys, margin balance trend, Stock Connect turnover and the strongest sectors and concepts. Use it at the start of a round to judge risk appetite. All public East Money data with dates; missing parts say why.",
-    inputSchema: {}
-  }, async () => {
+    description: "One call for the A-share market mood: index breadth (advancers / decliners), limit-up count, broken-board rate, the consecutive-board ladder and hot industries, top dragon-tiger net buys, margin balance trend, Stock Connect turnover and the strongest sectors and concepts. Use it at the start of a round to judge risk appetite. Pass market HK or US for those markets instead: headline indices, whole-market advancers / decliners, top gainers and losers (with a turnover floor), most traded names, plus southbound flow (HK) or US-listed Chinese stocks (US). All public data with dates; missing parts say why.",
+    inputSchema: { market: external_exports.enum(["A", "HK", "US"]).default("A") }
+  }, async ({ market: market2 = "A" } = {}) => {
+    if (market2 !== "A") {
+      const radar2 = await globalRadar(market2);
+      const b2 = radar2.breadth;
+      const names = (part) => (part.rows ?? []).slice(0, 5).map((row) => `${row.name} ${row.changePct > 0 ? "+" : ""}${row.changePct}%`).join("\u3001") || part.error;
+      const lines2 = [
+        Array.isArray(radar2.indices) ? radar2.indices.map((index) => `${index.name} ${index.price}\uFF08${index.changePct > 0 ? "+" : ""}${index.changePct}%\uFF09`).join("\uFF0C") : `\u6307\u6570\uFF1A${radar2.indices.error}`,
+        b2.advancers !== void 0 ? `\u6DA8 ${b2.advancers} / \u8DCC ${b2.decliners}` : `\u6DA8\u8DCC\u5BB6\u6570\uFF1A${b2.error}`,
+        `\u9886\u6DA8\uFF1A${names(radar2.gainers)}`,
+        `\u9886\u8DCC\uFF1A${names(radar2.losers)}`,
+        `\u6210\u4EA4\u6700\u6D3B\u8DC3\uFF1A${names(radar2.active)}`
+      ];
+      return [radar2, lines2.join("\n")];
+    }
     const radar = await marketRadar({ scan: scanMarket });
     const s = radar.sentiment;
     const b = radar.breadth;
@@ -23331,7 +23480,10 @@ data: ${JSON.stringify(message)}
         if (url.pathname === "/api/library") return respond(response, 200, await loadLibrary());
         if (url.pathname === "/api/library/updates") return respond(response, 200, await checkUpdates({ force: url.searchParams.get("force") === "1" }));
         if (url.pathname === "/api/library/claude-skills") return respond(response, 200, { skills: await listClaudeSkills() });
-        if (url.pathname === "/api/radar") return respond(response, 200, await marketRadar({ scan: scanMarket }));
+        if (url.pathname === "/api/radar") {
+          const market2 = url.searchParams.get("market");
+          return respond(response, 200, market2 === "HK" || market2 === "US" ? await globalRadar(market2) : await marketRadar({ scan: scanMarket }));
+        }
         if (url.pathname === "/api/market-data/emotion") return respond(response, 200, await shortlineEmotion({ date: url.searchParams.get("date") || void 0 }));
         if (url.pathname === "/api/market-data/dragon-tiger") {
           const symbol = url.searchParams.get("symbol");

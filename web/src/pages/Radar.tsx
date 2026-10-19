@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
-import { get, type Emotion, type Radar } from '@/lib/api'
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { get, type Emotion, type GlobalMover, type GlobalRadar, type Radar } from '@/lib/api'
 import { bigAmount, dateTime, num } from '@/lib/format'
 import { isEnglish, t } from '@/lib/i18n'
-import { useEmotion, useRadar } from '@/lib/queries'
+import { useEmotion, useGlobalRadar, useRadar } from '@/lib/queries'
 import { Page, PageHeader } from '@/components/Shell'
 import { Expandable } from '@/components/Expandable'
-import { Button, Card, CardTitle, Dialog, Dot, Empty, ErrorNote, Pill, Signed, Spinner, Stat, cn } from '@/components/ui'
+import { Button, Card, CardTitle, Dialog, Dot, Empty, ErrorNote, Pill, Segmented, Signed, Spinner, Stat, cn } from '@/components/ui'
 
 const STAGE_HINT: Record<string, string> = { 回暖: t('回暖'), 转弱: t('转弱'), 震荡: t('震荡') }
 
@@ -23,7 +24,17 @@ function stageOf(emotion: Emotion | undefined, radar: Radar | undefined) {
   return { name: t('发酵'), tone: 'ok' as const, hint: t('做主线龙头和前排，可以接力') }
 }
 
+type RadarMarket = 'A' | 'HK' | 'US'
+
 export function RadarPage() {
+  const search = useSearch({ from: '/radar' })
+  const navigate = useNavigate()
+  const market: RadarMarket = search.market ?? 'A'
+  const switcher = <Segmented label={t('市场')} value={market} onChange={(next: RadarMarket) => navigate({ to: '/radar', search: { market: next === 'A' ? undefined : next } })} options={[['A', t('A 股')], ['HK', t('港股')], ['US', t('美股')]]} />
+  return market === 'A' ? <ARadar switcher={switcher} /> : <GlobalRadarView market={market} switcher={switcher} />
+}
+
+function ARadar({ switcher }: { switcher: ReactNode }) {
   const radar = useRadar()
   const emotion = useEmotion()
   const data = radar.data
@@ -34,7 +45,7 @@ export function RadarPage() {
     <Page>
       <PageHeader eyebrow={t('A 股 · 真实公开数据 · 东方财富')} title={t('市场雷达')}
         description={data ? t('数据日 {date} · 更新于 {time}。交易员用 get_market_radar 读到的是同一份数据。', { date: data.date, time: dateTime(data.generatedAt) }) : t('读取全市场数据…')}
-        actions={<Button onClick={() => { radar.refetch(); emotion.refetch() }} loading={radar.isFetching}><RefreshCw className="size-4" />{t('刷新')}</Button>} />
+        actions={<>{switcher}<Button onClick={() => { radar.refetch(); emotion.refetch() }} loading={radar.isFetching}><RefreshCw className="size-4" />{t('刷新')}</Button></>} />
       <ErrorNote error={radar.error} />
       {radar.isLoading ? <Spinner /> : data && <>
         <div className="grid grid-cols-5 gap-4 max-xl:grid-cols-3 max-md:grid-cols-2 max-sm:grid-cols-1">
@@ -253,6 +264,91 @@ function ConnectCard({ radar }: { radar: Radar }) {
           <p className="m-0 mt-1.5 text-[11px] text-ink-3">{t(radar.connect.note)}</p>
         </div>
       )}
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// HK and US: indices, breadth, movers, most traded, southbound flow / US-listed Chinese stocks
+// ---------------------------------------------------------------------------
+
+const SESSION_NAME: Record<string, string> = { open: t('交易中'), closed: t('休市'), premarket: t('盘前'), afterhours: t('盘后'), lunch: t('午休') }
+
+function GlobalRadarView({ market, switcher }: { market: 'HK' | 'US'; switcher: ReactNode }) {
+  const radar = useGlobalRadar(market)
+  const data = radar.data
+  const indices = Array.isArray(data?.indices) ? data.indices : []
+  const breadth = data?.breadth
+  const sources = data ? [...new Set([data.gainers, data.active, data.breadth].map((part) => ('source' in part ? part.source : null)).filter(Boolean))] : []
+  return (
+    <Page>
+      <PageHeader eyebrow={market === 'HK' ? t('港股 · 真实公开数据') : t('美股 · 真实公开数据')} title={t('市场雷达')}
+        description={data ? t('{session} · 更新于 {time} · 来源 {source}。交易员用 get_market_radar（market={market}）读到的是同一份数据。', { session: SESSION_NAME[data.session.status] ?? data.session.status, time: dateTime(data.generatedAt), source: sources.join(' / ') || '—', market }) : t('读取全市场数据…')}
+        actions={<>{switcher}<Button onClick={() => radar.refetch()} loading={radar.isFetching}><RefreshCw className="size-4" />{t('刷新')}</Button></>} />
+      <ErrorNote error={radar.error} />
+      {radar.isLoading ? <Spinner /> : data && <>
+        <div className="grid grid-cols-4 gap-4 max-xl:grid-cols-2 max-sm:grid-cols-1">
+          {indices.map((index) => (
+            <Card key={index.code} className="p-4"><Stat label={index.name} value={<span className="font-mono">{num(index.price, 2)}</span>} sub={<><Signed value={index.changePct} /> <span className="font-mono">{index.change !== null && index.change > 0 ? '+' : ''}{num(index.change, 2)}</span></>} /></Card>
+          ))}
+          {!indices.length && <Card className="p-4"><Stat label={t('指数')} value="—" sub={'error' in data.indices ? data.indices.error : '—'} /></Card>}
+          <Card className="p-4"><Stat label={t('上涨 / 下跌')} value={breadth && breadth.error === undefined ? <><span className="text-up">{breadth.advancers.toLocaleString()}</span><span className="text-ink-3"> / </span><span className="text-down">{breadth.decliners.toLocaleString()}</span></> : '—'} sub={breadth?.error !== undefined ? breadth.error : (breadth?.total ? t('共 {n} 只', { n: breadth.total.toLocaleString() }) : t('全市场'))} /></Card>
+        </div>
+        <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
+          <Expandable title={t('领涨')}><MoverCard title={t('领涨')} part={data.gainers} currency={data.currency} note={t('成交额不足 500 万的不列')} /></Expandable>
+          <Expandable title={t('领跌')}><MoverCard title={t('领跌')} part={data.losers} currency={data.currency} note={t('成交额不足 500 万的不列')} /></Expandable>
+        </div>
+        <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
+          <Expandable title={t('成交最活跃')}><MoverCard title={t('成交最活跃')} part={data.active} currency={data.currency} /></Expandable>
+          {market === 'HK' && data.southbound && <Expandable title={t('南向资金')}><SouthboundCard part={data.southbound} /></Expandable>}
+          {market === 'US' && data.chinaAdrs && <Expandable title={t('中概股')}><MoverCard title={t('中概股')} part={data.chinaAdrs} currency={data.currency} note={t('按成交额')} /></Expandable>}
+        </div>
+      </>}
+    </Page>
+  )
+}
+
+function MoverCard({ title, part, currency, note }: { title: string; part: GlobalRadar['gainers']; currency: string; note?: string }) {
+  const rows: GlobalMover[] = part.error === undefined ? part.rows : []
+  return (
+    <Card className="flex flex-col gap-2 p-4">
+      <CardTitle extra={note && <span className="text-xs text-ink-3">{note}</span>}>{title}</CardTitle>
+      {part.error !== undefined ? <ErrorNote error={part.error} /> : rows.length ? (
+        <table className="w-full table-fixed border-collapse text-[13px] [&_td+td]:pl-3 [&_th+th]:pl-3">
+          <thead><tr className="text-left text-xs text-ink-3"><th className="py-1 font-medium">{t('股票')}</th><th className="w-24 text-right font-medium">{t('价格')}</th><th className="w-24 text-right font-medium">{t('涨跌')}</th><th className="w-24 text-right font-medium">{t('成交额')}</th></tr></thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.symbol} className="border-t border-line">
+                <td className="py-1.5"><div className="truncate font-semibold" title={row.name}>{row.name}</div><div className="font-mono text-[11px] text-ink-3">{row.symbol}</div></td>
+                <td className="text-right font-mono">{num(row.price, row.price !== null && row.price < 1 ? 3 : 2)}</td>
+                <td className="text-right"><Signed value={row.changePct} /></td>
+                <td className="text-right font-mono text-xs text-ink-2">{bigAmount(row.amount, currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <Empty title={t('暂无数据')} />}
+    </Card>
+  )
+}
+
+function SouthboundCard({ part }: { part: NonNullable<GlobalRadar['southbound']> }) {
+  const rows = part.error === undefined ? part.rows : []
+  return (
+    <Card className="flex flex-col gap-2 p-4">
+      <CardTitle extra={<span className="text-xs text-ink-3">{t('港股通（沪 + 深）合计，人民币')}</span>}>{t('南向资金')}</CardTitle>
+      {part.error !== undefined ? <ErrorNote error={part.error} /> : rows.length ? (
+        <div className="flex flex-col">
+          {rows.map((row) => (
+            <div key={row.date} className="flex items-center gap-3 border-t border-line py-1.5 text-[13px] first:border-t-0">
+              <span className="w-20 shrink-0 font-mono text-xs text-ink-3">{row.date}</span>
+              <span className={cn('w-28 shrink-0 font-mono', row.netBuy === null ? 'text-ink-3' : row.netBuy >= 0 ? 'text-up' : 'text-down')}>{row.netBuy === null ? '—' : t('净买 {n}', { n: bigAmount(row.netBuy) })}</span>
+              <span className="flex-1 font-mono text-xs text-ink-2">{t('成交 {n}', { n: bigAmount(row.turnover) })}</span>
+              {row.leader && <span className="truncate text-xs text-ink-3">{t('领涨 {name}', { name: row.leader })}{row.leaderChangePct !== null ? ` ${row.leaderChangePct > 0 ? '+' : ''}${row.leaderChangePct}%` : ''}</span>}
+            </div>
+          ))}
+        </div>
+      ) : <Empty title={t('暂无数据')} />}
     </Card>
   )
 }

@@ -442,3 +442,145 @@ export async function shortlineEmotion({ date, at, lookback = 10, quotesImpl = g
     return { date: day, previousDate: yesterday?.date ?? null, source: `${SOURCE} 涨停板行情`, promotion, moneyEffect, cycle, failedDates: daily.filter((entry) => entry.error).map((entry) => entry.date) };
   });
 }
+
+// ---------------------------------------------------------------------------
+// HK and US radar: headline indices, whole-market breadth, the biggest movers and most traded names,
+// plus southbound flow (HK) and US-listed Chinese stocks (US). East Money first; when its quote host
+// refuses the connection (it rate-limits by IP), indices come from Tencent and rankings from Sina.
+// ---------------------------------------------------------------------------
+
+const CLIST = "https://push2.eastmoney.com/api/qt/clist/get";
+const SINA_HK = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHKStockData";
+const SINA_US = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/x/US_CategoryService.getList";
+const GLOBAL_MARKETS = {
+  HK: { fs: "m:128+t:3,m:128+t:4,m:128+t:1,m:128+t:2", currency: "HKD", indices: [["100.HSI", "hkHSI"], ["100.HSCEI", "hkHSCEI"], ["124.HSTECH", "hkHSTECH"]] },
+  US: { fs: "m:105,m:106,m:107", currency: "USD", indices: [["100.DJIA", "usDJI"], ["100.SPX", "us.INX"], ["100.NDX", "us.IXIC"]] },
+};
+// Penny stocks dominate HK/US gainer lists; movers must have traded at least 5 million (HKD / USD).
+const MIN_MOVER_AMOUNT = 5e6;
+
+let eastmoneyDownUntil = 0;
+async function eastmoneyFirst(primary, fallback) {
+  if (Date.now() >= eastmoneyDownUntil) {
+    try { return await primary(); } catch {
+      eastmoneyDownUntil = Date.now() + 5 * 60000;
+    }
+  }
+  return fallback();
+}
+
+async function getText(url, { referer = "https://finance.sina.com.cn/", encoding = "utf-8", timeoutMs = 10000 } = {}) {
+  const response = await fetch(url, { headers: { "User-Agent": UA, Referer: referer }, signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new MarketDataError(`HTTP ${response.status}`);
+  return new TextDecoder(encoding).decode(await response.arrayBuffer());
+}
+
+function globalSymbol(code, market) {
+  return market === "HK" ? `${String(Number(code)).padStart(4, "0")}.HK` : String(code).replace(/_/g, "-");
+}
+
+export function parseMovers(payload, market) {
+  return (payload?.data?.diff ?? []).map((row) => ({ symbol: globalSymbol(row.f12, market), name: row.f14, price: finite(row.f2), changePct: round(finite(row.f3)), amount: round(finite(row.f6), 0) }));
+}
+
+export function parseSinaHk(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({ symbol: globalSymbol(row.symbol, "HK"), name: row.name, price: finite(Number(row.lasttrade)), changePct: round(finite(Number(row.changepercent))), amount: round(finite(Number(row.amount)), 0) }));
+}
+
+export function parseSinaUs(text) {
+  const json = String(text).slice(String(text).indexOf("x(") + 2, String(text).lastIndexOf(")"));
+  const payload = JSON.parse(json || "{}");
+  return {
+    total: Number(payload.count) || null,
+    rows: (payload.data ?? []).map((row) => {
+      const price = finite(Number(row.price));
+      const volume = finite(Number(row.volume));
+      return { symbol: globalSymbol(row.symbol, "US"), name: row.cname || row.name, price, changePct: round(finite(Number(row.chg))), amount: price && volume ? round(price * volume, 0) : null };
+    }),
+  };
+}
+
+// One ranked page from either source. sort: change | amount.
+async function rankedPage(market, { sort = "change", asc = false, page = 1, size = 100 } = {}) {
+  const spec = GLOBAL_MARKETS[market];
+  return eastmoneyFirst(async () => {
+    const payload = await getJson(`${CLIST}?pn=${page}&pz=${size}&po=${asc ? 0 : 1}&np=1&fltt=2&invt=2&fid=${sort === "amount" ? "f6" : "f3"}&fs=${spec.fs}&fields=f2,f3,f6,f12,f14`);
+    return { source: SOURCE, total: payload?.data?.total ?? null, rows: parseMovers(payload, market) };
+  }, async () => {
+    if (market === "HK") return { source: "Sina Finance", total: null, rows: parseSinaHk(JSON.parse(await getText(`${SINA_HK}?page=${page}&num=${size}&sort=${sort === "amount" ? "amount" : "changepercent"}&asc=${asc ? 1 : 0}&node=qbgg_hk`))) };
+    // Sina's US list has no turnover sort; volume is the closest.
+    return { source: "Sina Finance", ...parseSinaUs(await getText(`${SINA_US}?page=${page}&num=${size}&sort=${sort === "amount" ? "volume" : "chg"}&asc=${asc ? 1 : 0}&market=&id=`)) };
+  });
+}
+
+// Lists serve at most 100 rows a page, so count the rising (or falling) names by binary search over
+// the change-sorted pages instead of downloading thousands of rows.
+export async function countSigned(load, { asc = false, maxPages = 200, pageSize = 100 } = {}) {
+  const hit = (value) => value !== null && (asc ? value < 0 : value > 0);
+  const changes = async (page) => (await load(page)).map((row) => row.changePct);
+  let low = 1, high = maxPages;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    const rows = await changes(middle);
+    if (rows.length && hit(rows.at(-1))) low = middle + 1; else high = middle;
+  }
+  return (low - 1) * pageSize + (await changes(low)).filter(hit).length;
+}
+
+export async function globalBreadth(market) {
+  return cached(`breadth:${market}`, 300000, async () => {
+    const first = await rankedPage(market, { size: 100 });
+    // Sina's HK pages repeat and drop rows, so they cannot be counted honestly.
+    if (market === "HK" && first.source !== SOURCE) throw new MarketDataError("东方财富暂时拒绝连接，备用来源不提供港股全市场涨跌家数");
+    // A source may serve fewer rows than asked (Sina's US list stops at 20 a page).
+    const pageSize = Math.max(1, first.rows.length);
+    const maxPages = first.total ? Math.ceil(first.total / pageSize) : 60;
+    const load = (asc) => (page) => rankedPage(market, { asc, page, size: pageSize }).then((result) => result.rows);
+    const [advancers, decliners] = await Promise.all([countSigned(load(false), { maxPages, pageSize }), countSigned(load(true), { asc: true, maxPages, pageSize })]);
+    return { source: first.source, total: first.total, advancers, decliners };
+  });
+}
+
+export function parseTencentIndices(text) {
+  return String(text).split(";").map((line) => line.match(/v_([^=]+)="([^"]*)"/)).filter(Boolean).map(([, code, body]) => {
+    const parts = body.split("~");
+    return { code, name: parts[1], price: finite(Number(parts[3])), change: round(finite(Number(parts[31]))), changePct: round(finite(Number(parts[32]))), at: parts[30] || null };
+  }).filter((row) => row.price);
+}
+
+async function globalIndices(market) {
+  const spec = GLOBAL_MARKETS[market];
+  return cached(`indices:${market}`, 60000, () => eastmoneyFirst(
+    async () => ((await getJson(`${ULIST}?fltt=2&secids=${spec.indices.map(([secid]) => secid).join(",")}&fields=f2,f3,f4,f12,f14`))?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, price: finite(row.f2), change: round(finite(row.f4)), changePct: round(finite(row.f3)) })),
+    async () => parseTencentIndices(await getText(`https://qt.gtimg.cn/q=${spec.indices.map(([, code]) => code).join(",")}`, { referer: "https://gu.qq.com/", encoding: "gbk" })),
+  ));
+}
+
+export async function globalRadar(market, { at } = {}) {
+  const spec = GLOBAL_MARKETS[market];
+  if (!spec) throw new MarketDataError(`Unknown market ${market}`);
+  const settle = async (promise) => { try { return { ok: true, value: await promise }; } catch (error) { return { ok: false, error: error.message }; } };
+  const part = (result) => (result.ok ? result.value : { error: result.error });
+  const movers = (asc) => cached(`movers:${market}:${asc}`, 60000, async () => {
+    const result = await rankedPage(market, { asc });
+    return { source: result.source, rows: result.rows.filter((row) => row.price && (row.amount ?? 0) >= MIN_MOVER_AMOUNT).slice(0, 12) };
+  });
+  const active = () => cached(`active:${market}`, 60000, async () => {
+    const result = await rankedPage(market, { sort: "amount" });
+    return { source: result.source, rows: result.rows.filter((row) => row.price).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)).slice(0, 12) };
+  });
+  const [indices, breadth, gainers, losers, mostActive, extra] = await Promise.all([
+    settle(globalIndices(market)), settle(globalBreadth(market)), settle(movers(false)), settle(movers(true)), settle(active()),
+    market === "HK"
+      ? settle(stockConnect({ days: 10 }).then((connect) => ({ southbound: { source: connect.source, rows: connect.rows.filter((row) => row.channel === "南向合计") } })))
+      : settle(cached("china-adr", 60000, () => eastmoneyFirst(
+        async () => ({ chinaAdrs: { source: SOURCE, rows: parseMovers(await getJson(`${CLIST}?pn=1&pz=12&po=1&np=1&fltt=2&invt=2&fid=f6&fs=b:MK0201&fields=f2,f3,f6,f12,f14`), "US").filter((row) => row.price) } }),
+        async () => { throw new MarketDataError("东方财富暂时拒绝连接，中概股列表只有它提供，稍后会自动重试"); },
+      ))),
+  ]);
+  return {
+    generatedAt: new Date().toISOString(), market, currency: spec.currency, session: getMarketSession(market, at ?? new Date().toISOString()),
+    indices: part(indices), breadth: part(breadth), gainers: part(gainers), losers: part(losers), active: part(mostActive),
+    ...(extra.ok ? extra.value : market === "HK" ? { southbound: { error: extra.error } } : { chinaAdrs: { error: extra.error } }),
+  };
+}

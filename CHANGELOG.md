@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Interactive Brokers (TWS / IB Gateway) for US stocks.** Settings → 券商连接 → Interactive Brokers. On the paper account (DU…) agents place DAY limit orders within the owner's allowlist and limits; on a live account (U…) agents can only propose, and every order waits on the home page until the owner confirms it (re-checked against a fresh quote, expires after 10 minutes by default). Long only, settled cash only, regular hours only; write-ahead order ledger, idempotency keys, an unclear outcome blocks new orders until reconciled, and a 全部停止 switch that pauses agents, drops proposals and cancels open orders. MCP tools `ibkr_get_status`, `ibkr_refresh_account`, `ibkr_evaluate_order`, `ibkr_submit_order`, `ibkr_cancel_order`; setup with `npm run setup:ibkr` (pinned `ib_async==2.1.0`). See docs/BROKER_IBKR.md.
+
 ## 1.8.2 — HK / US market radar, run process drawer
 
 - **Market radar covers Hong Kong and US.** The radar page switches between A-shares, HK and US. HK/US show headline indices, whole-market advancers / decliners, top gainers and losers (names under 5M turnover left out), the most traded names, southbound flow (HK) and US-listed Chinese stocks (US). Agents get the same with `get_market_radar` `market=HK|US`.

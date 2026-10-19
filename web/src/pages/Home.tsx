@@ -7,6 +7,7 @@ import { NewTraderDialog } from '@/components/NewTrader'
 import { AGENT_NAME, BENCHMARK_NAME, MARKET_NAME } from '@/lib/format'
 import { isEnglish, locale, t } from '@/lib/i18n'
 import { useAccounts, useApprovals, usePools, useSchedules, useUsage } from '@/lib/queries'
+import { PendingConfirmations, useIbkrStatus } from '@/components/IbkrPanel'
 
 const today = () => new Intl.DateTimeFormat(locale(), { month: 'long', day: 'numeric', weekday: 'short' }).format(new Date())
 
@@ -23,7 +24,9 @@ export function HomePage() {
   const waiting = approvals.data?.approvals ?? []
   const paused = jobs.filter((job) => job.paused).map((job) => ({ job, account: accounts.find((account) => account.id === job.accountId) })).filter((entry) => entry.account)
   const exhausted = (pools.data?.pools ?? []).filter((pool) => pool.paused)
-  const attention = waiting.length + requests.length + paused.length + exhausted.length
+  const ibkr = useIbkrStatus()
+  const live = ibkr.data?.pendingConfirmations?.length ?? 0
+  const attention = waiting.length + requests.length + paused.length + exhausted.length + live
   const sorted = useMemo(() => [...accounts].filter((account) => market === 'all' || account.market === market).sort((a, b) => (b.metrics.todayReturnPct ?? -999) - (a.metrics.todayReturnPct ?? -999)), [accounts, market])
   const leader = [...accounts].sort((a, b) => (b.metrics.todayReturnPct ?? -999) - (a.metrics.todayReturnPct ?? -999))[0]
   const beating = accounts.filter((account) => (account.metrics.excessReturnPct ?? 0) > 0).length
@@ -51,6 +54,7 @@ export function HomePage() {
       {attention > 0 && (
         <section aria-labelledby="h-attn" className="flex flex-col gap-3">
           <div className="flex items-center gap-2"><h2 id="h-attn" className="m-0 text-base font-semibold">{t('需要你看')}</h2><span className="rounded-full bg-accent px-[7px] font-mono text-xs text-white">{attention}</span></div>
+          {live > 0 && <PendingConfirmations />}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(380px,100%),1fr))] gap-4">
             {waiting.map((approval) => approval.account && <ApprovalCard key={approval.id} approval={approval} account={approval.account} />)}
             {requests.map(({ account, request }) => <RequestCard key={request.id} account={account} request={request} />)}

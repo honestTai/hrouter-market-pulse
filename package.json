@@ -30,6 +30,7 @@
     "build:ui": "node scripts/build-ui.mjs",
     "build:desktop": "npm --prefix desktop run build",
     "setup:futu": "node scripts/setup-futu.mjs",
+    "setup:ibkr": "node scripts/setup-ibkr.mjs",
     "connect": "node scripts/connect-agent.mjs",
     "cli": "node cli/market-pulse.mjs",
     "cli:install": "node cli/market-pulse.mjs install",

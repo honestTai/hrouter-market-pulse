@@ -1,5 +1,6 @@
 import { inDateRange, matchesText, pageParams, paginate } from "./paging.mjs";
 import { getPaperService } from "./paper.mjs";
+import { getIbkrService } from "./ibkr.mjs";
 import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
@@ -248,6 +249,7 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
           return respond(response, 200, { ...(await arena.getAccount(arenaAccount[1], { limit: 200, sync: url.searchParams.get("sync") === "1" || await needsSync(arena) })) });
         }
         if (url.pathname === "/api/paper/status") return respond(response, 200, await getPaperService().status());
+        if (url.pathname === "/api/ibkr/status") return respond(response, 200, await getIbkrService().status());
         if (url.pathname === "/api/evidence") {
           const evidence = await queryEvidence({
             symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : undefined,
@@ -451,6 +453,14 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
           if (url.pathname === "/api/workbench/prompts") return respond(response, 200, await arena.setWorkbenchPrompt({ scope: body.scope, prompt: body.prompt, reason: body.reason }, dashboardCaller));
           if (url.pathname === "/api/workbench/settings") return respond(response, 200, await arena.updateWorkbench(body, dashboardCaller));
           return respond(response, 404, { error: "Unknown workbench action" });
+        }
+        // Interactive Brokers: connection, policy, confirmations and halt are owner-only (never MCP).
+        if (url.pathname.startsWith("/api/ibkr/")) {
+          const actions = { config: "saveConfig", connect: "accounts", policy: "savePolicy", refresh: "refresh", evaluate: "evaluate", submit: "submit", cancel: "cancel", confirm: "confirm", reject: "reject", halt: "halt" };
+          const action = actions[url.pathname.slice("/api/ibkr/".length)];
+          if (!action) return respond(response, 404, { error: "Unknown IBKR action" });
+          const ibkr = getIbkrService();
+          return respond(response, 200, action === "accounts" ? await ibkr.accounts(body.environment) : action === "cancel" ? await ibkr.cancel(body, { owner: true }) : await ibkr[action](body));
         }
         if (url.pathname.startsWith("/api/paper/")) {
           const actions = { connect: "accounts", refresh: "refresh", policy: "savePolicy", evaluate: "evaluate", submit: "submit", cancel: "cancel" };

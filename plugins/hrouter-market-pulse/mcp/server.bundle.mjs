@@ -1059,10 +1059,10 @@ var require_util = __commonJS({
     var codegen_1 = require_codegen();
     var code_1 = require_code();
     function toHash(arr) {
-      const hash2 = {};
+      const hash3 = {};
       for (const item of arr)
-        hash2[item] = true;
-      return hash2;
+        hash3[item] = true;
+      return hash3;
     }
     exports.toHash = toHash;
     function alwaysValidSchema(it, schema) {
@@ -3260,8 +3260,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path19) {
-      let input = path19;
+    function removeDotSegments(path20) {
+      let input = path20;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3670,8 +3670,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path19 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path19 && path19 !== "/" ? path19 : void 0;
+        const path20 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path20 && path20 !== "/" ? path20 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -7214,23 +7214,23 @@ __export(arena_service_exports, {
   serviceEnvironment: () => serviceEnvironment,
   servicePlan: () => servicePlan
 });
-import { execFile as execFile3, spawn as spawn5 } from "node:child_process";
+import { execFile as execFile3, spawn as spawn6 } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
-import { mkdir as mkdir14, rm as rm6, writeFile as writeFile13 } from "node:fs/promises";
-import os8 from "node:os";
-import path18 from "node:path";
-import { fileURLToPath as fileURLToPath5 } from "node:url";
+import { mkdir as mkdir15, rm as rm7, writeFile as writeFile13 } from "node:fs/promises";
+import os9 from "node:os";
+import path19 from "node:path";
+import { fileURLToPath as fileURLToPath6 } from "node:url";
 import { promisify as promisify3 } from "node:util";
 function bundlePath() {
-  const self = fileURLToPath5(import.meta.url);
+  const self = fileURLToPath6(import.meta.url);
   if (self.endsWith("server.bundle.mjs")) return self;
-  const packaged = path18.join(root, "plugins", "hrouter-market-pulse", "mcp", "server.bundle.mjs");
-  return existsSync3(packaged) ? packaged : path18.join(root, "mcp", "server.bundle.mjs");
+  const packaged = path19.join(root, "plugins", "hrouter-market-pulse", "mcp", "server.bundle.mjs");
+  return existsSync3(packaged) ? packaged : path19.join(root, "mcp", "server.bundle.mjs");
 }
-function storageDir(home2 = os8.homedir()) {
-  if (process.env.HROUTER_REPORT_DIR) return path18.resolve(process.env.HROUTER_REPORT_DIR);
-  const base = process.env.LOCALAPPDATA || (process.platform === "win32" ? path18.join(home2, "AppData", "Local") : path18.join(home2, ".hrouter-market-pulse"));
-  return path18.join(base, "HrouterMarketPulse");
+function storageDir(home2 = os9.homedir()) {
+  if (process.env.HROUTER_REPORT_DIR) return path19.resolve(process.env.HROUTER_REPORT_DIR);
+  const base = process.env.LOCALAPPDATA || (process.platform === "win32" ? path19.join(home2, "AppData", "Local") : path19.join(home2, ".hrouter-market-pulse"));
+  return path19.join(base, "HrouterMarketPulse");
 }
 function serviceEnvironment(env = process.env) {
   const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA", "CODEBUDDY_API_KEY"];
@@ -7238,11 +7238,11 @@ function serviceEnvironment(env = process.env) {
   selected.HROUTER_REPORT_PORT = env.HROUTER_ARENA_PORT || "8780";
   return selected;
 }
-function servicePlan({ platform = process.platform, home: home2 = os8.homedir(), node = process.execPath, bundle = bundlePath(), env = serviceEnvironment(), uid = process.getuid?.() } = {}) {
+function servicePlan({ platform = process.platform, home: home2 = os9.homedir(), node = process.execPath, bundle = bundlePath(), env = serviceEnvironment(), uid = process.getuid?.() } = {}) {
   const args = [bundle, "--service"];
-  const log = path18.join(storageDir(home2), "arena", "service.log");
+  const log = path19.join(storageDir(home2), "arena", "service.log");
   if (platform === "darwin") {
-    const file = path18.join(home2, "Library", "LaunchAgents", `${SERVICE_NAME}.plist`);
+    const file = path19.join(home2, "Library", "LaunchAgents", `${SERVICE_NAME}.plist`);
     const content = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -7264,7 +7264,7 @@ function servicePlan({ platform = process.platform, home: home2 = os8.homedir(),
     };
   }
   if (platform === "linux") {
-    const file = path18.join(home2, ".config", "systemd", "user", `${SERVICE_NAME}.service`);
+    const file = path19.join(home2, ".config", "systemd", "user", `${SERVICE_NAME}.service`);
     const content = `[Unit]
 Description=Hrouter Market Pulse Agent Arena service
 After=network-online.target
@@ -7323,17 +7323,17 @@ async function health(port) {
 async function main(argv = process.argv.slice(2)) {
   const action = argv[0] ?? "status";
   if (action === "run") {
-    const child = spawn5(process.execPath, [bundlePath(), "--service"], { stdio: "inherit", env: { ...process.env, ...serviceEnvironment() } });
+    const child = spawn6(process.execPath, [bundlePath(), "--service"], { stdio: "inherit", env: { ...process.env, ...serviceEnvironment() } });
     child.on("exit", (code) => process.exit(code ?? 0));
     return;
   }
   const plan = servicePlan();
   if (!existsSync3(bundlePath())) throw new Error("Build first: npm ci && npm run build");
   if (action === "install") {
-    await mkdir14(path18.dirname(plan.log), { recursive: true });
+    await mkdir15(path19.dirname(plan.log), { recursive: true });
     for (const [command, args] of plan.disable) await exec(command, args, { allowFailure: true });
     for (const file of plan.files) {
-      await mkdir14(path18.dirname(file.path), { recursive: true });
+      await mkdir15(path19.dirname(file.path), { recursive: true });
       await writeFile13(file.path, file.content, { mode: 384 });
     }
     for (const [command, args] of plan.enable) {
@@ -7353,14 +7353,14 @@ async function main(argv = process.argv.slice(2)) {
       await new Promise((resolve) => setTimeout(resolve, 1e3));
       state = await health(port);
     }
-    const cli = path18.join(path18.dirname(path18.dirname(bundlePath())), "cli", "market-pulse.mjs");
+    const cli = path19.join(path19.dirname(path19.dirname(bundlePath())), "cli", "market-pulse.mjs");
     const cliInstalled = existsSync3(cli) ? await exec(process.execPath, [cli, "install"], { allowFailure: true }).then((stdout) => /Installed/.test(stdout), () => false) : false;
     console.log(JSON.stringify({ installed: plan.kind, cli: cliInstalled ? "market-pulse" : null, bundle: bundlePath(), dashboard: `http://127.0.0.1:${port}/?view=arena`, log: plan.log, health: state }, null, 2));
     return;
   }
   if (action === "uninstall") {
     for (const [command, args] of plan.disable) await exec(command, args, { allowFailure: true });
-    for (const file of plan.files) await rm6(file.path, { force: true });
+    for (const file of plan.files) await rm7(file.path, { force: true });
     if (plan.kind === "systemd-user") await exec("systemctl", ["--user", "daemon-reload"], { allowFailure: true });
     console.log(JSON.stringify({ uninstalled: plan.kind }, null, 2));
     return;
@@ -7380,11 +7380,11 @@ var init_arena_service = __esm({
     init_update_scheduler();
     SERVICE_NAME = "net.hrouter.market-pulse.arena";
     run2 = promisify3(execFile3);
-    root = path18.resolve(path18.dirname(fileURLToPath5(import.meta.url)), "..");
+    root = path19.resolve(path19.dirname(fileURLToPath6(import.meta.url)), "..");
     xml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     ps = (value) => `'${String(value).replaceAll("'", "''")}'`;
     unit = (value) => `"${String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%").replaceAll("$", "$$$$")}"`;
-    if (process.argv[1] && path18.resolve(process.argv[1]) === fileURLToPath5(import.meta.url) && !fileURLToPath5(import.meta.url).endsWith("server.bundle.mjs")) {
+    if (process.argv[1] && path19.resolve(process.argv[1]) === fileURLToPath6(import.meta.url) && !fileURLToPath6(import.meta.url).endsWith("server.bundle.mjs")) {
       main().catch((error2) => {
         console.error(error2.message);
         process.exit(1);
@@ -7509,8 +7509,8 @@ function getMarketSession(market2, value = (/* @__PURE__ */ new Date()).toISOStr
   const verified = Boolean(datedCoverage);
   const closed = calendar.closedDates?.includes(local.date) || override?.closed === true || !calendar.openDates?.includes(local.date) && ["Sat", "Sun"].includes(local.weekday);
   const sessions = override?.sessions ?? MARKETS[market2]?.sessions ?? MARKETS.US.sessions;
-  const [open2, close] = [sessions[0][0], sessions.at(-1)[1]];
-  const status = closed ? "closed" : local.minute < open2 ? "premarket" : local.minute >= close ? "postmarket" : sessions.some(([start, end]) => local.minute >= start && local.minute < end) ? "open" : "break";
+  const [open3, close] = [sessions[0][0], sessions.at(-1)[1]];
+  const status = closed ? "closed" : local.minute < open3 ? "premarket" : local.minute >= close ? "postmarket" : sessions.some(([start, end]) => local.minute >= start && local.minute < end) ? "open" : "break";
   return {
     ...local,
     market: market2,
@@ -7519,7 +7519,7 @@ function getMarketSession(market2, value = (/* @__PURE__ */ new Date()).toISOStr
     verified,
     calendarCoverage: verified ? calendar === CALENDARS_2026[market2] ? "official-2026" : "dated-override" : "weekday-only",
     source: verified ? calendar.source : null,
-    openAt: marketLocalToIso(local.date, open2, market2),
+    openAt: marketLocalToIso(local.date, open3, market2),
     closeAt: marketLocalToIso(local.date, close, market2)
   };
 }
@@ -8216,14 +8216,14 @@ function parseTencentHistory(input, rawPayload, adjustedPayload, options = {}) {
   let previousDate = "";
   const history = raw.map((row) => {
     const [date4, o, c, h, l, v] = row;
-    const open2 = finite(o), close = finite(c), high = finite(h), low = finite(l), volume = finite(v);
+    const open3 = finite(o), close = finite(c), high = finite(h), low = finite(l), volume = finite(v);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date4) || !Number.isFinite(Date.parse(date4)) || new Date(date4).toISOString().slice(0, 10) !== date4 || date4 <= previousDate) throw new Error("Invalid or unordered Tencent session dates");
-    if (![open2, close, high, low].every((value) => value > 0) || high < Math.max(open2, close) || low > Math.min(open2, close) || volume === null || volume < 0) throw new Error(`Invalid Tencent OHLCV at ${date4}`);
+    if (![open3, close, high, low].every((value) => value > 0) || high < Math.max(open3, close) || low > Math.min(open3, close) || volume === null || volume < 0) throw new Error(`Invalid Tencent OHLCV at ${date4}`);
     previousDate = date4;
     const adjustedClose = adjusted ? finite(adjustedByDate.get(date4)?.[2]) : null;
     if (adjusted && !(adjustedClose > 0)) throw new Error(`Tencent adjustment missing at ${date4}`);
     const timestamp = marketLocalToIso(date4, 12 * 60, market2);
-    return { timestamp, open: open2, close, high, low, volume, adjustedClose, adjustmentFactor: adjustedClose === null ? null : adjustedClose / close, ...dailyBarMetadata(timestamp, market2, options) };
+    return { timestamp, open: open3, close, high, low, volume, adjustedClose, adjustmentFactor: adjustedClose === null ? null : adjustedClose / close, ...dailyBarMetadata(timestamp, market2, options) };
   });
   const completed = history.filter((row) => row.complete);
   const anchor = history.at(-1).adjustmentFactor ?? 1;
@@ -11100,6 +11100,487 @@ function getPaperService() {
   return service ||= new PaperService();
 }
 
+// mcp/ibkr.mjs
+import { spawn as spawn2 } from "node:child_process";
+import { randomUUID as randomUUID3, createHash as createHash3 } from "node:crypto";
+import { mkdir as mkdir5, readFile as readFile5, open as open2, rename as rename5, rm as rm2 } from "node:fs/promises";
+import os2 from "node:os";
+import path5 from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+var IBKR_ENVIRONMENTS = Object.freeze(["PAPER", "LIVE"]);
+var LIVE_ACKNOWLEDGEMENT = "\u6211\u786E\u8BA4\u4F7F\u7528\u771F\u5B9E\u8D44\u91D1";
+var ACCOUNT = { PAPER: /^D[UF]\d{4,12}$/, LIVE: /^U\d{4,12}$/ };
+var ACTIVE = ["ApiPending", "PendingSubmit", "PreSubmitted", "Submitted", "PendingCancel"];
+var MAX_PENDING_CONFIRMATIONS = 10;
+var finite4 = (v) => typeof v === "number" && Number.isFinite(v);
+var hash2 = (v) => createHash3("sha256").update(JSON.stringify(v)).digest("hex");
+var fail2 = (message) => {
+  throw new Error(message);
+};
+var tradingDate2 = (at) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at));
+function defaultIbkrPython(env = process.env) {
+  const base = env.HROUTER_IBKR_VENV || path5.join(env.LOCALAPPDATA || path5.join(os2.homedir(), ".local", "share"), "hrouter-market-pulse", "ibkr-venv");
+  return path5.join(base, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+}
+function validateIbkrConfig(input = {}) {
+  const port = Number(input.port ?? 7497), clientId = Number(input.clientId ?? 71);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) fail2("Invalid TWS / IB Gateway port");
+  if (!Number.isInteger(clientId) || clientId < 1 || clientId > 32e3) fail2("API client ID must be 1\u201332000");
+  const python = String(input.python ?? "").trim();
+  if (python && (!path5.isAbsolute(python) || python.length > 500)) fail2("Python must be an absolute path to the ibkr venv interpreter");
+  return { enabled: input.enabled === true, host: "127.0.0.1", port, clientId, python: python || null };
+}
+function usSymbol(symbol) {
+  if (typeof symbol !== "string" || !symbol.trim()) fail2("Symbol required");
+  const normalized = normalizeSymbol(symbol);
+  if (!/^[A-Z][A-Z0-9.\-]{0,14}$/.test(normalized) || /\.(HK|SS|SZ|BJ)$/.test(normalized)) fail2("Only US stock symbols are supported through IBKR");
+  return normalized;
+}
+function validateIbkrPolicy(input) {
+  if (!input || typeof input.enabled !== "boolean") fail2("Explicit enabled flag required");
+  if (!IBKR_ENVIRONMENTS.includes(input.environment)) fail2("Environment must be PAPER or LIVE");
+  if (!input.enabled) return { enabled: false, environment: input.environment };
+  if (typeof input.accountId !== "string" || !ACCOUNT[input.environment].test(input.accountId)) fail2(`A ${input.environment} account ID is required (${input.environment === "PAPER" ? "DU\u2026" : "U\u2026"})`);
+  if (input.environment === "LIVE" && input.liveAcknowledgement !== LIVE_ACKNOWLEDGEMENT) fail2(`Type "${LIVE_ACKNOWLEDGEMENT}" to enable a real-money account`);
+  if (!Array.isArray(input.allowedSymbols) || !input.allowedSymbols.length || input.allowedSymbols.length > 50) fail2("Allowlist requires 1\u201350 symbols");
+  const allowedSymbols = [...new Set(input.allowedSymbols.map(usSymbol))];
+  const limits = {};
+  for (const [name, max] of Object.entries({ maxOrderValue: 1e8, maxDailyOrderValue: 1e9, maxPositionValue: 1e9, maxOrdersPerDay: 1e3, maxQuoteAgeSeconds: 300, maxLimitDeviationPct: 5 })) {
+    const v = input[name];
+    if (!finite4(v) || v <= 0 || v > max || ["maxOrdersPerDay", "maxQuoteAgeSeconds"].includes(name) && !Number.isInteger(v)) fail2(`Explicit valid ${name} required (0 < value <= ${max})`);
+    limits[name] = v;
+  }
+  if (limits.maxOrderValue > limits.maxDailyOrderValue || limits.maxOrderValue > limits.maxPositionValue) fail2("Single-order limit must not exceed the daily or position limit");
+  const confirmMinutes = input.environment === "LIVE" ? Number(input.confirmMinutes ?? 10) : null;
+  if (input.environment === "LIVE" && (!Number.isInteger(confirmMinutes) || confirmMinutes < 1 || confirmMinutes > 30)) fail2("Confirmation window must be 1\u201330 minutes");
+  return {
+    enabled: true,
+    environment: input.environment,
+    accountId: input.accountId,
+    currency: "USD",
+    allowedSymbols,
+    ...limits,
+    ...input.environment === "LIVE" ? { confirmMinutes, requiresConfirmation: true } : { requiresConfirmation: false }
+  };
+}
+function validateIbkrOrder(input) {
+  if (!input) fail2("Order required");
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(input.idempotencyKey || "")) fail2("Stable idempotencyKey of 8\u201380 letters/digits/_/- required");
+  if (!["BUY", "SELL"].includes(input.side)) fail2("Only BUY and long-position SELL supported");
+  if (!Number.isInteger(input.quantity) || input.quantity <= 0 || input.quantity > 1e6 || !finite4(input.limitPrice) || input.limitPrice <= 0 || input.limitPrice > 1e6) fail2("Positive whole-share quantity and finite limit price required");
+  if (typeof input.rationale !== "string" || !input.rationale.trim() || input.rationale.length > 2e3) fail2("Record an explicit rationale (1\u20132000 characters)");
+  return { symbol: usSymbol(input.symbol), side: input.side, quantity: input.quantity, limitPrice: input.limitPrice, rationale: input.rationale.trim(), idempotencyKey: input.idempotencyKey };
+}
+function invokeIbkr(request, config2, { timeoutMs = 6e4 } = {}) {
+  if (!config2.enabled || !config2.python) return Promise.reject(Object.assign(new Error("IBKR is not connected. Set it up under \u8BBE\u7F6E \u2192 \u5238\u5546\u8FDE\u63A5 \u2192 Interactive Brokers."), { definitelyNotDispatched: true }));
+  const payload = { ...request, host: "127.0.0.1", port: config2.port, clientId: config2.clientId };
+  const script = fileURLToPath2(new URL("../bridges/ibkr/bridge.py", import.meta.url));
+  return new Promise((resolve, reject) => {
+    let output = "", finished = false;
+    const child = spawn2(config2.python, ["-B", script], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    const finish = (error2, data) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      error2 ? reject(error2) : resolve(data);
+    };
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(new Error(["submit", "cancel"].includes(request.action) ? "IBKR bridge timed out; if the order was sent its outcome is UNKNOWN. Reconcile, never auto-retry." : "TWS / IB Gateway did not answer in time; nothing was sent."));
+    }, timeoutMs);
+    child.on("error", (e) => finish(Object.assign(new Error(`IBKR Python bridge unavailable: ${e.message}`), { definitelyNotDispatched: true })));
+    child.stdout.on("data", (bytes) => {
+      output += bytes.toString();
+      if (output.length > 4e6) {
+        child.kill("SIGKILL");
+        finish(new Error("Bridge output limit exceeded; reconcile any dispatched request"));
+      }
+    });
+    child.stderr.on("data", () => {
+    });
+    child.stdin.on("error", (e) => finish(e));
+    child.on("close", () => {
+      if (finished) return;
+      try {
+        const line = output.split(/\r?\n/).filter((l) => l.startsWith("HROUTER_IBKR_RESULT=")).at(-1);
+        if (!line) fail2("No bridge response. Run npm run setup:ibkr and check TWS; reconcile any dispatched request.");
+        const result = JSON.parse(line.slice("HROUTER_IBKR_RESULT=".length));
+        if (!result.ok) throw Object.assign(new Error(result.error || "IBKR bridge failed"), { definitelyNotDispatched: result.dispatched === false });
+        finish(null, result.data);
+      } catch (e) {
+        finish(e);
+      }
+    });
+    child.stdin.end(JSON.stringify(payload));
+  });
+}
+async function readJson2(file, fallback) {
+  try {
+    return JSON.parse(await readFile5(file, "utf8"));
+  } catch (e) {
+    if (e.code === "ENOENT") return structuredClone(fallback);
+    throw e;
+  }
+}
+async function writeJson2(file, value) {
+  const temp = `${file}.${randomUUID3()}.tmp`;
+  const handle = await open2(temp, "wx", 384);
+  try {
+    await handle.writeFile(JSON.stringify(value, null, 2));
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  await rename5(temp, file);
+}
+var limitation2 = "PAPER orders go to your IB paper account; LIVE orders use real money and are only sent after you confirm each one. Order acknowledgements are not fills; positions and cash come from IB.";
+var IbkrService = class {
+  constructor({ dir, bridge, quote, now, env = process.env } = {}) {
+    this.dir = dir || path5.join(getStorageDir(), "broker-ibkr");
+    this.env = env;
+    this.customBridge = bridge;
+    this.quote = quote || ((symbol) => getQuote(symbol));
+    this.now = now || (() => (/* @__PURE__ */ new Date()).toISOString());
+  }
+  file(name) {
+    return path5.join(this.dir, name);
+  }
+  async config() {
+    const stored = await readJson2(this.file("config.json"), { enabled: false });
+    return validateIbkrConfig({ ...stored, python: stored.python || (stored.enabled ? defaultIbkrPython(this.env) : null) });
+  }
+  async bridge(request) {
+    return this.customBridge ? this.customBridge(request) : invokeIbkr(request, await this.config());
+  }
+  async state() {
+    return readJson2(this.file("state.json"), { intents: [], samples: [], snapshots: [] });
+  }
+  async policy() {
+    return readJson2(this.file("policy.json"), { enabled: false, environment: "PAPER" });
+  }
+  async exclusive(fn) {
+    await mkdir5(this.dir, { recursive: true, mode: 448 });
+    const lock = this.file("operation.lock");
+    try {
+      await mkdir5(lock);
+    } catch (e) {
+      if (e.code === "EEXIST") fail2("Another IBKR operation is running or was interrupted. Check TWS before removing broker-ibkr/operation.lock; never replay orders.");
+      throw e;
+    }
+    try {
+      return await fn();
+    } finally {
+      await rm2(lock, { recursive: true, maxRetries: 5, retryDelay: 50 });
+    }
+  }
+  // Owner actions (dashboard only) ------------------------------------------------------------
+  async saveConfig(input) {
+    return this.exclusive(async () => {
+      const config2 = validateIbkrConfig({ ...input, enabled: true, python: input.python || defaultIbkrPython(this.env) });
+      await writeJson2(this.file("config.json"), { ...config2, updatedAt: this.now() });
+      return config2;
+    });
+  }
+  async accounts(environment) {
+    if (!IBKR_ENVIRONMENTS.includes(environment)) fail2("Environment must be PAPER or LIVE");
+    const data = await this.bridge({ action: "accounts", environment });
+    if (!Array.isArray(data.accounts) || data.accounts.some((a) => a.environment !== environment || !ACCOUNT[environment].test(a.accountId))) fail2("Unsafe account response rejected");
+    return { ...data, environment, observedAt: this.now() };
+  }
+  async savePolicy(input) {
+    return this.exclusive(async () => {
+      const next = validateIbkrPolicy(input);
+      if (next.enabled) {
+        const { accounts } = await this.accounts(next.environment);
+        if (!accounts.some((a) => a.accountId === next.accountId)) fail2(`Account ${next.accountId} is not a ${next.environment} account of the TWS / IB Gateway login`);
+      }
+      const policy = { ...!next.enabled ? { ...await this.policy(), environment: next.environment } : {}, ...next, revision: randomUUID3(), updatedAt: this.now() };
+      await writeJson2(this.file("policy.json"), policy);
+      return policy;
+    });
+  }
+  // Pause agents and request cancellation of every open order this workbench placed.
+  async halt() {
+    const policy = await this.exclusive(async () => {
+      const current = await this.policy();
+      const paused = { ...current, enabled: false, revision: randomUUID3(), updatedAt: this.now(), haltedAt: this.now() };
+      await writeJson2(this.file("policy.json"), paused);
+      const state = await this.state();
+      for (const intent of state.intents.filter((r) => r.status === "awaiting-confirmation")) {
+        Object.assign(intent, { status: "rejected", error: "Halted by owner" });
+        intent.events.push({ at: this.now(), type: "rejected", error: "Halted by owner" });
+      }
+      await writeJson2(this.file("state.json"), state);
+      return paused;
+    });
+    const cancellations = [];
+    if (policy.accountId) {
+      const { snapshot: snapshot2 } = await this.refresh();
+      const state = await this.state();
+      for (const order of snapshot2.orders.filter((o) => ACTIVE.includes(o.status) && o.orderId && state.intents.some((r) => r.kind === "order" && r.brokerOrderId === o.orderId))) {
+        try {
+          cancellations.push(await this.cancel({ orderId: order.orderId, idempotencyKey: `halt_${randomUUID3()}` }, { owner: true }));
+        } catch (error2) {
+          cancellations.push({ orderId: order.orderId, status: "failed", error: error2.message });
+        }
+      }
+    }
+    return { policy, cancellations };
+  }
+  async confirm({ id } = {}) {
+    return this.decide(id, true);
+  }
+  async reject({ id } = {}) {
+    return this.decide(id, false);
+  }
+  async decide(id, approve) {
+    if (typeof id !== "string" || !id) fail2("Order ID required");
+    return this.exclusive(async () => {
+      const state = await this.state();
+      const intent = state.intents.find((r) => r.id === id);
+      if (!intent) fail2("Order not found");
+      if (intent.status !== "awaiting-confirmation") fail2(`This order is ${intent.status}, not waiting for confirmation`);
+      if (!approve) {
+        Object.assign(intent, { status: "rejected", decidedAt: this.now() });
+        intent.events.push({ at: this.now(), type: "rejected" });
+        await writeJson2(this.file("state.json"), state);
+        return intent;
+      }
+      if (Date.parse(this.now()) > Date.parse(intent.expiresAt)) {
+        Object.assign(intent, { status: "expired", error: "Confirmation window passed" });
+        intent.events.push({ at: this.now(), type: "expired" });
+        await writeJson2(this.file("state.json"), state);
+        return intent;
+      }
+      intent.confirmedAt = this.now();
+      intent.events.push({ at: intent.confirmedAt, type: "confirmed" });
+      return this.dispatch(intent, state, await this.policy(), { confirmed: true });
+    });
+  }
+  // Agent actions (MCP) -----------------------------------------------------------------------
+  async status() {
+    const [config2, policy, state] = await Promise.all([this.config(), this.policy(), this.state()]);
+    const pending = state.intents.filter((r) => r.status === "awaiting-confirmation" && Date.parse(r.expiresAt) > Date.parse(this.now()));
+    return {
+      provider: "ibkr-tws",
+      config: { connected: config2.enabled, port: config2.port, clientId: config2.clientId, python: config2.python },
+      policy,
+      limitation: limitation2,
+      pendingConfirmations: pending,
+      intents: state.intents.slice(-100).reverse(),
+      samples: state.samples.slice(-300),
+      snapshot: state.snapshots.at(-1) ?? null,
+      ports: { tws: { PAPER: 7497, LIVE: 7496 }, gateway: { PAPER: 4002, LIVE: 4001 } }
+    };
+  }
+  async snapshot(policy) {
+    const data = await this.bridge({ action: "snapshot", environment: policy.environment, accountId: policy.accountId });
+    if (data.accountId !== policy.accountId || data.environment !== policy.environment || data.currency !== "USD" || !Array.isArray(data.orders) || !Array.isArray(data.positions)) fail2("Broker snapshot identity mismatch");
+    return { ...data, observedAt: this.now() };
+  }
+  async refresh() {
+    return this.exclusive(async () => {
+      const policy = await this.policy();
+      if (!policy.accountId) fail2("Pick an IB account in the dashboard first");
+      const snap = await this.snapshot(policy);
+      const state = await this.state();
+      for (const intent of state.intents.filter((r) => r.accountId === snap.accountId && r.kind === "order")) {
+        const order = snap.orders.find((o) => intent.brokerOrderId && o.orderId === intent.brokerOrderId || o.orderRef === `hrouter:${intent.id}`);
+        if (!order) continue;
+        if (hash2(intent.broker || {}) !== hash2(order)) (intent.events ||= []).push({ at: snap.observedAt, type: "broker-observed", broker: order });
+        Object.assign(intent, { brokerOrderId: order.orderId, broker: order, reconciledAt: snap.observedAt });
+        if (["dispatching", "unknown"].includes(intent.status)) Object.assign(intent, { status: "acknowledged", error: null });
+      }
+      state.samples.push({ accountId: snap.accountId, environment: snap.environment, observedAt: snap.observedAt, policyRevision: policy.revision || null, ...snap.funds });
+      state.samples = state.samples.slice(-2e3);
+      state.snapshots = [...state.snapshots.filter((s) => s.accountId !== snap.accountId), snap].slice(-5);
+      await writeJson2(this.file("state.json"), state);
+      return { snapshot: snap, intents: state.intents.filter((r) => r.accountId === snap.accountId).slice(-100).reverse() };
+    });
+  }
+  async assess(order, policy, state, { counting = true } = {}) {
+    if (!policy.enabled) fail2("IBKR execution is paused. The owner enables it in the dashboard.");
+    if (!policy.allowedSymbols.includes(order.symbol)) fail2("Symbol is outside the owner's allowlist");
+    const notional = order.quantity * order.limitPrice;
+    if (!finite4(notional) || notional > policy.maxOrderValue) fail2("Single-order notional limit exceeded");
+    const relevant = state.intents.filter((r) => r.accountId === policy.accountId && r.kind === "order");
+    if (relevant.some((r) => ["dispatching", "unknown"].includes(r.status))) fail2("An earlier order has an unclear outcome. Refresh/reconcile before new orders; do not retry with a new key.");
+    if (counting) {
+      const today = relevant.filter((r) => (r.dispatchedAt || r.status === "awaiting-confirmation" && Date.parse(r.expiresAt) > Date.parse(this.now())) && tradingDate2(r.dispatchedAt || r.createdAt) === tradingDate2(this.now()));
+      if (today.length >= policy.maxOrdersPerDay || today.reduce((n, r) => n + r.notional, 0) + notional > policy.maxDailyOrderValue) fail2("Daily order count / notional budget exceeded (pending confirmations and cancellations count)");
+    }
+    const quote = await this.quote(order.symbol);
+    const age = Date.parse(this.now()) - Date.parse(quote.asOf);
+    if (quote.demo || quote.synthetic || quote.symbol !== order.symbol || quote.currency !== "USD" || !finite4(quote.price) || quote.price <= 0 || !Number.isFinite(age) || age < -5e3 || age > policy.maxQuoteAgeSeconds * 1e3 || quote.signalEligible !== true || quote.freshness?.status !== "fresh" || !["matched", "fallback", "unavailable"].includes(quote.crossCheck?.status)) fail2("Real quote is missing, stale, market-closed or in conflict; no order");
+    if (Math.abs(order.limitPrice / quote.price - 1) * 100 > policy.maxLimitDeviationPct) fail2("Limit price deviates too far from the current verified quote");
+    const snapshot2 = await this.snapshot(policy);
+    const held = snapshot2.positions.filter((p) => p.symbol === order.symbol && p.secType === "STK" && p.currency === "USD");
+    if (order.side === "SELL") {
+      const quantity = held.reduce((n, p) => n + (finite4(p.quantity) ? p.quantity : 0), 0);
+      const openSells = snapshot2.orders.filter((o) => o.side === "SELL" && o.symbol === order.symbol && ACTIVE.includes(o.status)).reduce((n, o) => n + (o.remaining ?? o.quantity ?? 0), 0);
+      if (quantity - openSells < order.quantity) fail2("Insufficient long position after open sell orders; shorts are disabled");
+    } else {
+      const openBuys = snapshot2.orders.filter((o) => o.side === "BUY" && ACTIVE.includes(o.status));
+      if (openBuys.some((o) => !finite4(o.price) || !finite4(o.quantity))) fail2("Unverifiable open buy orders; no new buys");
+      const commitments = openBuys.reduce((n, o) => n + (o.remaining ?? o.quantity) * o.price, 0);
+      const currentValue = held.reduce((n, p) => n + Math.abs(p.marketValue ?? (p.quantity ?? 0) * quote.price), 0);
+      const symbolPending = openBuys.filter((o) => o.symbol === order.symbol).reduce((n, o) => n + (o.remaining ?? o.quantity) * o.price, 0);
+      if (!finite4(snapshot2.funds?.cash) || snapshot2.funds.cash < commitments + notional) fail2("Settled cash does not cover this buy plus open buy orders; margin is not used");
+      if (currentValue + symbolPending + notional > policy.maxPositionValue) fail2("Position limit including open buys exceeded");
+    }
+    if (Date.parse(this.now()) - Date.parse(quote.asOf) > policy.maxQuoteAgeSeconds * 1e3) fail2("Quote expired while checking the IB account");
+    return {
+      notional,
+      quote: { symbol: quote.symbol, price: quote.price, currency: quote.currency, asOf: quote.asOf, source: quote.source, freshness: quote.freshness, crossCheck: quote.crossCheck },
+      account: { accountId: policy.accountId, environment: policy.environment, observedAt: snapshot2.observedAt, funds: snapshot2.funds },
+      checkedAt: this.now()
+    };
+  }
+  async evaluate(input) {
+    const order = validateIbkrOrder(input);
+    return this.exclusive(async () => {
+      const policy = await this.policy();
+      try {
+        return { eligible: true, environment: policy.environment, requiresConfirmation: policy.requiresConfirmation === true, ...await this.assess(order, policy, await this.state()), meaning: "Preflight only; submitting re-checks everything." };
+      } catch (e) {
+        return { eligible: false, reason: e.message, environment: policy.environment, checkedAt: this.now() };
+      }
+    });
+  }
+  async submit(input) {
+    const order = validateIbkrOrder(input);
+    return this.exclusive(async () => {
+      const state = await this.state();
+      const requestHash = hash2(order);
+      const prior = state.intents.find((r) => r.idempotencyKey === order.idempotencyKey);
+      if (prior) {
+        if (prior.requestHash !== requestHash) fail2("Idempotency key already used for a different request");
+        return { ...prior, replay: true };
+      }
+      if (state.intents.length >= 1e4) fail2("IBKR ledger full; archive broker-ibkr/state.json first");
+      const policy = await this.policy();
+      const intent = {
+        id: randomUUID3(),
+        kind: "order",
+        ...order,
+        requestHash,
+        environment: policy.environment,
+        accountId: policy.accountId,
+        currency: "USD",
+        policyRevision: policy.revision,
+        createdAt: this.now(),
+        status: "checking",
+        events: []
+      };
+      try {
+        Object.assign(intent, await this.assess(order, policy, state));
+      } catch (e) {
+        Object.assign(intent, { status: "blocked", error: e.message });
+        intent.events.push({ at: this.now(), type: "blocked", error: e.message });
+        state.intents.push(intent);
+        await writeJson2(this.file("state.json"), state);
+        return intent;
+      }
+      if (policy.requiresConfirmation) {
+        const waiting = state.intents.filter((r) => r.status === "awaiting-confirmation" && Date.parse(r.expiresAt) > Date.parse(this.now()));
+        if (waiting.length >= MAX_PENDING_CONFIRMATIONS) fail2(`${MAX_PENDING_CONFIRMATIONS} orders are already waiting for the owner; wait for decisions`);
+        Object.assign(intent, {
+          status: "awaiting-confirmation",
+          expiresAt: new Date(Date.parse(this.now()) + policy.confirmMinutes * 6e4).toISOString(),
+          meaning: "Real-money order proposed. Nothing was sent: the owner must confirm it in the dashboard before it expires."
+        });
+        intent.events.push({ at: this.now(), type: "awaiting-confirmation" });
+        state.intents.push(intent);
+        await writeJson2(this.file("state.json"), state);
+        return intent;
+      }
+      state.intents.push(intent);
+      return this.dispatch(intent, state, policy, { confirmed: false });
+    });
+  }
+  // Callers hold the lock. LIVE orders reach here only from decide() after the owner confirmed.
+  async dispatch(intent, state, policy, { confirmed }) {
+    if (policy.environment === "LIVE" && !confirmed) fail2("LIVE orders need the owner's confirmation");
+    if (policy.accountId !== intent.accountId || policy.environment !== intent.environment) fail2("The account or environment changed since this order was proposed; propose it again");
+    try {
+      if (confirmed) Object.assign(intent, await this.assess(intent, policy, state, { counting: false }));
+    } catch (e) {
+      Object.assign(intent, { status: "blocked", error: `Re-check at confirmation failed: ${e.message}` });
+      intent.events.push({ at: this.now(), type: "blocked", error: intent.error });
+      await writeJson2(this.file("state.json"), state);
+      return intent;
+    }
+    Object.assign(intent, { status: "dispatching", dispatchedAt: this.now() });
+    intent.events.push({ at: intent.dispatchedAt, type: "dispatching" });
+    await writeJson2(this.file("state.json"), state);
+    try {
+      const result = await this.bridge({
+        action: "submit",
+        environment: intent.environment,
+        accountId: intent.accountId,
+        symbol: intent.symbol,
+        side: intent.side,
+        quantity: intent.quantity,
+        limitPrice: intent.limitPrice,
+        orderRef: `hrouter:${intent.id}`,
+        quoteValidUntil: Date.parse(intent.quote.asOf) + policy.maxQuoteAgeSeconds * 1e3
+      });
+      const broker = result.orders?.[0];
+      if (!broker?.orderId || broker.symbol !== intent.symbol || broker.side !== intent.side || broker.account !== intent.accountId) fail2("Missing or mismatched IB acknowledgement");
+      Object.assign(intent, { status: "acknowledged", brokerOrderId: broker.orderId, broker, acknowledgedAt: this.now(), error: null });
+    } catch (e) {
+      Object.assign(intent, { status: e.definitelyNotDispatched ? "blocked" : "unknown", error: e.message });
+    }
+    intent.events.push({ at: this.now(), type: intent.status, broker: intent.broker || null, error: intent.error || null });
+    await writeJson2(this.file("state.json"), state);
+    return intent;
+  }
+  async cancel(input, { owner = false } = {}) {
+    if (!/^[A-Za-z0-9_-]{8,80}$/.test(input?.idempotencyKey || "") || !/^\d{1,20}$/.test(input?.orderId || "")) fail2("Valid IB order ID and idempotencyKey required");
+    return this.exclusive(async () => {
+      const policy = await this.policy();
+      const state = await this.state();
+      const requestHash = hash2({ kind: "cancel", orderId: input.orderId });
+      const previous = state.intents.find((r) => r.idempotencyKey === input.idempotencyKey);
+      if (previous) {
+        if (previous.requestHash !== requestHash) fail2("Idempotency key conflict");
+        return { ...previous, replay: true };
+      }
+      const original = state.intents.find((r) => r.kind === "order" && r.brokerOrderId === input.orderId);
+      if (!original && !owner) fail2("Agents may only cancel orders this workbench placed");
+      const target = original ?? policy;
+      const intent = {
+        id: randomUUID3(),
+        kind: "cancel",
+        idempotencyKey: input.idempotencyKey,
+        requestHash,
+        environment: target.environment,
+        accountId: target.accountId,
+        brokerOrderId: input.orderId,
+        createdAt: this.now(),
+        dispatchedAt: this.now(),
+        status: "dispatching",
+        events: [{ at: this.now(), type: "dispatching" }]
+      };
+      state.intents.push(intent);
+      await writeJson2(this.file("state.json"), state);
+      try {
+        await this.bridge({ action: "cancel", environment: target.environment, accountId: target.accountId, orderId: input.orderId });
+        Object.assign(intent, { status: "acknowledged", acknowledgedAt: this.now(), meaning: "Cancellation requested, not confirmed; refresh to see IB's status." });
+      } catch (e) {
+        Object.assign(intent, { status: e.definitelyNotDispatched ? "blocked" : "unknown", error: e.message });
+      }
+      intent.events.push({ at: this.now(), type: intent.status, error: intent.error || null });
+      await writeJson2(this.file("state.json"), state);
+      return intent;
+    });
+  }
+};
+var service2;
+function getIbkrService() {
+  return service2 ||= new IbkrService();
+}
+
 // node_modules/zod/v3/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -11578,8 +12059,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path19, errorMaps, issueData } = params;
-  const fullPath = [...path19, ...issueData.path || []];
+  const { data, path: path20, errorMaps, issueData } = params;
+  const fullPath = [...path20, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -11695,11 +12176,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path19, key) {
+  constructor(parent, value, path20, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path19;
+    this._path = path20;
     this._key = key;
   }
   get path() {
@@ -15142,10 +15623,10 @@ var coerce = {
 var NEVER = INVALID;
 
 // mcp/arena.mjs
-import { randomBytes as randomBytes2, randomUUID as randomUUID4 } from "node:crypto";
-import { mkdir as mkdir6, readdir, readFile as readFile6, rename as rename6, rm as rm2, stat as stat2, writeFile as writeFile5 } from "node:fs/promises";
-import os2 from "node:os";
-import path6 from "node:path";
+import { randomBytes as randomBytes2, randomUUID as randomUUID5 } from "node:crypto";
+import { mkdir as mkdir7, readdir, readFile as readFile7, rename as rename7, rm as rm3, stat as stat2, writeFile as writeFile5 } from "node:fs/promises";
+import os3 from "node:os";
+import path7 from "node:path";
 
 // mcp/paging.mjs
 var PAGE_DEFAULTS = Object.freeze({ limit: 20, maxLimit: 200 });
@@ -15173,11 +15654,11 @@ function paginate(rows, { offset = 0, limit = PAGE_DEFAULTS.limit } = {}) {
 var matchesText = (q, ...values) => !q || values.some((value) => String(value ?? "").toLowerCase().includes(q));
 
 // mcp/trader-settings.mjs
-import { randomBytes, randomUUID as randomUUID3 } from "node:crypto";
-import { mkdir as mkdir5, readFile as readFile5, rename as rename5, stat, writeFile as writeFile4 } from "node:fs/promises";
-import path5 from "node:path";
+import { randomBytes, randomUUID as randomUUID4 } from "node:crypto";
+import { mkdir as mkdir6, readFile as readFile6, rename as rename6, stat, writeFile as writeFile4 } from "node:fs/promises";
+import path6 from "node:path";
 var round4 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
-var finite4 = (value) => typeof value === "number" && Number.isFinite(value);
+var finite5 = (value) => typeof value === "number" && Number.isFinite(value);
 var shortId = (prefix) => `${prefix}_${randomBytes(6).toString("hex")}`;
 var SettingsError = class extends Error {
   constructor(message, code = "invalid_request", status = 400) {
@@ -15274,7 +15755,7 @@ function limitViolation(account2, limits, value, { symbol, addValue, quantity, p
   const held = Boolean(account2.positions[symbol]);
   const pendingBuys = pending.filter((order) => order.side === "BUY");
   const label = (key) => `\u8FB9\u754C\u300C${LIMIT_SPECS[key].zh}\u300D`;
-  if (finite4(limits.minCashPct)) {
+  if (finite5(limits.minCashPct)) {
     const reserved = pendingBuys.reduce((sum, order) => sum + order.reserved, 0);
     const cashAfter = account2.cash - reserved - addValue;
     const pct = cashAfter / value.equity * 100;
@@ -15283,28 +15764,28 @@ function limitViolation(account2, limits, value, { symbol, addValue, quantity, p
       return `${label("minCashPct")}\uFF1A\u4E70\u5165\u540E\u73B0\u91D1\u53EA\u5269 ${round4(pct, 1)}%\uFF0C\u4F4E\u4E8E\u4FDD\u7559\u7684 ${limits.minCashPct}%\uFF08\u73B0\u5728\u6700\u591A\u8FD8\u80FD\u4E70\u7EA6 ${round4(room)} ${account2.currency}\uFF09\u3002`;
     }
   }
-  if (finite4(limits.maxPositions) && !held && !pendingBuys.some((order) => order.symbol === symbol)) {
+  if (finite5(limits.maxPositions) && !held && !pendingBuys.some((order) => order.symbol === symbol)) {
     const count = (/* @__PURE__ */ new Set([...Object.keys(account2.positions), ...pendingBuys.map((order) => order.symbol)])).size;
     if (count >= limits.maxPositions) return `${label("maxPositions")}\uFF1A\u5DF2\u7ECF\u6301\u6709\u6216\u6302\u5355 ${count} \u53EA\uFF0C\u4E0A\u9650 ${limits.maxPositions} \u53EA\uFF1B\u5148\u5356\u51FA\u4E00\u53EA\u518D\u4E70\u65B0\u7684\u3002`;
   }
   const activity = todayActivity(account2, now);
-  if (finite4(limits.maxNewPerDay) && !held && !activity.newToday.has(symbol) && activity.newToday.size >= limits.maxNewPerDay)
+  if (finite5(limits.maxNewPerDay) && !held && !activity.newToday.has(symbol) && activity.newToday.size >= limits.maxNewPerDay)
     return `${label("maxNewPerDay")}\uFF1A\u4ECA\u5929\u5DF2\u7ECF\u65B0\u5F00 ${activity.newToday.size} \u53EA\uFF0C\u4E0A\u9650 ${limits.maxNewPerDay} \u53EA\u3002`;
-  if (finite4(limits.maxOrdersPerDay) && activity.ordersToday >= limits.maxOrdersPerDay)
+  if (finite5(limits.maxOrdersPerDay) && activity.ordersToday >= limits.maxOrdersPerDay)
     return `${label("maxOrdersPerDay")}\uFF1A\u4ECA\u5929\u5DF2\u7ECF\u4E0B\u4E86 ${activity.ordersToday} \u7B14\uFF0C\u4E0A\u9650 ${limits.maxOrdersPerDay} \u7B14\u3002`;
-  if (finite4(limits.maxRiskPerTradePct)) {
-    if (!finite4(stopPrice)) return `${label("maxRiskPerTradePct")}\uFF1A\u5F00\u4E86\u5355\u7B14\u98CE\u9669\u4E0A\u9650\uFF0C\u4E70\u5355\u5FC5\u987B\u5E26\u6B62\u635F\uFF08stopLossPct \u6216 stopLossPrice\uFF09\u3002`;
+  if (finite5(limits.maxRiskPerTradePct)) {
+    if (!finite5(stopPrice)) return `${label("maxRiskPerTradePct")}\uFF1A\u5F00\u4E86\u5355\u7B14\u98CE\u9669\u4E0A\u9650\uFF0C\u4E70\u5355\u5FC5\u987B\u5E26\u6B62\u635F\uFF08stopLossPct \u6216 stopLossPrice\uFF09\u3002`;
     const risk = Math.max(0, (price - stopPrice) * quantity) / value.equity * 100;
     if (risk > limits.maxRiskPerTradePct + 1e-9) return `${label("maxRiskPerTradePct")}\uFF1A\u8FD9\u7B14\u6700\u591A\u4E8F ${round4(risk, 2)}% \u7684\u603B\u8D44\u4EA7\uFF0C\u4E0A\u9650 ${limits.maxRiskPerTradePct}%\u3002`;
   }
-  if (finite4(limits.cooldownDays)) {
+  if (finite5(limits.cooldownDays)) {
     const lastSell = [...account2.trades].reverse().find((trade) => trade.symbol === symbol && trade.side === "SELL");
     if (lastSell) {
       const days = (Date.parse(`${dayOf(now, account2.market)}T00:00:00Z`) - Date.parse(`${dayOf(lastSell.at, account2.market)}T00:00:00Z`)) / 864e5;
       if (days < limits.cooldownDays) return `${label("cooldownDays")}\uFF1A${symbol} \u5728 ${dayOf(lastSell.at, account2.market)} \u5356\u51FA\uFF0C${limits.cooldownDays} \u5929\u5185\u4E0D\u80FD\u4E70\u56DE\u3002`;
     }
   }
-  if (finite4(limits.maxIndustryPct)) {
+  if (finite5(limits.maxIndustryPct)) {
     const industries = knownIndustries(account2, fresh);
     const industry = industries[symbol];
     if (industry) {
@@ -15317,9 +15798,9 @@ function limitViolation(account2, limits, value, { symbol, addValue, quantity, p
     const board = boardOf2(symbol, quote);
     if (board && limits.excludeBoards.includes(board)) return `${label("excludeBoards")}\uFF1A${symbol} \u5C5E\u4E8E${BOARD_LABELS[board]}\uFF0C\u5728\u7981\u6B62\u8303\u56F4\u91CC\u3002`;
   }
-  if (finite4(limits.minPrice) && finite4(quote?.price) && quote.price < limits.minPrice)
+  if (finite5(limits.minPrice) && finite5(quote?.price) && quote.price < limits.minPrice)
     return `${label("minPrice")}\uFF1A${symbol} \u73B0\u4EF7 ${quote.price}\uFF0C\u4F4E\u4E8E ${limits.minPrice}\u3002`;
-  if (finite4(limits.maxChangePct) && finite4(quote?.changePct) && quote.changePct > limits.maxChangePct)
+  if (finite5(limits.maxChangePct) && finite5(quote?.changePct) && quote.changePct > limits.maxChangePct)
     return `${label("maxChangePct")}\uFF1A${symbol} \u4ECA\u5929\u5DF2\u7ECF\u6DA8\u4E86 ${round4(quote.changePct, 2)}%\uFF0C\u8D85\u8FC7 ${limits.maxChangePct}%\u3002`;
   return null;
 }
@@ -15330,11 +15811,11 @@ function limitStatus(account2, limits, value, now) {
   const activity = todayActivity(account2, now);
   const holdings = (/* @__PURE__ */ new Set([...Object.keys(account2.positions), ...pending.filter((order) => order.side === "BUY").map((order) => order.symbol)])).size;
   const status = { cashPct, holdings, newToday: activity.newToday.size, ordersToday: activity.ordersToday, active: LIMIT_KEYS.filter((key) => limits[key] !== null && limits[key] !== void 0 && !(Array.isArray(limits[key]) && !limits[key].length)) };
-  if (finite4(limits.minCashPct)) status.buyableValue = round4(Math.max(0, account2.cash - reserved - value.equity * limits.minCashPct / 100));
+  if (finite5(limits.minCashPct)) status.buyableValue = round4(Math.max(0, account2.cash - reserved - value.equity * limits.minCashPct / 100));
   else status.buyableValue = round4(Math.max(0, account2.cash - reserved));
-  if (finite4(limits.maxPositions)) status.positionsLeft = Math.max(0, limits.maxPositions - holdings);
-  if (finite4(limits.maxNewPerDay)) status.newLeftToday = Math.max(0, limits.maxNewPerDay - activity.newToday.size);
-  if (finite4(limits.maxOrdersPerDay)) status.ordersLeftToday = Math.max(0, limits.maxOrdersPerDay - activity.ordersToday);
+  if (finite5(limits.maxPositions)) status.positionsLeft = Math.max(0, limits.maxPositions - holdings);
+  if (finite5(limits.maxNewPerDay)) status.newLeftToday = Math.max(0, limits.maxNewPerDay - activity.newToday.size);
+  if (finite5(limits.maxOrdersPerDay)) status.ordersLeftToday = Math.max(0, limits.maxOrdersPerDay - activity.ordersToday);
   const industries = industryExposure(account2, value);
   if (industries.length) status.industries = industries.slice(0, 8);
   return status;
@@ -15438,13 +15919,13 @@ function changedBy(caller) {
 }
 var isOwner = (caller) => !caller?.client || caller.client === "dashboard";
 function createWorkbenchSettings(root2, now = () => (/* @__PURE__ */ new Date()).toISOString()) {
-  const file = path5.join(root2, "settings.json");
+  const file = path6.join(root2, "settings.json");
   let cache3 = null;
   async function read() {
     try {
       const info = await stat(file);
       if (cache3 && cache3.mtimeMs === info.mtimeMs) return cache3.value;
-      const saved = JSON.parse(await readFile5(file, "utf8"));
+      const saved = JSON.parse(await readFile6(file, "utf8"));
       const value = {
         ...DEFAULT_WORKBENCH_SETTINGS,
         ...saved,
@@ -15460,10 +15941,10 @@ function createWorkbenchSettings(root2, now = () => (/* @__PURE__ */ new Date())
     }
   }
   async function write(value) {
-    await mkdir5(root2, { recursive: true });
-    const temporary = `${file}.${process.pid}.${randomUUID3()}.tmp`;
+    await mkdir6(root2, { recursive: true });
+    const temporary = `${file}.${process.pid}.${randomUUID4()}.tmp`;
     await writeFile4(temporary, JSON.stringify(value, null, 1), "utf8");
-    await rename5(temporary, file);
+    await rename6(temporary, file);
     cache3 = null;
   }
   return {
@@ -15491,8 +15972,8 @@ var POOLS = "https://push2ex.eastmoney.com";
 var POOL_UT = "7eea3edcaed734bea9cbfc24409ed989";
 var ULIST = "https://push2.eastmoney.com/api/qt/ulist.np/get";
 var SOURCE = "East Money";
-var finite5 = (value) => typeof value === "number" && Number.isFinite(value) ? value : null;
-var round5 = (value, digits = 2) => finite5(value) === null ? null : Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
+var finite6 = (value) => typeof value === "number" && Number.isFinite(value) ? value : null;
+var round5 = (value, digits = 2) => finite6(value) === null ? null : Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
 var MarketDataError = class extends Error {
 };
 async function getJson(url, timeoutMs = 1e4) {
@@ -15584,12 +16065,12 @@ function parseDragonTiger(payload) {
     name: row.SECURITY_NAME_ABBR,
     date: isoDate(row.TRADE_DATE),
     reason: row.EXPLANATION ?? null,
-    close: finite5(row.CLOSE_PRICE),
-    changePct: round5(finite5(row.CHANGE_RATE)),
-    netBuy: round5(finite5(row.BILLBOARD_NET_AMT), 0),
-    buy: round5(finite5(row.BILLBOARD_BUY_AMT), 0),
-    sell: round5(finite5(row.BILLBOARD_SELL_AMT), 0),
-    shareOfTurnoverPct: round5(finite5(row.DEAL_AMOUNT_RATIO))
+    close: finite6(row.CLOSE_PRICE),
+    changePct: round5(finite6(row.CHANGE_RATE)),
+    netBuy: round5(finite6(row.BILLBOARD_NET_AMT), 0),
+    buy: round5(finite6(row.BILLBOARD_BUY_AMT), 0),
+    sell: round5(finite6(row.BILLBOARD_SELL_AMT), 0),
+    shareOfTurnoverPct: round5(finite6(row.DEAL_AMOUNT_RATIO))
   }));
 }
 async function dragonTiger({ date: date4, limit = 50, at } = {}) {
@@ -15606,11 +16087,11 @@ function parseSeats(payload, side) {
   return (payload?.result?.data ?? []).map((row) => ({
     side,
     seat: row.OPERATEDEPT_NAME,
-    buy: round5(finite5(row.BUY), 0),
-    sell: round5(finite5(row.SELL), 0),
-    net: round5(finite5(row.NET), 0),
-    rise3dPct: round5(finite5(row.RISE_PROBABILITY_3DAY), 1),
-    seatTimes3d: finite5(row.TOTAL_BUYER_SALESTIMES_3DAY),
+    buy: round5(finite6(row.BUY), 0),
+    sell: round5(finite6(row.SELL), 0),
+    net: round5(finite6(row.NET), 0),
+    rise3dPct: round5(finite6(row.RISE_PROBABILITY_3DAY), 1),
+    seatTimes3d: finite6(row.TOTAL_BUYER_SALESTIMES_3DAY),
     institution: /机构专用/.test(row.OPERATEDEPT_NAME ?? ""),
     connect: /沪股通|深股通/.test(row.OPERATEDEPT_NAME ?? "")
   }));
@@ -15636,24 +16117,24 @@ function parsePool(payload, kind) {
   const rows = (data?.pool ?? []).map((row) => ({
     symbol: symbolFromCode(row.c),
     name: row.n,
-    price: finite5(row.p) === null ? null : row.p / 1e3,
-    changePct: round5(finite5(row.zdp)),
-    amount: round5(finite5(row.amount), 0),
-    floatCap: round5(finite5(row.ltsz), 0),
-    turnoverPct: round5(finite5(row.hs)),
+    price: finite6(row.p) === null ? null : row.p / 1e3,
+    changePct: round5(finite6(row.zdp)),
+    amount: round5(finite6(row.amount), 0),
+    floatCap: round5(finite6(row.ltsz), 0),
+    turnoverPct: round5(finite6(row.hs)),
     industry: row.hybk ?? null,
     ...kind === "up" ? {
-      boards: finite5(row.lbc),
+      boards: finite6(row.lbc),
       firstSealAt: poolTime(row.fbt),
       lastSealAt: poolTime(row.lbt),
-      sealFund: round5(finite5(row.fund), 0),
-      breaks: finite5(row.zbc),
-      streak: row.zttj ? { days: finite5(row.zttj.days), limitUps: finite5(row.zttj.ct) } : null
+      sealFund: round5(finite6(row.fund), 0),
+      breaks: finite6(row.zbc),
+      streak: row.zttj ? { days: finite6(row.zttj.days), limitUps: finite6(row.zttj.ct) } : null
     } : {},
-    ...kind === "broken" ? { limitUpPrice: finite5(row.ztp) === null ? null : row.ztp / 1e3, firstSealAt: poolTime(row.fbt), breaks: finite5(row.zbc), amplitudePct: round5(finite5(row.zf)) } : {},
-    ...kind === "down" ? { sealFund: round5(finite5(row.fund), 0), lastSealAt: poolTime(row.lbt), boards: finite5(row.days) } : {}
+    ...kind === "broken" ? { limitUpPrice: finite6(row.ztp) === null ? null : row.ztp / 1e3, firstSealAt: poolTime(row.fbt), breaks: finite6(row.zbc), amplitudePct: round5(finite6(row.zf)) } : {},
+    ...kind === "down" ? { sealFund: round5(finite6(row.fund), 0), lastSealAt: poolTime(row.lbt), boards: finite6(row.days) } : {}
   }));
-  return { total: finite5(data?.tc) ?? rows.length, date: data?.qdate ? `${String(data.qdate).slice(0, 4)}-${String(data.qdate).slice(4, 6)}-${String(data.qdate).slice(6, 8)}` : null, rows };
+  return { total: finite6(data?.tc) ?? rows.length, date: data?.qdate ? `${String(data.qdate).slice(0, 4)}-${String(data.qdate).slice(4, 6)}-${String(data.qdate).slice(6, 8)}` : null, rows };
 }
 var POOL_PATHS = { up: ["getTopicZTPool", "fbt:asc"], broken: ["getTopicZBPool", "fbt:asc"], down: ["getTopicDTPool", "fund:asc"] };
 async function limitPool(kind = "up", { date: date4, at, limit = 200 } = {}) {
@@ -15693,11 +16174,11 @@ async function limitUpSentiment({ date: date4, at } = {}) {
 function parseMarketMargin(payload) {
   return (payload?.result?.data ?? []).map((row) => ({
     date: isoDate(row.DIM_DATE),
-    financingBalance: round5(finite5(row.RZYE), 0),
-    financingBuy: round5(finite5(row.RZMRE), 0),
-    financingNet: round5(finite5(row.RZJME), 0),
-    shortBalance: round5(finite5(row.RQYE), 0),
-    financingShareOfFloatPct: round5(finite5(row.RZYEZB))
+    financingBalance: round5(finite6(row.RZYE), 0),
+    financingBuy: round5(finite6(row.RZMRE), 0),
+    financingNet: round5(finite6(row.RZJME), 0),
+    shortBalance: round5(finite6(row.RQYE), 0),
+    financingShareOfFloatPct: round5(finite6(row.RZYEZB))
   }));
 }
 function parseStockMargin(payload) {
@@ -15705,11 +16186,11 @@ function parseStockMargin(payload) {
     date: isoDate(row.DATE),
     symbol: symbolFromCode(row.SCODE),
     name: row.SECNAME,
-    financingBalance: round5(finite5(row.RZYE), 0),
-    financingBuy: round5(finite5(row.RZMRE), 0),
-    financingNet: round5(finite5(row.RZJME), 0),
-    shortBalance: round5(finite5(row.RQYE), 0),
-    total: round5(finite5(row.RZRQYE), 0)
+    financingBalance: round5(finite6(row.RZYE), 0),
+    financingBuy: round5(finite6(row.RZMRE), 0),
+    financingNet: round5(finite6(row.RZJME), 0),
+    shortBalance: round5(finite6(row.RQYE), 0),
+    total: round5(finite6(row.RZRQYE), 0)
   }));
 }
 async function marketMargin({ days = 20 } = {}) {
@@ -15734,11 +16215,11 @@ function parseConnect(payload) {
     channel: CONNECT_TYPES[row.MUTUAL_TYPE] ?? row.MUTUAL_TYPE,
     date: isoDate(row.TRADE_DATE),
     // Amounts are published in millions of CNY.
-    turnover: finite5(row.DEAL_AMT) === null ? null : round5(row.DEAL_AMT * 1e6, 0),
-    netBuy: finite5(row.NET_DEAL_AMT) === null ? null : round5(row.NET_DEAL_AMT * 1e6, 0),
-    trades: finite5(row.DEAL_NUM),
+    turnover: finite6(row.DEAL_AMT) === null ? null : round5(row.DEAL_AMT * 1e6, 0),
+    netBuy: finite6(row.NET_DEAL_AMT) === null ? null : round5(row.NET_DEAL_AMT * 1e6, 0),
+    trades: finite6(row.DEAL_NUM),
     leader: row.LEAD_STOCKS_NAME ?? null,
-    leaderChangePct: round5(finite5(row.LS_CHANGE_RATE))
+    leaderChangePct: round5(finite6(row.LS_CHANGE_RATE))
   }));
 }
 async function stockConnect({ days = 10 } = {}) {
@@ -15757,7 +16238,7 @@ var BREADTH_INDICES = [["1.000001", "000001.SS", "\u4E0A\u8BC1\u6307\u6570"], ["
 function parseBreadth(payload) {
   const rows = (payload?.data?.diff ?? []).map((row) => {
     const known = BREADTH_INDICES.find(([, symbol]) => symbol.startsWith(String(row.f12)));
-    return { symbol: known?.[1] ?? row.f12, name: row.f14, price: finite5(row.f2), changePct: round5(finite5(row.f3)), amount: round5(finite5(row.f6), 0), advancers: finite5(row.f104), decliners: finite5(row.f105), unchanged: finite5(row.f106) };
+    return { symbol: known?.[1] ?? row.f12, name: row.f14, price: finite6(row.f2), changePct: round5(finite6(row.f3)), amount: round5(finite6(row.f6), 0), advancers: finite6(row.f104), decliners: finite6(row.f105), unchanged: finite6(row.f106) };
   });
   const sum = (key, list) => list.reduce((total, row) => total + (row[key] ?? 0), 0);
   const whole = rows.filter((row) => ["000001.SS", "399001.SZ"].includes(row.symbol));
@@ -15826,7 +16307,7 @@ var minmax = (values) => {
   return values.map((value) => high > low ? (value - low) / (high - low) : 0.5);
 };
 function emotionCycle(days) {
-  const usable = days.filter((day) => CYCLE_WEIGHTS.every((key) => finite5(day[key]) !== null));
+  const usable = days.filter((day) => CYCLE_WEIGHTS.every((key) => finite6(day[key]) !== null));
   if (usable.length < 3) return { days: usable, score: null, note: "\u53EF\u7528\u4EA4\u6613\u65E5\u4E0D\u8DB3 3 \u5929\uFF0C\u7B97\u4E0D\u51FA\u5468\u671F\u4F4D\u7F6E\u3002" };
   const [zt, top, broken] = CYCLE_WEIGHTS.map((key) => minmax(usable.map((day) => day[key])));
   const series = usable.map((day, index) => ({ ...day, score: round5((zt[index] + top[index] + (1 - broken[index])) / 3, 3) }));
@@ -15877,7 +16358,7 @@ async function shortlineEmotion({ date: date4, at, lookback = 10, quotesImpl = g
       try {
         const symbols = yesterday.up.rows.map((row) => row.symbol);
         const payload = await quotesImpl(`${ULIST}?fltt=2&secids=${symbols.flatMap(secidsFor).join(",")}&fields=f12,f3`);
-        const changes = (payload?.data?.diff ?? []).map((row) => finite5(row.f3)).filter((value) => value !== null);
+        const changes = (payload?.data?.diff ?? []).map((row) => finite6(row.f3)).filter((value) => value !== null);
         const covered = changes.length / symbols.length;
         moneyEffect = covered < 0.5 ? { note: `\u53EA\u53D6\u5230 ${changes.length}/${symbols.length} \u53EA\u7684\u884C\u60C5\uFF0C\u4E0D\u8DB3\u4EE5\u4EE3\u8868\u5168\u4F53\uFF0C\u4E0D\u7ED9\u7ED3\u8BBA\u3002` } : {
           samples: changes.length,
@@ -15923,10 +16404,10 @@ function globalSymbol(code, market2) {
   return market2 === "HK" ? `${String(Number(code)).padStart(4, "0")}.HK` : String(code).replace(/_/g, "-");
 }
 function parseMovers(payload, market2) {
-  return (payload?.data?.diff ?? []).map((row) => ({ symbol: globalSymbol(row.f12, market2), name: row.f14, price: finite5(row.f2), changePct: round5(finite5(row.f3)), amount: round5(finite5(row.f6), 0) }));
+  return (payload?.data?.diff ?? []).map((row) => ({ symbol: globalSymbol(row.f12, market2), name: row.f14, price: finite6(row.f2), changePct: round5(finite6(row.f3)), amount: round5(finite6(row.f6), 0) }));
 }
 function parseSinaHk(rows) {
-  return (Array.isArray(rows) ? rows : []).map((row) => ({ symbol: globalSymbol(row.symbol, "HK"), name: row.name, price: finite5(Number(row.lasttrade)), changePct: round5(finite5(Number(row.changepercent))), amount: round5(finite5(Number(row.amount)), 0) }));
+  return (Array.isArray(rows) ? rows : []).map((row) => ({ symbol: globalSymbol(row.symbol, "HK"), name: row.name, price: finite6(Number(row.lasttrade)), changePct: round5(finite6(Number(row.changepercent))), amount: round5(finite6(Number(row.amount)), 0) }));
 }
 function parseSinaUs(text2) {
   const json = String(text2).slice(String(text2).indexOf("x(") + 2, String(text2).lastIndexOf(")"));
@@ -15934,9 +16415,9 @@ function parseSinaUs(text2) {
   return {
     total: Number(payload.count) || null,
     rows: (payload.data ?? []).map((row) => {
-      const price = finite5(Number(row.price));
-      const volume = finite5(Number(row.volume));
-      return { symbol: globalSymbol(row.symbol, "US"), name: row.cname || row.name, price, changePct: round5(finite5(Number(row.chg))), amount: price && volume ? round5(price * volume, 0) : null };
+      const price = finite6(Number(row.price));
+      const volume = finite6(Number(row.volume));
+      return { symbol: globalSymbol(row.symbol, "US"), name: row.cname || row.name, price, changePct: round5(finite6(Number(row.chg))), amount: price && volume ? round5(price * volume, 0) : null };
     })
   };
 }
@@ -15976,13 +16457,13 @@ async function globalBreadth(market2) {
 function parseTencentIndices(text2) {
   return String(text2).split(";").map((line) => line.match(/v_([^=]+)="([^"]*)"/)).filter(Boolean).map(([, code, body]) => {
     const parts = body.split("~");
-    return { code, name: parts[1], price: finite5(Number(parts[3])), change: round5(finite5(Number(parts[31]))), changePct: round5(finite5(Number(parts[32]))), at: parts[30] || null };
+    return { code, name: parts[1], price: finite6(Number(parts[3])), change: round5(finite6(Number(parts[31]))), changePct: round5(finite6(Number(parts[32]))), at: parts[30] || null };
   }).filter((row) => row.price);
 }
 async function globalIndices(market2) {
   const spec = GLOBAL_MARKETS[market2];
   return cached(`indices:${market2}`, 6e4, () => eastmoneyFirst(
-    async () => ((await getJson(`${ULIST}?fltt=2&secids=${spec.indices.map(([secid]) => secid).join(",")}&fields=f2,f3,f4,f12,f14`))?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, price: finite5(row.f2), change: round5(finite5(row.f4)), changePct: round5(finite5(row.f3)) })),
+    async () => ((await getJson(`${ULIST}?fltt=2&secids=${spec.indices.map(([secid]) => secid).join(",")}&fields=f2,f3,f4,f12,f14`))?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, price: finite6(row.f2), change: round5(finite6(row.f4)), changePct: round5(finite6(row.f3)) })),
     async () => parseTencentIndices(await getText(`https://qt.gtimg.cn/q=${spec.indices.map(([, code]) => code).join(",")}`, { referer: "https://gu.qq.com/", encoding: "gbk" }))
   ));
 }
@@ -16034,7 +16515,7 @@ async function globalRadar(market2, { at } = {}) {
 
 // mcp/approvals.mjs
 var round6 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
-var finite6 = (value) => typeof value === "number" && Number.isFinite(value);
+var finite7 = (value) => typeof value === "number" && Number.isFinite(value);
 var AUTONOMY_LEVELS = {
   full: { zh: "\u5168\u6258\u7BA1", hint: "\u9009\u80A1\u3001\u4E0B\u5355\u90FD\u4E0D\u505C\u4E0B\u6765\u95EE\u4F60" },
   confirm: { zh: "\u5173\u952E\u64CD\u4F5C\u786E\u8BA4", hint: "\u65B0\u5F00\u4ED3\u3001\u5927\u989D\u8BA2\u5355\uFF08\u548C\u53EF\u9009\u7684\u5356\u51FA\uFF09\u8981\u4F60\u70B9\u786E\u8BA4" },
@@ -16068,7 +16549,7 @@ function approvalReason({ autonomy = DEFAULT_AUTONOMY, owner, held, side, value,
   if (autonomy.level === "suggest") return "\u53EA\u7ED9\u5EFA\u8BAE\uFF1A\u6BCF\u7B14\u8BA2\u5355\u90FD\u8981\u4F60\u786E\u8BA4";
   if (autonomy.level !== "confirm") return null;
   if (side === "BUY" && !held) return "\u65B0\u5F00\u4ED3";
-  if (finite6(value) && equity > 0 && autonomy.minValuePct > 0 && value / equity * 100 >= autonomy.minValuePct) return `\u91D1\u989D\u5360\u603B\u8D44\u4EA7 ${round6(value / equity * 100, 1)}%\uFF0C\u8D85\u8FC7 ${autonomy.minValuePct}%`;
+  if (finite7(value) && equity > 0 && autonomy.minValuePct > 0 && value / equity * 100 >= autonomy.minValuePct) return `\u91D1\u989D\u5360\u603B\u8D44\u4EA7 ${round6(value / equity * 100, 1)}%\uFF0C\u8D85\u8FC7 ${autonomy.minValuePct}%`;
   if (side === "SELL" && autonomy.sells) return "\u5356\u51FA\u8981\u786E\u8BA4";
   return null;
 }
@@ -16124,8 +16605,8 @@ function reconcile(account2, { tolerance = 0.05, tradeCap = 5e3 } = {}) {
     const stored = account2.positions[symbol]?.quantity ?? 0;
     return { symbol, ledger, stored, diff: stored - ledger };
   }).filter((row) => row.ledger !== 0 || row.stored !== 0);
-  const open2 = account2.orders.filter((order) => order.status === "open");
-  const reservedOk = open2.every((order) => order.side === "SELL" || order.reserved >= 0);
+  const open3 = account2.orders.filter((order) => order.status === "open");
+  const reservedOk = open3.every((order) => order.side === "SELL" || order.reserved >= 0);
   const partial2 = account2.trades.length >= tradeCap || (account2.events?.length ?? 0) >= 2e3;
   const cashDiff = round6(account2.cash - cash);
   const mismatched = positions.filter((row) => row.diff !== 0);
@@ -16138,7 +16619,7 @@ function reconcile(account2, { tolerance = 0.05, tradeCap = 5e3 } = {}) {
     positions,
     mismatched: mismatched.length,
     trades: account2.trades.length,
-    openOrders: open2.length
+    openOrders: open3.length
   };
 }
 
@@ -16162,7 +16643,7 @@ var round7 = (value, digits = 2) => {
   const factor = 10 ** digits;
   return Math.round((value + Number.EPSILON) * factor) / factor;
 };
-var finite7 = (value) => typeof value === "number" && Number.isFinite(value);
+var finite8 = (value) => typeof value === "number" && Number.isFinite(value);
 var clamp2 = (value, low, high) => Math.min(high, Math.max(low, value));
 var shortId2 = (prefix) => `${prefix}_${randomBytes2(6).toString("hex")}`;
 function normalizeTradeSymbol(input) {
@@ -16235,8 +16716,8 @@ function tradability(account2, quote, now = (/* @__PURE__ */ new Date()).toISOSt
 function bookPrice(quote, side, quantity) {
   const levels = (side === "BUY" ? quote?.asks : quote?.bids) ?? [];
   const touch = side === "BUY" ? quote?.ask : quote?.bid;
-  if (!finite7(touch) || touch <= 0) return { price: quote.price, basis: "last" };
-  if (!levels.length || !finite7(quantity) || quantity <= 0 || levels.some((level) => !finite7(level.size))) return { price: touch, basis: side === "BUY" ? "ask" : "bid" };
+  if (!finite8(touch) || touch <= 0) return { price: quote.price, basis: "last" };
+  if (!levels.length || !finite8(quantity) || quantity <= 0 || levels.some((level) => !finite8(level.size))) return { price: touch, basis: side === "BUY" ? "ask" : "bid" };
   let remaining = quantity, cost = 0;
   for (const level of levels) {
     const take = Math.min(remaining, level.size);
@@ -16251,20 +16732,20 @@ function executionPrice(account2, order, quote, quantity = order.quantity - (ord
   const slip = (account2.settings?.slippageBps ?? 5) / 1e4;
   const market2 = account2.market;
   if (order.side === "BUY") {
-    if (market2 === "A" && finite7(quote.limitUp) && quote.price >= quote.limitUp - 1e-9 && !(quote.ask > 0)) return { price: null, blocked: "limit-up" };
+    if (market2 === "A" && finite8(quote.limitUp) && quote.price >= quote.limitUp - 1e-9 && !(quote.ask > 0)) return { price: null, blocked: "limit-up" };
     const book2 = bookPrice(quote, "BUY", quantity);
     let price2 = alignToTick(market2, book2.price * (1 + slip), "up");
-    if (market2 === "A" && finite7(quote.limitUp)) price2 = Math.min(price2, quote.limitUp);
+    if (market2 === "A" && finite8(quote.limitUp)) price2 = Math.min(price2, quote.limitUp);
     if (order.type === "limit") {
       if (book2.price > order.limitPrice + 1e-9) return { price: null, blocked: "limit-not-reached" };
       price2 = Math.min(price2, order.limitPrice);
     }
     return { price: price2, basis: book2.basis };
   }
-  if (market2 === "A" && finite7(quote.limitDown) && quote.price <= quote.limitDown + 1e-9 && !(quote.bid > 0)) return { price: null, blocked: "limit-down" };
+  if (market2 === "A" && finite8(quote.limitDown) && quote.price <= quote.limitDown + 1e-9 && !(quote.bid > 0)) return { price: null, blocked: "limit-down" };
   const book = bookPrice(quote, "SELL", quantity);
   let price = alignToTick(market2, book.price * (1 - slip), "down");
-  if (market2 === "A" && finite7(quote.limitDown)) price = Math.max(price, quote.limitDown);
+  if (market2 === "A" && finite8(quote.limitDown)) price = Math.max(price, quote.limitDown);
   if (order.type === "limit") {
     if (book.price < order.limitPrice - 1e-9) return { price: null, blocked: "limit-not-reached" };
     price = Math.max(price, order.limitPrice);
@@ -16273,7 +16754,7 @@ function executionPrice(account2, order, quote, quantity = order.quantity - (ord
 }
 function dayVolumeShares(quote) {
   const volume = quote?.volumeShares ?? quote?.volume;
-  return finite7(volume) && volume >= 0 ? volume : null;
+  return finite8(volume) && volume >= 0 ? volume : null;
 }
 function suspensionStatus(account2, quote, now) {
   if (!quote || quote.error) return null;
@@ -16292,7 +16773,7 @@ function fillQuantity(account2, order, quote, now) {
   const remaining = remainingQuantity(order);
   const pct = account2.settings?.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT;
   const volume = dayVolumeShares(quote);
-  if (volume === null || !finite7(pct) || pct >= 100) return { quantity: remaining, capped: false, volume };
+  if (volume === null || !finite8(pct) || pct >= 100) return { quantity: remaining, capped: false, volume };
   const today = localMarketTime(now, account2.market)?.date;
   const used = account2.trades.filter((trade) => trade.symbol === order.symbol && localMarketTime(trade.at, account2.market)?.date === today).reduce((sum, trade) => sum + trade.quantity, 0);
   const allowed = Math.max(0, Math.floor(volume * pct / 100) - used);
@@ -16311,10 +16792,10 @@ function normalizeExits(input = {}, { allowClear = false } = {}) {
     }
     if (price !== void 0 && price !== null && pct !== void 0 && pct !== null) throw new ArenaError(`Give ${priceKey} or ${pctKey}, not both.`);
     if (price !== void 0 && price !== null) {
-      if (!finite7(price) || price <= 0) throw new ArenaError(`${priceKey} must be a positive price.`);
+      if (!finite8(price) || price <= 0) throw new ArenaError(`${priceKey} must be a positive price.`);
       exits[key] = { price };
     } else if (pct !== void 0 && pct !== null) {
-      if (!finite7(pct) || pct <= 0 || pct > maxPct) throw new ArenaError(`${pctKey} must be between 0 and ${maxPct} (percent of the average cost).`);
+      if (!finite8(pct) || pct <= 0 || pct > maxPct) throw new ArenaError(`${pctKey} must be between 0 and ${maxPct} (percent of the average cost).`);
       exits[key] = { pct };
     }
   }
@@ -16324,14 +16805,14 @@ function exitLevels(position) {
   const exits = position?.exits;
   if (!exits || !position.quantity) return null;
   const averageCost = position.costBasis / position.quantity;
-  const resolve = (spec, direction) => !spec ? null : finite7(spec.price) ? spec.price : finite7(spec.pct) ? round7(averageCost * (1 + direction * spec.pct / 100), 4) : null;
+  const resolve = (spec, direction) => !spec ? null : finite8(spec.price) ? spec.price : finite8(spec.pct) ? round7(averageCost * (1 + direction * spec.pct / 100), 4) : null;
   const levels = { stopLoss: resolve(exits.stopLoss, -1), takeProfit: resolve(exits.takeProfit, 1) };
   return levels.stopLoss === null && levels.takeProfit === null ? null : levels;
 }
 function stopFrom(exits, reference) {
   if (!exits?.stopLoss) return null;
-  if (finite7(exits.stopLoss.price)) return exits.stopLoss.price;
-  return finite7(exits.stopLoss.pct) && finite7(reference) ? reference * (1 - exits.stopLoss.pct / 100) : null;
+  if (finite8(exits.stopLoss.price)) return exits.stopLoss.price;
+  return finite8(exits.stopLoss.pct) && finite8(reference) ? reference * (1 - exits.stopLoss.pct / 100) : null;
 }
 function migrateAccount(account2, at) {
   if ((account2.schemaVersion ?? 1) >= ACCOUNT_SCHEMA_VERSION) return account2;
@@ -16377,18 +16858,18 @@ function riskViolation(account2, symbol, addValue, excludeOrderId, details = nul
   if (account2.risk?.breaker) return `Owner risk policy: drawdown circuit breaker tripped at ${account2.risk.breaker.drawdownPct}% on ${account2.risk.breaker.trippedAt}; new buys are blocked until the owner resets it in the dashboard.`;
   const value = valuation(account2);
   if (value.equity <= 0) return null;
-  if (finite7(policy.maxDrawdownPct)) {
+  if (finite8(policy.maxDrawdownPct)) {
     const { drawdownPct } = drawdownState(account2, value.equity);
     if (drawdownPct <= -policy.maxDrawdownPct) return `Owner risk policy: drawdown ${drawdownPct}% breaches the ${policy.maxDrawdownPct}% circuit breaker; new buys are blocked.`;
   }
   const pending = openOrders(account2).filter((order) => order.side === "BUY" && order.id !== excludeOrderId);
-  if (finite7(policy.maxPositionPct)) {
+  if (finite8(policy.maxPositionPct)) {
     const held = value.positions.find((position) => position.symbol === symbol)?.marketValue ?? 0;
     const resting = pending.filter((order) => order.symbol === symbol).reduce((sum, order) => sum + order.reserved, 0);
     const pct = (held + resting + addValue) / value.equity * 100;
     if (pct > policy.maxPositionPct + 1e-9) return `Owner risk policy: ${symbol} would be ${round7(pct, 1)}% of equity, above the ${policy.maxPositionPct}% single-position limit.`;
   }
-  if (finite7(policy.maxExposurePct)) {
+  if (finite8(policy.maxExposurePct)) {
     const resting = pending.reduce((sum, order) => sum + order.reserved, 0);
     const pct = (value.marketValue + resting + addValue) / value.equity * 100;
     if (pct > policy.maxExposurePct + 1e-9) return `Owner risk policy: total exposure would be ${round7(pct, 1)}% of equity, above the ${policy.maxExposurePct}% limit.`;
@@ -16405,7 +16886,7 @@ function sellableQuantity(account2, symbol, now = (/* @__PURE__ */ new Date()).t
   return Math.max(0, settled - pending);
 }
 function quoteSnapshot(quote) {
-  return { price: quote.price ?? null, bid: quote.bid ?? null, ask: quote.ask ?? null, asOf: quote.asOf ?? null, source: quote.provider ?? quote.source ?? null, changePct: finite7(quote.changePct) ? round7(quote.changePct, 2) : null, freshness: quote.freshness?.status ?? null };
+  return { price: quote.price ?? null, bid: quote.bid ?? null, ask: quote.ask ?? null, asOf: quote.asOf ?? null, source: quote.provider ?? quote.source ?? null, changePct: finite8(quote.changePct) ? round7(quote.changePct, 2) : null, freshness: quote.freshness?.status ?? null };
 }
 function sanitizeCitations(input) {
   if (input === void 0 || input === null) return [];
@@ -16436,7 +16917,7 @@ function minutePricesBetween(bars, market2, since, at) {
   return bars.filter((bar) => !bar.date || bar.date === now.date).map((bar) => {
     const [h, m] = String(bar.time ?? "").split(":").map(Number);
     return { minute: h * 60 + m, price: bar.price };
-  }).filter((bar) => Number.isFinite(bar.minute) && finite7(bar.price) && bar.minute > fromMinute && bar.minute < now.minute).map((bar) => bar.price);
+  }).filter((bar) => Number.isFinite(bar.minute) && finite8(bar.price) && bar.minute > fromMinute && bar.minute < now.minute).map((bar) => bar.price);
 }
 function applyFill(account2, order, price, quote, now, quantity = remainingQuantity(order), basis = null) {
   const fees = accountFees(account2, order.side, quantity, price);
@@ -16518,7 +16999,7 @@ function applyFill(account2, order, price, quote, now, quantity = remainingQuant
 }
 function valuation(account2) {
   const positions = Object.values(account2.positions).map((position) => {
-    const price = finite7(position.lastPrice) ? position.lastPrice : position.costBasis / position.quantity;
+    const price = finite8(position.lastPrice) ? position.lastPrice : position.costBasis / position.quantity;
     const marketValue2 = round7(price * position.quantity);
     const averageCost = position.quantity ? position.costBasis / position.quantity : 0;
     return {
@@ -16576,13 +17057,13 @@ function computeMetrics(account2, { benchmarkPrice = null, now = (/* @__PURE__ *
     volatilityPct = round7(deviation * Math.sqrt(252) * 100, 2);
     sharpe = deviation > 0 ? round7(mean / deviation * Math.sqrt(252), 2) : null;
   }
-  const sells = account2.trades.filter((trade) => trade.side === "SELL" && finite7(trade.realizedPnl));
+  const sells = account2.trades.filter((trade) => trade.side === "SELL" && finite8(trade.realizedPnl));
   const wins = sells.filter((trade) => trade.realizedPnl > 0);
   const losses = sells.filter((trade) => trade.realizedPnl < 0);
   const grossWin = wins.reduce((sum, trade) => sum + trade.realizedPnl, 0);
   const grossLoss = Math.abs(losses.reduce((sum, trade) => sum + trade.realizedPnl, 0));
   const totalReturnPct = round7((value.equity / initial - 1) * 100, 2);
-  const benchmarkReturnPct = finite7(benchmarkPrice) && finite7(account2.benchmark?.startPrice) && account2.benchmark.startPrice > 0 ? round7((benchmarkPrice / account2.benchmark.startPrice - 1) * 100, 2) : null;
+  const benchmarkReturnPct = finite8(benchmarkPrice) && finite8(account2.benchmark?.startPrice) && account2.benchmark.startPrice > 0 ? round7((benchmarkPrice / account2.benchmark.startPrice - 1) * 100, 2) : null;
   const days = Math.max(0, (Date.parse(now) - Date.parse(account2.createdAt)) / 864e5);
   const today = localMarketTime(now, account2.market)?.date;
   const previousClose = [...daily.entries()].filter(([date4]) => date4 < today).at(-1)?.[1] ?? initial;
@@ -16592,7 +17073,7 @@ function computeMetrics(account2, { benchmarkPrice = null, now = (/* @__PURE__ *
     const entry = byVersion.get(key) ?? { version: key, trades: 0, closedTrades: 0, wins: 0, realizedPnl: 0, fees: 0 };
     entry.trades += 1;
     entry.fees = round7(entry.fees + trade.fees);
-    if (finite7(trade.realizedPnl)) {
+    if (finite8(trade.realizedPnl)) {
       entry.closedTrades += 1;
       entry.realizedPnl = round7(entry.realizedPnl + trade.realizedPnl);
       if (trade.realizedPnl > 0) entry.wins += 1;
@@ -16685,30 +17166,30 @@ function processAlive(pid) {
     return error2.code === "EPERM";
   }
 }
-function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, industryProvider = null, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
-  const accountDir = path6.join(root2, "accounts");
-  const digestDir = path6.join(root2, "digests");
-  const lockDir = path6.join(root2, ".lock");
-  const leaseFile = path6.join(root2, "matcher-lease.json");
-  const statusFile = path6.join(root2, "matcher-status.json");
+function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, industryProvider = null, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
+  const accountDir = path7.join(root2, "accounts");
+  const digestDir = path7.join(root2, "digests");
+  const lockDir = path7.join(root2, ".lock");
+  const leaseFile = path7.join(root2, "matcher-lease.json");
+  const statusFile = path7.join(root2, "matcher-status.json");
   const workbench = createWorkbenchSettings(root2, now);
   const quoteCache = /* @__PURE__ */ new Map();
   const minuteCache = /* @__PURE__ */ new Map();
   const actionCache = /* @__PURE__ */ new Map();
   const lastSync = /* @__PURE__ */ new Map();
   async function withLock(task) {
-    await mkdir6(root2, { recursive: true });
+    await mkdir7(root2, { recursive: true });
     const started = Date.now();
     for (; ; ) {
       try {
-        await mkdir6(lockDir);
-        await writeFile5(path6.join(lockDir, "owner.json"), JSON.stringify({ pid: process.pid, at: Date.now() }));
+        await mkdir7(lockDir);
+        await writeFile5(path7.join(lockDir, "owner.json"), JSON.stringify({ pid: process.pid, at: Date.now() }));
         break;
       } catch (error2) {
         if (error2.code !== "EEXIST") throw error2;
         let stale = false;
         try {
-          const owner = JSON.parse(await readFile6(path6.join(lockDir, "owner.json"), "utf8"));
+          const owner = JSON.parse(await readFile7(path7.join(lockDir, "owner.json"), "utf8"));
           stale = Date.now() - owner.at > LOCK_STALE_MS || !processAlive(owner.pid);
         } catch {
           try {
@@ -16718,7 +17199,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
           }
         }
         if (stale) {
-          await rm2(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {
+          await rm3(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {
           });
           continue;
         }
@@ -16729,13 +17210,13 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
     try {
       return await task();
     } finally {
-      await rm2(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {
+      await rm3(lockDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }).catch(() => {
       });
     }
   }
   const accountPath = (id) => {
     if (!/^acc_[a-f0-9]{12}$/.test(id ?? "")) throw new ArenaError(`Invalid account id: ${id}`, "invalid_account");
-    return path6.join(accountDir, `${id}.json`);
+    return path7.join(accountDir, `${id}.json`);
   };
   async function prepare(account2) {
     migrateAccount(account2, now());
@@ -16744,19 +17225,19 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
   }
   async function load(id) {
     try {
-      return await prepare(JSON.parse(await readFile6(accountPath(id), "utf8")));
+      return await prepare(JSON.parse(await readFile7(accountPath(id), "utf8")));
     } catch (error2) {
       if (error2.code === "ENOENT") throw new ArenaError(`Account ${id} not found. Call arena_my_accounts or arena_register_account.`, "not_found", 404);
       throw error2;
     }
   }
   async function save(account2) {
-    await mkdir6(accountDir, { recursive: true });
+    await mkdir7(accountDir, { recursive: true });
     account2.updatedAt = now();
     const file = accountPath(account2.id);
-    const temporary = `${file}.${process.pid}.${randomUUID4()}.tmp`;
+    const temporary = `${file}.${process.pid}.${randomUUID5()}.tmp`;
     await writeFile5(temporary, JSON.stringify(account2, null, 1), "utf8");
-    await rename6(temporary, file);
+    await rename7(temporary, file);
   }
   async function loadAll() {
     let names = [];
@@ -16768,7 +17249,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
     const accounts = [];
     for (const name of names.filter((entry) => /^acc_[a-f0-9]{12}\.json$/.test(entry))) {
       try {
-        accounts.push(await prepare(JSON.parse(await readFile6(path6.join(accountDir, name), "utf8"))));
+        accounts.push(await prepare(JSON.parse(await readFile7(path7.join(accountDir, name), "utf8"))));
       } catch {
       }
     }
@@ -16831,7 +17312,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         account2.appliedCorporateActions = [...account2.appliedCorporateActions, key].slice(-LIMITS.appliedActions);
         const entitled = entitledQuantity(account2, position, action.date);
         if (entitled <= 0) continue;
-        if (action.type === "dividend" && finite7(action.cashPerShare) && action.cashPerShare > 0) {
+        if (action.type === "dividend" && finite8(action.cashPerShare) && action.cashPerShare > 0) {
           if (action.currency && action.currency !== account2.currency) {
             addEvent(account2, at, { type: "corporate-action-skipped", symbol, exDate: action.date, message: `${symbol} dividend paid in ${action.currency}, not ${account2.currency}; not credited.` });
             continue;
@@ -16842,7 +17323,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
           position.dividends = round7((position.dividends ?? 0) + amount);
           const event = addEvent(account2, at, { type: "dividend", symbol, exDate: action.date, quantity: entitled, cashPerShare: action.cashPerShare, amount, message: `${symbol} dividend ${action.cashPerShare}/share on ${entitled} shares: +${amount} ${account2.currency}.` });
           events.push({ type: "dividend", symbol, amount, eventId: event.id });
-        } else if (["split", "bonus"].includes(action.type) && finite7(action.ratio) && action.ratio > 0 && Math.abs(action.ratio - 1) > 1e-9) {
+        } else if (["split", "bonus"].includes(action.type) && finite8(action.ratio) && action.ratio > 0 && Math.abs(action.ratio - 1) > 1e-9) {
           const before = position.quantity;
           let extra = Math.floor(entitled * action.ratio) - entitled;
           if (before + extra <= 0) extra = -before + 1;
@@ -16858,7 +17339,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
           else position.lots.push({ date: action.date, quantity: extra });
           position.lots = position.lots.filter((lot) => lot.quantity > 0);
           if (position.lastPrice && (localMarketTime(position.lastPriceAt, account2.market)?.date ?? "") < action.date) position.lastPrice = round7(position.lastPrice / action.ratio, 4);
-          for (const exit of ["stopLoss", "takeProfit"]) if (finite7(position.exits?.[exit]?.price)) position.exits[exit].price = round7(position.exits[exit].price / action.ratio, 4);
+          for (const exit of ["stopLoss", "takeProfit"]) if (finite8(position.exits?.[exit]?.price)) position.exits[exit].price = round7(position.exits[exit].price / action.ratio, 4);
           for (const order of openOrders(account2).filter((entry) => entry.symbol === symbol))
             Object.assign(order, { status: "cancelled", closedAt: at, reserved: 0, cancelReason: `${action.type} ${action.ratio}:1 on ${action.date} changed the share basis; re-enter the order.` });
           const event = addEvent(account2, at, { type: action.type, symbol, exDate: action.date, ratio: action.ratio, quantityBefore: before, quantityAfter: position.quantity, message: `${symbol} ${action.type === "split" ? "split" : "bonus shares"} \xD7${action.ratio}: ${before} \u2192 ${position.quantity} shares; average cost ${round7(position.costBasis / position.quantity, 4)}.` });
@@ -16897,7 +17378,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
   }
   function evaluateBreaker(account2, quoteMap, at, events) {
     const policy = riskPolicyOf(account2);
-    if (!finite7(policy.maxDrawdownPct) || account2.risk?.breaker) return;
+    if (!finite8(policy.maxDrawdownPct) || account2.risk?.breaker) return;
     const state = drawdownState(account2);
     if (state.drawdownPct > -policy.maxDrawdownPct) return;
     account2.risk = { ...account2.risk, breaker: { trippedAt: at, drawdownPct: state.drawdownPct, peakEquity: state.peakEquity, equity: state.equity, action: policy.onBreach } };
@@ -16944,7 +17425,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         defer("suspended", `${trigger} for ${position.symbol} at ${level} waits: trading looks suspended (${suspended}).`);
         continue;
       }
-      if (account2.market === "A" && finite7(observed.limitDown) && observed.price <= observed.limitDown + 1e-9) {
+      if (account2.market === "A" && finite8(observed.limitDown) && observed.price <= observed.limitDown + 1e-9) {
         defer("limit-down", `${trigger} for ${position.symbol} at ${level} waits: the stock is locked limit-down.`);
         continue;
       }
@@ -16978,17 +17459,17 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
     }
     for (const position of Object.values(account2.positions)) {
       const observed = quoteMap.get(position.symbol);
-      if (observed && !observed.error && finite7(observed.price)) {
+      if (observed && !observed.error && finite8(observed.price)) {
         position.lastPrice = observed.price;
         position.lastPriceAt = observed.asOf ?? at;
         position.name = position.name === position.symbol ? observed.name ?? position.name : position.name;
       }
     }
     const benchmark = quoteMap.get(account2.benchmark?.symbol);
-    if (benchmark && !benchmark.error && finite7(benchmark.price)) {
+    if (benchmark && !benchmark.error && finite8(benchmark.price)) {
       account2.benchmark.lastPrice = benchmark.price;
       account2.benchmark.lastPriceAt = benchmark.asOf ?? at;
-      if (!finite7(account2.benchmark.startPrice)) {
+      if (!finite8(account2.benchmark.startPrice)) {
         account2.benchmark.startPrice = benchmark.price;
         account2.benchmark.startAt = at;
       }
@@ -17241,7 +17722,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
       if (!name || name.length > 60) throw new ArenaError("name is required (at most 60 characters).");
       if (!model || model.length > 80) throw new ArenaError("model is required (e.g. claude-opus-5-5, gpt-5.5-codex). Report the model you are actually running on.");
       const initialCash = input.initialCash ?? config2.defaultCash;
-      if (!finite7(initialCash) || initialCash < 1e3 || initialCash > 1e10) throw new ArenaError("initialCash must be between 1,000 and 10,000,000,000.");
+      if (!finite8(initialCash) || initialCash < 1e3 || initialCash > 1e10) throw new ArenaError("initialCash must be between 1,000 and 10,000,000,000.");
       const competition = String(input.competition ?? "default").trim().slice(0, 40) || "default";
       const at = now();
       const account2 = {
@@ -17278,7 +17759,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
       };
       try {
         const benchmark = await quote(config2.benchmark);
-        if (finite7(benchmark.price)) Object.assign(account2.benchmark, { startPrice: benchmark.price, startAt: at, lastPrice: benchmark.price, lastPriceAt: benchmark.asOf });
+        if (finite8(benchmark.price)) Object.assign(account2.benchmark, { startPrice: benchmark.price, startAt: at, lastPrice: benchmark.price, lastPriceAt: benchmark.asOf });
       } catch {
       }
       await withLock(() => save(account2));
@@ -17348,7 +17829,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
       const type = input.orderType === "limit" ? "limit" : "market";
       const quantity = Number(input.quantity);
       if (!Number.isInteger(quantity) || quantity <= 0) throw new ArenaError("quantity must be a positive integer number of shares.");
-      if (type === "limit" && !(finite7(input.limitPrice) && input.limitPrice > 0)) throw new ArenaError("limitPrice is required for limit orders.");
+      if (type === "limit" && !(finite8(input.limitPrice) && input.limitPrice > 0)) throw new ArenaError("limitPrice is required for limit orders.");
       const reason = String(input.reason ?? "").trim();
       if (reason.length < 10) throw new ArenaError("reason is required (at least 10 characters): explain the thesis so the decision can be reviewed.");
       const exits = normalizeExits(input);
@@ -17381,7 +17862,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         status: "open",
         reserved: 0,
         reason: reason.slice(0, 2e3),
-        confidence: finite7(input.confidence) ? clamp2(input.confidence, 0, 1) : null,
+        confidence: finite8(input.confidence) ? clamp2(input.confidence, 0, 1) : null,
         horizon: input.horizon ?? null,
         strategyVersion: account2.strategy.version,
         createdAt: at,
@@ -17426,16 +17907,16 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         if (estimate > available + 1e-6) failure = reject(`Insufficient available cash: need about ${round7(estimate)} ${account2.currency}, available ${round7(available)}.`);
         else order.reserved = round7(type === "limit" ? quantity * order.limitPrice + accountFees(account2, "BUY", quantity, order.limitPrice).total : estimate);
       }
-      if (!failure && type === "limit" && finite7(observed?.price)) {
+      if (!failure && type === "limit" && finite8(observed?.price)) {
         const deviation = Math.abs(order.limitPrice / observed.price - 1) * 100;
-        if (account2.market === "A" && (finite7(observed.limitUp) && order.limitPrice > observed.limitUp || finite7(observed.limitDown) && order.limitPrice < observed.limitDown))
+        if (account2.market === "A" && (finite8(observed.limitUp) && order.limitPrice > observed.limitUp || finite8(observed.limitDown) && order.limitPrice < observed.limitDown))
           failure = reject(`Limit price is outside today's A-share price band (${observed.limitDown}\u2013${observed.limitUp}).`);
         else if (deviation > 30) failure = reject(`Limit price is ${round7(deviation, 1)}% away from the last price ${observed.price}; check units and price.`);
       }
-      if (!failure && exits && finite7(observed?.price)) {
+      if (!failure && exits && finite8(observed?.price)) {
         const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed.price);
-        if (finite7(exits.stopLoss?.price) && exits.stopLoss.price >= reference) failure = reject(`stopLossPrice ${exits.stopLoss.price} must be below the entry price (~${reference}).`);
-        else if (finite7(exits.takeProfit?.price) && exits.takeProfit.price <= reference) failure = reject(`takeProfitPrice ${exits.takeProfit.price} must be above the entry price (~${reference}).`);
+        if (finite8(exits.stopLoss?.price) && exits.stopLoss.price >= reference) failure = reject(`stopLossPrice ${exits.stopLoss.price} must be below the entry price (~${reference}).`);
+        else if (finite8(exits.takeProfit?.price) && exits.takeProfit.price <= reference) failure = reject(`takeProfitPrice ${exits.takeProfit.price} must be above the entry price (~${reference}).`);
       }
       const limitDetails = () => {
         const reference = execution?.price ?? (type === "limit" ? order.limitPrice : observed?.price);
@@ -17454,7 +17935,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         owner: isOwner(caller),
         held: Boolean(account2.positions[symbol]),
         side,
-        value: finite7(referencePrice) ? quantity * referencePrice : null,
+        value: finite8(referencePrice) ? quantity * referencePrice : null,
         equity: valuation(account2).equity,
         requested: input.requireApproval === true
       }) : null;
@@ -17466,7 +17947,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         rejectedBy: failure?.code ?? null,
         needsApproval,
         warnings: order.warnings,
-        estimate: finite7(referencePrice) ? { price: referencePrice, value: round7(quantity * referencePrice), fees: accountFees(account2, side, quantity, referencePrice).total, basis: execution?.basis ?? null } : null,
+        estimate: finite8(referencePrice) ? { price: referencePrice, value: round7(quantity * referencePrice), fees: accountFees(account2, side, quantity, referencePrice).total, basis: execution?.basis ?? null } : null,
         quote: observed ? quoteSnapshot(observed) : null,
         industry: order.industry ?? null
       };
@@ -17491,7 +17972,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
             return { pendingApproval: waiting, duplicate: true, order: { ...order, status: "pending-approval" }, account: publicAccount(current), note: `A ${side} ${symbol} order is already waiting for the owner (${waiting.id}); not filed again.` };
           }
           const autonomy = { ...DEFAULT_AUTONOMY, ...current.autonomy };
-          const exitInput = Object.fromEntries(["stopLossPrice", "stopLossPct", "takeProfitPrice", "takeProfitPct"].filter((key) => finite7(input[key])).map((key) => [key, input[key]]));
+          const exitInput = Object.fromEntries(["stopLossPrice", "stopLossPct", "takeProfitPrice", "takeProfitPct"].filter((key) => finite8(input[key])).map((key) => [key, input[key]]));
           const approval = {
             id: shortId2("apr"),
             kind: "order",
@@ -17502,7 +17983,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
             requestedBy: caller.client ?? null,
             origin: order.origin,
             input: { symbol, side, quantity, orderType: type, limitPrice: order.limitPrice ?? void 0, timeInForce: order.timeInForce, reason: order.reason, confidence: order.confidence ?? void 0, horizon: order.horizon ?? void 0, citations, origin: order.origin, ...exitInput },
-            preview: { symbol, name: order.name, side, type, quantity, limitPrice: order.limitPrice, price: finite7(referencePrice) ? referencePrice : null, value: finite7(referencePrice) ? round7(quantity * referencePrice) : null, quote: order.quoteAtSubmit, exits: order.exits ?? null },
+            preview: { symbol, name: order.name, side, type, quantity, limitPrice: order.limitPrice, price: finite8(referencePrice) ? referencePrice : null, value: finite8(referencePrice) ? round7(quantity * referencePrice) : null, quote: order.quoteAtSubmit, exits: order.exits ?? null },
             warnings: order.warnings
           };
           current.approvals = [...current.approvals ?? [], approval].slice(-200);
@@ -17512,8 +17993,8 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         }
         current.orders.push(order);
         if (current.orders.length > LIMITS.orders) {
-          const open2 = current.orders.filter((entry) => entry.status === "open");
-          current.orders = [...current.orders.filter((entry) => entry.status !== "open").slice(-(LIMITS.orders - open2.length)), ...open2].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+          const open3 = current.orders.filter((entry) => entry.status === "open");
+          current.orders = [...current.orders.filter((entry) => entry.status !== "open").slice(-(LIMITS.orders - open3.length)), ...open3].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
         }
         let trade = null;
         let liquidity = null;
@@ -18091,8 +18572,8 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         const candidate = { ...position, exits: next };
         const levels = exitLevels(candidate);
         const last = position.lastPrice;
-        if (finite7(last) && levels?.stopLoss !== null && levels?.stopLoss !== void 0 && levels.stopLoss >= last) throw new ArenaError(`Stop-loss ${levels.stopLoss} is at or above the last price ${last}; it would trigger immediately. Sell directly instead.`);
-        if (finite7(last) && levels?.takeProfit !== null && levels?.takeProfit !== void 0 && levels.takeProfit <= last) throw new ArenaError(`Take-profit ${levels.takeProfit} is at or below the last price ${last}; it would trigger immediately. Sell directly instead.`);
+        if (finite8(last) && levels?.stopLoss !== null && levels?.stopLoss !== void 0 && levels.stopLoss >= last) throw new ArenaError(`Stop-loss ${levels.stopLoss} is at or above the last price ${last}; it would trigger immediately. Sell directly instead.`);
+        if (finite8(last) && levels?.takeProfit !== null && levels?.takeProfit !== void 0 && levels.takeProfit <= last) throw new ArenaError(`Take-profit ${levels.takeProfit} is at or below the last price ${last}; it would trigger immediately. Sell directly instead.`);
         if (Object.keys(next).length) position.exits = next;
         else delete position.exits;
         const at = now();
@@ -18106,7 +18587,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
       return withLock(async () => {
         const account2 = await load(id);
         if (account2.status !== "archived") throw new ArenaError("Archive the account before deleting it.", "inactive", 409);
-        await rm2(accountPath(id), { force: true });
+        await rm3(accountPath(id), { force: true });
         return { deleted: id };
       });
     },
@@ -18129,28 +18610,28 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
     // held by a dead local process, or already ours.
     async acquireLease(name, ownerId, leaseMs) {
       if (!/^[a-z-]+$/.test(name)) throw new ArenaError(`Invalid lease name ${name}`);
-      const file = path6.join(root2, `${name}-lease.json`);
+      const file = path7.join(root2, `${name}-lease.json`);
       return withLock(async () => {
         const at = now();
         let lease = null;
         try {
-          lease = JSON.parse(await readFile6(file, "utf8"));
+          lease = JSON.parse(await readFile7(file, "utf8"));
         } catch {
           lease = null;
         }
-        const free = !lease || lease.ownerId === ownerId || Date.parse(lease.expiresAt) <= Date.parse(at) || lease.host === os2.hostname() && !processAlive(lease.pid);
+        const free = !lease || lease.ownerId === ownerId || Date.parse(lease.expiresAt) <= Date.parse(at) || lease.host === os3.hostname() && !processAlive(lease.pid);
         if (!free) return { owner: false, lease };
-        const next = { ownerId, pid: process.pid, host: os2.hostname(), acquiredAt: lease?.ownerId === ownerId ? lease.acquiredAt : at, renewedAt: at, expiresAt: new Date(Date.parse(at) + leaseMs).toISOString() };
+        const next = { ownerId, pid: process.pid, host: os3.hostname(), acquiredAt: lease?.ownerId === ownerId ? lease.acquiredAt : at, renewedAt: at, expiresAt: new Date(Date.parse(at) + leaseMs).toISOString() };
         await writeFile5(file, JSON.stringify(next, null, 1), "utf8");
         return { owner: true, lease: next };
       });
     },
     async releaseLease(name, ownerId) {
-      const file = path6.join(root2, `${name}-lease.json`);
+      const file = path7.join(root2, `${name}-lease.json`);
       return withLock(async () => {
         try {
-          const lease = JSON.parse(await readFile6(file, "utf8"));
-          if (lease.ownerId === ownerId) await rm2(file, { force: true });
+          const lease = JSON.parse(await readFile7(file, "utf8"));
+          if (lease.ownerId === ownerId) await rm3(file, { force: true });
         } catch {
         }
       });
@@ -18161,16 +18642,16 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         const at = now();
         let lease = null;
         try {
-          lease = JSON.parse(await readFile6(leaseFile, "utf8"));
+          lease = JSON.parse(await readFile7(leaseFile, "utf8"));
         } catch {
           lease = null;
         }
-        const free = !lease || lease.ownerId === ownerId || Date.parse(lease.expiresAt) <= Date.parse(at) || lease.host === os2.hostname() && !processAlive(lease.pid);
+        const free = !lease || lease.ownerId === ownerId || Date.parse(lease.expiresAt) <= Date.parse(at) || lease.host === os3.hostname() && !processAlive(lease.pid);
         if (!free) return { owner: false, lease };
         const next = {
           ownerId,
           pid: process.pid,
-          host: os2.hostname(),
+          host: os3.hostname(),
           acquiredAt: lease?.ownerId === ownerId ? lease.acquiredAt : at,
           renewedAt: at,
           expiresAt: new Date(Date.parse(at) + leaseMs).toISOString()
@@ -18182,23 +18663,23 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
     async releaseMatcherLease(ownerId) {
       return withLock(async () => {
         try {
-          const lease = JSON.parse(await readFile6(leaseFile, "utf8"));
-          if (lease.ownerId === ownerId) await rm2(leaseFile, { force: true });
+          const lease = JSON.parse(await readFile7(leaseFile, "utf8"));
+          if (lease.ownerId === ownerId) await rm3(leaseFile, { force: true });
         } catch {
         }
       });
     },
     async writeMatcherStatus(status) {
-      await mkdir6(root2, { recursive: true });
-      const temporary = `${statusFile}.${process.pid}.${randomUUID4()}.tmp`;
+      await mkdir7(root2, { recursive: true });
+      const temporary = `${statusFile}.${process.pid}.${randomUUID5()}.tmp`;
       await writeFile5(temporary, JSON.stringify(status, null, 1), "utf8");
-      await rename6(temporary, statusFile);
+      await rename7(temporary, statusFile);
     },
     // Status visible from any process: who leads, when it last ran and whether the lease is live.
     async matcherStatus() {
       const read = async (file) => {
         try {
-          return JSON.parse(await readFile6(file, "utf8"));
+          return JSON.parse(await readFile7(file, "utf8"));
         } catch {
           return null;
         }
@@ -18258,7 +18739,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
       }).sort((a, b) => a.market.localeCompare(b.market) || b.totalReturnPct - a.totalReturnPct);
       const marketLabel = market2 ? `${market2} ` : "";
       const title = zh ? `Agent \u6A21\u62DF\u76D8\u65E5\u62A5 \xB7 ${marketLabel}${digestDate}` : `Agent arena digest \xB7 ${marketLabel}${digestDate}`;
-      const pct = (value) => finite7(value) ? `${value >= 0 ? "+" : ""}${value}%` : "\u2014";
+      const pct = (value) => finite8(value) ? `${value >= 0 ? "+" : ""}${value}%` : "\u2014";
       const lines = [`**${title}**`, zh ? "\uFF08\u865A\u62DF\u8D44\u91D1\u6A21\u62DF\u76D8\uFF0C\u975E\u771F\u5B9E\u6536\u76CA\uFF09" : "(Virtual-money paper trading, not real returns)", ""];
       for (const row of rows) {
         lines.push(`\u2022 ${row.name} [${row.market}\xB7${row.model}] ${zh ? "\u51C0\u503C" : "equity"} ${row.equity} ${row.currency} | ${zh ? "\u5F53\u65E5" : "day"} ${pct(row.dayReturnPct)} | ${zh ? "\u7D2F\u8BA1" : "total"} ${pct(row.totalReturnPct)} | ${zh ? "\u6210\u4EA4" : "fills"} ${row.trades.length}`);
@@ -18283,17 +18764,17 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
         delivery: null
       };
       await withLock(async () => {
-        await mkdir6(digestDir, { recursive: true });
-        await writeFile5(path6.join(digestDir, `${digest.id}.json`), JSON.stringify(digest, null, 1), "utf8");
+        await mkdir7(digestDir, { recursive: true });
+        await writeFile5(path7.join(digestDir, `${digest.id}.json`), JSON.stringify(digest, null, 1), "utf8");
         const names = (await readdir(digestDir)).filter((name) => name.endsWith(".json")).sort();
-        for (const name of names.slice(0, Math.max(0, names.length - LIMITS.digests))) await rm2(path6.join(digestDir, name), { force: true });
+        for (const name of names.slice(0, Math.max(0, names.length - LIMITS.digests))) await rm3(path7.join(digestDir, name), { force: true });
       });
       return digest;
     },
     async getDigest(id) {
       if (!/^dig_\d{4}-\d{2}-\d{2}_[A-Za-z]+$/.test(id ?? "")) throw new ArenaError(`Invalid digest id: ${id}`);
       try {
-        return JSON.parse(await readFile6(path6.join(digestDir, `${id}.json`), "utf8"));
+        return JSON.parse(await readFile7(path7.join(digestDir, `${id}.json`), "utf8"));
       } catch (error2) {
         if (error2.code === "ENOENT") return null;
         throw error2;
@@ -18309,7 +18790,7 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
       const digests = [];
       for (const name of names.filter((entry) => /^dig_.+\.json$/.test(entry))) {
         try {
-          digests.push(JSON.parse(await readFile6(path6.join(digestDir, name), "utf8")));
+          digests.push(JSON.parse(await readFile7(path7.join(digestDir, name), "utf8")));
         } catch {
         }
       }
@@ -18317,8 +18798,8 @@ function createArena({ root: root2 = path6.join(getStorageDir(), "arena"), quote
     },
     async recordDigestDelivery(id, delivery) {
       return withLock(async () => {
-        const file = path6.join(digestDir, `${id}.json`);
-        const digest = JSON.parse(await readFile6(file, "utf8"));
+        const file = path7.join(digestDir, `${id}.json`);
+        const digest = JSON.parse(await readFile7(file, "utf8"));
         digest.delivery = { ...delivery, attempts: (digest.delivery?.attempts ?? 0) + 1 };
         await writeFile5(file, JSON.stringify(digest, null, 1), "utf8");
         return digest;
@@ -18365,7 +18846,7 @@ function createMatcher({
   onError = () => {
   }
 } = {}) {
-  const ownerId = `${os2.hostname()}:${process.pid}:${randomBytes2(4).toString("hex")}`;
+  const ownerId = `${os3.hostname()}:${process.pid}:${randomBytes2(4).toString("hex")}`;
   let timer = null;
   let running = null;
   let role = "idle";
@@ -18434,7 +18915,7 @@ function createMatcher({
     await arena.writeMatcherStatus({
       ownerId,
       pid: process.pid,
-      host: os2.hostname(),
+      host: os3.hostname(),
       intervalMs,
       lastTickAt: at,
       lastRunAt: hasWork ? at : previous.lastRunAt ?? null,
@@ -18491,13 +18972,13 @@ function callerFromClient(clientInfo) {
 }
 
 // mcp/scheduler.mjs
-import { spawn as spawn3 } from "node:child_process";
-import { randomBytes as randomBytes3, randomUUID as randomUUID6 } from "node:crypto";
+import { spawn as spawn4 } from "node:child_process";
+import { randomBytes as randomBytes3, randomUUID as randomUUID7 } from "node:crypto";
 import { existsSync } from "node:fs";
-import { appendFile, mkdir as mkdir8, mkdtemp, readFile as readFile10, rename as rename8, rm as rm3, writeFile as writeFile7 } from "node:fs/promises";
-import os4 from "node:os";
-import path11 from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { appendFile, mkdir as mkdir9, mkdtemp, readFile as readFile11, rename as rename9, rm as rm4, writeFile as writeFile7 } from "node:fs/promises";
+import os5 from "node:os";
+import path12 from "node:path";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // mcp/prompts.mjs
 function roundPrompt({ account: account2, market: market2, language }) {
@@ -18857,9 +19338,9 @@ function runAcpAgent({ command, args = [], env, cwd, prompt, mcpServers = [], ti
       } catch {
       }
     };
-    const request = (method, params) => new Promise((ok, fail2) => {
+    const request = (method, params) => new Promise((ok, fail3) => {
       const id = nextId++;
-      pending.set(id, { ok, fail: fail2 });
+      pending.set(id, { ok, fail: fail3 });
       send({ id, method, params });
     });
     const flush = () => {
@@ -18906,7 +19387,7 @@ function runAcpAgent({ command, args = [], env, cwd, prompt, mcpServers = [], ti
     });
     child.on("error", (error2) => finish({ error: error2.code === "ENOENT" ? `Command not found: ${command}` : error2.message }));
     child.on("close", (code) => {
-      for (const { fail: fail2 } of pending.values()) fail2(new Error(`agent exited (${code})${stderr ? `: ${stderr.trim().split("\n").at(-1)}` : ""}`));
+      for (const { fail: fail3 } of pending.values()) fail3(new Error(`agent exited (${code})${stderr ? `: ${stderr.trim().split("\n").at(-1)}` : ""}`));
       pending.clear();
     });
     readline.createInterface({ input: child.stdout }).on("line", (line) => {
@@ -18962,12 +19443,12 @@ function runAcpAgent({ command, args = [], env, cwd, prompt, mcpServers = [], ti
 }
 
 // mcp/trader-strategies.mjs
-import { mkdir as mkdir7, readFile as readFile7, rename as rename7, writeFile as writeFile6 } from "node:fs/promises";
-import { randomUUID as randomUUID5 } from "node:crypto";
-import path8 from "node:path";
+import { mkdir as mkdir8, readFile as readFile8, rename as rename8, writeFile as writeFile6 } from "node:fs/promises";
+import { randomUUID as randomUUID6 } from "node:crypto";
+import path9 from "node:path";
 
 // mcp/strategy-sandbox.mjs
-import { spawn as spawn2 } from "node:child_process";
+import { spawn as spawn3 } from "node:child_process";
 var STRATEGY_CODE_LIMIT = 6e4;
 var FORBIDDEN = [
   [/\bimport\s*[\s({*"']/, "\u4E0D\u80FD import \u6A21\u5757\uFF1A\u7B56\u7565\u53EA\u80FD\u7528 ctx \u63D0\u4F9B\u7684\u6570\u636E"],
@@ -19041,7 +19522,7 @@ function permissionFlag() {
 async function openSandbox(code, { loadTimeoutMs = 1e4, onLog = () => {
 } } = {}) {
   const script = prepareStrategyCode(code);
-  const child = spawn2(process.execPath, [permissionFlag(), "--max-old-space-size=256", "-e", CHILD], { env: {}, stdio: ["ignore", "ignore", "pipe", "ipc"], windowsHide: true });
+  const child = spawn3(process.execPath, [permissionFlag(), "--max-old-space-size=256", "-e", CHILD], { env: {}, stdio: ["ignore", "ignore", "pipe", "ipc"], windowsHide: true });
   let stderr = "";
   child.stderr?.on("data", (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-2e3);
@@ -19153,7 +19634,7 @@ function sandboxedStrategy({ id, code, meta = {}, market: market2 }) {
 
 // mcp/strategies/index.mjs
 import { readdir as readdir2 } from "node:fs/promises";
-import path7 from "node:path";
+import path8 from "node:path";
 import { pathToFileURL } from "node:url";
 
 // mcp/strategies/ma-trend.mjs
@@ -19338,7 +19819,7 @@ function validateStrategy(module, origin = "builtin") {
   if (!ID.test(strategy2.id ?? "")) throw new Error(`Strategy id "${strategy2.id}" must be 2\u201341 lowercase letters, digits or dashes.`);
   return { name: strategy2.id, version: "0.0.0", markets: ["A", "HK", "US"], params: {}, description: "", ...strategy2, origin };
 }
-async function loadStrategies({ dir = path7.join(getStorageDir(), "strategies") } = {}) {
+async function loadStrategies({ dir = path8.join(getStorageDir(), "strategies") } = {}) {
   const strategies = new Map(BUILTIN_STRATEGIES.map((strategy2) => [strategy2.id, validateStrategy(strategy2)]));
   const errors = [];
   let names = [];
@@ -19349,7 +19830,7 @@ async function loadStrategies({ dir = path7.join(getStorageDir(), "strategies") 
   }
   for (const name of names.filter((entry) => entry.endsWith(".mjs"))) {
     try {
-      const file = path7.join(dir, name);
+      const file = path8.join(dir, name);
       const strategy2 = validateStrategy(await import(`${pathToFileURL(file).href}?v=${Date.now()}`), file);
       strategies.set(strategy2.id, strategy2);
     } catch (error2) {
@@ -19522,29 +20003,29 @@ async function runStrategyRound({ strategy: strategy2, params: rawParams, broker
 
 // mcp/trader-strategies.mjs
 var round8 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
-var finite8 = (value) => typeof value === "number" && Number.isFinite(value);
+var finite9 = (value) => typeof value === "number" && Number.isFinite(value);
 var BENCHMARKS = { A: "000300.SS", HK: "^HSI", US: "^GSPC" };
 var traderStrategyId = (accountId2) => `trader-${String(accountId2).replace(/^acc_/, "")}`;
 var accountOfStrategy = (strategyId) => /^trader-[a-f0-9]{12}$/.test(strategyId ?? "") ? `acc_${strategyId.slice(7)}` : null;
 function createTraderStrategyStore(root2, now = () => (/* @__PURE__ */ new Date()).toISOString()) {
   const dirOf = (accountId2) => {
     if (!/^acc_[a-f0-9]{12}$/.test(accountId2 ?? "")) throw new Error(`Invalid account id: ${accountId2}`);
-    return path8.join(root2, "trader-strategies", accountId2);
+    return path9.join(root2, "trader-strategies", accountId2);
   };
   async function meta(accountId2) {
     try {
-      return JSON.parse(await readFile7(path8.join(dirOf(accountId2), "meta.json"), "utf8"));
+      return JSON.parse(await readFile8(path9.join(dirOf(accountId2), "meta.json"), "utf8"));
     } catch (error2) {
       if (error2.code === "ENOENT") return { accountId: accountId2, live: null, versions: [] };
       throw error2;
     }
   }
   async function saveMeta(accountId2, value) {
-    await mkdir7(dirOf(accountId2), { recursive: true });
-    const file = path8.join(dirOf(accountId2), "meta.json");
-    const temporary = `${file}.${process.pid}.${randomUUID5()}.tmp`;
+    await mkdir8(dirOf(accountId2), { recursive: true });
+    const file = path9.join(dirOf(accountId2), "meta.json");
+    const temporary = `${file}.${process.pid}.${randomUUID6()}.tmp`;
     await writeFile6(temporary, JSON.stringify(value, null, 1), "utf8");
-    await rename7(temporary, file);
+    await rename8(temporary, file);
   }
   return {
     meta,
@@ -19552,13 +20033,13 @@ function createTraderStrategyStore(root2, now = () => (/* @__PURE__ */ new Date(
       const info = await meta(accountId2);
       const target = version3 ?? info.live;
       if (!target) return null;
-      return { version: target, code: await readFile7(path8.join(dirOf(accountId2), `v${target}.mjs`), "utf8"), entry: info.versions.find((entry) => entry.version === target) ?? null };
+      return { version: target, code: await readFile8(path9.join(dirOf(accountId2), `v${target}.mjs`), "utf8"), entry: info.versions.find((entry) => entry.version === target) ?? null };
     },
     async addVersion(accountId2, { code, changeNote, by, params = {}, intervalMinutes = null, universe = null }) {
       const info = await meta(accountId2);
       const version3 = (info.versions.at(-1)?.version ?? 0) + 1;
-      await mkdir7(dirOf(accountId2), { recursive: true });
-      await writeFile6(path8.join(dirOf(accountId2), `v${version3}.mjs`), code, "utf8");
+      await mkdir8(dirOf(accountId2), { recursive: true });
+      await writeFile6(path9.join(dirOf(accountId2), `v${version3}.mjs`), code, "utf8");
       const entry = { version: version3, at: now(), by, changeNote: changeNote ? String(changeNote).slice(0, 500) : null, params, intervalMinutes, universe, status: "checking", lines: String(code).split("\n").length };
       info.versions.push(entry);
       await saveMeta(accountId2, info);
@@ -19593,7 +20074,7 @@ async function backtestCode({ code, market: market2, universe, params = {}, sess
   const missing = [];
   await Promise.all([...symbols, BENCHMARKS[market2]].map(async (symbol) => {
     try {
-      histories.set(symbol, ((await historyProvider(symbol, { range: "1y" })).history ?? []).filter((bar) => bar.complete !== false && finite8(bar.close)));
+      histories.set(symbol, ((await historyProvider(symbol, { range: "1y" })).history ?? []).filter((bar) => bar.complete !== false && finite9(bar.close)));
     } catch {
       missing.push(symbol);
     }
@@ -19611,7 +20092,7 @@ async function backtestCode({ code, market: market2, universe, params = {}, sess
   try {
     for (const date4 of calendar) {
       const decideAt = new Date(Date.parse(byDate.get(symbols.find((symbol) => byDate.get(symbol)?.has(date4)) ?? BENCHMARKS[market2])?.get(date4)?.closeAt ?? `${date4}T07:00:00Z`) - 6e4).toISOString();
-      const closes = new Map(symbols.map((symbol) => [symbol, byDate.get(symbol)?.get(date4)?.close]).filter(([, close]) => finite8(close)));
+      const closes = new Map(symbols.map((symbol) => [symbol, byDate.get(symbol)?.get(date4)?.close]).filter(([, close]) => finite9(close)));
       const value = () => [...positions].reduce((sum, [symbol, position]) => sum + position.quantity * (closes.get(symbol) ?? position.lastPrice), 0);
       const equity = cash + value();
       const account2 = {
@@ -19653,7 +20134,7 @@ async function backtestCode({ code, market: market2, universe, params = {}, sess
       }
       for (const order of [...orders.filter((entry) => entry.side === "SELL"), ...orders.filter((entry) => entry.side === "BUY")]) {
         const close = closes.get(order.symbol);
-        if (!finite8(close) || !Number.isInteger(order.quantity) || order.quantity <= 0) continue;
+        if (!finite9(close) || !Number.isInteger(order.quantity) || order.quantity <= 0) continue;
         const position = positions.get(order.symbol);
         if (order.side === "SELL") {
           const quantity = Math.min(order.quantity, sellable[order.symbol] ?? 0);
@@ -19678,7 +20159,7 @@ async function backtestCode({ code, market: market2, universe, params = {}, sess
           const lot = lotRules({ market: market2, lotOverrides: {} }, order.symbol, { lotSize: 100 }).lotSize ?? 1;
           const price = close * (1 + slip);
           let quantity = Math.floor(order.quantity / lot) * lot;
-          const floor = finite8(minCashPct) ? (cash + value()) * minCashPct / 100 : 0;
+          const floor = finite9(minCashPct) ? (cash + value()) * minCashPct / 100 : 0;
           while (quantity > 0 && cash - quantity * price - computeFees(market2, "BUY", quantity, price, fees).total < floor) quantity -= lot;
           if (quantity <= 0) {
             notes.add("\u6709\u4E70\u5355\u56E0\u4E3A\u4FDD\u7559\u73B0\u91D1\u7684\u8FB9\u754C\u88AB\u7F29\u5C0F\u6216\u8DF3\u8FC7\u3002");
@@ -19694,7 +20175,7 @@ async function backtestCode({ code, market: market2, universe, params = {}, sess
           trades.push({ date: date4, symbol: order.symbol, side: "BUY", quantity, price: round8(price, 4) });
         }
       }
-      for (const [symbol, position] of positions) if (finite8(closes.get(symbol))) position.lastPrice = closes.get(symbol);
+      for (const [symbol, position] of positions) if (finite9(closes.get(symbol))) position.lastPrice = closes.get(symbol);
       curve.push({ date: date4, equity: round8(cash + value()) });
     }
   } finally {
@@ -19715,7 +20196,7 @@ async function backtestCode({ code, market: market2, universe, params = {}, sess
     sessions: curve.length,
     totalReturnPct: round8((curve.at(-1).equity / initialCash - 1) * 100),
     maxDrawdownPct: round8(maxDrawdownPct),
-    benchmarkReturnPct: finite8(benchFirst) && finite8(benchLast) ? round8((benchLast / benchFirst - 1) * 100) : null,
+    benchmarkReturnPct: finite9(benchFirst) && finite9(benchLast) ? round8((benchLast / benchFirst - 1) * 100) : null,
     trades: trades.length,
     closedTrades: sells.length,
     winRatePct: sells.length ? round8(sells.filter((trade) => trade.pnl > 0).length / sells.length * 100, 1) : null,
@@ -19809,17 +20290,17 @@ async function rollbackTraderStrategy({ arena, scheduler, store, accountId: acco
 }
 
 // mcp/skill-library.mjs
-import { createHash as createHash3 } from "node:crypto";
-import { readdir as readdir3, readFile as readFile8 } from "node:fs/promises";
-import path9 from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-var here = path9.dirname(fileURLToPath2(import.meta.url));
+import { createHash as createHash4 } from "node:crypto";
+import { readdir as readdir3, readFile as readFile9 } from "node:fs/promises";
+import path10 from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
+var here = path10.dirname(fileURLToPath3(import.meta.url));
 var cached2 = null;
 function libraryDir() {
-  return process.env.HROUTER_LIBRARY_DIR || path9.resolve(here, "..", "library");
+  return process.env.HROUTER_LIBRARY_DIR || path10.resolve(here, "..", "library");
 }
 function importedDir() {
-  return path9.join(getStorageDir(), "skills-imported");
+  return path10.join(getStorageDir(), "skills-imported");
 }
 function invalidateLibrary() {
   cached2 = null;
@@ -19834,7 +20315,7 @@ async function importedSkills() {
   const skills = [];
   for (const entry of entries.filter((item) => item.isDirectory() && /^imp-[a-z0-9-]{2,56}$/.test(item.name))) {
     try {
-      const meta = JSON.parse(await readFile8(path9.join(importedDir(), entry.name, "meta.json"), "utf8"));
+      const meta = JSON.parse(await readFile9(path10.join(importedDir(), entry.name, "meta.json"), "utf8"));
       skills.push({
         id: entry.name,
         name: meta.name,
@@ -19852,12 +20333,12 @@ async function importedSkills() {
   }
   return skills;
 }
-async function readJson2(name) {
-  return JSON.parse(await readFile8(path9.join(libraryDir(), name), "utf8"));
+async function readJson3(name) {
+  return JSON.parse(await readFile9(path10.join(libraryDir(), name), "utf8"));
 }
 async function loadLibrary() {
   if (cached2 && cached2.dir === libraryDir()) return cached2.value;
-  const [catalog, templates] = await Promise.all([readJson2("catalog.json"), readJson2("templates.json")]);
+  const [catalog, templates] = await Promise.all([readJson3("catalog.json"), readJson3("templates.json")]);
   const value = {
     sources: catalog.sources,
     note: catalog.note,
@@ -19870,12 +20351,12 @@ async function loadLibrary() {
 }
 async function skillBody(id) {
   if (!/^[a-z0-9-]{2,60}$/.test(id ?? "")) throw new Error(`Invalid skill id ${id}`);
-  if (id.startsWith("imp-")) return readFile8(path9.join(importedDir(), id, "SKILL.md"), "utf8");
-  return readFile8(path9.join(libraryDir(), "skills", id, "SKILL.md"), "utf8");
+  if (id.startsWith("imp-")) return readFile9(path10.join(importedDir(), id, "SKILL.md"), "utf8");
+  return readFile9(path10.join(libraryDir(), "skills", id, "SKILL.md"), "utf8");
 }
 async function starterStrategyCode(id) {
   if (!/^[a-z0-9-]{2,60}$/.test(id ?? "")) throw new Error(`Invalid strategy id ${id}`);
-  return readFile8(path9.join(libraryDir(), "strategies", `${id}.mjs`), "utf8");
+  return readFile9(path10.join(libraryDir(), "strategies", `${id}.mjs`), "utf8");
 }
 async function skillsFor(account2) {
   const library = await loadLibrary();
@@ -19913,7 +20394,7 @@ ${custom3}` : ""}`);
   }
   return parts.join("\n\n---\n\n");
 }
-var skillsVersion = (text2) => text2 ? createHash3("sha1").update(text2).digest("hex").slice(0, 10) : null;
+var skillsVersion = (text2) => text2 ? createHash4("sha1").update(text2).digest("hex").slice(0, 10) : null;
 async function templateDefaults(templateId, input = {}) {
   if (!templateId) return {};
   const library = await loadLibrary();
@@ -19974,9 +20455,9 @@ function createPaperBroker({ arena, accountId: accountId2, caller }) {
 }
 
 // mcp/agent-models.mjs
-import { readFile as readFile9 } from "node:fs/promises";
-import os3 from "node:os";
-import path10 from "node:path";
+import { readFile as readFile10 } from "node:fs/promises";
+import os4 from "node:os";
+import path11 from "node:path";
 var EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 var DEFAULT_EFFORT = "high";
 var CLAUDE = [
@@ -19986,25 +20467,25 @@ var CLAUDE = [
   { id: "haiku", label: "Haiku" }
 ];
 var FALLBACK = { codex: ["gpt-5.6-sol"], kimi: ["k3"] };
-var home = () => process.env.HOME || os3.homedir();
+var home = () => process.env.HOME || os4.homedir();
 async function readText(file) {
   try {
-    return await readFile9(file, "utf8");
+    return await readFile10(file, "utf8");
   } catch {
     return null;
   }
 }
-async function codexModels(root2 = path10.join(home(), ".codex")) {
-  const cache3 = JSON.parse(await readText(path10.join(root2, "models_cache.json")) ?? "{}");
-  const config2 = await readText(path10.join(root2, "config.toml")) ?? "";
+async function codexModels(root2 = path11.join(home(), ".codex")) {
+  const cache3 = JSON.parse(await readText(path11.join(root2, "models_cache.json")) ?? "{}");
+  const config2 = await readText(path11.join(root2, "config.toml")) ?? "";
   const configured = config2.match(/^model\s*=\s*"([^"]+)"/m)?.[1] ?? null;
   const listed = (cache3.models ?? []).filter((model) => model.slug && model.visibility !== "hide").sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999)).map((model) => ({ id: model.slug, label: model.display_name ?? model.slug, efforts: (model.supported_reasoning_levels ?? []).map((level) => level.effort).filter((effort) => EFFORTS.includes(effort)) }));
   const models = listed.length ? listed : FALLBACK.codex.map((id) => ({ id, label: id }));
   if (configured && !models.some((model) => model.id === configured)) models.push({ id: configured, label: `${configured} (config.toml)` });
   return { models: models.map((model, index) => ({ ...model, latest: index === 0 })), configured, source: listed.length ? "~/.codex/models_cache.json" : "built-in" };
 }
-async function kimiModels(root2 = path10.join(home(), ".kimi-code")) {
-  const config2 = await readText(path10.join(root2, "config.toml")) ?? "";
+async function kimiModels(root2 = path11.join(home(), ".kimi-code")) {
+  const config2 = await readText(path11.join(root2, "config.toml")) ?? "";
   const configured = config2.match(/^default_model\s*=\s*"([^"]+)"/m)?.[1] ?? null;
   const models = [];
   for (const block of config2.split(/^\[models\."/m).slice(1)) {
@@ -20039,7 +20520,7 @@ function sanitizeEffort(value) {
 
 // mcp/review-gate.mjs
 var round9 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
-var finite9 = (value) => typeof value === "number" && Number.isFinite(value);
+var finite10 = (value) => typeof value === "number" && Number.isFinite(value);
 var GATE_DEFAULTS = Object.freeze({ enabled: true, movePct: 2, maxQuietMinutes: 60 });
 var WAKE_DEFAULTS = Object.freeze({ enabled: true, movePct: 4, minMinutes: 5, maxPerDay: 10 });
 var URGENT_EVENTS = {
@@ -20109,7 +20590,7 @@ function changesSince(previous, account2, { movePct = GATE_DEFAULTS.movePct, wak
     }
     if (before.quantity !== position.quantity) changes.push({ text: `${position.name ?? position.symbol} \u6301\u4ED3 ${before.quantity} \u2192 ${position.quantity}`, urgent: false });
     const price = position.price ?? position.lastPrice;
-    if (finite9(price) && finite9(before.price) && before.price > 0) {
+    if (finite10(price) && finite10(before.price) && before.price > 0) {
       const move = (price / before.price - 1) * 100;
       if (Math.abs(move) >= movePct) changes.push({ text: `${position.name ?? position.symbol} \u81EA\u4E0A\u6B21\u590D\u67E5${move > 0 ? "\u6DA8" : "\u8DCC"} ${round9(Math.abs(move), 1)}%`, urgent: Math.abs(move) >= wakeMovePct });
     }
@@ -20252,15 +20733,15 @@ function sanitizeJob(input, current = {}) {
 }
 function onPath(name, envPath = process.env.PATH ?? "") {
   const names = process.platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name];
-  for (const dir of envPath.split(path11.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path11.join(dir, candidate))) return path11.join(dir, candidate);
+  for (const dir of envPath.split(path12.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path12.join(dir, candidate))) return path12.join(dir, candidate);
   return null;
 }
 function workbuddyConfigDir(env = process.env) {
-  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path11.join(os4.homedir(), ".workbuddy");
+  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path12.join(os5.homedir(), ".workbuddy");
 }
 function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
-  if (type === "kimi") return onPath("kimi") ?? path11.join(os4.homedir(), ".local", "bin", "kimi");
+  if (type === "kimi") return onPath("kimi") ?? path12.join(os5.homedir(), ".local", "bin", "kimi");
   if (type === "workbuddy") {
     const bundled = "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy";
     return onPath("codebuddy") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codebuddy");
@@ -20389,10 +20870,10 @@ var PAUSING_FAILURES = /* @__PURE__ */ new Set(["auth", "config", "missing"]);
 function createScheduler({
   arena,
   now = arena.now,
-  spawnImpl = spawn3,
+  spawnImpl = spawn4,
   strategyLoader = loadStrategies,
   nodePath = process.execPath,
-  bundlePath: bundlePath2 = fileURLToPath3(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath3(import.meta.url) : path11.resolve(path11.dirname(fileURLToPath3(import.meta.url)), "server.bundle.mjs"),
+  bundlePath: bundlePath2 = fileURLToPath4(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath4(import.meta.url) : path12.resolve(path12.dirname(fileURLToPath4(import.meta.url)), "server.bundle.mjs"),
   skillPath,
   tickMs = SCHEDULER_DEFAULTS.tickMs,
   leaseMs = SCHEDULER_DEFAULTS.leaseMs,
@@ -20402,10 +20883,10 @@ function createScheduler({
   onError = () => {
   }
 } = {}) {
-  const file = path11.join(arena.root, "schedules.json");
-  const runDir = path11.join(arena.root, "runs");
-  const eventDir = path11.join(runDir, "events");
-  const ownerId = `${os4.hostname()}:${process.pid}:${randomBytes3(4).toString("hex")}`;
+  const file = path12.join(arena.root, "schedules.json");
+  const runDir = path12.join(arena.root, "runs");
+  const eventDir = path12.join(runDir, "events");
+  const ownerId = `${os5.hostname()}:${process.pid}:${randomBytes3(4).toString("hex")}`;
   const running = /* @__PURE__ */ new Map();
   const agentRuns = /* @__PURE__ */ new Set();
   const live = /* @__PURE__ */ new Map();
@@ -20427,7 +20908,7 @@ function createScheduler({
   };
   async function readState() {
     try {
-      const state = JSON.parse(await readFile10(file, "utf8"));
+      const state = JSON.parse(await readFile11(file, "utf8"));
       return { jobs: state.jobs ?? [], done: state.done ?? {}, pools: state.pools ?? {}, reviews: state.reviews ?? {}, gate: state.gate ?? {} };
     } catch (error2) {
       if (error2.code === "ENOENT") return { jobs: [], done: {}, pools: {}, reviews: {}, gate: {} };
@@ -20435,10 +20916,10 @@ function createScheduler({
     }
   }
   async function writeState(state) {
-    await mkdir8(arena.root, { recursive: true });
-    const temporary = `${file}.${process.pid}.${randomUUID6()}.tmp`;
+    await mkdir9(arena.root, { recursive: true });
+    const temporary = `${file}.${process.pid}.${randomUUID7()}.tmp`;
     await writeFile7(temporary, JSON.stringify(state, null, 1), "utf8");
-    await rename8(temporary, file);
+    await rename9(temporary, file);
   }
   const update = (mutate) => arena.withLock(async () => {
     const state = await readState();
@@ -20452,16 +20933,16 @@ function createScheduler({
   };
   const workbench = async () => arena.workbenchSettings ? arena.workbenchSettings().catch(() => ({})) : {};
   async function appendRun(accountId2, record2) {
-    await mkdir8(runDir, { recursive: true });
-    await appendFile(path11.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
+    await mkdir9(runDir, { recursive: true });
+    await appendFile(path12.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
 `, "utf8");
   }
   function eventWriter(runId) {
-    let chain = mkdir8(eventDir, { recursive: true }).catch(() => {
+    let chain = mkdir9(eventDir, { recursive: true }).catch(() => {
     });
     return {
       push(event) {
-        chain = chain.then(() => appendFile(path11.join(eventDir, `${runId}.jsonl`), `${JSON.stringify(event)}
+        chain = chain.then(() => appendFile(path12.join(eventDir, `${runId}.jsonl`), `${JSON.stringify(event)}
 `, "utf8")).catch(() => {
         });
       },
@@ -20472,7 +20953,7 @@ function createScheduler({
     if (!/^acc_[a-f0-9]{12}$/.test(accountId2 ?? "")) throw new ArenaError("accountId required.");
     let text2 = "";
     try {
-      text2 = await readFile10(path11.join(runDir, `${accountId2}.jsonl`), "utf8");
+      text2 = await readFile11(path12.join(runDir, `${accountId2}.jsonl`), "utf8");
     } catch (error2) {
       if (error2.code !== "ENOENT") throw error2;
     }
@@ -20490,7 +20971,7 @@ function createScheduler({
     if (!/^run_[a-f0-9]{12}$/.test(runId ?? "")) throw new ArenaError("Invalid run id.");
     if (live.has(runId)) return { runId, running: true, run: live.get(runId).record, events: live.get(runId).events };
     try {
-      const text2 = await readFile10(path11.join(eventDir, `${runId}.jsonl`), "utf8");
+      const text2 = await readFile11(path12.join(eventDir, `${runId}.jsonl`), "utf8");
       return { runId, running: false, events: text2.split("\n").filter(Boolean).map((line) => JSON.parse(line)) };
     } catch (error2) {
       if (error2.code === "ENOENT") return { runId, running: false, events: [] };
@@ -20499,10 +20980,10 @@ function createScheduler({
   }
   async function skillText(account2) {
     let base = null;
-    const candidates = [skillPath, path11.resolve(path11.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
+    const candidates = [skillPath, path12.resolve(path12.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
     for (const candidate of candidates) {
       try {
-        base = (await readFile10(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
+        base = (await readFile11(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
         break;
       } catch {
       }
@@ -20558,7 +21039,7 @@ function createScheduler({
     const writer = eventWriter(record2.id);
     live.set(record2.id, entry);
     emit({ type: "run-start", run: record2 });
-    const workDir = await mkdtemp(path11.join(os4.tmpdir(), "hrouter-round-"));
+    const workDir = await mkdtemp(path12.join(os5.tmpdir(), "hrouter-round-"));
     try {
       const effective = { ...job, runner };
       const baseIdentity = account2.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
@@ -20619,7 +21100,7 @@ ${prompt}` : prompt,
       };
     } finally {
       live.delete(record2.id);
-      await rm3(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {
+      await rm4(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {
       });
     }
   }
@@ -20735,10 +21216,10 @@ ${prompt}` : prompt,
       });
     }
   }
-  const researchFile = path11.join(arena.root, "research.json");
+  const researchFile = path12.join(arena.root, "research.json");
   async function readResearch() {
     try {
-      return JSON.parse(await readFile10(researchFile, "utf8")).tasks ?? [];
+      return JSON.parse(await readFile11(researchFile, "utf8")).tasks ?? [];
     } catch (error2) {
       if (error2.code === "ENOENT") return [];
       throw error2;
@@ -20747,10 +21228,10 @@ ${prompt}` : prompt,
   const updateResearch = (mutate) => arena.withLock(async () => {
     const tasks = await readResearch();
     const result = await mutate(tasks);
-    await mkdir8(arena.root, { recursive: true });
-    const temporary = `${researchFile}.${process.pid}.${randomUUID6()}.tmp`;
+    await mkdir9(arena.root, { recursive: true });
+    const temporary = `${researchFile}.${process.pid}.${randomUUID7()}.tmp`;
     await writeFile7(temporary, JSON.stringify({ tasks: tasks.slice(-200) }, null, 1), "utf8");
-    await rename8(temporary, researchFile);
+    await rename9(temporary, researchFile);
     return result;
   });
   const researchRunning = /* @__PURE__ */ new Set();
@@ -20766,7 +21247,7 @@ ${prompt}` : prompt,
     const writer = eventWriter(record2.id);
     live.set(record2.id, entry);
     emit({ type: "run-start", run: record2 });
-    const workDir = await mkdtemp(path11.join(os4.tmpdir(), "hrouter-research-"));
+    const workDir = await mkdtemp(path12.join(os5.tmpdir(), "hrouter-research-"));
     let outcome;
     try {
       const skill = task.kind === "investor-panel" ? (await skillBody("investor-panel").catch(() => "")).replace(/^#\s.*\n/, "").trim() : null;
@@ -20794,7 +21275,7 @@ ${prompt}` : prompt,
     } finally {
       live.delete(record2.id);
       researchRunning.delete(task.id);
-      await rm3(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {
+      await rm4(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {
       });
     }
     await updateResearch((tasks) => {
@@ -21803,32 +22284,32 @@ function registerMarketDataTools(server2, { toolResult: toolResult2, toolError: 
 }
 
 // mcp/update-coordination.mjs
-import { mkdir as mkdir9, readFile as readFile11, writeFile as writeFile8, rename as rename9, rm as rm4, readdir as readdir4, stat as stat3 } from "node:fs/promises";
+import { mkdir as mkdir10, readFile as readFile12, writeFile as writeFile8, rename as rename10, rm as rm5, readdir as readdir4, stat as stat3 } from "node:fs/promises";
 import { rmSync } from "node:fs";
-import { randomUUID as randomUUID7 } from "node:crypto";
-import os5 from "node:os";
-import path12 from "node:path";
+import { randomUUID as randomUUID8 } from "node:crypto";
+import os6 from "node:os";
+import path13 from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-function updateHome(env = process.env, platform = process.platform, home2 = os5.homedir()) {
-  if (env.HROUTER_UPDATE_HOME) return path12.resolve(env.HROUTER_UPDATE_HOME);
-  return platform === "win32" ? path12.join(env.LOCALAPPDATA || path12.join(home2, "AppData", "Local"), "HrouterMarketPulseUpdater") : path12.join(env.XDG_DATA_HOME || path12.join(home2, ".local", "share"), "hrouter-market-pulse-updater");
+function updateHome(env = process.env, platform = process.platform, home2 = os6.homedir()) {
+  if (env.HROUTER_UPDATE_HOME) return path13.resolve(env.HROUTER_UPDATE_HOME);
+  return platform === "win32" ? path13.join(env.LOCALAPPDATA || path13.join(home2, "AppData", "Local"), "HrouterMarketPulseUpdater") : path13.join(env.XDG_DATA_HOME || path13.join(home2, ".local", "share"), "hrouter-market-pulse-updater");
 }
-async function readJson3(file, fallback = null) {
+async function readJson4(file, fallback = null) {
   try {
-    return JSON.parse(await readFile11(file, "utf8"));
+    return JSON.parse(await readFile12(file, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function atomicJson(file, data) {
-  await mkdir9(path12.dirname(file), { recursive: true, mode: 448 });
-  const temp = `${file}.${randomUUID7()}.tmp`;
+  await mkdir10(path13.dirname(file), { recursive: true, mode: 448 });
+  const temp = `${file}.${randomUUID8()}.tmp`;
   try {
     await writeFile8(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
-    await rename9(temp, file);
+    await rename10(temp, file);
   } finally {
-    await rm4(temp, { force: true });
+    await rm5(temp, { force: true });
   }
 }
 function processAlive2(pid) {
@@ -21841,19 +22322,19 @@ function processAlive2(pid) {
   }
 }
 async function acquireLock(home2, name, { waitMs = 0, alive = processAlive2 } = {}) {
-  await mkdir9(home2, { recursive: true, mode: 448 });
-  const dir = path12.join(home2, `${name}.lock`);
+  await mkdir10(home2, { recursive: true, mode: 448 });
+  const dir = path13.join(home2, `${name}.lock`);
   const deadline = Date.now() + waitMs;
   for (; ; ) {
     try {
-      await mkdir9(dir, { mode: 448 });
-      await atomicJson(path12.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
+      await mkdir10(dir, { mode: 448 });
+      await atomicJson(path13.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
       return async () => {
-        await rm4(dir, { recursive: true, force: true });
+        await rm5(dir, { recursive: true, force: true });
       };
     } catch (error2) {
       if (error2.code !== "EEXIST") throw error2;
-      const owner = await readJson3(path12.join(dir, "owner.json"));
+      const owner = await readJson4(path13.join(dir, "owner.json"));
       let stale = owner && !alive(owner.pid);
       if (!owner) {
         try {
@@ -21867,9 +22348,9 @@ async function acquireLock(home2, name, { waitMs = 0, alive = processAlive2 } = 
         const reaping = `${dir}.reaping`;
         let reaper = false;
         try {
-          await mkdir9(reaping, { mode: 448 });
+          await mkdir10(reaping, { mode: 448 });
           reaper = true;
-          const current = await readJson3(path12.join(dir, "owner.json"));
+          const current = await readJson4(path13.join(dir, "owner.json"));
           let removable = current && !alive(current.pid);
           if (!current) {
             try {
@@ -21878,11 +22359,11 @@ async function acquireLock(home2, name, { waitMs = 0, alive = processAlive2 } = 
               if (error3.code !== "ENOENT") throw error3;
             }
           }
-          if (removable) await rm4(dir, { recursive: true, force: true });
+          if (removable) await rm5(dir, { recursive: true, force: true });
         } catch (error3) {
           if (!["EEXIST", "ENOENT"].includes(error3.code)) throw error3;
         } finally {
-          if (reaper) await rm4(reaping, { recursive: true, force: true });
+          if (reaper) await rm5(reaping, { recursive: true, force: true });
         }
         if (reaper) continue;
         if (Date.now() >= deadline) return null;
@@ -21895,11 +22376,11 @@ async function acquireLock(home2, name, { waitMs = 0, alive = processAlive2 } = 
   }
 }
 async function acquireRuntimeLease(home2 = updateHome()) {
-  if (!await readJson3(path12.join(home2, "state.json"))) return () => {
+  if (!await readJson4(path13.join(home2, "state.json"))) return () => {
   };
   const unlock = await acquireLock(home2, "activation", { waitMs: 12e4 });
   if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
-  const file = path12.join(home2, "running", `${process.pid}-${randomUUID7()}.json`);
+  const file = path13.join(home2, "running", `${process.pid}-${randomUUID8()}.json`);
   try {
     await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
   } finally {
@@ -21916,18 +22397,18 @@ async function acquireRuntimeLease(home2 = updateHome()) {
 }
 
 // mcp/service.mjs
-import { mkdir as mkdir10, readFile as readFile12, rename as rename10, stat as stat4, writeFile as writeFile9 } from "node:fs/promises";
-import { randomUUID as randomUUID8 } from "node:crypto";
-import os6 from "node:os";
-import path13 from "node:path";
+import { mkdir as mkdir11, readFile as readFile13, rename as rename11, stat as stat4, writeFile as writeFile9 } from "node:fs/promises";
+import { randomUUID as randomUUID9 } from "node:crypto";
+import os7 from "node:os";
+import path14 from "node:path";
 var SERVICE_HEARTBEAT_MS = 3e4;
 var SERVICE_STALE_MS = 12e4;
 function serviceStatusFile(arenaRoot) {
-  return path13.join(arenaRoot, "service-status.json");
+  return path14.join(arenaRoot, "service-status.json");
 }
 async function readServiceStatus(arenaRoot, now = Date.now()) {
   try {
-    const status = JSON.parse(await readFile12(serviceStatusFile(arenaRoot), "utf8"));
+    const status = JSON.parse(await readFile13(serviceStatusFile(arenaRoot), "utf8"));
     const alive = now - Date.parse(status.heartbeatAt) < SERVICE_STALE_MS;
     return { ...status, state: alive ? "running" : "stopped" };
   } catch (error2) {
@@ -21942,7 +22423,7 @@ function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: 
   const write = async () => {
     const status = {
       pid: process.pid,
-      host: os6.hostname(),
+      host: os7.hostname(),
       version: version3,
       bundlePath: bundlePath2,
       port,
@@ -21951,11 +22432,11 @@ function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: 
       node: process.version,
       scheduler: scheduler?.status() ?? null
     };
-    await mkdir10(arena.root, { recursive: true });
+    await mkdir11(arena.root, { recursive: true });
     const file = serviceStatusFile(arena.root);
-    const temporary = `${file}.${process.pid}.${randomUUID8()}.tmp`;
+    const temporary = `${file}.${process.pid}.${randomUUID9()}.tmp`;
     await writeFile9(temporary, JSON.stringify(status, null, 1), "utf8");
-    await rename10(temporary, file);
+    await rename11(temporary, file);
   };
   const beat = async () => {
     if (stopping) return;
@@ -21983,9 +22464,9 @@ function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: 
 }
 
 // mcp/alerts.mjs
-import { mkdir as mkdir11, readFile as readFile13, rename as rename11, writeFile as writeFile10 } from "node:fs/promises";
-import { randomUUID as randomUUID9 } from "node:crypto";
-import path14 from "node:path";
+import { mkdir as mkdir12, readFile as readFile14, rename as rename12, writeFile as writeFile10 } from "node:fs/promises";
+import { randomUUID as randomUUID10 } from "node:crypto";
+import path15 from "node:path";
 var ALERT_INTERVAL_MS = 6e4;
 var KEEP = 500;
 var MAX_PER_PASS = 10;
@@ -22026,22 +22507,22 @@ ${alert.text}` } };
 }
 async function readSent(file) {
   try {
-    return JSON.parse(await readFile13(file, "utf8"));
+    return JSON.parse(await readFile14(file, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
   }
 }
 async function writeSent(file, value) {
-  await mkdir11(path14.dirname(file), { recursive: true });
-  const temporary = `${file}.${process.pid}.${randomUUID9()}.tmp`;
+  await mkdir12(path15.dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}.${randomUUID10()}.tmp`;
   await writeFile10(temporary, JSON.stringify(value, null, 1), "utf8");
-  await rename11(temporary, file);
+  await rename12(temporary, file);
 }
 async function sendAlerts({ arena, scheduler, loadPreferences: loadPreferences2, fetchImpl = fetch, timeoutMs = 1e4, now = () => (/* @__PURE__ */ new Date()).toISOString() }) {
   const webhook = (await loadPreferences2())?.digestWebhook;
   if (!webhook?.url || webhook.enabled === false) return { sent: [], skipped: "no-webhook" };
-  const file = path14.join(arena.root, "alerts.json");
+  const file = path15.join(arena.root, "alerts.json");
   const state = await readSent(file);
   const alerts = await collectAlerts({ arena, scheduler });
   if (!state) {
@@ -22090,14 +22571,14 @@ function startAlertLoop(options, intervalMs = ALERT_INTERVAL_MS) {
 }
 
 // mcp/server.mjs
-import { fileURLToPath as fileURLToPath6 } from "node:url";
+import { fileURLToPath as fileURLToPath7 } from "node:url";
 
 // mcp/skill-import.mjs
 import { execFile as execFile2 } from "node:child_process";
-import { createHash as createHash4 } from "node:crypto";
-import { cp, mkdir as mkdir12, mkdtemp as mkdtemp2, readdir as readdir5, readFile as readFile14, rm as rm5, stat as stat5, writeFile as writeFile11 } from "node:fs/promises";
-import os7 from "node:os";
-import path15 from "node:path";
+import { createHash as createHash5 } from "node:crypto";
+import { cp, mkdir as mkdir13, mkdtemp as mkdtemp2, readdir as readdir5, readFile as readFile15, rm as rm6, stat as stat5, writeFile as writeFile11 } from "node:fs/promises";
+import os8 from "node:os";
+import path16 from "node:path";
 import { promisify as promisify2 } from "node:util";
 var run = promisify2(execFile2);
 var MAX_FILES = 20;
@@ -22119,9 +22600,9 @@ async function markdownFiles(dir) {
     if (depth > 2 || files.length >= MAX_FILES) return;
     for (const entry of await readdir5(current, { withFileTypes: true })) {
       if (entry.name.startsWith(".")) continue;
-      const full = path15.join(current, entry.name);
+      const full = path16.join(current, entry.name);
       if (entry.isDirectory() && depth < 2 && ["references", "api-reference", "docs"].includes(entry.name)) await walk(full, depth + 1);
-      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md") && files.length < MAX_FILES && (await stat5(full)).size <= MAX_BYTES) files.push(path15.relative(dir, full));
+      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md") && files.length < MAX_FILES && (await stat5(full)).size <= MAX_BYTES) files.push(path16.relative(dir, full));
     }
   }
   await walk(dir, 0);
@@ -22130,23 +22611,23 @@ async function markdownFiles(dir) {
 async function copySkill(sourceDir, { source, markets, name }) {
   let skillText;
   try {
-    skillText = await readFile14(path15.join(sourceDir, "SKILL.md"), "utf8");
+    skillText = await readFile15(path16.join(sourceDir, "SKILL.md"), "utf8");
   } catch {
     throw new SkillImportError(`${sourceDir} has no SKILL.md.`);
   }
   if (skillText.length > MAX_BYTES) throw new SkillImportError("SKILL.md is larger than 200 KB.");
   const described = describeSkill(skillText);
-  const folder = path15.basename(path15.resolve(sourceDir));
+  const folder = path16.basename(path16.resolve(sourceDir));
   const title = String(name || described.name || folder).slice(0, 60);
   const readable = [name, described.name, folder === "repo" ? null : folder].filter(Boolean).map(slug).find((value) => value !== "skill");
-  const id = `imp-${readable ?? createHash4("sha1").update(title).digest("hex").slice(0, 10)}`.slice(0, 60);
-  const target = path15.join(importedDir(), id);
-  await rm5(target, { recursive: true, force: true });
-  await mkdir12(target, { recursive: true });
+  const id = `imp-${readable ?? createHash5("sha1").update(title).digest("hex").slice(0, 10)}`.slice(0, 60);
+  const target = path16.join(importedDir(), id);
+  await rm6(target, { recursive: true, force: true });
+  await mkdir13(target, { recursive: true });
   const files = await markdownFiles(sourceDir);
   for (const file of files) {
-    await mkdir12(path15.dirname(path15.join(target, file)), { recursive: true });
-    await cp(path15.join(sourceDir, file), path15.join(target, file));
+    await mkdir13(path16.dirname(path16.join(target, file)), { recursive: true });
+    await cp(path16.join(sourceDir, file), path16.join(target, file));
   }
   const meta = {
     id,
@@ -22158,12 +22639,12 @@ async function copySkill(sourceDir, { source, markets, name }) {
     files,
     importedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
-  await writeFile11(path15.join(target, "meta.json"), JSON.stringify(meta, null, 1));
+  await writeFile11(path16.join(target, "meta.json"), JSON.stringify(meta, null, 1));
   invalidateLibrary();
   return meta;
 }
-async function listClaudeSkills(home2 = os7.homedir()) {
-  const dir = path15.join(home2, ".claude", "skills");
+async function listClaudeSkills(home2 = os8.homedir()) {
+  const dir = path16.join(home2, ".claude", "skills");
   let entries = [];
   try {
     entries = await readdir5(dir, { withFileTypes: true });
@@ -22173,21 +22654,21 @@ async function listClaudeSkills(home2 = os7.homedir()) {
   const skills = [];
   for (const entry of entries.filter((item) => item.isDirectory() || item.isSymbolicLink())) {
     try {
-      const text2 = await readFile14(path15.join(dir, entry.name, "SKILL.md"), "utf8");
-      skills.push({ name: entry.name, ...describeSkill(text2), path: path15.join(dir, entry.name) });
+      const text2 = await readFile15(path16.join(dir, entry.name, "SKILL.md"), "utf8");
+      skills.push({ name: entry.name, ...describeSkill(text2), path: path16.join(dir, entry.name) });
     } catch {
     }
   }
   return skills;
 }
-async function importSkill({ kind, path: folder, url, name, subdir, markets, home: home2 = os7.homedir(), gitImpl = run } = {}) {
+async function importSkill({ kind, path: folder, url, name, subdir, markets, home: home2 = os8.homedir(), gitImpl = run } = {}) {
   if (kind === "folder") {
-    if (!folder || !path15.isAbsolute(folder)) throw new SkillImportError("Give the absolute path of a folder that contains SKILL.md.");
+    if (!folder || !path16.isAbsolute(folder)) throw new SkillImportError("Give the absolute path of a folder that contains SKILL.md.");
     return copySkill(folder, { source: { kind, path: folder }, markets, name });
   }
   if (kind === "claude") {
     if (!/^[A-Za-z0-9._-]{1,80}$/.test(name ?? "")) throw new SkillImportError("Give the skill's folder name under ~/.claude/skills.");
-    return copySkill(path15.join(home2, ".claude", "skills", name), { source: { kind, name }, markets });
+    return copySkill(path16.join(home2, ".claude", "skills", name), { source: { kind, name }, markets });
   }
   if (kind === "git") {
     let parsed;
@@ -22198,13 +22679,13 @@ async function importSkill({ kind, path: folder, url, name, subdir, markets, hom
     }
     if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new SkillImportError("Only public https Git URLs without credentials.");
     if (subdir && (!/^[A-Za-z0-9._/-]{1,200}$/.test(subdir) || subdir.includes(".."))) throw new SkillImportError("subdir must be a plain relative path.");
-    const temp = await mkdtemp2(path15.join(os7.tmpdir(), "hrouter-skill-"));
+    const temp = await mkdtemp2(path16.join(os8.tmpdir(), "hrouter-skill-"));
     try {
-      await gitImpl("git", ["clone", "--depth", "1", "--", parsed.href, path15.join(temp, "repo")], { timeout: 9e4, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
-      const { stdout } = await gitImpl("git", ["-C", path15.join(temp, "repo"), "rev-parse", "HEAD"], { timeout: 1e4 });
-      return await copySkill(path15.join(temp, "repo", subdir ?? ""), { source: { kind, url: parsed.href, subdir: subdir ?? null, commit: stdout.trim() }, markets, name });
+      await gitImpl("git", ["clone", "--depth", "1", "--", parsed.href, path16.join(temp, "repo")], { timeout: 9e4, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+      const { stdout } = await gitImpl("git", ["-C", path16.join(temp, "repo"), "rev-parse", "HEAD"], { timeout: 1e4 });
+      return await copySkill(path16.join(temp, "repo", subdir ?? ""), { source: { kind, url: parsed.href, subdir: subdir ?? null, commit: stdout.trim() }, markets, name });
     } finally {
-      await rm5(temp, { recursive: true, force: true }).catch(() => {
+      await rm6(temp, { recursive: true, force: true }).catch(() => {
       });
     }
   }
@@ -22212,12 +22693,12 @@ async function importSkill({ kind, path: folder, url, name, subdir, markets, hom
 }
 async function removeImported(id) {
   if (!/^imp-[a-z0-9-]{2,56}$/.test(id ?? "")) throw new SkillImportError("Only imported skills can be removed.");
-  await rm5(path15.join(importedDir(), id), { recursive: true, force: true });
+  await rm6(path16.join(importedDir(), id), { recursive: true, force: true });
   invalidateLibrary();
   return { removed: id };
 }
 async function updateImported(id, { gitImpl = run } = {}) {
-  const meta = JSON.parse(await readFile14(path15.join(importedDir(), id, "meta.json"), "utf8"));
+  const meta = JSON.parse(await readFile15(path16.join(importedDir(), id, "meta.json"), "utf8"));
   if (meta.source?.kind !== "git") throw new SkillImportError("Only skills imported from Git can be updated; re-import a folder to refresh it.");
   return importSkill({ kind: "git", url: meta.source.url, subdir: meta.source.subdir ?? void 0, name: meta.name, markets: meta.markets, gitImpl });
 }
@@ -22228,10 +22709,10 @@ async function github(pathname, fetchImpl) {
   if (!response.ok) throw new SkillImportError(`GitHub API HTTP ${response.status}`);
   return response.json();
 }
-async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, cacheFile = path15.join(importedDir(), ".upstream.json") } = {}) {
+async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, cacheFile = path16.join(importedDir(), ".upstream.json") } = {}) {
   if (!force) {
     try {
-      const cached4 = JSON.parse(await readFile14(cacheFile, "utf8"));
+      const cached4 = JSON.parse(await readFile15(cacheFile, "utf8"));
       if (Date.now() - Date.parse(cached4.checkedAt) < CACHE_MS) return cached4;
     } catch {
     }
@@ -22269,7 +22750,7 @@ async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, c
     }
   }
   const value = { checkedAt: (/* @__PURE__ */ new Date()).toISOString(), results, note: "\u5185\u7F6E skill \u662F\u6539\u7F16\u7248\uFF0C\u4E0A\u6E38\u66F4\u65B0\u4E0D\u4F1A\u81EA\u52A8\u8986\u76D6\uFF1A\u770B\u5DEE\u5F02\u540E\u7531\u7EF4\u62A4\u8005\u51B3\u5B9A\u662F\u5426\u8DDF\u8FDB\uFF1B\u5BFC\u5165\u7684 Git skill \u53EF\u4EE5\u4E00\u952E\u66F4\u65B0\u3002" };
-  await mkdir12(path15.dirname(cacheFile), { recursive: true }).catch(() => {
+  await mkdir13(path16.dirname(cacheFile), { recursive: true }).catch(() => {
   });
   await writeFile11(cacheFile, JSON.stringify(value, null, 1)).catch(() => {
   });
@@ -22277,10 +22758,10 @@ async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, c
 }
 
 // mcp/env-check.mjs
-import { spawn as spawn4 } from "node:child_process";
+import { spawn as spawn5 } from "node:child_process";
 import { existsSync as existsSync2 } from "node:fs";
 import { readdir as readdir6, stat as stat6 } from "node:fs/promises";
-import path16 from "node:path";
+import path17 from "node:path";
 var AGENTS = [
   { id: "claude", name: "Claude Code", kind: "claude-cli" },
   { id: "codex", name: "Codex", kind: "codex-cli" },
@@ -22293,7 +22774,7 @@ function version(command, timeoutMs = 6e3) {
     let out = "";
     let child;
     try {
-      child = spawn4(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true, env: { ...process.env, NO_COLOR: "1" } });
+      child = spawn5(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true, env: { ...process.env, NO_COLOR: "1" } });
     } catch {
       resolve(null);
       return;
@@ -22340,7 +22821,7 @@ async function dirSize(dir, depth = 0) {
     return 0;
   }
   for (const entry of entries) {
-    const full = path16.join(dir, entry.name);
+    const full = path17.join(dir, entry.name);
     if (entry.isDirectory()) total += await dirSize(full, depth + 1);
     else {
       try {
@@ -22357,7 +22838,7 @@ async function checkEnvironment({ arena, scheduler, language = "zh" }) {
   const pools = scheduler ? await scheduler.listPools().catch(() => []) : [];
   const agents = await Promise.all(AGENTS.map(async (agent) => {
     const command = agent.kind === "acp" ? onPath(agent.command) : defaultCommand(agent.id);
-    const installed = Boolean(command && (path16.isAbsolute(command) ? existsSync2(command) : onPath(command)));
+    const installed = Boolean(command && (path17.isAbsolute(command) ? existsSync2(command) : onPath(command)));
     const ver = installed ? await version(command) : null;
     const used = jobs.filter((job) => job.runner?.type === agent.id || agent.kind === "acp" && job.runner?.command === agent.command);
     const authFailure = used.find((job) => job.paused?.kind === "auth");
@@ -22373,7 +22854,7 @@ async function checkEnvironment({ arena, scheduler, language = "zh" }) {
       detail: !installed ? L("\u6CA1\u627E\u5230\u547D\u4EE4", "Command not found") : authFailure ? `${L("\u6CA1\u6709\u767B\u5F55\uFF1A", "Not signed in: ")}${authFailure.paused.message ?? ""}` : pool?.paused ? L(`\u989D\u5EA6\u7528\u5C3D\uFF0C${pool.pausedUntil} \u6062\u590D`, `Out of quota, back ${pool.pausedUntil}`) : used.length ? L(`${used.length} \u4E2A\u4EA4\u6613\u5458\u5728\u7528`, `Used by ${used.length} traders`) : L("\u5DF2\u5B89\u88C5", "Installed")
     };
   }));
-  const [service3, matcher, tencent, eastmoney, minutes, news] = await Promise.all([
+  const [service4, matcher, tencent, eastmoney, minutes, news] = await Promise.all([
     readServiceStatus(arena.root).catch(() => ({ state: "unknown" })),
     arena.matcherStatus().catch(() => ({ state: "unknown" })),
     timed(() => getTradeQuote("000300.SS", { timeoutMs: 6e3 })),
@@ -22390,9 +22871,9 @@ async function checkEnvironment({ arena, scheduler, language = "zh" }) {
   const storage = getStorageDir();
   const items = [
     ...agents.filter((agent) => agent.installed || agent.kind !== "acp").map((agent) => ({ id: `agent:${agent.id}`, group: "agent", name: agent.name, status: agent.status === "ok" ? "ok" : agent.status === "missing" ? "missing" : agent.status === "quota" ? "temporary" : "action", detail: [agent.version, agent.detail].filter(Boolean).join(" \xB7 ") })),
-    { id: "service", group: "service", name: L("\u5E38\u9A7B\u670D\u52A1", "Background service"), status: service3.state === "running" ? "ok" : "action", detail: service3.state === "running" ? `${L("\u7AEF\u53E3", "port")} ${service3.port ?? 8780} \xB7 ${service3.version ?? ""}` : L("\u6CA1\u6709\u8FD0\u884C\uFF1Anpm run service:install", "Not running: npm run service:install") },
+    { id: "service", group: "service", name: L("\u5E38\u9A7B\u670D\u52A1", "Background service"), status: service4.state === "running" ? "ok" : "action", detail: service4.state === "running" ? `${L("\u7AEF\u53E3", "port")} ${service4.port ?? 8780} \xB7 ${service4.version ?? ""}` : L("\u6CA1\u6709\u8FD0\u884C\uFF1Anpm run service:install", "Not running: npm run service:install") },
     { id: "matcher", group: "service", name: L("\u64AE\u5408\u5668", "Matcher"), status: matcher.state === "running" ? "ok" : "action", detail: matcher.state === "running" ? `${L("\u6700\u8FD1", "last")} ${matcher.lastTickAt ?? "\u2014"}` : matcher.state },
-    { id: "scheduler", group: "service", name: L("\u8C03\u5EA6\u5668", "Scheduler"), status: service3.scheduler || scheduler?.status().role === "leader" ? "ok" : "action", detail: service3.scheduler ? `${service3.scheduler.role ?? ""} \xB7 ${L("\u8FD0\u884C\u4E2D", "running")} ${service3.scheduler.running?.length ?? 0}` : L("\u8DDF\u968F\u5E38\u9A7B\u670D\u52A1", "Runs with the background service") },
+    { id: "scheduler", group: "service", name: L("\u8C03\u5EA6\u5668", "Scheduler"), status: service4.scheduler || scheduler?.status().role === "leader" ? "ok" : "action", detail: service4.scheduler ? `${service4.scheduler.role ?? ""} \xB7 ${L("\u8FD0\u884C\u4E2D", "running")} ${service4.scheduler.running?.length ?? 0}` : L("\u8DDF\u968F\u5E38\u9A7B\u670D\u52A1", "Runs with the background service") },
     ...sources.map((source) => ({ id: `source:${source.id}`, group: "data", name: source.name, status: source.ok ? "ok" : "action", detail: source.ok ? `${source.detail} \xB7 ${source.ms} ms` : source.detail })),
     { id: "storage", group: "service", name: L("\u6570\u636E\u76EE\u5F55", "Data folder"), status: "ok", detail: `${storage} \xB7 ${(await dirSize(storage) / 1048576).toFixed(0)} MB` }
   ];
@@ -22409,13 +22890,13 @@ async function checkEnvironment({ arena, scheduler, language = "zh" }) {
 
 // mcp/http.mjs
 import { createServer } from "node:http";
-import { readFile as readFile16 } from "node:fs/promises";
-import { fileURLToPath as fileURLToPath4 } from "node:url";
+import { readFile as readFile17 } from "node:fs/promises";
+import { fileURLToPath as fileURLToPath5 } from "node:url";
 
 // mcp/workspace.mjs
-import { randomUUID as randomUUID10, createHash as createHash5 } from "node:crypto";
-import { mkdir as mkdir13, readFile as readFile15, rename as rename12, writeFile as writeFile12 } from "node:fs/promises";
-import path17 from "node:path";
+import { randomUUID as randomUUID11, createHash as createHash6 } from "node:crypto";
+import { mkdir as mkdir14, readFile as readFile16, rename as rename13, writeFile as writeFile12 } from "node:fs/promises";
+import path18 from "node:path";
 
 // mcp/research.mjs
 function researchAsOf2(value = (/* @__PURE__ */ new Date()).toISOString()) {
@@ -22673,21 +23154,21 @@ var journalQueue = Promise.resolve();
 var cache2 = /* @__PURE__ */ new Map();
 var benchmarkDefaults = { A: "000001.SS", HK: "^HSI", US: "^GSPC" };
 var cleanText = (value, limit = 2e3) => String(value ?? "").trim().slice(0, limit);
-var finite10 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
+var finite11 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
 async function readStore(name, fallback = []) {
   try {
-    return JSON.parse(await readFile15(path17.join(getStorageDir(), name), "utf8"));
+    return JSON.parse(await readFile16(path18.join(getStorageDir(), name), "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function writeStore(name, data) {
-  const target = path17.join(getStorageDir(), name);
-  await mkdir13(path17.dirname(target), { recursive: true });
-  const temp = `${target}.${randomUUID10()}.tmp`;
+  const target = path18.join(getStorageDir(), name);
+  await mkdir14(path18.dirname(target), { recursive: true });
+  const temp = `${target}.${randomUUID11()}.tmp`;
   await writeFile12(temp, JSON.stringify(data, null, 2));
-  await rename12(temp, target);
+  await rename13(temp, target);
 }
 async function listDecisions({ symbol, limit = 200 } = {}) {
   const items = await readStore("decisions.json");
@@ -22755,7 +23236,7 @@ async function recordDecision(input) {
       );
   }
   const record2 = {
-    id: `decision_${randomUUID10()}`,
+    id: `decision_${randomUUID11()}`,
     symbol,
     state,
     thesis,
@@ -22783,7 +23264,7 @@ async function recordDecision(input) {
     quoteError,
     reviews: []
   };
-  record2.originalHash = createHash5("sha256").update(JSON.stringify(record2)).digest("hex");
+  record2.originalHash = createHash6("sha256").update(JSON.stringify(record2)).digest("hex");
   const task = journalQueue.then(async () => {
     const records = await readStore("decisions.json");
     records.push(record2);
@@ -22857,7 +23338,7 @@ async function appendThesisReview(input) {
       };
     });
     const review = {
-      id: `thesis_review_${randomUUID10()}`,
+      id: `thesis_review_${randomUUID11()}`,
       reviewedAt,
       type: "thesis-assessment",
       source: "research-assessment",
@@ -23140,7 +23621,7 @@ function secFinancialRecords(symbol, cik, payload) {
     const units = concept?.units ?? {};
     return Object.entries(units).flatMap(([unit2, rows]) => {
       const entries = rows.filter(
-        (row2) => finite10(row2.val) !== null && row2.filed && ["10-K", "10-Q"].includes(row2.form)
+        (row2) => finite11(row2.val) !== null && row2.filed && ["10-K", "10-Q"].includes(row2.form)
       ).sort(
         (a, b) => b.filed.localeCompare(a.filed) || b.end.localeCompare(a.end)
       );
@@ -23528,6 +24009,7 @@ data: ${JSON.stringify(message)}
           return respond(response, 200, { ...await arena.getAccount(arenaAccount[1], { limit: 200, sync: url.searchParams.get("sync") === "1" || await needsSync(arena) }) });
         }
         if (url.pathname === "/api/paper/status") return respond(response, 200, await getPaperService().status());
+        if (url.pathname === "/api/ibkr/status") return respond(response, 200, await getIbkrService().status());
         if (url.pathname === "/api/evidence") {
           const evidence = await queryEvidence({
             symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : void 0,
@@ -23549,7 +24031,7 @@ data: ${JSON.stringify(message)}
           return respond(
             response,
             200,
-            await readFile16(fileURLToPath4(new URL(name, assetRoot))),
+            await readFile17(fileURLToPath5(new URL(name, assetRoot))),
             type
           );
         }
@@ -23579,7 +24061,7 @@ data: ${JSON.stringify(message)}
           const extension = rest.split(".").at(-1);
           if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\.[a-z0-9]+$/.test(rest) || rest.includes("..") || !types[extension]) return respond(response, 404, { error: "Not found" });
           try {
-            const body = await readFile16(fileURLToPath4(new URL(`app/${rest}`, assetRoot)));
+            const body = await readFile17(fileURLToPath5(new URL(`app/${rest}`, assetRoot)));
             response.writeHead(200, { "Content-Type": types[extension], "Cache-Control": rest.startsWith("files/") ? "public, max-age=31536000, immutable" : "no-cache", "X-Content-Type-Options": "nosniff", "Content-Length": body.length });
             return response.end(body);
           } catch {
@@ -23714,6 +24196,13 @@ data: ${JSON.stringify(message)}
           if (url.pathname === "/api/workbench/prompts") return respond(response, 200, await arena.setWorkbenchPrompt({ scope: body.scope, prompt: body.prompt, reason: body.reason }, dashboardCaller));
           if (url.pathname === "/api/workbench/settings") return respond(response, 200, await arena.updateWorkbench(body, dashboardCaller));
           return respond(response, 404, { error: "Unknown workbench action" });
+        }
+        if (url.pathname.startsWith("/api/ibkr/")) {
+          const actions = { config: "saveConfig", connect: "accounts", policy: "savePolicy", refresh: "refresh", evaluate: "evaluate", submit: "submit", cancel: "cancel", confirm: "confirm", reject: "reject", halt: "halt" };
+          const action = actions[url.pathname.slice("/api/ibkr/".length)];
+          if (!action) return respond(response, 404, { error: "Unknown IBKR action" });
+          const ibkr = getIbkrService();
+          return respond(response, 200, action === "accounts" ? await ibkr.accounts(body.environment) : action === "cancel" ? await ibkr.cancel(body, { owner: true }) : await ibkr[action](body));
         }
         if (url.pathname.startsWith("/api/paper/")) {
           const actions = { connect: "accounts", refresh: "refresh", policy: "savePolicy", evaluate: "evaluate", submit: "submit", cancel: "cancel" };
@@ -24033,10 +24522,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path19) {
-  if (!path19)
+function getElementAtPath(obj, path20) {
+  if (!path20)
     return obj;
-  return path19.reduce((acc, key) => acc?.[key], obj);
+  return path20.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -24356,11 +24845,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path19, issues) {
+function prefixIssues(path20, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path19);
+    iss.path.unshift(path20);
     return iss;
   });
 }
@@ -27773,11 +28262,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path19) {
-  if (path19.length === 0) {
+function getDotPath(path20) {
+  if (path20.length === 0) {
     return "object root";
   }
-  return path19.reduce((acc, seg, index) => {
+  return path20.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -34126,6 +34615,30 @@ var calendarSchema = external_exports.record(
     ).optional()
   })
 );
+var ibkrOrderSchema = {
+  symbol: external_exports.string().min(1).max(20),
+  side: external_exports.enum(["BUY", "SELL"]),
+  quantity: external_exports.number().int().positive().max(1e6),
+  limitPrice: external_exports.number().positive().max(1e6),
+  rationale: external_exports.string().min(1).max(2e3),
+  idempotencyKey: external_exports.string().regex(/^[A-Za-z0-9_-]{8,80}$/)
+};
+for (const [name, title, description, inputSchema, method, readOnlyHint] of [
+  ["ibkr_get_status", "IBKR status", "Interactive Brokers connection, the owner's policy (PAPER or LIVE account, allowlist, limits), orders waiting for the owner's confirmation and the order journal. Does not contact TWS.", {}, "status", true],
+  ["ibkr_refresh_account", "Reconcile the IBKR account", "Read cash, positions and orders from TWS / IB Gateway and reconcile this workbench's orders by IB order ID. Read-only session.", {}, "refresh", false],
+  ["ibkr_evaluate_order", "Preflight an IBKR order", "Check allowlist, limits, a fresh real quote, settled cash and long position without sending anything. Submitting re-checks.", ibkrOrderSchema, "evaluate", true],
+  ["ibkr_submit_order", "Submit or propose an IBKR limit order", "US stock DAY limit order, long only, no margin. PAPER account: sent within the owner's limits. LIVE account: only proposed \u2014 status awaiting-confirmation until the owner confirms it in the dashboard; never ask the owner to confirm by other means. Requires a stable idempotencyKey; an UNKNOWN result must be reconciled, never retried with a new key. An acknowledgement is not a fill.", ibkrOrderSchema, "submit", false],
+  ["ibkr_cancel_order", "Cancel an IBKR order", "Request cancellation of an open order this workbench placed (IB permanent order ID). Refresh to confirm.", { orderId: external_exports.string().regex(/^\d{1,20}$/), idempotencyKey: external_exports.string().regex(/^[A-Za-z0-9_-]{8,80}$/) }, "cancel", false]
+]) {
+  server.registerTool(name, { title, description, inputSchema, annotations: { readOnlyHint, destructiveHint: false, openWorldHint: method !== "status", idempotentHint: ["status", "submit", "cancel"].includes(method) } }, async (input) => {
+    try {
+      const result = await getIbkrService()[method](input);
+      return toolResult(result, `IBKR ${result.environment ?? result.policy?.environment ?? ""}: ${result.status ?? (result.eligible === void 0 ? "ok" : result.eligible ? "eligible" : `not eligible \u2014 ${result.reason}`)}`);
+    } catch (error2) {
+      return toolError(error2);
+    }
+  });
+}
 var paperAccountSchema = { market: external_exports.enum(["HK", "US"]), accountId: external_exports.string().regex(/^[1-9]\d{0,19}$/) };
 var paperOrderSchema = {
   symbol: external_exports.string().min(1).max(20),
@@ -34917,22 +35430,22 @@ if (serviceCommand) {
   await manageService([serviceCommand]);
   process.exit(0);
 }
-var service2 = process.argv.includes("--service");
-var stdio = !service2 && !process.argv.includes("--dashboard");
+var service3 = process.argv.includes("--service");
+var stdio = !service3 && !process.argv.includes("--dashboard");
 var headless = stdio && process.env.HROUTER_NO_DASHBOARD === "1";
-var releaseUpdateLease = service2 ? () => {
+var releaseUpdateLease = service3 ? () => {
 } : await acquireRuntimeLease();
-var dashboard = headless ? null : startDashboard({ scheduler: service2 });
+var dashboard = headless ? null : startDashboard({ scheduler: service3 });
 await dashboard?.ready;
 var serviceLoop = null;
 var alertLoop = null;
-if (service2) {
+if (service3) {
   alertLoop = startAlertLoop({ arena: await dashboard.arena, scheduler: await dashboard.scheduler, loadPreferences });
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena,
     scheduler: await dashboard.scheduler,
     version: true ? "1.8.2" : "development",
-    bundlePath: fileURLToPath6(import.meta.url),
+    bundlePath: fileURLToPath7(import.meta.url),
     port: dashboard.address()?.port,
     onExit: () => shutdown()
   });

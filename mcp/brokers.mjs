@@ -6,8 +6,8 @@
 //   advisory  — live markets, human in the loop: every order becomes a proposal that the owner must
 //               confirm in the dashboard and execute at their own broker. Nothing is ever sent.
 //
-// A real-money execution adapter is deliberately NOT implemented. If one is added, it must take an
-// order only after an explicit, per-order human confirmation recorded against an advisory proposal.
+// Real-money execution lives in ibkr.mjs (Interactive Brokers via TWS / IB Gateway): agents can only
+// propose LIVE orders there, and each one is sent only after the owner confirms it in the dashboard.
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";

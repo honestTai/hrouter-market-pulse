@@ -1,4 +1,5 @@
 import { getPaperService } from "./paper.mjs";
+import { getIbkrService } from "./ibkr.mjs";
 import { registerArenaTools } from "./arena-tools.mjs";
 import { registerMarketDataTools } from "./market-data-tools.mjs";
 import { acquireRuntimeLease } from "./update-coordination.mjs";
@@ -153,6 +154,27 @@ const calendarSchema = z.record(
       .optional(),
   }),
 );
+
+// Interactive Brokers (TWS / IB Gateway). Agents read, preflight, submit and cancel; on a LIVE
+// account submit only queues the order for the owner's confirmation in the dashboard. Connection,
+// policy, confirmation and halt are deliberately not tools.
+const ibkrOrderSchema = {
+  symbol: z.string().min(1).max(20), side: z.enum(["BUY", "SELL"]),
+  quantity: z.number().int().positive().max(1000000), limitPrice: z.number().positive().max(1000000),
+  rationale: z.string().min(1).max(2000), idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/),
+};
+for (const [name, title, description, inputSchema, method, readOnlyHint] of [
+  ["ibkr_get_status", "IBKR status", "Interactive Brokers connection, the owner's policy (PAPER or LIVE account, allowlist, limits), orders waiting for the owner's confirmation and the order journal. Does not contact TWS.", {}, "status", true],
+  ["ibkr_refresh_account", "Reconcile the IBKR account", "Read cash, positions and orders from TWS / IB Gateway and reconcile this workbench's orders by IB order ID. Read-only session.", {}, "refresh", false],
+  ["ibkr_evaluate_order", "Preflight an IBKR order", "Check allowlist, limits, a fresh real quote, settled cash and long position without sending anything. Submitting re-checks.", ibkrOrderSchema, "evaluate", true],
+  ["ibkr_submit_order", "Submit or propose an IBKR limit order", "US stock DAY limit order, long only, no margin. PAPER account: sent within the owner's limits. LIVE account: only proposed — status awaiting-confirmation until the owner confirms it in the dashboard; never ask the owner to confirm by other means. Requires a stable idempotencyKey; an UNKNOWN result must be reconciled, never retried with a new key. An acknowledgement is not a fill.", ibkrOrderSchema, "submit", false],
+  ["ibkr_cancel_order", "Cancel an IBKR order", "Request cancellation of an open order this workbench placed (IB permanent order ID). Refresh to confirm.", { orderId: z.string().regex(/^\d{1,20}$/), idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/) }, "cancel", false],
+]) {
+  server.registerTool(name, { title, description, inputSchema, annotations: { readOnlyHint, destructiveHint: false, openWorldHint: method !== "status", idempotentHint: ["status", "submit", "cancel"].includes(method) } }, async (input) => {
+    try { const result = await getIbkrService()[method](input); return toolResult(result, `IBKR ${result.environment ?? result.policy?.environment ?? ""}: ${result.status ?? (result.eligible === undefined ? "ok" : result.eligible ? "eligible" : `not eligible — ${result.reason}`)}`); }
+    catch (error) { return toolError(error); }
+  });
+}
 
 // Paper execution is isolated from investment decisions and never exposes REAL.
 // Limits and strategy rules are authorized in the local UI, not editable by MCP.

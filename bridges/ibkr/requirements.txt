@@ -1,0 +1,2 @@
+# Optional bridge dependency, isolated from the Node plugin runtime.
+ib_async==2.1.0

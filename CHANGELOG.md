@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.8.3 — Interactive Brokers: paper trading by traders, live orders only after you confirm
+
+- **Traders can execute in Interactive Brokers.** New trader setting 执行方式: a US trader can send its orders to the IBKR account configured under 设置 → 券商连接 instead of the built-in simulator. Every order path (agent, code strategy, owner approval, stop-loss / take-profit, drawdown reduce) is sent through the IBKR guard rails during the regular session; fills are booked only from IB executions, and the matcher reconciles about every 90 seconds (IB cash vs. ledger shown on the trader). Verified against TWS paper.
+- Works with real TWS: short demo-system account ids, a TWS that never finishes the completed-orders list (fills from executions), readable TWS rejections (e.g. read-only API), an owner action to clear an order IB never received, a lock that waits when agents and the matcher overlap, and an IBKR paper option to allow any US stock.
 
 - **Interactive Brokers (TWS / IB Gateway) for US stocks.** Settings → 券商连接 → Interactive Brokers. On the paper account (DU…) agents place DAY limit orders within the owner's allowlist and limits; on a live account (U…) agents can only propose, and every order waits on the home page until the owner confirms it (re-checked against a fresh quote, expires after 10 minutes by default). Long only, settled cash only, regular hours only; write-ahead order ledger, idempotency keys, an unclear outcome blocks new orders until reconciled, and a 全部停止 switch that pauses agents, drops proposals and cancels open orders. MCP tools `ibkr_get_status`, `ibkr_refresh_account`, `ibkr_evaluate_order`, `ibkr_submit_order`, `ibkr_cancel_order`; setup with `npm run setup:ibkr` (pinned `ib_async==2.1.0`). See docs/BROKER_IBKR.md.
 

@@ -72,6 +72,7 @@ function TraderHeader({ account, job }: { account: AccountDetail; job: Job | und
           {account.template && <><span>·</span><span>{t('模板 {id}', { id: account.template })}</span></>}
           <span>·</span><span>{job?.mode === 'director' || job?.strategy ? t('Agent 主控') : job?.runner.type === 'strategy' ? t('纯代码策略') : t('每轮看盘')}</span>
           {job?.team?.enabled && <><span>·</span><span>{t('团队模式')}</span></>}
+          {account.execution && <><span>·</span><Pill tone={account.execution.environment === 'LIVE' ? 'bad' : 'ok'}>{account.execution.environment === 'LIVE' ? t('IBKR 实盘') : t('IBKR 模拟')} {account.execution.accountId}</Pill></>}
           {agent && <><span>·</span><Pill tone={autonomy === 'full' ? 'neutral' : 'accent'}>{AUTONOMY_NAME[autonomy]}</Pill></>}
         </div>
       </div>

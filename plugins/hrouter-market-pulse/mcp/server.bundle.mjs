@@ -11142,8 +11142,9 @@ function validateIbkrPolicy(input) {
   if (!input.enabled) return { enabled: false, environment: input.environment };
   if (typeof input.accountId !== "string" || !ACCOUNT[input.environment].test(input.accountId)) fail2(`A ${input.environment} account ID is required (${input.environment === "PAPER" ? "DU\u2026" : "U\u2026"})`);
   if (input.environment === "LIVE" && input.liveAcknowledgement !== LIVE_ACKNOWLEDGEMENT) fail2(`Type "${LIVE_ACKNOWLEDGEMENT}" to enable a real-money account`);
-  if (!Array.isArray(input.allowedSymbols) || !input.allowedSymbols.length || input.allowedSymbols.length > 50) fail2("Allowlist requires 1\u201350 symbols");
-  const allowedSymbols = [...new Set(input.allowedSymbols.map(usSymbol))];
+  const allowAnySymbol = input.environment === "PAPER" && input.allowAnySymbol === true;
+  if (!allowAnySymbol && (!Array.isArray(input.allowedSymbols) || !input.allowedSymbols.length || input.allowedSymbols.length > 50)) fail2("Allowlist requires 1\u201350 symbols");
+  const allowedSymbols = [...new Set((input.allowedSymbols ?? []).slice(0, 50).map(usSymbol))];
   const limits = {};
   for (const [name, max] of Object.entries({ maxOrderValue: 1e8, maxDailyOrderValue: 1e9, maxPositionValue: 1e9, maxOrdersPerDay: 1e3, maxQuoteAgeSeconds: 300, maxLimitDeviationPct: 5 })) {
     const v = input[name];
@@ -11159,6 +11160,7 @@ function validateIbkrPolicy(input) {
     accountId: input.accountId,
     currency: "USD",
     allowedSymbols,
+    allowAnySymbol,
     ...limits,
     ...input.environment === "LIVE" ? { confirmMinutes, requiresConfirmation: true } : { requiresConfirmation: false }
   };
@@ -11235,7 +11237,8 @@ async function writeJson2(file, value) {
 }
 var limitation2 = "PAPER orders go to your IB paper account; LIVE orders use real money and are only sent after you confirm each one. Order acknowledgements are not fills; positions and cash come from IB.";
 var IbkrService = class {
-  constructor({ dir, bridge, quote, now, env = process.env } = {}) {
+  constructor({ dir, bridge, quote, now, env = process.env, lockWaitMs = 12e4 } = {}) {
+    this.lockWaitMs = lockWaitMs;
     this.dir = dir || path5.join(getStorageDir(), "broker-ibkr");
     this.env = env;
     this.customBridge = bridge;
@@ -11261,11 +11264,15 @@ var IbkrService = class {
   async exclusive(fn) {
     await mkdir5(this.dir, { recursive: true, mode: 448 });
     const lock = this.file("operation.lock");
-    try {
-      await mkdir5(lock);
-    } catch (e) {
-      if (e.code === "EEXIST") fail2("Another IBKR operation is running or was interrupted. Check TWS before removing broker-ibkr/operation.lock; never replay orders.");
-      throw e;
+    for (let waited = 0; ; waited += 200) {
+      try {
+        await mkdir5(lock);
+        break;
+      } catch (e) {
+        if (e.code !== "EEXIST") throw e;
+        if (waited >= this.lockWaitMs) fail2("Another IBKR operation is still running (or was interrupted). Check TWS before removing broker-ibkr/operation.lock; never replay orders.");
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
     }
     try {
       return await fn();
@@ -11424,7 +11431,7 @@ var IbkrService = class {
   }
   async assess(order, policy, state, { counting = true } = {}) {
     if (!policy.enabled) fail2("IBKR execution is paused. The owner enables it in the dashboard.");
-    if (!policy.allowedSymbols.includes(order.symbol)) fail2("Symbol is outside the owner's allowlist");
+    if (!policy.allowAnySymbol && !policy.allowedSymbols.includes(order.symbol)) fail2("Symbol is outside the owner's allowlist");
     const notional = order.quantity * order.limitPrice;
     if (!finite4(notional) || notional > policy.maxOrderValue) fail2("Single-order notional limit exceeded");
     const relevant = state.intents.filter((r) => r.accountId === policy.accountId && r.kind === "order");
@@ -11603,6 +11610,51 @@ var IbkrService = class {
 var service2;
 function getIbkrService() {
   return service2 ||= new IbkrService();
+}
+var roundCents = (value) => Math.round(value * 100) / 100;
+function brokerLimitPrice(order, quotePrice, throughPct = 0.3) {
+  if (order.type === "limit" && finite4(order.limitPrice)) return roundCents(order.limitPrice);
+  if (!finite4(quotePrice) || quotePrice <= 0) fail2("No usable quote to price the order");
+  return roundCents(order.side === "BUY" ? quotePrice * (1 + throughPct / 100) : quotePrice * (1 - throughPct / 100));
+}
+function createIbkrExecutor(service4 = getIbkrService()) {
+  const policyFor = async (execution) => {
+    const policy = await service4.policy();
+    if (!policy.enabled) fail2("IBKR execution is paused. Enable it under \u8BBE\u7F6E \u2192 \u5238\u5546\u8FDE\u63A5 \u2192 Interactive Brokers.");
+    if (policy.accountId !== execution.accountId || policy.environment !== execution.environment) fail2(`This trader executes in ${execution.environment} ${execution.accountId}, but the IBKR settings point at ${policy.environment} ${policy.accountId}.`);
+    return policy;
+  };
+  return {
+    // The trader's account must match the IBKR settings; returns IB's cash and net liquidation.
+    async link(execution) {
+      if (execution?.venue !== "ibkr" || !IBKR_ENVIRONMENTS.includes(execution.environment)) fail2("Unknown execution venue");
+      await policyFor(execution);
+      const { snapshot: snapshot2 } = await service4.refresh();
+      return { funds: snapshot2.funds, positions: snapshot2.positions, orders: snapshot2.orders, observedAt: snapshot2.observedAt };
+    },
+    async submit(execution, order, quotePrice) {
+      await policyFor(execution);
+      const limitPrice = brokerLimitPrice(order, quotePrice);
+      const intent = await service4.submit({
+        symbol: order.symbol,
+        side: order.side,
+        quantity: order.quantity - (order.filledQuantity ?? 0),
+        limitPrice,
+        rationale: order.reason || `${order.trigger ?? "order"} ${order.symbol}`,
+        idempotencyKey: `arena_${order.id}`
+      });
+      return { intentId: intent.id, state: intent.status, limitPrice, brokerOrderId: intent.brokerOrderId ?? null, error: intent.error ?? null, expiresAt: intent.expiresAt ?? null };
+    },
+    async reconcile(execution) {
+      await policyFor(execution);
+      const { snapshot: snapshot2, intents } = await service4.refresh();
+      return { snapshot: snapshot2, intents };
+    },
+    async cancel(execution, brokerOrderId, key) {
+      await policyFor(execution);
+      return service4.cancel({ orderId: brokerOrderId, idempotencyKey: key });
+    }
+  };
 }
 
 // node_modules/zod/v3/external.js
@@ -16793,6 +16845,8 @@ function suspensionStatus(account2, quote, now) {
   return null;
 }
 var remainingQuantity = (order) => order.quantity - (order.filledQuantity ?? 0);
+var brokerAccount = (account2) => account2.execution?.venue === "ibkr";
+var IB_DONE = ["Cancelled", "ApiCancelled", "Inactive"];
 function fillQuantity(account2, order, quote, now) {
   const remaining = remainingQuantity(order);
   const pct = account2.settings?.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT;
@@ -17190,7 +17244,7 @@ function processAlive(pid) {
     return error2.code === "EPERM";
   }
 }
-function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, industryProvider = null, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS } = {}) {
+function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, industryProvider = null, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS, executor = null } = {}) {
   const accountDir = path7.join(root2, "accounts");
   const digestDir = path7.join(root2, "digests");
   const lockDir = path7.join(root2, ".lock");
@@ -17476,6 +17530,7 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
     const events = [];
     applyCorporateActions(account2, actionMap, at, events);
     for (const order of openOrders(account2)) {
+      if (order.broker && order.broker.state !== "queued") continue;
       if (Date.parse(order.expiresAt) <= Date.parse(at)) {
         Object.assign(order, { status: "expired", closedAt: at, reserved: 0 });
         events.push({ type: "expired", orderId: order.id, symbol: order.symbol, filledQuantity: order.filledQuantity ?? 0 });
@@ -17501,7 +17556,7 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
     evaluateBreaker(account2, quoteMap, at, events);
     triggerExits(account2, quoteMap, at, events, minuteMap);
     const today = localMarketTime(at, account2.market)?.date;
-    for (const order of openOrders(account2)) {
+    for (const order of brokerAccount(account2) ? [] : openOrders(account2)) {
       const observed = quoteMap.get(order.symbol);
       if (!observed || observed.error || !tradability(account2, observed, at).ok) continue;
       const suspended = suspensionStatus(account2, observed, at);
@@ -17609,7 +17664,90 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
         lastSync.set(account2.id, Date.now());
       }
     });
+    for (const target of targets.filter(brokerAccount)) {
+      try {
+        await brokerStep(target.id, quoteMap, { reconcileNow: force });
+      } catch (error2) {
+        events.push({ type: "broker-error", accountId: target.id, message: error2.message });
+      }
+    }
     return { synced: targets.length, events };
+  }
+  async function brokerStep(id, quoteMap = /* @__PURE__ */ new Map(), { reconcileNow = false } = {}) {
+    if (!executor) return;
+    let account2 = await load(id);
+    if (!brokerAccount(account2)) return;
+    const queued = openOrders(account2).filter((order) => !order.broker || order.broker.state === "queued");
+    if (queued.length && getMarketSession(account2.market, now()).status === "open") {
+      for (const order of queued) {
+        const price = quoteMap.get(order.symbol)?.price ?? (await quote(order.symbol, { fresh: true }).catch(() => null))?.price;
+        let result2;
+        try {
+          result2 = await executor.submit(account2.execution, order, price);
+        } catch (error2) {
+          result2 = { state: "blocked", error: error2.message };
+        }
+        await withLock(async () => {
+          const current = await load(id);
+          const target = current.orders.find((entry) => entry.id === order.id);
+          if (!target || target.status !== "open") return;
+          const at = now();
+          target.broker = { ...target.broker, ...result2, dispatchedAt: at };
+          if (result2.state === "blocked") Object.assign(target, { status: "rejected", closedAt: at, reserved: 0, rejectReason: `IBKR: ${result2.error}` });
+          addEvent(current, at, { type: "broker-order", orderId: target.id, symbol: target.symbol, state: result2.state, message: result2.state === "blocked" ? `IBKR \u62E6\u4E0B ${target.symbol}\uFF1A${result2.error}` : `\u5DF2\u53D1\u7ED9 IBKR\uFF1A${target.side} ${target.symbol} ${remainingQuantity(target)} \u80A1 @ ${result2.limitPrice}\uFF08${result2.state}\uFF09` });
+          await save(current);
+        });
+        reconcileNow = true;
+      }
+    }
+    account2 = await load(id);
+    const active = openOrders(account2).some((order) => order.broker && order.broker.state !== "queued");
+    const last = Date.parse(account2.brokerSync?.at ?? 0) || 0;
+    if (!reconcileNow && Date.parse(now()) - last < (active ? 15e3 : 12e4)) return;
+    let result;
+    try {
+      result = await executor.reconcile(account2.execution);
+    } catch (error2) {
+      await withLock(async () => {
+        const current = await load(id);
+        current.brokerSync = { ...current.brokerSync, at: now(), error: error2.message };
+        await save(current);
+      });
+      return;
+    }
+    await withLock(async () => {
+      const current = await load(id);
+      const at = now();
+      const intents = new Map(result.intents.map((intent) => [intent.id, intent]));
+      for (const order of current.orders.filter((entry) => entry.status === "open" && entry.broker?.intentId)) {
+        const intent = intents.get(order.broker.intentId);
+        if (!intent) continue;
+        const applied = new Set(order.broker.appliedExecIds ?? []);
+        for (const execution of intent.fills?.executions ?? []) {
+          if (!execution.execId || applied.has(execution.execId) || !(execution.quantity > 0) || order.status !== "open") continue;
+          const quantity = Math.min(execution.quantity, remainingQuantity(order));
+          if (order.side === "SELL" && (current.positions[order.symbol]?.quantity ?? 0) < quantity) continue;
+          applyFill(current, order, execution.price, quoteMap.get(order.symbol) ?? null, at, quantity, "ibkr-execution");
+          applied.add(execution.execId);
+        }
+        Object.assign(order.broker, { appliedExecIds: [...applied], state: intent.status, brokerOrderId: intent.brokerOrderId ?? order.broker.brokerOrderId ?? null, brokerStatus: intent.broker?.status ?? null, reconciledAt: at });
+        if (order.status !== "open") continue;
+        if (intent.status === "blocked") Object.assign(order, { status: "rejected", closedAt: at, reserved: 0, rejectReason: `IBKR: ${intent.error}` });
+        else if (["rejected", "expired"].includes(intent.status)) Object.assign(order, { status: "cancelled", closedAt: at, reserved: 0, cancelReason: intent.status === "rejected" ? "Owner rejected the live order" : "Owner confirmation window passed" });
+        else if (IB_DONE.includes(intent.broker?.status)) Object.assign(order, { status: (order.filledQuantity ?? 0) > 0 ? "cancelled" : intent.broker.status === "Inactive" ? "rejected" : "cancelled", closedAt: at, reserved: 0, cancelReason: `IB: ${intent.broker.status}${intent.broker.messages?.length ? ` \u2014 ${intent.broker.messages.at(-1)}` : ""}` });
+      }
+      const funds = result.snapshot.funds ?? {};
+      current.brokerSync = {
+        at,
+        error: null,
+        cash: funds.cash ?? null,
+        netLiquidation: funds.netLiquidation ?? null,
+        positions: result.snapshot.positions.filter((position) => position.quantity).map(({ symbol, quantity, averageCost }) => ({ symbol, quantity, averageCost })),
+        cashDrift: finite8(funds.cash) ? round7(funds.cash - current.cash) : null
+      };
+      recordEquity(current, at);
+      await save(current);
+    });
   }
   function returnCurve(account2, equityNow) {
     const daily = /* @__PURE__ */ new Map();
@@ -17649,6 +17787,8 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
       settings: account2.settings,
       benchmark: account2.benchmark,
       metrics,
+      execution: account2.execution ?? null,
+      brokerSync: account2.brokerSync ?? null,
       curve: returnCurve(account2, metrics.equity),
       lastTradeAt: account2.trades.at(-1)?.at ?? null,
       lastActivityAt: [account2.trades.at(-1)?.at, account2.journal.at(-1)?.at, account2.orders.at(-1)?.createdAt, account2.reports?.at(-1)?.at].filter(Boolean).sort().at(-1) ?? null,
@@ -18022,7 +18162,8 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
         }
         let trade = null;
         let liquidity = null;
-        if (!failure && execution?.price !== null && execution?.price !== void 0) {
+        if (!failure && brokerAccount(current)) order.broker = { venue: "ibkr", state: "queued", queuedAt: at };
+        else if (!failure && execution?.price !== null && execution?.price !== void 0) {
           liquidity = fillQuantity(current, order, observed, at);
           if (liquidity.quantity > 0) trade = applyFill(current, order, execution.price, observed, at, liquidity.quantity, execution.basis);
         }
@@ -18037,12 +18178,35 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
           session: tradable.session ? { status: tradable.session.status, date: tradable.session.date, calendarVerified: tradable.session.verified } : null
         };
         if (failure) result.error = failure.message;
+        else if (order.broker) result.note = "Queued for Interactive Brokers: it is sent while the US regular session is open, and fills appear only when IB reports executions (the background matcher reconciles with IB about every 90 s).";
         else if (order.status === "open" && liquidity?.capped) result.note = `${trade ? `Partially filled ${order.filledQuantity} of ${quantity}` : "Not filled yet"}: one account may take at most ${current.settings?.maxVolumePct ?? DEFAULT_MAX_VOLUME_PCT}% of the day's volume (${liquidity.volume} shares so far). The remainder rests and the background matcher fills it as volume builds, until ${order.expiresAt}.`;
         else if (!trade) result.note = suspended ? `${symbol} looks suspended (${suspended}); the limit order rests until trading resumes.` : tradable.ok ? "Limit order resting: price not reached yet. The background matcher fills it when a later quote is marketable." : `Order resting until the ${account2.market} session opens (expires ${order.expiresAt}).`;
         return result;
+      }).then(async (result) => {
+        if (!result.order?.broker || result.error) return result;
+        await brokerStep(account2.id, new Map(observed ? [[symbol, observed]] : []), { reconcileNow: true });
+        const current = await load(account2.id);
+        const order2 = current.orders.find((entry) => entry.id === result.order.id) ?? result.order;
+        return { ...result, order: order2, account: publicAccount(current), ...order2.status === "rejected" ? { error: order2.rejectReason } : {} };
       });
     },
     async cancelOrder({ accountId: accountId2, orderId, reason }, caller = {}) {
+      const peek = await load(accountId2);
+      const atBroker = peek.orders.find((entry) => (entry.id === orderId || entry.clientOrderId === orderId) && entry.status === "open" && entry.broker?.brokerOrderId);
+      if (atBroker && brokerAccount(peek)) {
+        assertCaller(peek, caller);
+        if (!executor) throw new ArenaError("No broker connection in this process.");
+        const request = await executor.cancel(peek.execution, atBroker.broker.brokerOrderId, `arena_cancel_${atBroker.id}_${Date.now()}`);
+        await withLock(async () => {
+          const current2 = await load(accountId2);
+          const target = current2.orders.find((entry) => entry.id === atBroker.id);
+          if (target) target.broker.cancelRequestedAt = now();
+          await save(current2);
+        });
+        await brokerStep(accountId2, /* @__PURE__ */ new Map(), { reconcileNow: true });
+        const current = await load(accountId2);
+        return { order: current.orders.find((entry) => entry.id === atBroker.id), account: publicAccount(current), note: request.status === "acknowledged" ? "Cancellation sent to IB; the order closes when IB confirms it." : `IB cancel request: ${request.status} ${request.error ?? ""}`.trim() };
+      }
       return withLock(async () => {
         const account2 = await load(accountId2);
         assertCaller(account2, caller);
@@ -18511,8 +18675,40 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
     },
     // Dashboard-only administration. Agents cannot archive, reset or re-fund accounts.
     async updateAccount(id, input) {
+      let linked = null, venue;
+      if (input.execution !== void 0) {
+        venue = input.execution === null || input.execution?.venue === "sim" ? null : { venue: "ibkr", environment: input.execution.environment === "LIVE" ? "LIVE" : "PAPER", accountId: String(input.execution.accountId ?? "") };
+        const before = await load(id);
+        if (before.market !== "US" && venue) throw new ArenaError("IBKR execution is available for US traders only.");
+        if (Object.keys(before.positions).length || openOrders(before).length || before.trades.length) throw new ArenaError("Switch the execution venue on a new trader (no positions, orders or trades yet).");
+        if (venue) {
+          if (!executor) throw new ArenaError("No broker connection in this process.");
+          linked = await executor.link(venue);
+          if (linked.positions.some((position) => position.quantity) || linked.orders.some((order) => ["PreSubmitted", "Submitted", "PendingSubmit"].includes(order.status))) throw new ArenaError("The IB account has positions or open orders; use a flat paper account so the trader's ledger matches it.");
+          if (!finite8(linked.funds?.cash) || linked.funds.cash < 1e3) throw new ArenaError("Could not read the IB account's cash.");
+        }
+      }
       return withLock(async () => {
         const account2 = await load(id);
+        if (input.execution !== void 0) {
+          const at = now();
+          appendChange(account2, changeEntry({ key: "execution", from: account2.execution ?? { venue: "sim" }, to: venue ?? { venue: "sim" }, by: { kind: "owner", via: "ui" }, at }));
+          if (venue) {
+            const cash = round7(linked.funds.cash);
+            Object.assign(account2, {
+              execution: { ...venue, linkedAt: at },
+              initialCash: cash,
+              cash,
+              equity: [{ at, equity: cash, cash, marketValue: 0 }],
+              brokerSync: { at, error: null, cash, netLiquidation: linked.funds.netLiquidation ?? null, positions: [], cashDrift: 0 }
+            });
+            addEvent(account2, at, { type: "execution-venue", message: `\u4ECE\u73B0\u5728\u8D77\u5728 IBKR ${venue.environment === "PAPER" ? "\u6A21\u62DF" : "\u5B9E\u76D8"}\u8D26\u6237 ${venue.accountId} \u6267\u884C\uFF1B\u8D77\u59CB\u8D44\u91D1\u6309 IB \u73B0\u91D1 ${cash} USD\u3002` });
+          } else {
+            delete account2.execution;
+            delete account2.brokerSync;
+            addEvent(account2, at, { type: "execution-venue", message: "\u6539\u56DE\u5185\u7F6E\u6A21\u62DF\u64AE\u5408\u3002" });
+          }
+        }
         if (input.name !== void 0) account2.name = String(input.name).trim().slice(0, 60) || account2.name;
         if (input.model !== void 0) account2.model = String(input.model).trim().slice(0, 80) || account2.model;
         if (input.agentLabel !== void 0) account2.agent.label = String(input.agentLabel).trim().slice(0, 60) || null;
@@ -18833,7 +19029,7 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
 }
 var defaultArena;
 function getArena() {
-  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions, intradayProvider: getIntradayBars, industryProvider: industriesOf });
+  defaultArena ??= createArena({ corporateActionProvider: getCorporateActions, intradayProvider: getIntradayBars, industryProvider: industriesOf, executor: createIbkrExecutor() });
   return defaultArena;
 }
 function digestPayload(digest, format = "generic") {
@@ -19034,6 +19230,7 @@ function buildRoundPrompt({ account: account2, language = "zh-CN", prompts = {},
 ${String(body).trim()}`);
   };
   push(en ? "Rules" : "\u7CFB\u7EDF\u89C4\u5219", en ? `Trade only arena account ${account2.id}. Paper money with real quotes: never call results real returns. If data is unavailable, say so; never invent prices or news.` : `\u53EA\u64CD\u4F5C\u7ADE\u6280\u573A\u8D26\u6237 ${account2.id}\u3002\u8FD9\u662F\u865A\u62DF\u8D44\u91D1\u3001\u771F\u5B9E\u884C\u60C5\u7684\u6A21\u62DF\u76D8\uFF1A\u4E0D\u80FD\u628A\u7ED3\u679C\u8BF4\u6210\u771F\u5B9E\u6536\u76CA\u3002\u6570\u636E\u62FF\u4E0D\u5230\u5C31\u5982\u5B9E\u8BF4\u62FF\u4E0D\u5230\uFF0C\u4E0D\u80FD\u7F16\u4EF7\u683C\u6216\u65B0\u95FB\u3002`);
+  if (account2.execution?.venue === "ibkr") push(en ? "Execution" : "\u6267\u884C\u65B9\u5F0F", en ? `Orders of this trader execute in Interactive Brokers ${account2.execution.environment === "LIVE" ? "LIVE (real money; every order waits for the owner's confirmation)" : "paper"} account ${account2.execution.accountId}, not the built-in simulator. Orders are sent only during the US regular session as DAY limit orders (market orders become limits 0.3% through the quote); a fill exists only when IB reports an execution, usually within a couple of minutes. An order IB's guard rails block is rejected with the reason \u2014 read it and do not resubmit the same order.` : `\u672C\u4EA4\u6613\u5458\u7684\u8BA2\u5355\u5728 Interactive Brokers ${account2.execution.environment === "LIVE" ? "\u5B9E\u76D8\uFF08\u771F\u5B9E\u8D44\u91D1\uFF0C\u6BCF\u7B14\u90FD\u8981\u4E3B\u4EBA\u786E\u8BA4\uFF09" : "\u6A21\u62DF"}\u8D26\u6237 ${account2.execution.accountId} \u6267\u884C\uFF0C\u4E0D\u8D70\u5185\u7F6E\u6A21\u62DF\u64AE\u5408\u3002\u53EA\u5728\u7F8E\u80A1\u5E38\u89C4\u4EA4\u6613\u65F6\u6BB5\u4EE5\u5F53\u65E5\u9650\u4EF7\u5355\u53D1\u51FA\uFF08\u5E02\u4EF7\u5355\u6309\u73B0\u4EF7\u4E0A\u6D6E/\u4E0B\u6D6E 0.3% \u7684\u9650\u4EF7\u53D1\u51FA\uFF09\uFF1B\u53EA\u6709 IB \u56DE\u62A5\u6210\u4EA4\u624D\u7B97\u6210\u4EA4\uFF0C\u4E00\u822C\u4E00\u4E24\u5206\u949F\u5185\u540C\u6B65\u8FDB\u6765\u3002\u88AB IB \u62A4\u680F\u62E6\u4E0B\u7684\u8BA2\u5355\u4F1A\u5E26\u539F\u56E0\u88AB\u62D2\uFF0C\u770B\u6E05\u539F\u56E0\uFF0C\u4E0D\u8981\u91CD\u590D\u63D0\u4EA4\u540C\u4E00\u7B14\u3002`);
   push(en ? "Owner prompt (all traders)" : "\u524D\u7F6E\u63D0\u793A\u8BCD \xB7 \u5168\u5C40", prompts.global);
   push(en ? "Owner prompt (this market)" : "\u524D\u7F6E\u63D0\u793A\u8BCD \xB7 \u672C\u5E02\u573A", prompts.market);
   push(en ? "Owner prompt (this trader)" : "\u524D\u7F6E\u63D0\u793A\u8BCD \xB7 \u672C\u4EA4\u6613\u5458", account2.prompt);

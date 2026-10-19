@@ -54,8 +54,10 @@ export function validateIbkrPolicy(input) {
   if (!input.enabled) return { enabled: false, environment: input.environment };
   if (typeof input.accountId !== "string" || !ACCOUNT[input.environment].test(input.accountId)) fail(`A ${input.environment} account ID is required (${input.environment === "PAPER" ? "DU…" : "U…"})`);
   if (input.environment === "LIVE" && input.liveAcknowledgement !== LIVE_ACKNOWLEDGEMENT) fail(`Type "${LIVE_ACKNOWLEDGEMENT}" to enable a real-money account`);
-  if (!Array.isArray(input.allowedSymbols) || !input.allowedSymbols.length || input.allowedSymbols.length > 50) fail("Allowlist requires 1–50 symbols");
-  const allowedSymbols = [...new Set(input.allowedSymbols.map(usSymbol))];
+  // Paper accounts may let traders pick any US stock; a live account always needs an allowlist.
+  const allowAnySymbol = input.environment === "PAPER" && input.allowAnySymbol === true;
+  if (!allowAnySymbol && (!Array.isArray(input.allowedSymbols) || !input.allowedSymbols.length || input.allowedSymbols.length > 50)) fail("Allowlist requires 1–50 symbols");
+  const allowedSymbols = [...new Set((input.allowedSymbols ?? []).slice(0, 50).map(usSymbol))];
   const limits = {};
   for (const [name, max] of Object.entries({ maxOrderValue: 1e8, maxDailyOrderValue: 1e9, maxPositionValue: 1e9, maxOrdersPerDay: 1000, maxQuoteAgeSeconds: 300, maxLimitDeviationPct: 5 })) {
     const v = input[name];
@@ -65,7 +67,7 @@ export function validateIbkrPolicy(input) {
   if (limits.maxOrderValue > limits.maxDailyOrderValue || limits.maxOrderValue > limits.maxPositionValue) fail("Single-order limit must not exceed the daily or position limit");
   const confirmMinutes = input.environment === "LIVE" ? Number(input.confirmMinutes ?? 10) : null;
   if (input.environment === "LIVE" && (!Number.isInteger(confirmMinutes) || confirmMinutes < 1 || confirmMinutes > 30)) fail("Confirmation window must be 1–30 minutes");
-  return { enabled: true, environment: input.environment, accountId: input.accountId, currency: "USD", allowedSymbols, ...limits,
+  return { enabled: true, environment: input.environment, accountId: input.accountId, currency: "USD", allowedSymbols, allowAnySymbol, ...limits,
     ...(input.environment === "LIVE" ? { confirmMinutes, requiresConfirmation: true } : { requiresConfirmation: false }) };
 }
 
@@ -118,7 +120,8 @@ async function writeJson(file, value) {
 const limitation = "PAPER orders go to your IB paper account; LIVE orders use real money and are only sent after you confirm each one. Order acknowledgements are not fills; positions and cash come from IB.";
 
 export class IbkrService {
-  constructor({ dir, bridge, quote, now, env = process.env } = {}) {
+  constructor({ dir, bridge, quote, now, env = process.env, lockWaitMs = 120000 } = {}) {
+    this.lockWaitMs = lockWaitMs;
     this.dir = dir || path.join(getStorageDir(), "broker-ibkr");
     this.env = env;
     this.customBridge = bridge;
@@ -136,7 +139,14 @@ export class IbkrService {
   async exclusive(fn) {
     await mkdir(this.dir, { recursive: true, mode: 0o700 });
     const lock = this.file("operation.lock");
-    try { await mkdir(lock); } catch (e) { if (e.code === "EEXIST") fail("Another IBKR operation is running or was interrupted. Check TWS before removing broker-ibkr/operation.lock; never replay orders."); throw e; }
+    // Agents and the background matcher share TWS: wait for the other operation instead of failing.
+    for (let waited = 0; ; waited += 200) {
+      try { await mkdir(lock); break; } catch (e) {
+        if (e.code !== "EEXIST") throw e;
+        if (waited >= this.lockWaitMs) fail("Another IBKR operation is still running (or was interrupted). Check TWS before removing broker-ibkr/operation.lock; never replay orders.");
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
     try { return await fn(); } finally { await rm(lock, { recursive: true, maxRetries: 5, retryDelay: 50 }); }
   }
 
@@ -276,7 +286,7 @@ export class IbkrService {
   }
   async assess(order, policy, state, { counting = true } = {}) {
     if (!policy.enabled) fail("IBKR execution is paused. The owner enables it in the dashboard.");
-    if (!policy.allowedSymbols.includes(order.symbol)) fail("Symbol is outside the owner's allowlist");
+    if (!policy.allowAnySymbol && !policy.allowedSymbols.includes(order.symbol)) fail("Symbol is outside the owner's allowlist");
     const notional = order.quantity * order.limitPrice;
     if (!finite(notional) || notional > policy.maxOrderValue) fail("Single-order notional limit exceeded");
     const relevant = state.intents.filter((r) => r.accountId === policy.accountId && r.kind === "order");
@@ -394,3 +404,51 @@ export class IbkrService {
 
 let service;
 export function getIbkrService() { return service ||= new IbkrService(); }
+
+// ---------------------------------------------------------------------------
+// Execution venue for arena traders. The arena keeps the trader's ledger and runs its own checks;
+// this sends the trader's orders through the IBKR guard rails above and reports what IB did.
+// ---------------------------------------------------------------------------
+
+const roundCents = (value) => Math.round(value * 100) / 100;
+
+// Arena market orders become limit orders slightly through the quote (US stocks trade in cents).
+export function brokerLimitPrice(order, quotePrice, throughPct = 0.3) {
+  if (order.type === "limit" && finite(order.limitPrice)) return roundCents(order.limitPrice);
+  if (!finite(quotePrice) || quotePrice <= 0) fail("No usable quote to price the order");
+  return roundCents(order.side === "BUY" ? quotePrice * (1 + throughPct / 100) : quotePrice * (1 - throughPct / 100));
+}
+
+export function createIbkrExecutor(service = getIbkrService()) {
+  const policyFor = async (execution) => {
+    const policy = await service.policy();
+    if (!policy.enabled) fail("IBKR execution is paused. Enable it under 设置 → 券商连接 → Interactive Brokers.");
+    if (policy.accountId !== execution.accountId || policy.environment !== execution.environment) fail(`This trader executes in ${execution.environment} ${execution.accountId}, but the IBKR settings point at ${policy.environment} ${policy.accountId}.`);
+    return policy;
+  };
+  return {
+    // The trader's account must match the IBKR settings; returns IB's cash and net liquidation.
+    async link(execution) {
+      if (execution?.venue !== "ibkr" || !IBKR_ENVIRONMENTS.includes(execution.environment)) fail("Unknown execution venue");
+      await policyFor(execution);
+      const { snapshot } = await service.refresh();
+      return { funds: snapshot.funds, positions: snapshot.positions, orders: snapshot.orders, observedAt: snapshot.observedAt };
+    },
+    async submit(execution, order, quotePrice) {
+      await policyFor(execution);
+      const limitPrice = brokerLimitPrice(order, quotePrice);
+      const intent = await service.submit({ symbol: order.symbol, side: order.side, quantity: order.quantity - (order.filledQuantity ?? 0), limitPrice,
+        rationale: order.reason || `${order.trigger ?? "order"} ${order.symbol}`, idempotencyKey: `arena_${order.id}` });
+      return { intentId: intent.id, state: intent.status, limitPrice, brokerOrderId: intent.brokerOrderId ?? null, error: intent.error ?? null, expiresAt: intent.expiresAt ?? null };
+    },
+    async reconcile(execution) {
+      await policyFor(execution);
+      const { snapshot, intents } = await service.refresh();
+      return { snapshot, intents };
+    },
+    async cancel(execution, brokerOrderId, key) {
+      await policyFor(execution);
+      return service.cancel({ orderId: brokerOrderId, idempotencyKey: key });
+    },
+  };
+}

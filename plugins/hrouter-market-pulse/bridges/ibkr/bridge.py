@@ -144,7 +144,7 @@ def run(request, sdk=None):
                               "availableFunds": values.get("AvailableFunds"), "buyingPower": values.get("BuyingPower"),
                               "marketValue": values.get("GrossPositionValue")},
                     "positions": positions, "orders": orders,
-                    "executions": [{"orderId": str(f.execution.permId) if f.execution.permId else None, "orderRef": getattr(f.execution, "orderRef", "") or "",
+                    "executions": [{"execId": f.execution.execId, "orderId": str(f.execution.permId) if f.execution.permId else None, "orderRef": getattr(f.execution, "orderRef", "") or "",
                                     "symbol": f.contract.symbol, "side": "BUY" if f.execution.side == "BOT" else "SELL", "quantity": number(f.execution.shares),
                                     "price": number(f.execution.price), "time": str(f.execution.time)} for f in fills],
                     "notes": notes,

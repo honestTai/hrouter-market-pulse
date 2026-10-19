@@ -6,6 +6,7 @@ import { get, type AccountDetail, type Autonomy, type Job, type Limits, type Run
 import { AUTONOMY_NAME, BOARD_NAME, changeLabel, changedByLabel, dateTime, MARKET_NAME, TEAM_ROLE, valueLabel } from '@/lib/format'
 import { isEnglish, locale, t } from '@/lib/i18n'
 import { useAction, useEnv, useLibrary, useTraderSettings } from '@/lib/queries'
+import { useIbkrStatus } from '@/components/IbkrPanel'
 import { Button, Card, CardTitle, Dialog, Field, Input, LockButton, Pill, Segmented, Select, Spinner, Switch, Textarea, cn } from '@/components/ui'
 import { EffortField, latestModel, ModelField, useAgentModels } from '@/components/ModelPicker'
 
@@ -18,6 +19,7 @@ export function TraderSettingsTab({ account, job }: { account: AccountDetail; jo
   return (
     <div className="flex flex-wrap items-start gap-4">
       <div className="flex min-w-0 flex-[999_1_640px] flex-col gap-4">
+        {account.market === 'US' && <ExecutionCard account={account} />}
         <PromptCard account={account} />
         <LimitsCard account={account} />
         <AutonomyCard account={account} />
@@ -37,6 +39,37 @@ export function TraderSettingsTab({ account, job }: { account: AccountDetail; jo
         <McpCard account={account} />
       </aside>
     </div>
+  )
+}
+
+// Where this trader's orders execute: the built-in simulator, or the IBKR account set up under
+// 设置 → 券商连接. Switching is only for a new trader, so the ledger starts from IB's real cash.
+function ExecutionCard({ account }: { account: AccountDetail }) {
+  const ibkr = useIbkrStatus()
+  const policy = ibkr.data?.policy
+  const save = useAction<{ execution: unknown }>(`/api/arena/accounts/${account.id}`, { invalidate: [['account', account.id], ['leaderboard']], success: t('执行方式已更新') })
+  const fresh = !account.positions.length && !account.openOrders.length && !account.trades.length
+  const venue = account.execution
+  const sync = account.brokerSync
+  return (
+    <Card className="flex flex-col gap-3 p-[18px] text-[13px]">
+      <CardTitle extra={<span className="text-xs text-ink-3">{t('只有你能改，Agent 改不了')}</span>}>{t('执行方式')}</CardTitle>
+      {venue ? (
+        <>
+          <div className="flex flex-wrap items-center gap-2"><Pill tone={venue.environment === 'LIVE' ? 'bad' : 'ok'}>{venue.environment === 'LIVE' ? t('IBKR 实盘') : t('IBKR 模拟')}</Pill><span className="font-mono">{venue.accountId}</span>{venue.linkedAt && <span className="text-xs text-ink-3">{t('{time} 起', { time: dateTime(venue.linkedAt) })}</span>}</div>
+          <p className="m-0 text-ink-2">{t('订单在美股常规时段以当日限价单发给 IB，只有 IB 回报成交才记账；后台大约每 90 秒和 IB 核对一次。')}</p>
+          {sync && <div className="text-xs text-ink-3">{sync.error ? <span className="text-bad">{t('上次核对失败：{error}', { error: sync.error })}</span> : t('IB 现金 {cash} · 账本差额 {drift} · 核对于 {time}', { cash: sync.cash ?? '—', drift: sync.cashDrift ?? '—', time: dateTime(sync.at) })}</div>}
+          {fresh && <div><Button onClick={() => save.mutate({ execution: { venue: 'sim' } })} loading={save.isPending}>{t('改回内置模拟')}</Button></div>}
+        </>
+      ) : (
+        <>
+          <p className="m-0 text-ink-2">{t('现在用内置模拟撮合。可以改成在你的 IBKR 账户执行（在 设置 → 券商连接 里配置）。')}</p>
+          {!policy?.enabled ? <div className="text-xs text-warn-ink">{t('先在 设置 → 券商连接 → Interactive Brokers 连接 TWS、选账户并开启。')}</div>
+            : !fresh ? <div className="text-xs text-ink-3">{t('只能在还没有持仓、委托和成交的新交易员上切换。')}</div>
+            : <div><Button variant="primary" loading={save.isPending} onClick={() => save.mutate({ execution: { venue: 'ibkr', environment: policy.environment, accountId: policy.accountId } })}>{t('改为在 IBKR {env} {account} 执行', { env: policy.environment === 'LIVE' ? t('实盘') : t('模拟'), account: policy.accountId })}</Button></div>}
+        </>
+      )}
+    </Card>
   )
 }
 

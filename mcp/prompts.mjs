@@ -34,6 +34,9 @@ export function buildRoundPrompt({ account, language = "zh-CN", prompts = {}, li
   push(en ? "Rules" : "系统规则", en
     ? `Trade only arena account ${account.id}. Paper money with real quotes: never call results real returns. If data is unavailable, say so; never invent prices or news.`
     : `只操作竞技场账户 ${account.id}。这是虚拟资金、真实行情的模拟盘：不能把结果说成真实收益。数据拿不到就如实说拿不到，不能编价格或新闻。`);
+  if (account.execution?.venue === "ibkr") push(en ? "Execution" : "执行方式", en
+    ? `Orders of this trader execute in Interactive Brokers ${account.execution.environment === "LIVE" ? "LIVE (real money; every order waits for the owner's confirmation)" : "paper"} account ${account.execution.accountId}, not the built-in simulator. Orders are sent only during the US regular session as DAY limit orders (market orders become limits 0.3% through the quote); a fill exists only when IB reports an execution, usually within a couple of minutes. An order IB's guard rails block is rejected with the reason — read it and do not resubmit the same order.`
+    : `本交易员的订单在 Interactive Brokers ${account.execution.environment === "LIVE" ? "实盘（真实资金，每笔都要主人确认）" : "模拟"}账户 ${account.execution.accountId} 执行，不走内置模拟撮合。只在美股常规交易时段以当日限价单发出（市价单按现价上浮/下浮 0.3% 的限价发出）；只有 IB 回报成交才算成交，一般一两分钟内同步进来。被 IB 护栏拦下的订单会带原因被拒，看清原因，不要重复提交同一笔。`);
   push(en ? "Owner prompt (all traders)" : "前置提示词 · 全局", prompts.global);
   push(en ? "Owner prompt (this market)" : "前置提示词 · 本市场", prompts.market);
   push(en ? "Owner prompt (this trader)" : "前置提示词 · 本交易员", account.prompt);

@@ -112,7 +112,7 @@ function PolicyDialog({ policy, environment, accountId, onClose, onSaved }: { po
   const current = policy?.environment === environment && policy?.accountId === accountId ? policy : {}
   const [form, setForm] = useState<Record<string, string>>({
     allowedSymbols: current.allowedSymbols?.join(', ') ?? '', maxOrderValue: String(current.maxOrderValue ?? ''), maxDailyOrderValue: String(current.maxDailyOrderValue ?? ''), maxPositionValue: String(current.maxPositionValue ?? ''),
-    maxOrdersPerDay: String(current.maxOrdersPerDay ?? ''), maxQuoteAgeSeconds: String(current.maxQuoteAgeSeconds ?? 60), maxLimitDeviationPct: String(current.maxLimitDeviationPct ?? 1), confirmMinutes: String(current.confirmMinutes ?? 10), liveAcknowledgement: '',
+    maxOrdersPerDay: String(current.maxOrdersPerDay ?? ''), allowAnySymbol: current.allowAnySymbol ? '1' : '', maxQuoteAgeSeconds: String(current.maxQuoteAgeSeconds ?? 60), maxLimitDeviationPct: String(current.maxLimitDeviationPct ?? 1), confirmMinutes: String(current.confirmMinutes ?? 10), liveAcknowledgement: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -120,7 +120,7 @@ function PolicyDialog({ policy, environment, accountId, onClose, onSaved }: { po
   const save = async () => {
     setError(''); setSaving(true)
     try {
-      const input: Record<string, unknown> = { enabled: true, environment, accountId, allowedSymbols: form.allowedSymbols.split(/[\s,，]+/).filter(Boolean), liveAcknowledgement: form.liveAcknowledgement }
+      const input: Record<string, unknown> = { enabled: true, environment, accountId, allowedSymbols: form.allowedSymbols.split(/[\s,，]+/).filter(Boolean), allowAnySymbol: environment === 'PAPER' && form.allowAnySymbol === '1', liveAcknowledgement: form.liveAcknowledgement }
       for (const name of ['maxOrderValue', 'maxDailyOrderValue', 'maxPositionValue', 'maxOrdersPerDay', 'maxQuoteAgeSeconds', 'maxLimitDeviationPct', 'confirmMinutes']) input[name] = Number(form[name])
       await post('/api/ibkr/policy', input)
       onSaved(); toast.success(t('已保存')); onClose()
@@ -129,7 +129,8 @@ function PolicyDialog({ policy, environment, accountId, onClose, onSaved }: { po
   return (
     <Dialog open onOpenChange={(value) => !value && !saving && onClose()} title={environment === 'LIVE' ? t('实盘：白名单与限额') : t('模拟账户：白名单与限额')} description={`${mask(accountId)} · ${environment === 'LIVE' ? t('每笔都要你确认才发出') : t('Agent 在限额内自己下单')}`} width={720}>
       <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-        <Field label={t('允许的美股代码（逗号分隔）')} className="col-span-full"><Input value={form.allowedSymbols} onChange={set('allowedSymbols')} placeholder="AAPL, MSFT, NVDA" /></Field>
+        {environment === 'PAPER' && <label className="col-span-full flex items-center gap-2 text-[13px]"><input type="checkbox" checked={form.allowAnySymbol === '1'} onChange={(event) => setForm({ ...form, allowAnySymbol: event.target.checked ? '1' : '' })} className="size-4 accent-[var(--c-accent)]" />{t('允许任意美股（只限模拟账户；交易员自己选股）')}</label>}
+        <Field label={form.allowAnySymbol === '1' && environment === 'PAPER' ? t('白名单（可留空）') : t('允许的美股代码（逗号分隔）')} className="col-span-full"><Input value={form.allowedSymbols} onChange={set('allowedSymbols')} placeholder="AAPL, MSFT, NVDA" /></Field>
         {[['maxOrderValue', t('单笔金额上限（USD）')], ['maxDailyOrderValue', t('单日委托金额上限（USD）')], ['maxPositionValue', t('单只股票持仓上限（含未成交，USD）')], ['maxOrdersPerDay', t('单日最多委托数')], ['maxQuoteAgeSeconds', t('行情最大年龄（秒，≤300）')], ['maxLimitDeviationPct', t('限价偏离现价上限（%，≤5）')], ...(environment === 'LIVE' ? [['confirmMinutes', t('确认有效期（分钟，1–30）')]] : [])].map(([key, label]) => <Field key={key} label={label}><Input type="number" value={form[key]} onChange={set(key)} /></Field>)}
       </div>
       <p className="text-xs text-ink-3">{t('只做多、只用现金、只下当日限价单，不在盘前盘后成交。撤单不返还当日额度。')}</p>

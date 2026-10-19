@@ -73,6 +73,8 @@ export interface Change { id: string; at: string; key: string; from: unknown; to
 export interface ChangeRequest { id: string; at: string; key: string; from: unknown; to: unknown; reason: string | null; by: { kind: string; client?: string }; status: string }
 
 export interface AccountSummary {
+  execution?: { venue: 'ibkr'; environment: 'PAPER' | 'LIVE'; accountId: string; linkedAt?: string } | null
+  brokerSync?: { at: string; error: string | null; cash: number | null; netLiquidation: number | null; positions: Array<{ symbol: string; quantity: number; averageCost: number | null }>; cashDrift: number | null } | null
   id: string; name: string; competition: string; market: Market; currency: string; agent: Agent; model: string
   strategy: { version: number; summary: string; updatedAt: string }; status: string; createdAt: string; initialCash: number
   metrics: Metrics; curve: Array<{ at: string; returnPct: number }>; lastActivityAt: string | null; lastRoundAt: string | null

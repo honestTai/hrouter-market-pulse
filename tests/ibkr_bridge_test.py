@@ -35,7 +35,7 @@ class FakeIB:
         return []
 
     def reqExecutions(self):
-        return [NS(contract=NS(symbol="AAPL"), execution=NS(acctNumber="DU1234567", permId=1234567, orderRef="hrouter:x", side="BOT", shares=1, price=200.5, time="2026-10-19 14:00:00"))]
+        return [NS(contract=NS(symbol="AAPL"), execution=NS(execId="0001", acctNumber="DU1234567", permId=1234567, orderRef="hrouter:x", side="BOT", shares=1, price=200.5, time="2026-10-19 14:00:00"))]
     def openTrades(self): return self.world.get("open", [])
 
     def qualifyContracts(self, contract):

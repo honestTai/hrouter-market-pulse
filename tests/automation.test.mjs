@@ -140,6 +140,21 @@ test("strategy rounds trade through the paper broker, never see unfinished bars,
   } finally { await cleanup(); }
 });
 
+test("handing a trader to another agent releases it so the new agent can claim it", async () => {
+  const clock = { value: "2026-10-15T01:46:00.000Z" };
+  const { arena, cleanup } = await setup(clock);
+  try {
+    const account = await arena.createAccount({ name: "Handoff", model: "m", market: "A" }, { client: "claude-code" });
+    const scheduler = createScheduler({ arena, now: () => clock.value, leaseMs: 60000 });
+    await scheduler.upsertJob(account.id, { intervalMinutes: 15, runner: { type: "claude" } });
+    assert.equal((await arena.getAccount(account.id, { sync: false })).agent.client, "claude-code", "same agent keeps it");
+    await scheduler.upsertJob(account.id, { intervalMinutes: 15, runner: { type: "kimi" } });
+    assert.equal((await arena.getAccount(account.id, { sync: false })).agent.client, null);
+    await arena.logDecision({ accountId: account.id, kind: "no-trade", summary: "Kimi takes over" }, { client: "kimi-code" });
+    assert.equal((await arena.getAccount(account.id, { sync: false })).agent.client, "kimi-code");
+  } finally { await cleanup(); }
+});
+
 test("scheduler runs agent CLIs on time, logs output, prevents double runs and elects one leader", async () => {
   const clock = { value: "2026-10-15T01:46:00.000Z" }; // 09:46 Shanghai
   const { arena, root, cleanup } = await setup(clock);

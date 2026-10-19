@@ -764,15 +764,22 @@ export function createScheduler({
         if (!strategy.markets.includes(account.market)) throw new ArenaError(`${strategy.id} does not support the ${account.market} market.`);
         resolveParams(strategy, strategyInput.params);
       }
-      return update((state) => {
+      let switchedAgent = false;
+      const saved = await update((state) => {
         const index = state.jobs.findIndex((job) => job.accountId === accountId);
+        const before = index >= 0 ? state.jobs[index].runner?.type : null;
         const job = { ...sanitizeJob(input, index >= 0 ? state.jobs[index] : { enabled: true }), accountId, updatedAt: now() };
         if (input.mode !== undefined) { if (!["director", "rounds"].includes(input.mode)) throw new ArenaError("mode must be director or rounds."); job.mode = input.mode; }
         // Any edit by the owner clears a configuration pause: they have looked at it.
         delete job.paused;
         if (index >= 0) state.jobs[index] = job; else state.jobs.push(job);
+        switchedAgent = Boolean(before && job.runner?.type !== before && job.runner?.type !== "strategy");
         return job;
       });
+      // The owner handed the trader to another agent: release it so the new agent's first call claims
+      // it (otherwise every write is refused as "another agent's account").
+      if (switchedAgent && account.agent?.client && account.agent.client !== "dashboard") await arena.updateAccount(accountId, { unbindAgent: true });
+      return saved;
     },
     // Review cadence and strategy frequency, changeable by the owner or (unless locked) the trader itself.
     async setCadence(accountId, { reviewMinutes, strategyMinutes, reason } = {}, caller = {}) {

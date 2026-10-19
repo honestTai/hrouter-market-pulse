@@ -21689,8 +21689,10 @@ ${prompt}` : prompt,
         if (!strategy2.markets.includes(account2.market)) throw new ArenaError(`${strategy2.id} does not support the ${account2.market} market.`);
         resolveParams(strategy2, strategyInput.params);
       }
-      return update((state) => {
+      let switchedAgent = false;
+      const saved = await update((state) => {
         const index = state.jobs.findIndex((job2) => job2.accountId === accountId2);
+        const before = index >= 0 ? state.jobs[index].runner?.type : null;
         const job = { ...sanitizeJob(input, index >= 0 ? state.jobs[index] : { enabled: true }), accountId: accountId2, updatedAt: now() };
         if (input.mode !== void 0) {
           if (!["director", "rounds"].includes(input.mode)) throw new ArenaError("mode must be director or rounds.");
@@ -21699,8 +21701,11 @@ ${prompt}` : prompt,
         delete job.paused;
         if (index >= 0) state.jobs[index] = job;
         else state.jobs.push(job);
+        switchedAgent = Boolean(before && job.runner?.type !== before && job.runner?.type !== "strategy");
         return job;
       });
+      if (switchedAgent && account2.agent?.client && account2.agent.client !== "dashboard") await arena.updateAccount(accountId2, { unbindAgent: true });
+      return saved;
     },
     // Review cadence and strategy frequency, changeable by the owner or (unless locked) the trader itself.
     async setCadence(accountId2, { reviewMinutes, strategyMinutes, reason } = {}, caller = {}) {

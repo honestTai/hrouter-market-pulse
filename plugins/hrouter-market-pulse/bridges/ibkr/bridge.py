@@ -182,7 +182,7 @@ def run(request, sdk=None):
             order = sdk.LimitOrder(side, quantity, price, tif="DAY", outsideRth=False, account=account, orderRef=reference, transmit=True)
             try:
                 trade = ib.placeOrder(contract, order)
-                for _ in range(40):
+                for _ in range(80):
                     if trade.orderStatus.status in ACKNOWLEDGED and trade.order.permId:
                         break
                     ib.sleep(0.25)

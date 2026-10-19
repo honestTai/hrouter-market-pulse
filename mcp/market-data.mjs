@@ -501,7 +501,7 @@ export function parseSinaUs(text) {
 }
 
 // One ranked page from either source. sort: change | amount.
-async function rankedPage(market, { sort = "change", asc = false, page = 1, size = 100 } = {}) {
+export async function rankedPage(market, { sort = "change", asc = false, page = 1, size = 100 } = {}) {
   const spec = GLOBAL_MARKETS[market];
   return eastmoneyFirst(async () => {
     const payload = await getJson(`${CLIST}?pn=${page}&pz=${size}&po=${asc ? 0 : 1}&np=1&fltt=2&invt=2&fid=${sort === "amount" ? "f6" : "f3"}&fs=${spec.fs}&fields=f2,f3,f6,f12,f14`);

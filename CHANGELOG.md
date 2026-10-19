@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **US market data from TWS.** The service keeps one read-only TWS data session (client id = order client id + 1) that every agent reaches through the local service. US quotes use TWS as the price when the login has a real-time subscription, with the public sources as cross-check; with delayed data only, TWS is attached as a labelled 15-minute-delayed reference and never used as an order price. Daily history (adjusted), 5-minute bars and the US market scan (TWS scanner) come from TWS first; public sources stay the fallback, and the US/HK scan now falls back to Sina when East Money refuses connections.
+- Handing a trader to another agent releases its binding, so the new agent can trade it.
+
 ## 1.8.3 — Interactive Brokers: paper trading by traders, live orders only after you confirm
 
 - **Traders can execute in Interactive Brokers.** New trader setting 执行方式: a US trader can send its orders to the IBKR account configured under 设置 → 券商连接 instead of the built-in simulator. Every order path (agent, code strategy, owner approval, stop-loss / take-profit, drawdown reduce) is sent through the IBKR guard rails during the regular session; fills are booked only from IB executions, and the matcher reconciles about every 90 seconds (IB cash vs. ledger shown on the trader). Verified against TWS paper.

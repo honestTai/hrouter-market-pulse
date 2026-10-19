@@ -4,6 +4,7 @@ import { registerArenaTools } from "./arena-tools.mjs";
 import { registerMarketDataTools } from "./market-data-tools.mjs";
 import { acquireRuntimeLease } from "./update-coordination.mjs";
 import { startServiceLoop } from "./service.mjs";
+import { createIbkrDataSession } from "./ibkr-data.mjs";
 import { startAlertLoop } from "./alerts.mjs";
 import { fileURLToPath } from "node:url";
 import { startDashboard } from "./http.mjs";
@@ -1067,7 +1068,10 @@ const dashboard = headless ? null : startDashboard({ scheduler: service });
 await dashboard?.ready;
 let serviceLoop = null;
 let alertLoop = null;
+let ibkrData = null;
 if (service) {
+  // One read-only TWS market-data session for every agent (they reach it through this service).
+  ibkrData = await createIbkrDataSession().start().catch((error) => { console.error(`TWS data session: ${error.message}`); return null; });
   alertLoop = startAlertLoop({ arena: await dashboard.arena, scheduler: await dashboard.scheduler, loadPreferences });
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena, scheduler: await dashboard.scheduler, version: typeof __HROUTER_VERSION__ === "string" ? __HROUTER_VERSION__ : "development",
@@ -1082,6 +1086,7 @@ async function shutdown() {
   setTimeout(() => process.exit(0), 10000).unref();
   serviceLoop?.stop();
   alertLoop?.stop();
+  ibkrData?.stop();
   await new Promise((resolve) => {
     if (!dashboard) return resolve();
     dashboard.close(() => resolve());

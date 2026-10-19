@@ -1,6 +1,7 @@
 import { inDateRange, matchesText, pageParams, paginate } from "./paging.mjs";
 import { getPaperService } from "./paper.mjs";
 import { getIbkrService } from "./ibkr.mjs";
+import { ibkrBars, ibkrDataStatus, ibkrQuotes, ibkrScan } from "./ibkr-data-client.mjs";
 import { createMatcher, deliverDigest, getArena } from "./arena.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { createTraderStrategyStore, rollbackTraderStrategy, traderStrategyId } from "./trader-strategies.mjs";
@@ -23,6 +24,7 @@ import {
   scanMarket,
   loadPreferences,
   loadReport,
+  normalizeSymbol,
   savePreferences,
 } from "./core.mjs";
 import {
@@ -249,7 +251,19 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
           return respond(response, 200, { ...(await arena.getAccount(arenaAccount[1], { limit: 200, sync: url.searchParams.get("sync") === "1" || await needsSync(arena) })) });
         }
         if (url.pathname === "/api/paper/status") return respond(response, 200, await getPaperService().status());
-        if (url.pathname === "/api/ibkr/status") return respond(response, 200, await getIbkrService().status());
+        if (url.pathname === "/api/ibkr/status") return respond(response, 200, { ...(await getIbkrService().status()), data: await ibkrDataStatus() });
+        // The service's TWS market-data session, for agents' processes and the dashboard (read-only).
+        if (url.pathname.startsWith("/api/ibkr/data/")) {
+          const op = url.pathname.slice("/api/ibkr/data/".length);
+          const q = (name) => url.searchParams.get(name);
+          if (op === "status") return respond(response, 200, await ibkrDataStatus());
+          let result = null;
+          if (op === "quotes") { const quotes = await ibkrQuotes((q("symbols") ?? "").split(",").filter(Boolean).map((symbol) => normalizeSymbol(symbol))); result = quotes.length ? { quotes } : null; }
+          else if (op === "bars") result = await ibkrBars(normalizeSymbol(q("symbol") ?? ""), { duration: q("duration") ?? undefined, barSize: q("barSize") ?? undefined, what: q("what") ?? undefined, useRTH: q("useRTH") !== "0" });
+          else if (op === "scan") result = await ibkrScan({ scanCode: q("scanCode"), rows: Number(q("rows") ?? 30), abovePrice: q("abovePrice") ? Number(q("abovePrice")) : undefined, aboveVolume: q("aboveVolume") ? Number(q("aboveVolume")) : undefined, marketCapAbove: q("marketCapAbove") ? Number(q("marketCapAbove")) : undefined });
+          else return respond(response, 404, { error: "Unknown TWS data request" });
+          return respond(response, result ? 200 : 503, result ?? { error: "TWS data is not available (TWS not connected or no data for this request)" });
+        }
         if (url.pathname === "/api/evidence") {
           const evidence = await queryEvidence({
             symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : undefined,

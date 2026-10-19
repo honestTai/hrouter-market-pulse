@@ -1375,4 +1375,7 @@ export const EN: Record<string, string> = {
   '现在用内置模拟撮合。可以改成在你的 IBKR 账户执行（在 设置 → 券商连接 里配置）。': 'Uses the built-in simulator now. You can switch it to execute in your IBKR account (set up under Settings → Broker).',
   '白名单（可留空）': 'Allowlist (optional)',
   '订单在美股常规时段以当日限价单发给 IB，只有 IB 回报成交才记账；后台大约每 90 秒和 IB 核对一次。': 'Orders go to IB as DAY limit orders during US regular hours; only executions IB reports are booked. The background matcher checks with IB about every 90 seconds.',
+  '美股行情走 TWS · 实时': 'US data from TWS · real-time',
+  '美股行情走 TWS · 延迟 15 分钟，下单价格仍用公开实时行情': 'US data from TWS · 15 min delayed; order prices still use public real-time quotes',
+  'TWS 行情未连接 · 用公开数据源': 'TWS data not connected · using public sources',
 }

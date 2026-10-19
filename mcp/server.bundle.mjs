@@ -3260,8 +3260,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path20) {
-      let input = path20;
+    function removeDotSegments(path21) {
+      let input = path21;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3670,8 +3670,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path20 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path20 && path20 !== "/" ? path20 : void 0;
+        const path21 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path21 && path21 !== "/" ? path21 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -7214,23 +7214,23 @@ __export(arena_service_exports, {
   serviceEnvironment: () => serviceEnvironment,
   servicePlan: () => servicePlan
 });
-import { execFile as execFile3, spawn as spawn6 } from "node:child_process";
+import { execFile as execFile3, spawn as spawn7 } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
 import { mkdir as mkdir15, rm as rm7, writeFile as writeFile13 } from "node:fs/promises";
 import os9 from "node:os";
-import path19 from "node:path";
-import { fileURLToPath as fileURLToPath6 } from "node:url";
+import path20 from "node:path";
+import { fileURLToPath as fileURLToPath7 } from "node:url";
 import { promisify as promisify3 } from "node:util";
 function bundlePath() {
-  const self = fileURLToPath6(import.meta.url);
+  const self = fileURLToPath7(import.meta.url);
   if (self.endsWith("server.bundle.mjs")) return self;
-  const packaged = path19.join(root, "plugins", "hrouter-market-pulse", "mcp", "server.bundle.mjs");
-  return existsSync3(packaged) ? packaged : path19.join(root, "mcp", "server.bundle.mjs");
+  const packaged = path20.join(root, "plugins", "hrouter-market-pulse", "mcp", "server.bundle.mjs");
+  return existsSync3(packaged) ? packaged : path20.join(root, "mcp", "server.bundle.mjs");
 }
 function storageDir(home2 = os9.homedir()) {
-  if (process.env.HROUTER_REPORT_DIR) return path19.resolve(process.env.HROUTER_REPORT_DIR);
-  const base = process.env.LOCALAPPDATA || (process.platform === "win32" ? path19.join(home2, "AppData", "Local") : path19.join(home2, ".hrouter-market-pulse"));
-  return path19.join(base, "HrouterMarketPulse");
+  if (process.env.HROUTER_REPORT_DIR) return path20.resolve(process.env.HROUTER_REPORT_DIR);
+  const base = process.env.LOCALAPPDATA || (process.platform === "win32" ? path20.join(home2, "AppData", "Local") : path20.join(home2, ".hrouter-market-pulse"));
+  return path20.join(base, "HrouterMarketPulse");
 }
 function serviceEnvironment(env = process.env) {
   const keep = ["PATH", "HOME", "LANG", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "HROUTER_REPORT_DIR", "HROUTER_SEC_USER_AGENT", "CODEX_HOME", "LOCALAPPDATA", "CODEBUDDY_API_KEY"];
@@ -7240,9 +7240,9 @@ function serviceEnvironment(env = process.env) {
 }
 function servicePlan({ platform = process.platform, home: home2 = os9.homedir(), node = process.execPath, bundle = bundlePath(), env = serviceEnvironment(), uid = process.getuid?.() } = {}) {
   const args = [bundle, "--service"];
-  const log = path19.join(storageDir(home2), "arena", "service.log");
+  const log = path20.join(storageDir(home2), "arena", "service.log");
   if (platform === "darwin") {
-    const file = path19.join(home2, "Library", "LaunchAgents", `${SERVICE_NAME}.plist`);
+    const file = path20.join(home2, "Library", "LaunchAgents", `${SERVICE_NAME}.plist`);
     const content = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -7264,7 +7264,7 @@ function servicePlan({ platform = process.platform, home: home2 = os9.homedir(),
     };
   }
   if (platform === "linux") {
-    const file = path19.join(home2, ".config", "systemd", "user", `${SERVICE_NAME}.service`);
+    const file = path20.join(home2, ".config", "systemd", "user", `${SERVICE_NAME}.service`);
     const content = `[Unit]
 Description=Hrouter Market Pulse Agent Arena service
 After=network-online.target
@@ -7323,17 +7323,17 @@ async function health(port) {
 async function main(argv = process.argv.slice(2)) {
   const action = argv[0] ?? "status";
   if (action === "run") {
-    const child = spawn6(process.execPath, [bundlePath(), "--service"], { stdio: "inherit", env: { ...process.env, ...serviceEnvironment() } });
+    const child = spawn7(process.execPath, [bundlePath(), "--service"], { stdio: "inherit", env: { ...process.env, ...serviceEnvironment() } });
     child.on("exit", (code) => process.exit(code ?? 0));
     return;
   }
   const plan = servicePlan();
   if (!existsSync3(bundlePath())) throw new Error("Build first: npm ci && npm run build");
   if (action === "install") {
-    await mkdir15(path19.dirname(plan.log), { recursive: true });
+    await mkdir15(path20.dirname(plan.log), { recursive: true });
     for (const [command, args] of plan.disable) await exec(command, args, { allowFailure: true });
     for (const file of plan.files) {
-      await mkdir15(path19.dirname(file.path), { recursive: true });
+      await mkdir15(path20.dirname(file.path), { recursive: true });
       await writeFile13(file.path, file.content, { mode: 384 });
     }
     for (const [command, args] of plan.enable) {
@@ -7353,7 +7353,7 @@ async function main(argv = process.argv.slice(2)) {
       await new Promise((resolve) => setTimeout(resolve, 1e3));
       state = await health(port);
     }
-    const cli = path19.join(path19.dirname(path19.dirname(bundlePath())), "cli", "market-pulse.mjs");
+    const cli = path20.join(path20.dirname(path20.dirname(bundlePath())), "cli", "market-pulse.mjs");
     const cliInstalled = existsSync3(cli) ? await exec(process.execPath, [cli, "install"], { allowFailure: true }).then((stdout) => /Installed/.test(stdout), () => false) : false;
     console.log(JSON.stringify({ installed: plan.kind, cli: cliInstalled ? "market-pulse" : null, bundle: bundlePath(), dashboard: `http://127.0.0.1:${port}/?view=arena`, log: plan.log, health: state }, null, 2));
     return;
@@ -7380,11 +7380,11 @@ var init_arena_service = __esm({
     init_update_scheduler();
     SERVICE_NAME = "net.hrouter.market-pulse.arena";
     run2 = promisify3(execFile3);
-    root = path19.resolve(path19.dirname(fileURLToPath6(import.meta.url)), "..");
+    root = path20.resolve(path20.dirname(fileURLToPath7(import.meta.url)), "..");
     xml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     ps = (value) => `'${String(value).replaceAll("'", "''")}'`;
     unit = (value) => `"${String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%").replaceAll("$", "$$$$")}"`;
-    if (process.argv[1] && path19.resolve(process.argv[1]) === fileURLToPath6(import.meta.url) && !fileURLToPath6(import.meta.url).endsWith("server.bundle.mjs")) {
+    if (process.argv[1] && path20.resolve(process.argv[1]) === fileURLToPath7(import.meta.url) && !fileURLToPath7(import.meta.url).endsWith("server.bundle.mjs")) {
       main().catch((error2) => {
         console.error(error2.message);
         process.exit(1);
@@ -7396,16 +7396,16 @@ var init_arena_service = __esm({
 // mcp/paper.mjs
 import { spawn } from "node:child_process";
 import { randomUUID as randomUUID2, createHash as createHash2 } from "node:crypto";
-import { mkdir as mkdir4, readFile as readFile4, open, rename as rename4, rm } from "node:fs/promises";
-import path4 from "node:path";
+import { mkdir as mkdir4, readFile as readFile5, open, rename as rename4, rm } from "node:fs/promises";
+import path5 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // mcp/core.mjs
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir as mkdir2, readFile as readFile2, rename as rename2, writeFile as writeFile2 } from "node:fs/promises";
+import { mkdir as mkdir2, readFile as readFile3, rename as rename2, writeFile as writeFile2 } from "node:fs/promises";
 import os from "node:os";
-import path2 from "node:path";
+import path3 from "node:path";
 import { promisify } from "node:util";
 
 // mcp/market-rules.mjs
@@ -7697,6 +7697,628 @@ function buildEmptyHtml() {
   });
 }
 
+// mcp/ibkr-data-client.mjs
+import { readFile as readFile2 } from "node:fs/promises";
+import path2 from "node:path";
+var UNAVAILABLE_BACKOFF_MS = 3e4;
+var localSession = null;
+var unavailableUntil = 0;
+var statusFile = null;
+function setLocalIbkrDataSession(session) {
+  localSession = session;
+}
+function configureIbkrDataClient({ storageDir: storageDir2 }) {
+  statusFile = path2.join(storageDir2, "arena", "service-status.json");
+}
+async function servicePort() {
+  if (!statusFile) return null;
+  try {
+    const status = JSON.parse(await readFile2(statusFile, "utf8"));
+    if (Date.now() - Date.parse(status.heartbeatAt) > 12e4 || !Number.isInteger(status.port)) return null;
+    return status.port;
+  } catch {
+    return null;
+  }
+}
+async function call(op, payload, { timeoutMs = 2e4 } = {}) {
+  if (Date.now() < unavailableUntil) return null;
+  try {
+    if (localSession) {
+      if (!localSession.connected()) throw new Error("TWS not connected");
+      return await localSession.request(op, payload, { timeoutMs });
+    }
+    const port = await servicePort();
+    if (!port) throw new Error("workbench service not running");
+    const query = new URLSearchParams(Object.entries(payload).filter(([, v]) => v !== void 0 && v !== null).map(([k, v]) => [k, Array.isArray(v) ? v.join(",") : String(v)]));
+    const response = await fetch(`http://127.0.0.1:${port}/api/ibkr/data/${op}?${query}`, { signal: AbortSignal.timeout(timeoutMs) });
+    const body = await response.json();
+    if (!response.ok || body.error) throw new Error(body.error ?? `HTTP ${response.status}`);
+    return body;
+  } catch {
+    unavailableUntil = Date.now() + UNAVAILABLE_BACKOFF_MS;
+    return null;
+  }
+}
+var US = /^[A-Z][A-Z0-9.\-]{0,14}$/;
+async function ibkrQuote(symbol) {
+  if (!US.test(symbol)) return null;
+  const result = await call("quotes", { symbols: [symbol] }, { timeoutMs: 25e3 });
+  return result?.quotes?.find((entry) => entry.symbol === symbol && Number.isFinite(entry.price) && entry.price > 0) ?? null;
+}
+async function ibkrQuotes(symbols) {
+  const list = [...new Set(symbols)].filter((symbol) => US.test(symbol)).slice(0, 60);
+  if (!list.length) return [];
+  const result = await call("quotes", { symbols: list }, { timeoutMs: 6e4 });
+  return (result?.quotes ?? []).filter((entry) => Number.isFinite(entry.price) && entry.price > 0);
+}
+async function ibkrBars(symbol, { duration: duration3 = "1 Y", barSize = "1 day", what = "TRADES", useRTH = true } = {}) {
+  if (!US.test(symbol)) return null;
+  const result = await call("bars", { symbol, duration: duration3, barSize, what, useRTH: useRTH ? 1 : 0 }, { timeoutMs: 4e4 });
+  return result?.bars?.length ? result : null;
+}
+async function ibkrScan({ scanCode, rows = 30, abovePrice, aboveVolume, marketCapAbove } = {}) {
+  const result = await call("scan", { scanCode, rows, abovePrice, aboveVolume, marketCapAbove }, { timeoutMs: 9e4 });
+  return result?.rows?.length ? result : null;
+}
+async function ibkrDataStatus() {
+  if (localSession) return localSession.status();
+  const port = await servicePort();
+  if (!port) return { state: "service-not-running" };
+  try {
+    return await (await fetch(`http://127.0.0.1:${port}/api/ibkr/data/status`, { signal: AbortSignal.timeout(5e3) })).json();
+  } catch (error2) {
+    return { state: "unreachable", error: error2.message };
+  }
+}
+
+// mcp/market-data.mjs
+var UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+var DATACENTER = "https://datacenter-web.eastmoney.com/api/data/v1/get";
+var POOLS = "https://push2ex.eastmoney.com";
+var POOL_UT = "7eea3edcaed734bea9cbfc24409ed989";
+var ULIST = "https://push2.eastmoney.com/api/qt/ulist.np/get";
+var SOURCE = "East Money";
+var finite = (value) => typeof value === "number" && Number.isFinite(value) ? value : null;
+var round = (value, digits = 2) => finite(value) === null ? null : Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
+var MarketDataError = class extends Error {
+};
+async function getJson(url, timeoutMs = 1e4) {
+  const response = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json", Referer: "https://data.eastmoney.com/" }, signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new MarketDataError(`${SOURCE} HTTP ${response.status}`);
+  return response.json();
+}
+var cache = /* @__PURE__ */ new Map();
+async function cached(key, ttlMs, load) {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.value;
+  const value = await load();
+  cache.set(key, { at: Date.now(), value });
+  if (cache.size > 500) cache.delete(cache.keys().next().value);
+  return value;
+}
+var addDays = (date4, days) => new Date(Date.parse(`${date4}T12:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
+function aShareDataDate(at = (/* @__PURE__ */ new Date()).toISOString()) {
+  const today = getMarketSession("A", at);
+  if (!["closed", "premarket"].includes(today.status)) return today.date;
+  const local = localMarketTime(at, "A")?.date ?? at.slice(0, 10);
+  for (let offset = 1; offset <= 14; offset += 1) {
+    const date4 = addDays(local, -offset);
+    if (getMarketSession("A", marketLocalToIso(date4, 720, "A")).status !== "closed") return date4;
+  }
+  return local;
+}
+var compactDate = (date4) => date4.replaceAll("-", "");
+var isoDate = (value) => value ? String(value).slice(0, 10) : null;
+function validDate(date4) {
+  if (date4 === void 0 || date4 === null || date4 === "") return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date4))) throw new MarketDataError("date must be YYYY-MM-DD.");
+  return String(date4);
+}
+function symbolFromCode(code, market2 = "A") {
+  const value = String(code).trim();
+  if (market2 === "HK") return `${String(Number(value)).padStart(4, "0")}.HK`;
+  if (/^(92|8|4)/.test(value)) return `${value}.BJ`;
+  return `${value}.${/^[569]/.test(value) ? "SS" : "SZ"}`;
+}
+function secidsFor(symbol) {
+  const value = String(symbol).toUpperCase();
+  if (value.endsWith(".SS")) return [`1.${value.slice(0, -3)}`];
+  if (value.endsWith(".SZ") || value.endsWith(".BJ")) return [`0.${value.slice(0, -3)}`];
+  if (value.endsWith(".HK")) return [`116.${value.slice(0, -3).padStart(5, "0")}`];
+  if (/^[A-Z][A-Z0-9.-]{0,9}$/.test(value)) return ["105", "106", "107"].map((prefix) => `${prefix}.${value.replace(/-/g, "_")}`);
+  return [];
+}
+function parseIndustries(payload, symbols) {
+  const byCode = new Map((payload?.data?.diff ?? []).map((row) => [String(row.f12).toUpperCase(), row.f100 && row.f100 !== "-" ? String(row.f100) : null]));
+  const result = {};
+  for (const symbol of symbols) {
+    const code = String(symbol).toUpperCase().replace(/\.(SS|SZ|BJ)$/, "").replace(/\.HK$/, "").replace(/-/g, "_");
+    const hk = /\.HK$/i.test(symbol) ? code.padStart(5, "0") : null;
+    const industry = byCode.get(hk ?? code) ?? byCode.get(code);
+    if (industry) result[symbol] = industry;
+  }
+  return result;
+}
+var industryCache = /* @__PURE__ */ new Map();
+var INDUSTRY_TTL_MS = 24 * 36e5;
+async function industriesOf(symbols, { fetchImpl = getJson } = {}) {
+  const wanted = [...new Set(symbols.filter(Boolean).map(String))];
+  const result = {};
+  const missing = [];
+  for (const symbol of wanted) {
+    const hit = industryCache.get(symbol);
+    if (hit && Date.now() - hit.at < INDUSTRY_TTL_MS) {
+      if (hit.industry) result[symbol] = hit.industry;
+    } else missing.push(symbol);
+  }
+  for (let index = 0; index < missing.length; index += 40) {
+    const batch = missing.slice(index, index + 40);
+    const secids = batch.flatMap(secidsFor);
+    if (!secids.length) continue;
+    const payload = await fetchImpl(`${ULIST}?fltt=2&secids=${secids.join(",")}&fields=f12,f14,f100`);
+    const found = parseIndustries(payload, batch);
+    for (const symbol of batch) {
+      industryCache.set(symbol, { at: Date.now(), industry: found[symbol] ?? null });
+      if (found[symbol]) result[symbol] = found[symbol];
+    }
+  }
+  return result;
+}
+function parseDragonTiger(payload) {
+  const rows = payload?.result?.data ?? [];
+  return rows.map((row) => ({
+    symbol: symbolFromCode(row.SECURITY_CODE),
+    name: row.SECURITY_NAME_ABBR,
+    date: isoDate(row.TRADE_DATE),
+    reason: row.EXPLANATION ?? null,
+    close: finite(row.CLOSE_PRICE),
+    changePct: round(finite(row.CHANGE_RATE)),
+    netBuy: round(finite(row.BILLBOARD_NET_AMT), 0),
+    buy: round(finite(row.BILLBOARD_BUY_AMT), 0),
+    sell: round(finite(row.BILLBOARD_SELL_AMT), 0),
+    shareOfTurnoverPct: round(finite(row.DEAL_AMOUNT_RATIO))
+  }));
+}
+async function dragonTiger({ date: date4, limit = 50, at } = {}) {
+  const day = validDate(date4) ?? aShareDataDate(at);
+  const bounded2 = Math.max(1, Math.min(200, Number(limit) || 50));
+  return cached(`lhb:${day}:${bounded2}`, 3e5, async () => {
+    const columns = "SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,EXPLANATION,CLOSE_PRICE,CHANGE_RATE,BILLBOARD_NET_AMT,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT,DEAL_AMOUNT_RATIO";
+    const payload = await getJson(`${DATACENTER}?reportName=RPT_DAILYBILLBOARD_DETAILSNEW&columns=${columns}&sortColumns=BILLBOARD_NET_AMT&sortTypes=-1&pageSize=${bounded2}&pageNumber=1&filter=${encodeURIComponent(`(TRADE_DATE='${day}')`)}`);
+    const rows = parseDragonTiger(payload);
+    return { date: day, source: `${SOURCE} \u9F99\u864E\u699C`, total: payload?.result?.count ?? rows.length, rows, note: rows.length ? null : `${day} \u6CA1\u6709\u9F99\u864E\u699C\u6570\u636E\uFF08\u975E\u4EA4\u6613\u65E5\uFF0C\u6216\u6536\u76D8\u540E\u7EA6 18:00 \u624D\u516C\u5E03\uFF09\u3002` };
+  });
+}
+function parseSeats(payload, side) {
+  return (payload?.result?.data ?? []).map((row) => ({
+    side,
+    seat: row.OPERATEDEPT_NAME,
+    buy: round(finite(row.BUY), 0),
+    sell: round(finite(row.SELL), 0),
+    net: round(finite(row.NET), 0),
+    rise3dPct: round(finite(row.RISE_PROBABILITY_3DAY), 1),
+    seatTimes3d: finite(row.TOTAL_BUYER_SALESTIMES_3DAY),
+    institution: /机构专用/.test(row.OPERATEDEPT_NAME ?? ""),
+    connect: /沪股通|深股通/.test(row.OPERATEDEPT_NAME ?? "")
+  }));
+}
+async function dragonTigerSeats(symbol, { date: date4, at } = {}) {
+  const code = String(symbol).replace(/\.(SS|SZ|BJ)$/i, "");
+  if (!/^\d{6}$/.test(code)) throw new MarketDataError("Dragon-tiger seats exist for A-shares only (6-digit code).");
+  const day = validDate(date4) ?? aShareDataDate(at);
+  return cached(`seats:${code}:${day}`, 3e5, async () => {
+    const query = (report, sort) => getJson(`${DATACENTER}?reportName=${report}&columns=ALL&filter=${encodeURIComponent(`(TRADE_DATE='${day}')(SECURITY_CODE="${code}")`)}&pageNumber=1&pageSize=10&sortTypes=-1&sortColumns=${sort}`);
+    const [buys, sells] = await Promise.all([query("RPT_BILLBOARD_DAILYDETAILSBUY", "BUY"), query("RPT_BILLBOARD_DAILYDETAILSSELL", "SELL")]);
+    const buyers = parseSeats(buys, "buy");
+    const sellers = parseSeats(sells, "sell");
+    return { symbol: symbolFromCode(code), date: day, source: `${SOURCE} \u9F99\u864E\u699C\u8425\u4E1A\u90E8`, buyers, sellers, note: buyers.length || sellers.length ? null : `${symbolFromCode(code)} \u5728 ${day} \u6CA1\u6709\u4E0A\u9F99\u864E\u699C\u3002` };
+  });
+}
+var poolTime = (value) => {
+  const text2 = String(value ?? "").padStart(6, "0");
+  return /^\d{6}$/.test(text2) && value ? `${text2.slice(0, 2)}:${text2.slice(2, 4)}:${text2.slice(4, 6)}` : null;
+};
+function parsePool(payload, kind) {
+  const data = payload?.data;
+  const rows = (data?.pool ?? []).map((row) => ({
+    symbol: symbolFromCode(row.c),
+    name: row.n,
+    price: finite(row.p) === null ? null : row.p / 1e3,
+    changePct: round(finite(row.zdp)),
+    amount: round(finite(row.amount), 0),
+    floatCap: round(finite(row.ltsz), 0),
+    turnoverPct: round(finite(row.hs)),
+    industry: row.hybk ?? null,
+    ...kind === "up" ? {
+      boards: finite(row.lbc),
+      firstSealAt: poolTime(row.fbt),
+      lastSealAt: poolTime(row.lbt),
+      sealFund: round(finite(row.fund), 0),
+      breaks: finite(row.zbc),
+      streak: row.zttj ? { days: finite(row.zttj.days), limitUps: finite(row.zttj.ct) } : null
+    } : {},
+    ...kind === "broken" ? { limitUpPrice: finite(row.ztp) === null ? null : row.ztp / 1e3, firstSealAt: poolTime(row.fbt), breaks: finite(row.zbc), amplitudePct: round(finite(row.zf)) } : {},
+    ...kind === "down" ? { sealFund: round(finite(row.fund), 0), lastSealAt: poolTime(row.lbt), boards: finite(row.days) } : {}
+  }));
+  return { total: finite(data?.tc) ?? rows.length, date: data?.qdate ? `${String(data.qdate).slice(0, 4)}-${String(data.qdate).slice(4, 6)}-${String(data.qdate).slice(6, 8)}` : null, rows };
+}
+var POOL_PATHS = { up: ["getTopicZTPool", "fbt:asc"], broken: ["getTopicZBPool", "fbt:asc"], down: ["getTopicDTPool", "fund:asc"] };
+async function limitPool(kind = "up", { date: date4, at, limit = 200 } = {}) {
+  if (!POOL_PATHS[kind]) throw new MarketDataError("kind must be up, broken or down.");
+  const day = validDate(date4) ?? aShareDataDate(at);
+  const [pathName, sort] = POOL_PATHS[kind];
+  const bounded2 = Math.max(1, Math.min(500, Number(limit) || 200));
+  return cached(`pool:${kind}:${day}:${bounded2}`, 6e4, async () => {
+    const payload = await getJson(`${POOLS}/${pathName}?ut=${POOL_UT}&dpt=wz.ztzt&Pageindex=0&pagesize=${bounded2}&sort=${encodeURIComponent(sort)}&date=${compactDate(day)}`);
+    const parsed = parsePool(payload, kind);
+    return { kind, date: parsed.date ?? day, source: `${SOURCE} ${{ up: "\u6DA8\u505C\u677F\u884C\u60C5", broken: "\u70B8\u677F\u6C60", down: "\u8DCC\u505C\u6C60" }[kind]}`, total: parsed.total, rows: parsed.rows, note: parsed.rows.length ? null : `${day} \u6CA1\u6709\u6570\u636E\uFF08\u975E\u4EA4\u6613\u65E5\u6216\u8FD8\u6CA1\u5F00\u76D8\uFF09\u3002` };
+  });
+}
+function sentimentFrom(up, broken, down) {
+  const ladder = /* @__PURE__ */ new Map();
+  for (const row of up.rows) {
+    const boards = row.boards ?? 1;
+    ladder.set(boards, [...ladder.get(boards) ?? [], { symbol: row.symbol, name: row.name, industry: row.industry, firstSealAt: row.firstSealAt }]);
+  }
+  const attempts = up.total + broken.total;
+  const industries = /* @__PURE__ */ new Map();
+  for (const row of up.rows) if (row.industry) industries.set(row.industry, (industries.get(row.industry) ?? 0) + 1);
+  return {
+    limitUps: up.total,
+    broken: broken.total,
+    limitDowns: down.total,
+    brokenRatePct: attempts ? round(broken.total / attempts * 100, 1) : null,
+    highestBoard: up.rows.reduce((max, row) => Math.max(max, row.boards ?? 1), 0) || null,
+    ladder: [...ladder.entries()].sort((a, b) => b[0] - a[0]).map(([boards, stocks]) => ({ boards, count: stocks.length, stocks })),
+    hotIndustries: [...industries.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([industry, count]) => ({ industry, limitUps: count }))
+  };
+}
+async function limitUpSentiment({ date: date4, at } = {}) {
+  const [up, broken, down] = await Promise.all([limitPool("up", { date: date4, at }), limitPool("broken", { date: date4, at }), limitPool("down", { date: date4, at })]);
+  return { date: up.date, source: `${SOURCE} \u6DA8\u505C\u677F\u884C\u60C5`, ...sentimentFrom(up, broken, down) };
+}
+function parseMarketMargin(payload) {
+  return (payload?.result?.data ?? []).map((row) => ({
+    date: isoDate(row.DIM_DATE),
+    financingBalance: round(finite(row.RZYE), 0),
+    financingBuy: round(finite(row.RZMRE), 0),
+    financingNet: round(finite(row.RZJME), 0),
+    shortBalance: round(finite(row.RQYE), 0),
+    financingShareOfFloatPct: round(finite(row.RZYEZB))
+  }));
+}
+function parseStockMargin(payload) {
+  return (payload?.result?.data ?? []).map((row) => ({
+    date: isoDate(row.DATE),
+    symbol: symbolFromCode(row.SCODE),
+    name: row.SECNAME,
+    financingBalance: round(finite(row.RZYE), 0),
+    financingBuy: round(finite(row.RZMRE), 0),
+    financingNet: round(finite(row.RZJME), 0),
+    shortBalance: round(finite(row.RQYE), 0),
+    total: round(finite(row.RZRQYE), 0)
+  }));
+}
+async function marketMargin({ days = 20 } = {}) {
+  const bounded2 = Math.max(1, Math.min(120, Number(days) || 20));
+  return cached(`margin:${bounded2}`, 6e5, async () => {
+    const rows = parseMarketMargin(await getJson(`${DATACENTER}?reportName=RPTA_RZRQ_LSHJ&columns=ALL&sortColumns=DIM_DATE&sortTypes=-1&pageSize=${bounded2}&pageNumber=1`));
+    return { source: `${SOURCE} \u878D\u8D44\u878D\u5238`, unit: "CNY", rows };
+  });
+}
+async function stockMargin(symbol, { days = 20 } = {}) {
+  const code = String(symbol).replace(/\.(SS|SZ|BJ)$/i, "");
+  if (!/^\d{6}$/.test(code)) throw new MarketDataError("Margin data exists for A-shares only (6-digit code).");
+  const bounded2 = Math.max(1, Math.min(120, Number(days) || 20));
+  return cached(`margin:${code}:${bounded2}`, 6e5, async () => {
+    const rows = parseStockMargin(await getJson(`${DATACENTER}?reportName=RPTA_WEB_RZRQ_GGMX&columns=DATE,SCODE,SECNAME,RZYE,RZMRE,RZJME,RQYE,RZRQYE&filter=${encodeURIComponent(`(SCODE="${code}")`)}&sortColumns=DATE&sortTypes=-1&pageSize=${bounded2}&pageNumber=1`));
+    return { symbol: symbolFromCode(code), source: `${SOURCE} \u878D\u8D44\u878D\u5238`, unit: "CNY", rows, note: rows.length ? null : `${symbolFromCode(code)} \u4E0D\u662F\u878D\u8D44\u878D\u5238\u6807\u7684\uFF0C\u6216\u6CA1\u6709\u6570\u636E\u3002` };
+  });
+}
+var CONNECT_TYPES = { "001": "\u6CAA\u80A1\u901A", "003": "\u6DF1\u80A1\u901A", "005": "\u5317\u5411\u5408\u8BA1", "006": "\u5357\u5411\u5408\u8BA1" };
+function parseConnect(payload) {
+  return (payload?.result?.data ?? []).map((row) => ({
+    channel: CONNECT_TYPES[row.MUTUAL_TYPE] ?? row.MUTUAL_TYPE,
+    date: isoDate(row.TRADE_DATE),
+    // Amounts are published in millions of CNY.
+    turnover: finite(row.DEAL_AMT) === null ? null : round(row.DEAL_AMT * 1e6, 0),
+    netBuy: finite(row.NET_DEAL_AMT) === null ? null : round(row.NET_DEAL_AMT * 1e6, 0),
+    trades: finite(row.DEAL_NUM),
+    leader: row.LEAD_STOCKS_NAME ?? null,
+    leaderChangePct: round(finite(row.LS_CHANGE_RATE))
+  }));
+}
+async function stockConnect({ days = 10 } = {}) {
+  const bounded2 = Math.max(1, Math.min(60, Number(days) || 10));
+  return cached(`connect:${bounded2}`, 6e5, async () => {
+    const channels = await Promise.all(Object.keys(CONNECT_TYPES).map((type) => getJson(`${DATACENTER}?reportName=RPT_MUTUAL_DEAL_HISTORY&columns=ALL&sortColumns=TRADE_DATE&sortTypes=-1&pageSize=${bounded2}&pageNumber=1&filter=${encodeURIComponent(`(MUTUAL_TYPE="${type}")`)}`).then(parseConnect)));
+    return {
+      source: `${SOURCE} \u6CAA\u6DF1\u6E2F\u901A`,
+      unit: "CNY",
+      rows: channels.flat(),
+      note: "\u5317\u5411\u8D44\u91D1\u81EA 2024 \u5E74 8 \u6708\u8D77\u4E0D\u518D\u516C\u5E03\u5F53\u65E5\u51C0\u4E70\u5165\uFF0C\u8FD9\u91CC\u53EA\u6709\u6210\u4EA4\u989D\uFF08\u51C0\u4E70\u5165\u4E3A\u7A7A\uFF09\uFF1B\u5357\u5411\u8D44\u91D1\u4ECD\u516C\u5E03\u51C0\u4E70\u5165\u3002"
+    };
+  });
+}
+var BREADTH_INDICES = [["1.000001", "000001.SS", "\u4E0A\u8BC1\u6307\u6570"], ["0.399001", "399001.SZ", "\u6DF1\u8BC1\u6210\u6307"], ["0.399006", "399006.SZ", "\u521B\u4E1A\u677F\u6307"], ["1.000688", "000688.SS", "\u79D1\u521B50"], ["0.899050", "899050.BJ", "\u5317\u8BC150"]];
+function parseBreadth(payload) {
+  const rows = (payload?.data?.diff ?? []).map((row) => {
+    const known = BREADTH_INDICES.find(([, symbol]) => symbol.startsWith(String(row.f12)));
+    return { symbol: known?.[1] ?? row.f12, name: row.f14, price: finite(row.f2), changePct: round(finite(row.f3)), amount: round(finite(row.f6), 0), advancers: finite(row.f104), decliners: finite(row.f105), unchanged: finite(row.f106) };
+  });
+  const sum = (key, list) => list.reduce((total, row) => total + (row[key] ?? 0), 0);
+  const whole = rows.filter((row) => ["000001.SS", "399001.SZ"].includes(row.symbol));
+  return { indices: rows, advancers: whole.length === 2 ? sum("advancers", whole) : null, decliners: whole.length === 2 ? sum("decliners", whole) : null, unchanged: whole.length === 2 ? sum("unchanged", whole) : null, turnover: whole.length === 2 ? sum("amount", whole) : null };
+}
+async function marketBreadth() {
+  return cached("breadth", 6e4, async () => ({ asOf: (/* @__PURE__ */ new Date()).toISOString(), source: `${SOURCE} \u6307\u6570\u884C\u60C5`, ...parseBreadth(await getJson(`${ULIST}?fltt=2&secids=${BREADTH_INDICES.map(([secid]) => secid).join(",")}&fields=f2,f3,f6,f12,f14,f104,f105,f106`)) }));
+}
+function boardsWorthShowing(result) {
+  const seen = /* @__PURE__ */ new Set();
+  const rows = (result?.rows ?? []).filter((row) => {
+    const members = (row.advancers ?? 0) + (row.decliners ?? 0);
+    if (row.advancers !== null && row.decliners !== null && members < 5) return false;
+    const key = `${row.changePct}:${row.amount}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { ...result, rows: rows.slice(0, 10) };
+}
+async function marketRadar({ at, scan } = {}) {
+  const settle = async (promise) => {
+    try {
+      return { ok: true, value: await promise };
+    } catch (error2) {
+      return { ok: false, error: error2.message };
+    }
+  };
+  const [breadth, sentiment, lhb, margin, connect, sectors, concepts] = await Promise.all([
+    settle(marketBreadth()),
+    settle(limitUpSentiment({ at })),
+    settle(dragonTiger({ at, limit: 20 })),
+    settle(marketMargin({ days: 10 })),
+    settle(stockConnect({ days: 5 })),
+    scan ? settle(scan({ market: "A", view: "sectors", sort: "change", limit: 40 }).then(boardsWorthShowing)) : Promise.resolve({ ok: false, error: "no scanner" }),
+    scan ? settle(scan({ market: "A", view: "concepts", sort: "change", limit: 40 }).then(boardsWorthShowing)) : Promise.resolve({ ok: false, error: "no scanner" })
+  ]);
+  const part = (result) => result.ok ? result.value : { error: result.error };
+  return { generatedAt: (/* @__PURE__ */ new Date()).toISOString(), date: aShareDataDate(at), breadth: part(breadth), sentiment: part(sentiment), dragonTiger: part(lhb), margin: part(margin), connect: part(connect), sectors: part(sectors), concepts: part(concepts) };
+}
+function previousTradingDate(date4) {
+  for (let offset = 1; offset <= 14; offset += 1) {
+    const day = addDays(date4, -offset);
+    if (getMarketSession("A", marketLocalToIso(day, 720, "A")).status !== "closed") return day;
+  }
+  return null;
+}
+function promotionRates(today, yesterday) {
+  const boardsToday = new Map(today.rows.map((row) => [row.symbol, row.boards ?? 1]));
+  const groups = /* @__PURE__ */ new Map();
+  for (const row of yesterday.rows) {
+    const boards = row.boards ?? 1;
+    const group = groups.get(boards) ?? { boards, candidates: 0, promoted: 0, names: [] };
+    group.candidates += 1;
+    if ((boardsToday.get(row.symbol) ?? 0) > boards) {
+      group.promoted += 1;
+      group.names.push(row.name);
+    }
+    groups.set(boards, group);
+  }
+  return [...groups.values()].sort((a, b) => a.boards - b.boards).map((group) => ({ ...group, ratePct: round(group.promoted / group.candidates * 100, 1) }));
+}
+var CYCLE_WEIGHTS = ["limitUps", "highestBoard", "brokenRatePct"];
+var minmax = (values) => {
+  const low = Math.min(...values), high = Math.max(...values);
+  return values.map((value) => high > low ? (value - low) / (high - low) : 0.5);
+};
+function emotionCycle(days) {
+  const usable = days.filter((day) => CYCLE_WEIGHTS.every((key) => finite(day[key]) !== null));
+  if (usable.length < 3) return { days: usable, score: null, note: "\u53EF\u7528\u4EA4\u6613\u65E5\u4E0D\u8DB3 3 \u5929\uFF0C\u7B97\u4E0D\u51FA\u5468\u671F\u4F4D\u7F6E\u3002" };
+  const [zt, top, broken] = CYCLE_WEIGHTS.map((key) => minmax(usable.map((day) => day[key])));
+  const series = usable.map((day, index) => ({ ...day, score: round((zt[index] + top[index] + (1 - broken[index])) / 3, 3) }));
+  const trough = series.reduce((low, day) => day.score < low.score ? day : low, series[0]);
+  const peak = Math.max(...series.map((day) => day.score));
+  const current = series.at(-1);
+  const [a, b, c] = series.slice(-3).map((day) => day.score);
+  const trend = c - b > 0.03 && b - a > -0.03 ? "\u56DE\u6696" : c - b < -0.03 && b - a < 0.03 ? "\u8F6C\u5F31" : "\u9707\u8361";
+  const daysFromTrough = series.length - 1 - series.indexOf(trough);
+  return {
+    days: series,
+    current: current.score,
+    trough: { date: trough.date, score: trough.score },
+    daysFromTrough,
+    trend,
+    positionPct: peak > trough.score ? round((current.score - trough.score) / (peak - trough.score) * 100, 0) : null,
+    note: "\u5206\u6570\u53EA\u5728\u8FD9\u4E2A\u7A97\u53E3\u5185\u6BD4\u8F83\uFF080 = \u7A97\u53E3\u6700\u51B7\uFF0C1 = \u6700\u70ED\uFF09\uFF0C\u4E0D\u540C\u7A97\u53E3\u4E4B\u95F4\u4E0D\u53EF\u76F4\u63A5\u6BD4\u8F83\u3002"
+  };
+}
+async function lastTradingDates(end, count) {
+  const dates = [end];
+  while (dates.length < count) {
+    const previous = previousTradingDate(dates.at(-1));
+    if (!previous) break;
+    dates.push(previous);
+  }
+  return dates.reverse();
+}
+async function shortlineEmotion({ date: date4, at, lookback = 10, quotesImpl = getJson } = {}) {
+  const day = validDate(date4) ?? aShareDataDate(at);
+  const window = Math.max(3, Math.min(20, Number(lookback) || 10));
+  return cached(`emotion:${day}:${window}`, 12e4, async () => {
+    const dates = await lastTradingDates(day, window);
+    const daily = await Promise.all(dates.map(async (entry) => {
+      try {
+        const [up, broken, down] = await Promise.all([limitPool("up", { date: entry }), limitPool("broken", { date: entry }), limitPool("down", { date: entry })]);
+        const sentiment = sentimentFrom(up, broken, down);
+        return { date: entry, up, limitUps: sentiment.limitUps, broken: sentiment.broken, limitDowns: sentiment.limitDowns, brokenRatePct: sentiment.brokenRatePct, highestBoard: sentiment.highestBoard };
+      } catch (error2) {
+        return { date: entry, error: error2.message };
+      }
+    }));
+    const today = daily.at(-1);
+    const yesterday = daily.at(-2);
+    const promotion = today?.up && yesterday?.up ? promotionRates(today.up, yesterday.up) : [];
+    let moneyEffect = null;
+    if (yesterday?.up?.rows.length && day === aShareDataDate(at)) {
+      try {
+        const symbols = yesterday.up.rows.map((row) => row.symbol);
+        const payload = await quotesImpl(`${ULIST}?fltt=2&secids=${symbols.flatMap(secidsFor).join(",")}&fields=f12,f3`);
+        const changes = (payload?.data?.diff ?? []).map((row) => finite(row.f3)).filter((value) => value !== null);
+        const covered = changes.length / symbols.length;
+        moneyEffect = covered < 0.5 ? { note: `\u53EA\u53D6\u5230 ${changes.length}/${symbols.length} \u53EA\u7684\u884C\u60C5\uFF0C\u4E0D\u8DB3\u4EE5\u4EE3\u8868\u5168\u4F53\uFF0C\u4E0D\u7ED9\u7ED3\u8BBA\u3002` } : {
+          samples: changes.length,
+          of: symbols.length,
+          avgChangePct: round(changes.reduce((sum, value) => sum + value, 0) / changes.length),
+          upRatioPct: round(changes.filter((value) => value > 0).length / changes.length * 100, 1),
+          relimitUps: yesterday.up.rows.filter((row) => today.up?.rows.some((entry) => entry.symbol === row.symbol)).length,
+          partial: covered < 0.9
+        };
+      } catch (error2) {
+        moneyEffect = { note: `\u884C\u60C5\u53D6\u4E0D\u5230\uFF1A${error2.message}` };
+      }
+    }
+    const cycle = emotionCycle(daily.filter((entry) => !entry.error).map(({ up: _, ...entry }) => entry));
+    return { date: day, previousDate: yesterday?.date ?? null, source: `${SOURCE} \u6DA8\u505C\u677F\u884C\u60C5`, promotion, moneyEffect, cycle, failedDates: daily.filter((entry) => entry.error).map((entry) => entry.date) };
+  });
+}
+var CLIST = "https://push2.eastmoney.com/api/qt/clist/get";
+var SINA_HK = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHKStockData";
+var SINA_US = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/x/US_CategoryService.getList";
+var GLOBAL_MARKETS = {
+  HK: { fs: "m:128+t:3,m:128+t:4,m:128+t:1,m:128+t:2", currency: "HKD", indices: [["100.HSI", "hkHSI"], ["100.HSCEI", "hkHSCEI"], ["124.HSTECH", "hkHSTECH"]] },
+  US: { fs: "m:105,m:106,m:107", currency: "USD", indices: [["100.DJIA", "usDJI"], ["100.SPX", "us.INX"], ["100.NDX", "us.IXIC"]] }
+};
+var MIN_MOVER_AMOUNT = 5e6;
+var eastmoneyDownUntil = 0;
+async function eastmoneyFirst(primary, fallback) {
+  if (Date.now() >= eastmoneyDownUntil) {
+    try {
+      return await primary();
+    } catch {
+      eastmoneyDownUntil = Date.now() + 5 * 6e4;
+    }
+  }
+  return fallback();
+}
+async function getText(url, { referer = "https://finance.sina.com.cn/", encoding = "utf-8", timeoutMs = 1e4 } = {}) {
+  const response = await fetch(url, { headers: { "User-Agent": UA, Referer: referer }, signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new MarketDataError(`HTTP ${response.status}`);
+  return new TextDecoder(encoding).decode(await response.arrayBuffer());
+}
+function globalSymbol(code, market2) {
+  return market2 === "HK" ? `${String(Number(code)).padStart(4, "0")}.HK` : String(code).replace(/_/g, "-");
+}
+function parseMovers(payload, market2) {
+  return (payload?.data?.diff ?? []).map((row) => ({ symbol: globalSymbol(row.f12, market2), name: row.f14, price: finite(row.f2), changePct: round(finite(row.f3)), amount: round(finite(row.f6), 0) }));
+}
+function parseSinaHk(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({ symbol: globalSymbol(row.symbol, "HK"), name: row.name, price: finite(Number(row.lasttrade)), changePct: round(finite(Number(row.changepercent))), amount: round(finite(Number(row.amount)), 0) }));
+}
+function parseSinaUs(text2) {
+  const json = String(text2).slice(String(text2).indexOf("x(") + 2, String(text2).lastIndexOf(")"));
+  const payload = JSON.parse(json || "{}");
+  return {
+    total: Number(payload.count) || null,
+    rows: (payload.data ?? []).map((row) => {
+      const price = finite(Number(row.price));
+      const volume = finite(Number(row.volume));
+      return { symbol: globalSymbol(row.symbol, "US"), name: row.cname || row.name, price, changePct: round(finite(Number(row.chg))), amount: price && volume ? round(price * volume, 0) : null };
+    })
+  };
+}
+async function rankedPage(market2, { sort = "change", asc = false, page = 1, size = 100 } = {}) {
+  const spec = GLOBAL_MARKETS[market2];
+  return eastmoneyFirst(async () => {
+    const payload = await getJson(`${CLIST}?pn=${page}&pz=${size}&po=${asc ? 0 : 1}&np=1&fltt=2&invt=2&fid=${sort === "amount" ? "f6" : "f3"}&fs=${spec.fs}&fields=f2,f3,f6,f12,f14`);
+    return { source: SOURCE, total: payload?.data?.total ?? null, rows: parseMovers(payload, market2) };
+  }, async () => {
+    if (market2 === "HK") return { source: "Sina Finance", total: null, rows: parseSinaHk(JSON.parse(await getText(`${SINA_HK}?page=${page}&num=${size}&sort=${sort === "amount" ? "amount" : "changepercent"}&asc=${asc ? 1 : 0}&node=qbgg_hk`))) };
+    return { source: "Sina Finance", ...parseSinaUs(await getText(`${SINA_US}?page=${page}&num=${size}&sort=${sort === "amount" ? "volume" : "chg"}&asc=${asc ? 1 : 0}&market=&id=`)) };
+  });
+}
+async function countSigned(load, { asc = false, maxPages = 200, pageSize = 100 } = {}) {
+  const hit = (value) => value !== null && (asc ? value < 0 : value > 0);
+  const changes = async (page) => (await load(page)).map((row) => row.changePct);
+  let low = 1, high = maxPages;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    const rows = await changes(middle);
+    if (rows.length && hit(rows.at(-1))) low = middle + 1;
+    else high = middle;
+  }
+  return (low - 1) * pageSize + (await changes(low)).filter(hit).length;
+}
+async function globalBreadth(market2) {
+  return cached(`breadth:${market2}`, 3e5, async () => {
+    const first = await rankedPage(market2, { size: 100 });
+    if (market2 === "HK" && first.source !== SOURCE) throw new MarketDataError("\u4E1C\u65B9\u8D22\u5BCC\u6682\u65F6\u62D2\u7EDD\u8FDE\u63A5\uFF0C\u5907\u7528\u6765\u6E90\u4E0D\u63D0\u4F9B\u6E2F\u80A1\u5168\u5E02\u573A\u6DA8\u8DCC\u5BB6\u6570");
+    const pageSize = Math.max(1, first.rows.length);
+    const maxPages = first.total ? Math.ceil(first.total / pageSize) : 60;
+    const load = (asc) => (page) => rankedPage(market2, { asc, page, size: pageSize }).then((result) => result.rows);
+    const [advancers, decliners] = await Promise.all([countSigned(load(false), { maxPages, pageSize }), countSigned(load(true), { asc: true, maxPages, pageSize })]);
+    return { source: first.source, total: first.total, advancers, decliners };
+  });
+}
+function parseTencentIndices(text2) {
+  return String(text2).split(";").map((line) => line.match(/v_([^=]+)="([^"]*)"/)).filter(Boolean).map(([, code, body]) => {
+    const parts = body.split("~");
+    return { code, name: parts[1], price: finite(Number(parts[3])), change: round(finite(Number(parts[31]))), changePct: round(finite(Number(parts[32]))), at: parts[30] || null };
+  }).filter((row) => row.price);
+}
+async function globalIndices(market2) {
+  const spec = GLOBAL_MARKETS[market2];
+  return cached(`indices:${market2}`, 6e4, () => eastmoneyFirst(
+    async () => ((await getJson(`${ULIST}?fltt=2&secids=${spec.indices.map(([secid]) => secid).join(",")}&fields=f2,f3,f4,f12,f14`))?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, price: finite(row.f2), change: round(finite(row.f4)), changePct: round(finite(row.f3)) })),
+    async () => parseTencentIndices(await getText(`https://qt.gtimg.cn/q=${spec.indices.map(([, code]) => code).join(",")}`, { referer: "https://gu.qq.com/", encoding: "gbk" }))
+  ));
+}
+async function globalRadar(market2, { at } = {}) {
+  const spec = GLOBAL_MARKETS[market2];
+  if (!spec) throw new MarketDataError(`Unknown market ${market2}`);
+  const settle = async (promise) => {
+    try {
+      return { ok: true, value: await promise };
+    } catch (error2) {
+      return { ok: false, error: error2.message };
+    }
+  };
+  const part = (result) => result.ok ? result.value : { error: result.error };
+  const movers = (asc) => cached(`movers:${market2}:${asc}`, 6e4, async () => {
+    const result = await rankedPage(market2, { asc });
+    return { source: result.source, rows: result.rows.filter((row) => row.price && (row.amount ?? 0) >= MIN_MOVER_AMOUNT).slice(0, 12) };
+  });
+  const active = () => cached(`active:${market2}`, 6e4, async () => {
+    const result = await rankedPage(market2, { sort: "amount" });
+    return { source: result.source, rows: result.rows.filter((row) => row.price).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)).slice(0, 12) };
+  });
+  const [indices, breadth, gainers, losers, mostActive, extra] = await Promise.all([
+    settle(globalIndices(market2)),
+    settle(globalBreadth(market2)),
+    settle(movers(false)),
+    settle(movers(true)),
+    settle(active()),
+    market2 === "HK" ? settle(stockConnect({ days: 10 }).then((connect) => ({ southbound: { source: connect.source, rows: connect.rows.filter((row) => row.channel === "\u5357\u5411\u5408\u8BA1") } }))) : settle(cached("china-adr", 6e4, () => eastmoneyFirst(
+      async () => ({ chinaAdrs: { source: SOURCE, rows: parseMovers(await getJson(`${CLIST}?pn=1&pz=12&po=1&np=1&fltt=2&invt=2&fid=f6&fs=b:MK0201&fields=f2,f3,f6,f12,f14`), "US").filter((row) => row.price) } }),
+      async () => {
+        throw new MarketDataError("\u4E1C\u65B9\u8D22\u5BCC\u6682\u65F6\u62D2\u7EDD\u8FDE\u63A5\uFF0C\u4E2D\u6982\u80A1\u5217\u8868\u53EA\u6709\u5B83\u63D0\u4F9B\uFF0C\u7A0D\u540E\u4F1A\u81EA\u52A8\u91CD\u8BD5");
+      }
+    )))
+  ]);
+  return {
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    market: market2,
+    currency: spec.currency,
+    session: getMarketSession(market2, at ?? (/* @__PURE__ */ new Date()).toISOString()),
+    indices: part(indices),
+    breadth: part(breadth),
+    gainers: part(gainers),
+    losers: part(losers),
+    active: part(mostActive),
+    ...extra.ok ? extra.value : market2 === "HK" ? { southbound: { error: extra.error } } : { chinaAdrs: { error: extra.error } }
+  };
+}
+
 // mcp/core.mjs
 var YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
 var YAHOO_SEARCH = "https://query1.finance.yahoo.com/v1/finance/search";
@@ -7737,12 +8359,12 @@ var PHASE_LABELS = {
   postmarket: "\u76D8\u540E\u590D\u76D8",
   research: "\u4E2A\u80A1\u7814\u7A76"
 };
-function finite(value) {
+function finite2(value) {
   if (value === null || value === void 0 || typeof value === "boolean" || typeof value === "string" && !value.trim()) return null;
   const number5 = Number(value);
   return Number.isFinite(number5) ? number5 : null;
 }
-function round(value, digits = 2) {
+function round2(value, digits = 2) {
   if (!Number.isFinite(value)) return null;
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
@@ -7798,7 +8420,7 @@ function marketFromSymbol(symbol) {
   return "US";
 }
 function computeIndicators(closes, highs = [], lows = [], volumes = []) {
-  const aligned = closes.map((value, index) => ({ close: finite(value), high: finite(highs[index]), low: finite(lows[index]), volume: finite(volumes[index]) }));
+  const aligned = closes.map((value, index) => ({ close: finite2(value), high: finite2(highs[index]), low: finite2(lows[index]), volume: finite2(volumes[index]) }));
   const lastGap = aligned.findLastIndex((row) => row.close === null || row.close <= 0);
   const rows = aligned.slice(lastGap + 1);
   const cleanCloses = rows.map((row) => row.close);
@@ -7931,12 +8553,12 @@ function parseYahooChart(input, payload, options = {}) {
   const timestamps = result.timestamp ?? [];
   const rawRows = timestamps.map((timestamp, index) => ({
     timestamp: new Date(timestamp * 1e3).toISOString(),
-    open: finite(quote.open?.[index]),
-    high: finite(quote.high?.[index]),
-    low: finite(quote.low?.[index]),
-    close: finite(quote.close?.[index]),
-    volume: finite(quote.volume?.[index]),
-    adjustedClose: finite(result.indicators?.adjclose?.[0]?.adjclose?.[index]),
+    open: finite2(quote.open?.[index]),
+    high: finite2(quote.high?.[index]),
+    low: finite2(quote.low?.[index]),
+    close: finite2(quote.close?.[index]),
+    volume: finite2(quote.volume?.[index]),
+    adjustedClose: finite2(result.indicators?.adjclose?.[0]?.adjclose?.[index]),
     ...interval === "1d" ? dailyBarMetadata(new Date(timestamp * 1e3).toISOString(), market2, options) : {}
   }));
   const invalidPriceRows = rawRows.filter((row) => row.close === null || row.close <= 0).length;
@@ -7947,15 +8569,15 @@ function parseYahooChart(input, payload, options = {}) {
   }));
   const meta = result.meta ?? {};
   const closes = rows.map((row) => row.close);
-  const currentPrice = finite(meta.regularMarketPrice) ?? lastFinite(closes);
+  const currentPrice = finite2(meta.regularMarketPrice) ?? lastFinite(closes);
   if (!(currentPrice > 0)) throw new Error(`Yahoo returned an invalid price for ${symbol}`);
   const latestTimestamp = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1e3).toISOString() : null;
   const quoteDate = latestTimestamp ? localMarketTime(latestTimestamp, market2)?.date : null;
   const priorDailyClose = interval === "1d" && quoteDate ? rows.filter((row) => row.sessionDate < quoteDate).at(-1)?.close : null;
-  const reportedChange = finite(meta.regularMarketChange);
-  const previousClose = reportedChange !== null && currentPrice !== null ? currentPrice - reportedChange : finite(meta.previousClose) ?? priorDailyClose ?? null;
+  const reportedChange = finite2(meta.regularMarketChange);
+  const previousClose = reportedChange !== null && currentPrice !== null ? currentPrice - reportedChange : finite2(meta.previousClose) ?? priorDailyClose ?? null;
   const change = reportedChange ?? (currentPrice !== null && previousClose ? currentPrice - previousClose : null);
-  const changePct = finite(meta.regularMarketChangePercent) ?? (change !== null && previousClose ? change / previousClose * 100 : null);
+  const changePct = finite2(meta.regularMarketChangePercent) ?? (change !== null && previousClose ? change / previousClose * 100 : null);
   const name = INDEX_NAMES[symbol] ?? meta.longName ?? meta.shortName ?? symbol;
   const completedRows = rows.filter((row) => row.complete === true);
   const adjustmentAnchor = rows.findLast((row) => row.adjustmentFactor > 0)?.adjustmentFactor ?? 1;
@@ -7998,9 +8620,9 @@ function parseYahooChart(input, payload, options = {}) {
     previousClose,
     change,
     changePct,
-    dayHigh: finite(meta.regularMarketDayHigh) ?? rows.at(-1)?.high,
-    dayLow: finite(meta.regularMarketDayLow) ?? rows.at(-1)?.low,
-    volume: finite(meta.regularMarketVolume) ?? rows.at(-1)?.volume ?? null,
+    dayHigh: finite2(meta.regularMarketDayHigh) ?? rows.at(-1)?.high,
+    dayLow: finite2(meta.regularMarketDayLow) ?? rows.at(-1)?.low,
+    volume: finite2(meta.regularMarketVolume) ?? rows.at(-1)?.volume ?? null,
     asOf: latestTimestamp,
     source: "Yahoo Finance chart API",
     provider: "Yahoo Finance",
@@ -8017,7 +8639,87 @@ function parseYahooChart(input, payload, options = {}) {
     history: rows.slice(-(options.historyLimit ?? 60))
   };
 }
+var ibkrClientConfigured = false;
+function tws() {
+  if (!ibkrClientConfigured) {
+    configureIbkrDataClient({ storageDir: getStorageDir() });
+    ibkrClientConfigured = true;
+  }
+  return { ibkrQuote, ibkrBars, ibkrScan };
+}
+var usStock = (symbol) => marketFromSymbol(symbol) === "US" && !symbol.startsWith("^");
+var twsReference = (quote) => ({ provider: "IBKR TWS", price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, asOf: quote.asOf, delayed: Boolean(quote.delayed), delayMinutes: quote.delayMinutes ?? 0, basis: quote.basis ?? "stream" });
+function applyIbkrQuote(quote, twsQuote, options = {}) {
+  const reference = twsReference(twsQuote);
+  quote.ibkr = reference;
+  const candidate = { ...quote, provider: "IBKR TWS", price: twsQuote.price, asOf: twsQuote.asOf };
+  const freshness = assessQuoteFreshness(candidate, options);
+  if (twsQuote.delayed || freshness.status !== "fresh") {
+    quote.dataSources.push({ ...reference, role: "reference", note: twsQuote.delayed ? `IBKR TWS is ${twsQuote.delayMinutes} minutes delayed on this login (no real-time subscription); not used as the price.` : `IBKR TWS quote is ${freshness.status}; not used as the price.` });
+    return quote;
+  }
+  const publicQuote = { ...quote };
+  const compared = crossCheckQuotes(candidate, publicQuote, options);
+  Object.assign(quote, {
+    provider: "IBKR TWS",
+    source: `IBKR TWS + ${publicQuote.provider}`,
+    price: twsQuote.price,
+    asOf: twsQuote.asOf,
+    bid: twsQuote.bid ?? null,
+    ask: twsQuote.ask ?? null,
+    freshness,
+    changePct: quote.previousClose > 0 ? (twsQuote.price / quote.previousClose - 1) * 100 : quote.changePct
+  });
+  quote.crossCheck = compared.status === "time-mismatch" && compared.primaryFreshness.signalEligible ? { ...compared, status: "fallback", error: `${publicQuote.provider} lags IBKR TWS by ${Math.round(compared.timestampSkewSeconds ?? 0)}s` } : compared;
+  quote.dataSources = [{ ...reference, role: "primary", freshness }, ...(publicQuote.dataSources ?? []).map((entry) => ({ ...entry, role: ["primary", "fallback"].includes(entry.role) ? "cross-check" : entry.role }))];
+  quote.dataQuality.warnings = quote.dataQuality.warnings.filter((warning) => !String(warning).startsWith("Cross-check"));
+  if (quote.crossCheck.status !== "matched") quote.dataQuality.warnings.push(`Cross-check: ${quote.crossCheck.status}`);
+  quote.dataQuality.status = quote.dataQuality.warnings.length ? "warning" : "ok";
+  quote.signalEligible = freshness.signalEligible && ["matched", "unavailable", "fallback"].includes(quote.crossCheck.status);
+  return quote;
+}
+function historyFromIbkrBars(symbol, bars, options = {}) {
+  const rows = bars.map((bar) => {
+    const timestamp = marketLocalToIso(String(bar.date).slice(0, 10), 12 * 60, "US");
+    return { timestamp, open: bar.open, close: bar.close, high: bar.high, low: bar.low, volume: bar.volume ?? 0, adjustedClose: bar.close, adjustmentFactor: 1, ...dailyBarMetadata(timestamp, "US", options) };
+  }).filter((row) => [row.open, row.close, row.high, row.low].every((value) => value > 0));
+  if (!rows.length) throw new Error("TWS returned no usable daily bars");
+  const completed = rows.filter((row) => row.complete);
+  const indicators2 = computeIndicators(completed.map((row) => row.close), completed.map((row) => row.high), completed.map((row) => row.low), completed.map((row) => row.volume));
+  indicators2.asOf = completed.at(-1)?.availableAt ?? null;
+  indicators2.priceBasis = "adjusted (IB ADJUSTED_LAST)";
+  const latest = rows.at(-1), previous = rows.at(-2);
+  return {
+    symbol,
+    market: "US",
+    name: symbol,
+    currency: "USD",
+    provider: "IBKR TWS",
+    source: "Interactive Brokers TWS historical bars (ADJUSTED_LAST)",
+    period: "1d",
+    price: latest.close,
+    previousClose: previous?.close ?? null,
+    changePct: previous ? (latest.close / previous.close - 1) * 100 : null,
+    asOf: latest.availableAt,
+    indicators: indicators2,
+    history: rows.slice(-(options.historyLimit ?? 60)),
+    historyPriceBasis: "adjusted",
+    corporateActions: [],
+    dataQuality: { status: "warning", warnings: ["IBKR adjusted daily bars; corporate-action records are not supplied."] }
+  };
+}
 async function getHistoricalQuote(input, options = {}) {
+  const twsSymbol = normalizeSymbol(input);
+  if (usStock(twsSymbol) && options.ibkr !== false) {
+    const duration3 = { "1y": "1 Y", "2y": "2 Y", "5y": "5 Y" }[options.range] ?? "2 Y";
+    const bars = await tws().ibkrBars(twsSymbol, { duration: duration3, barSize: "1 day", what: "ADJUSTED_LAST", useRTH: true }).catch(() => null);
+    if (bars) {
+      try {
+        return historyFromIbkrBars(twsSymbol, bars.bars, { ...options, historyLimit: 2e3 });
+      } catch {
+      }
+    }
+  }
   const allowedRanges = /* @__PURE__ */ new Set(["1y", "2y", "5y"]);
   const range = allowedRanges.has(options.range) ? options.range : "2y";
   const historyOptions = { ...options, range, interval: "1d", historyLimit: 2e3 };
@@ -8107,13 +8809,13 @@ function parseTencentQuote(payload, input) {
   const match = String(payload).match(/^[^=]+="([\s\S]*)";?\s*$/);
   if (!match?.[1]) throw new Error(`\u817E\u8BAF\u8D22\u7ECF\u672A\u53D6\u5F97 ${symbol} \u884C\u60C5`);
   const fields = match[1].split("~");
-  const price = finite(fields[3]);
+  const price = finite2(fields[3]);
   if (price === null || price <= 0) throw new Error(`\u817E\u8BAF\u8D22\u7ECF\u8FD4\u56DE\u7684 ${symbol} \u4EF7\u683C\u65E0\u6548`);
-  const previousClose = finite(fields[4]);
-  const change = finite(fields[31]) ?? (previousClose ? price - previousClose : null);
-  const changePct = finite(fields[32]) ?? (change !== null && previousClose ? change / previousClose * 100 : null);
+  const previousClose = finite2(fields[4]);
+  const change = finite2(fields[31]) ?? (previousClose ? price - previousClose : null);
+  const changePct = finite2(fields[32]) ?? (change !== null && previousClose ? change / previousClose * 100 : null);
   const alerts = [];
-  if (Math.abs(changePct ?? 0) >= 3) alerts.push(`\u65E5\u5185\u6DA8\u8DCC\u5E45 ${round(changePct)}%`);
+  if (Math.abs(changePct ?? 0) >= 3) alerts.push(`\u65E5\u5185\u6DA8\u8DCC\u5E45 ${round2(changePct)}%`);
   const exchangeTimezone = market2 === "US" ? "America/New_York" : market2 === "HK" ? "Asia/Hong_Kong" : "Asia/Shanghai";
   return {
     input: String(input),
@@ -8128,14 +8830,14 @@ function parseTencentQuote(payload, input) {
     previousClose,
     change,
     changePct,
-    dayHigh: finite(fields[33]),
-    dayLow: finite(fields[34]),
-    open: finite(fields[5]),
-    volume: finite(fields[6]),
+    dayHigh: finite2(fields[33]),
+    dayLow: finite2(fields[34]),
+    open: finite2(fields[5]),
+    volume: finite2(fields[6]),
     // Tencent reports A-share volume in board lots of 100 shares; HK and US in shares.
-    volumeShares: finite(fields[6]) === null ? null : market2 === "A" ? finite(fields[6]) * 100 : finite(fields[6]),
+    volumeShares: finite2(fields[6]) === null ? null : market2 === "A" ? finite2(fields[6]) * 100 : finite2(fields[6]),
     // No opening print and no volume: Tencent's signature of a suspended (or not yet opened) security.
-    noTradesToday: finite(fields[5]) === 0 && finite(fields[6]) === 0,
+    noTradesToday: finite2(fields[5]) === 0 && finite2(fields[6]) === 0,
     asOf: parseTencentTimestamp(fields[30], market2),
     source: "Tencent Finance quote API",
     provider: "Tencent Finance",
@@ -8150,16 +8852,16 @@ function parseTencentQuote(payload, input) {
     period: "snapshot",
     history: [],
     // Exchange microstructure published by Tencent: HK board lot (field 60) and A-share daily price limits (47/48).
-    lotSize: market2 === "HK" && Number.isInteger(finite(fields[60])) && finite(fields[60]) > 0 ? finite(fields[60]) : null,
-    limitUp: market2 === "A" && finite(fields[47]) > 0 ? finite(fields[47]) : null,
-    limitDown: market2 === "A" && finite(fields[48]) > 0 ? finite(fields[48]) : null,
+    lotSize: market2 === "HK" && Number.isInteger(finite2(fields[60])) && finite2(fields[60]) > 0 ? finite2(fields[60]) : null,
+    limitUp: market2 === "A" && finite2(fields[47]) > 0 ? finite2(fields[47]) : null,
+    limitDown: market2 === "A" && finite2(fields[48]) > 0 ? finite2(fields[48]) : null,
     // Five-level order book (fields 9–18 bids, 19–28 asks: price, size). A-share sizes are in lots of 100.
     ...orderBook(fields, market2)
   };
 }
 function orderBook(fields, market2) {
   const unit2 = market2 === "A" ? 100 : 1;
-  const side = (start) => Array.from({ length: 5 }, (_, level) => ({ price: finite(fields[start + level * 2]), size: finite(fields[start + level * 2 + 1]) })).filter((entry) => entry.price > 0).map((entry) => ({ price: entry.price, size: entry.size > 0 ? entry.size * unit2 : null }));
+  const side = (start) => Array.from({ length: 5 }, (_, level) => ({ price: finite2(fields[start + level * 2]), size: finite2(fields[start + level * 2 + 1]) })).filter((entry) => entry.price > 0).map((entry) => ({ price: entry.price, size: entry.size > 0 ? entry.size * unit2 : null }));
   const bids = side(9);
   const asks = side(19);
   return { bid: bids[0]?.price ?? null, ask: asks[0]?.price ?? null, bids, asks };
@@ -8182,6 +8884,20 @@ async function getTencentQuote(input, timeoutMs = 15e3) {
   }
 }
 async function getTradeQuote(input, options = {}) {
+  const symbol = normalizeSymbol(input);
+  if (usStock(symbol) && options.ibkr !== false) {
+    const [twsQuote, publicQuote] = await Promise.all([tws().ibkrQuote(symbol).catch(() => null), publicTradeQuote(symbol, options).catch((error2) => error2)]);
+    if (twsQuote && !twsQuote.delayed) {
+      const base = publicQuote instanceof Error ? { symbol, name: symbol, market: "US", currency: "USD", previousClose: twsQuote.previousClose ?? null, history: [], dataQuality: { status: "warning", warnings: [`Public quote unavailable: ${publicQuote.message}`] } } : publicQuote;
+      const quote = { ...base, provider: "IBKR TWS", source: "IBKR TWS", price: twsQuote.price, bid: twsQuote.bid ?? null, ask: twsQuote.ask ?? null, asOf: twsQuote.asOf, ibkr: twsReference(twsQuote) };
+      return { ...quote, freshness: assessQuoteFreshness(quote, { maxAgeSeconds: options.maxAgeSeconds ?? 300 }) };
+    }
+    if (publicQuote instanceof Error) throw publicQuote;
+    return twsQuote ? { ...publicQuote, ibkr: twsReference(twsQuote) } : publicQuote;
+  }
+  return publicTradeQuote(symbol, options);
+}
+async function publicTradeQuote(input, options = {}) {
   const symbol = normalizeSymbol(input);
   const timeoutMs = options.timeoutMs ?? 8e3;
   const code = tencentCodeForSymbol(symbol);
@@ -8216,11 +8932,11 @@ function parseTencentHistory(input, rawPayload, adjustedPayload, options = {}) {
   let previousDate = "";
   const history = raw.map((row) => {
     const [date4, o, c, h, l, v] = row;
-    const open3 = finite(o), close = finite(c), high = finite(h), low = finite(l), volume = finite(v);
+    const open3 = finite2(o), close = finite2(c), high = finite2(h), low = finite2(l), volume = finite2(v);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date4) || !Number.isFinite(Date.parse(date4)) || new Date(date4).toISOString().slice(0, 10) !== date4 || date4 <= previousDate) throw new Error("Invalid or unordered Tencent session dates");
     if (![open3, close, high, low].every((value) => value > 0) || high < Math.max(open3, close) || low > Math.min(open3, close) || volume === null || volume < 0) throw new Error(`Invalid Tencent OHLCV at ${date4}`);
     previousDate = date4;
-    const adjustedClose = adjusted ? finite(adjustedByDate.get(date4)?.[2]) : null;
+    const adjustedClose = adjusted ? finite2(adjustedByDate.get(date4)?.[2]) : null;
     if (adjusted && !(adjustedClose > 0)) throw new Error(`Tencent adjustment missing at ${date4}`);
     const timestamp = marketLocalToIso(date4, 12 * 60, market2);
     return { timestamp, open: open3, close, high, low, volume, adjustedClose, adjustmentFactor: adjustedClose === null ? null : adjustedClose / close, ...dailyBarMetadata(timestamp, market2, options) };
@@ -8305,10 +9021,10 @@ function parseEastmoneyQuote(payload, input) {
   const symbol = normalizeSymbol(input);
   const market2 = marketFromSymbol(symbol);
   const data = payload?.data;
-  const scale = 10 ** (finite(data?.f59) ?? 2);
-  const price = finite(data?.f43) === null ? null : finite(data.f43) / scale;
+  const scale = 10 ** (finite2(data?.f59) ?? 2);
+  const price = finite2(data?.f43) === null ? null : finite2(data.f43) / scale;
   if (!data || !(price > 0)) throw new Error(`\u4E1C\u65B9\u8D22\u5BCC\u672A\u53D6\u5F97 ${symbol} \u884C\u60C5`);
-  const previousClose = finite(data.f60) === null ? null : finite(data.f60) / scale;
+  const previousClose = finite2(data.f60) === null ? null : finite2(data.f60) / scale;
   return {
     input: String(input),
     symbol,
@@ -8322,7 +9038,7 @@ function parseEastmoneyQuote(payload, input) {
     previousClose,
     change: previousClose ? price - previousClose : null,
     changePct: previousClose ? (price / previousClose - 1) * 100 : null,
-    asOf: finite(data.f86) ? new Date(finite(data.f86) * 1e3).toISOString() : null,
+    asOf: finite2(data.f86) ? new Date(finite2(data.f86) * 1e3).toISOString() : null,
     dataQuality: { status: "warning", warnings: [] },
     indicators: emptyIndicators(),
     alerts: [],
@@ -8379,6 +9095,7 @@ async function getQuote(input, options = {}) {
   const calendarOverrides = options.calendarOverrides ?? (await loadPreferences()).calendarOverrides;
   const normalizedOptions = { ...options, calendarOverrides, now: options.now ?? (/* @__PURE__ */ new Date()).toISOString() };
   const wantsIntraday = options.phase === "intraday" || options.includeIntraday === true;
+  const twsPromise = usStock(symbol) && options.ibkr !== false ? tws().ibkrQuote(symbol).catch(() => null) : Promise.resolve(null);
   const [yahooResult, tencentResult, intradayResult] = await Promise.allSettled([
     getYahooQuote(symbol, { ...normalizedOptions, interval: "1d" }),
     getTencentQuote(symbol, options.timeoutMs ?? 15e3),
@@ -8427,6 +9144,8 @@ async function getQuote(input, options = {}) {
   if (quote.crossCheck.status !== "matched") quote.dataQuality.warnings.push(`Cross-check: ${quote.crossCheck.status}`);
   quote.dataQuality.status = quote.freshness.status === "stale" || quote.freshness.status === "future" ? "stale" : quote.dataQuality.warnings.length ? "warning" : "ok";
   quote.signalEligible = quote.freshness.signalEligible && ["matched", "unavailable", "fallback"].includes(quote.crossCheck.status);
+  const twsQuote = await twsPromise;
+  if (twsQuote) applyIbkrQuote(quote, twsQuote, normalizedOptions);
   if (wantsIntraday) {
     quote.intraday = intradayResult.status === "fulfilled" && intradayResult.value ? {
       status: "available",
@@ -8526,14 +9245,14 @@ async function screenWatchlist(input = {}) {
   };
 }
 function calculatePositionBudget(input) {
-  const capital = finite(input.capital);
-  const maxLossPctPerIdea = finite(input.maxLossPctPerIdea);
-  const maxPositionPct = finite(input.maxPositionPct);
+  const capital = finite2(input.capital);
+  const maxLossPctPerIdea = finite2(input.maxLossPctPerIdea);
+  const maxPositionPct = finite2(input.maxPositionPct);
   const capitalCurrency = String(input.capitalCurrency ?? "").trim().toUpperCase();
   const ideas = Array.isArray(input.ideas) ? input.ideas : [];
   const asOf = input.asOf ?? (/* @__PURE__ */ new Date()).toISOString();
   if (!Number.isFinite(Date.parse(asOf))) throw new Error("asOf must be a valid dated timestamp.");
-  const maxAggregateLossPct = finite(input.maxAggregateLossPct) ?? maxLossPctPerIdea;
+  const maxAggregateLossPct = finite2(input.maxAggregateLossPct) ?? maxLossPctPerIdea;
   if (!capital || capital <= 0) throw new Error("\u53EF\u6295\u8D44\u8D44\u91D1 capital \u5FC5\u987B\u5927\u4E8E 0");
   if (!capitalCurrency) throw new Error("\u5FC5\u987B\u63D0\u4F9B\u8D44\u91D1\u5E01\u79CD capitalCurrency");
   if (!maxLossPctPerIdea || maxLossPctPerIdea <= 0 || maxLossPctPerIdea > 100) throw new Error("maxLossPctPerIdea \u5FC5\u987B\u5728 0 \u5230 100 \u4E4B\u95F4");
@@ -8546,7 +9265,7 @@ function calculatePositionBudget(input) {
     if (currency === capitalCurrency) return 1;
     const fx = (input.fxRates ?? []).find((entry) => entry.from === currency && entry.to === capitalCurrency);
     const age = fx?.asOf ? Date.parse(asOf) - Date.parse(fx.asOf) : NaN;
-    if (!(finite(fx?.rate) > 0) || !fx?.source || !Number.isFinite(age) || age < 0 || age > (finite(input.fxMaxAgeHours) ?? 72) * 36e5) {
+    if (!(finite2(fx?.rate) > 0) || !fx?.source || !Number.isFinite(age) || age < 0 || age > (finite2(input.fxMaxAgeHours) ?? 72) * 36e5) {
       throw new Error(`Missing or stale dated FX evidence: ${currency} -> ${capitalCurrency}. Provide fxRates [{from,to,rate,asOf,source}].`);
     }
     if (!fxEvidence.includes(fx)) fxEvidence.push(fx);
@@ -8557,16 +9276,16 @@ function calculatePositionBudget(input) {
     const currency = String(position.quoteCurrency ?? getInstrumentRules(symbol).currency).toUpperCase();
     if (currency !== getInstrumentRules(symbol).currency) throw new Error(`${symbol}: quoteCurrency conflicts with the instrument trading currency.`);
     const rate = convert(currency);
-    const quantity = finite(position.quantity);
-    const price = finite(position.marketPrice);
-    const invalidationPrice = finite(position.invalidationPrice);
+    const quantity = finite2(position.quantity);
+    const price = finite2(position.marketPrice);
+    const invalidationPrice = finite2(position.invalidationPrice);
     if (!Number.isFinite(quantity) || quantity < 0 || !(price > 0) || !(invalidationPrice > 0)) throw new Error(`${symbol}: existing positions require quantity, marketPrice and invalidationPrice; unknown existing risk cannot be treated as zero.`);
     return { symbol, marketValue: quantity * price * rate, risk: quantity * Math.abs(price - invalidationPrice) * rate };
   });
   const existingValue = existing.reduce((sum, position) => sum + position.marketValue, 0);
   const existingRisk = existing.reduce((sum, position) => sum + position.risk, 0);
   if (existingValue > capital) throw new Error("Existing gross exposure exceeds capital; this cash-only model does not support leverage.");
-  const availableCash = finite(input.availableCash) ?? capital - existingValue;
+  const availableCash = finite2(input.availableCash) ?? capital - existingValue;
   if (availableCash < 0 || availableCash > capital - existingValue + 1e-6) throw new Error("availableCash must be nonnegative and cannot exceed capital minus existing exposure.");
   const riskBudgetPerIdea = capital * maxLossPctPerIdea / 100;
   const positionValueCap = capital * maxPositionPct / 100;
@@ -8580,10 +9299,10 @@ function calculatePositionBudget(input) {
     if (quoteCurrency !== rules.currency) throw new Error(`${symbol}: quoteCurrency conflicts with the instrument trading currency.`);
     const fxRate = convert(quoteCurrency);
     const direction = idea.direction === "short" ? "short" : "long";
-    const entryPrice = finite(idea.entryPrice);
-    const invalidationPrice = finite(idea.invalidationPrice);
-    const lotSize = idea.lotSize === void 0 ? rules.orderIncrement ?? rules.lotSize : finite(idea.lotSize);
-    const minimumOrderUnits = finite(idea.minimumOrderUnits ?? rules.minimumOrderUnits ?? lotSize);
+    const entryPrice = finite2(idea.entryPrice);
+    const invalidationPrice = finite2(idea.invalidationPrice);
+    const lotSize = idea.lotSize === void 0 ? rules.orderIncrement ?? rules.lotSize : finite2(idea.lotSize);
+    const minimumOrderUnits = finite2(idea.minimumOrderUnits ?? rules.minimumOrderUnits ?? lotSize);
     if (!entryPrice || entryPrice <= 0 || !invalidationPrice || invalidationPrice <= 0) throw new Error(`${symbol} \u7684\u5165\u573A\u4EF7\u548C\u5931\u6548\u4EF7\u5FC5\u987B\u5927\u4E8E 0`);
     if (direction === "long" && invalidationPrice >= entryPrice) throw new Error(`${symbol} \u591A\u5934\u65B9\u6848\u7684\u5931\u6548\u4EF7\u5FC5\u987B\u4F4E\u4E8E\u5165\u573A\u4EF7`);
     if (direction === "short" && invalidationPrice <= entryPrice) throw new Error(`${symbol} \u7A7A\u5934\u65B9\u6848\u7684\u5931\u6548\u4EF7\u5FC5\u987B\u9AD8\u4E8E\u5165\u573A\u4EF7`);
@@ -8609,8 +9328,8 @@ function calculatePositionBudget(input) {
       quoteCurrency,
       fxRate,
       riskDistancePct: Math.abs(entryPrice - invalidationPrice) / entryPrice * 100,
-      riskBudget: round(riskBudgetPerIdea),
-      positionValueCap: round(positionValueCap),
+      riskBudget: round2(riskBudgetPerIdea),
+      positionValueCap: round2(positionValueCap),
       maxPositionValue: Math.min(rawUnitCeiling * entryValuePerUnit, remainingIdeaValue),
       rawUnitCeiling,
       lotSize,
@@ -8618,7 +9337,7 @@ function calculatePositionBudget(input) {
       quantityCeiling,
       modeledPositionValue,
       modeledLossAtInvalidation,
-      modeledPortfolioPct: round(modeledPositionValue / capital * 100)
+      modeledPortfolioPct: round2(modeledPositionValue / capital * 100)
     };
   });
   const proposedValue = results.reduce((sum, idea) => sum + idea.modeledPositionValue, 0);
@@ -8634,7 +9353,7 @@ function calculatePositionBudget(input) {
   }
   return {
     generatedAt: asOf,
-    capital: round(capital),
+    capital: round2(capital),
     capitalCurrency,
     constraints: { maxLossPctPerIdea, maxPositionPct, maxAggregateLossPct },
     availableCash,
@@ -8646,8 +9365,8 @@ function calculatePositionBudget(input) {
     meaning: "\u7ED3\u679C\u662F\u7528\u6237\u7EA6\u675F\u4E0B\u7684\u6570\u5B66\u4ED3\u4F4D\u4E0A\u9650\uFF0C\u4E0D\u662F\u4E70\u5356\u5EFA\u8BAE\u6216\u6210\u4EA4\u4FDD\u8BC1\u3002",
     ideas: results,
     aggregateIfAllUsed: {
-      modeledPositionValue: round(results.reduce((sum, idea) => sum + idea.modeledPositionValue, 0)),
-      modeledLossAtInvalidation: round(results.reduce((sum, idea) => sum + idea.modeledLossAtInvalidation, 0)),
+      modeledPositionValue: round2(results.reduce((sum, idea) => sum + idea.modeledPositionValue, 0)),
+      modeledLossAtInvalidation: round2(results.reduce((sum, idea) => sum + idea.modeledLossAtInvalidation, 0)),
       totalExposureIncludingExisting: existingValue + results.reduce((sum, idea) => sum + idea.modeledPositionValue, 0),
       totalRiskIncludingExisting: existingRisk + results.reduce((sum, idea) => sum + idea.modeledLossAtInvalidation, 0),
       cashRemaining: availableCash - results.reduce((sum, idea) => sum + idea.modeledPositionValue, 0)
@@ -8796,18 +9515,18 @@ async function getMarketSnapshot(market2 = "all") {
   };
 }
 function getStorageDir() {
-  if (process.env.HROUTER_REPORT_DIR) return path2.resolve(process.env.HROUTER_REPORT_DIR);
-  const root2 = process.env.LOCALAPPDATA || (process.platform === "win32" ? path2.join(os.homedir(), "AppData", "Local") : path2.join(os.homedir(), ".hrouter-market-pulse"));
-  return path2.join(root2, "HrouterMarketPulse");
+  if (process.env.HROUTER_REPORT_DIR) return path3.resolve(process.env.HROUTER_REPORT_DIR);
+  const root2 = process.env.LOCALAPPDATA || (process.platform === "win32" ? path3.join(os.homedir(), "AppData", "Local") : path3.join(os.homedir(), ".hrouter-market-pulse"));
+  return path3.join(root2, "HrouterMarketPulse");
 }
 function preferencesPath() {
-  return path2.join(getStorageDir(), "config.json");
+  return path3.join(getStorageDir(), "config.json");
 }
 async function loadPreferences() {
   const envWatchlist = (process.env.HROUTER_WATCHLIST ?? "").split(",").map((value) => value.trim()).filter(Boolean);
   let saved = {};
   try {
-    saved = JSON.parse(await readFile2(preferencesPath(), "utf8"));
+    saved = JSON.parse(await readFile3(preferencesPath(), "utf8"));
   } catch (error2) {
     if (error2.code !== "ENOENT") throw error2;
   }
@@ -8820,7 +9539,7 @@ async function loadPreferences() {
     sectorMap: saved.sectorMap ?? {},
     alertRules: Array.isArray(saved.alertRules) ? saved.alertRules : [],
     calendarOverrides: saved.calendarOverrides ?? {},
-    monitorIntervalSeconds: Math.max(60, Math.min(3600, finite(saved.monitorIntervalSeconds) ?? 300)),
+    monitorIntervalSeconds: Math.max(60, Math.min(3600, finite2(saved.monitorIntervalSeconds) ?? 300)),
     managedAccountId: typeof saved.managedAccountId === "string" ? saved.managedAccountId : null,
     // New agent accounts get a repeat-every-N-minutes schedule automatically (0 = off).
     defaultAgentIntervalMinutes: Number.isInteger(saved.defaultAgentIntervalMinutes) ? saved.defaultAgentIntervalMinutes : 15,
@@ -8959,12 +9678,12 @@ function sanitizePreferences(input, current = {}) {
     watchlist: Array.isArray(input.watchlist) ? [...new Set(input.watchlist.map(normalizeSymbol))].slice(0, 50) : current.watchlist ?? [],
     language: input.language ?? current.language ?? "zh-CN",
     positions: Array.isArray(input.positions) ? input.positions.map((position) => {
-      const quantity = finite(position.quantity);
-      const averageCost = finite(position.averageCost);
+      const quantity = finite2(position.quantity);
+      const averageCost = finite2(position.averageCost);
       if (!Number.isFinite(quantity) || quantity < 0 || !(averageCost > 0)) throw new Error("Positions require nonnegative quantity and positive averageCost.");
       for (const field of ["currency", "quoteCurrency"]) if (position[field] !== void 0 && !/^[A-Z]{3}$/.test(position[field])) throw new Error("Position currency must be an uppercase three-letter code.");
       if ((position.currency ?? position.quoteCurrency ?? getInstrumentRules(normalizeSymbol(position.symbol)).currency) !== getInstrumentRules(normalizeSymbol(position.symbol)).currency) throw new Error("Position cost currency must match the instrument trading currency.");
-      if (position.invalidationPrice !== void 0 && !(finite(position.invalidationPrice) > 0)) throw new Error("Position invalidationPrice must be positive.");
+      if (position.invalidationPrice !== void 0 && !(finite2(position.invalidationPrice) > 0)) throw new Error("Position invalidationPrice must be positive.");
       const symbol = normalizeSymbol(position.symbol);
       const existing = (current.positions ?? []).find((entry) => normalizeSymbol(entry.symbol) === symbol);
       return { ...existing, ...position, symbol, quantity, averageCost };
@@ -9033,19 +9752,19 @@ function portfolioForQuote(positions, quote) {
     }
   });
   if (!position) return null;
-  const quantity = finite(position.quantity);
-  const averageCost = finite(position.averageCost);
+  const quantity = finite2(position.quantity);
+  const averageCost = finite2(position.averageCost);
   const marketValue = quantity !== null && quote.price !== null ? quantity * quote.price : null;
   const unrealizedPnl = quantity !== null && averageCost !== null && quote.price !== null ? quantity * (quote.price - averageCost) : null;
   return {
     quantity,
     averageCost,
     currency: quote.currency,
-    invalidationPrice: finite(position.invalidationPrice),
-    riskAtInvalidation: quantity !== null && finite(position.invalidationPrice) !== null && quote.price !== null ? quantity * Math.abs(quote.price - Number(position.invalidationPrice)) : null,
-    marketValue: round(marketValue),
-    unrealizedPnl: round(unrealizedPnl),
-    unrealizedPnlPct: averageCost && quote.price !== null ? round((quote.price / averageCost - 1) * 100) : null
+    invalidationPrice: finite2(position.invalidationPrice),
+    riskAtInvalidation: quantity !== null && finite2(position.invalidationPrice) !== null && quote.price !== null ? quantity * Math.abs(quote.price - Number(position.invalidationPrice)) : null,
+    marketValue: round2(marketValue),
+    unrealizedPnl: round2(unrealizedPnl),
+    unrealizedPnlPct: averageCost && quote.price !== null ? round2((quote.price / averageCost - 1) * 100) : null
   };
 }
 async function createMarketReport(input = {}) {
@@ -9130,21 +9849,21 @@ async function atomicWrite(filePath, content) {
   await rename2(temporary, filePath);
 }
 async function saveReport(report) {
-  const reportDir = path2.join(getStorageDir(), "reports");
+  const reportDir = path3.join(getStorageDir(), "reports");
   await mkdir2(reportDir, { recursive: true });
   const json = JSON.stringify(report, null, 2);
   const html = buildReportHtml(report);
   await Promise.all([
-    atomicWrite(path2.join(reportDir, `${report.runId}.json`), json),
-    atomicWrite(path2.join(reportDir, `${report.runId}.html`), html),
-    atomicWrite(path2.join(reportDir, "latest.json"), json),
-    atomicWrite(path2.join(reportDir, "latest.html"), html)
+    atomicWrite(path3.join(reportDir, `${report.runId}.json`), json),
+    atomicWrite(path3.join(reportDir, `${report.runId}.html`), html),
+    atomicWrite(path3.join(reportDir, "latest.json"), json),
+    atomicWrite(path3.join(reportDir, "latest.html"), html)
   ]);
 }
 async function loadReport(runId = "latest", format = "json") {
   const safeRunId = String(runId).replace(/[^A-Za-z0-9_-]/g, "");
   if (!safeRunId) throw new Error("\u65E0\u6548\u7684\u62A5\u544A\u7F16\u53F7");
-  return readFile2(path2.join(getStorageDir(), "reports", `${safeRunId}.${format}`), "utf8");
+  return readFile3(path3.join(getStorageDir(), "reports", `${safeRunId}.${format}`), "utf8");
 }
 var EASTMONEY_LIST = "https://push2.eastmoney.com/api/qt/clist/get";
 var SCAN_SORTS = Object.freeze({ change: "f3", amount: "f6", turnover: "f8", volumeRatio: "f10", speed: "f22", mainInflow: "f62", amplitude: "f7", marketCap: "f20" });
@@ -9190,7 +9909,68 @@ function parseEastmoneyList(payload, { market: market2 = "A" } = {}) {
     };
   }).filter((row) => row.price !== null);
 }
-async function scanMarket({ market: market2 = "A", view = "stocks", sort = "change", order = "desc", boards, includeST = true, sector, minAmount = 0, limit = 30 } = {}) {
+var IBKR_SCANS = { "change:desc": "TOP_PERC_GAIN", "change:asc": "TOP_PERC_LOSE", "amount:desc": "MOST_ACTIVE_USD", "turnover:desc": "HOT_BY_VOLUME", "volumeRatio:desc": "HOT_BY_VOLUME", "speed:desc": "TOP_TRADE_RATE" };
+async function scanMarket(input = {}) {
+  const { market: market2 = "A", view = "stocks", sort = "change", order = "desc", sector, minAmount = 0, limit = 30 } = input;
+  const scanCode = market2 === "US" && view === "stocks" && !sector && input.ibkr !== false ? IBKR_SCANS[`${sort}:${order === "asc" ? "asc" : "desc"}`] : null;
+  if (scanCode) {
+    const bounded2 = Math.max(1, Math.min(50, Number(limit) || 30));
+    const result = await tws().ibkrScan({ scanCode, rows: Math.min(50, bounded2 * (minAmount > 0 ? 2 : 1)), abovePrice: 1 }).catch(() => null);
+    if (result) {
+      const rows = result.rows.map((row) => {
+        const price = Number.isFinite(row.price) ? row.price : null;
+        return {
+          symbol: row.symbol,
+          name: row.name,
+          market: "US",
+          board: null,
+          st: false,
+          industry: null,
+          price,
+          changePct: price && row.previousClose > 0 ? (price / row.previousClose - 1) * 100 : null,
+          amount: price && row.volume ? price * row.volume : null,
+          turnoverPct: null,
+          volumeRatio: null,
+          speedPct: null,
+          mainNetInflow: null,
+          amplitudePct: null,
+          open: row.open ?? null,
+          high: row.high ?? null,
+          low: row.low ?? null,
+          previousClose: row.previousClose ?? null,
+          marketCap: null,
+          floatMarketCap: null,
+          rank: row.rank,
+          delayed: Boolean(row.delayed),
+          delayMinutes: row.delayMinutes ?? 0
+        };
+      }).filter((row) => !(minAmount > 0) || row.amount === null || row.amount >= minAmount).slice(0, bounded2);
+      const delayed = rows.some((row) => row.delayed);
+      return {
+        market: market2,
+        view,
+        sort,
+        order,
+        boards: null,
+        includeST: true,
+        sector: null,
+        total: null,
+        asOf: (/* @__PURE__ */ new Date()).toISOString(),
+        source: `IBKR TWS scanner (${scanCode})`,
+        rows,
+        ...delayed ? { note: "IB ranks the list live; prices on this login are delayed about 15 minutes (no real-time subscription). Confirm with get_quote before trading." } : {}
+      };
+    }
+  }
+  try {
+    return await publicScan(input);
+  } catch (error2) {
+    if (market2 !== "US" && market2 !== "HK" || view !== "stocks" || sector) throw error2;
+    const fallback = await rankedPage(market2, { sort: sort === "amount" ? "amount" : "change", asc: order === "asc", size: Math.max(1, Math.min(100, Number(limit) || 30)) });
+    return { market: market2, view, sort, order, boards: null, includeST: true, sector: null, total: fallback.total ?? null, asOf: (/* @__PURE__ */ new Date()).toISOString(), source: fallback.source, rows: fallback.rows.filter((row) => row.price).map((row) => ({ ...row, market: market2 })), note: `East Money unavailable (${error2.message}); ranked by ${fallback.source}.` };
+  }
+}
+async function publicScan({ market: market2 = "A", view = "stocks", sort = "change", order = "desc", boards, includeST = true, sector, minAmount = 0, limit = 30 } = {}) {
   const bounded2 = Math.max(1, Math.min(100, Number(limit) || 30));
   const fid = SCAN_SORTS[sort] ?? "f3";
   if (view === "sectors" || view === "concepts") {
@@ -9236,6 +10016,24 @@ function parseTencentMinutes(payload, code, market2) {
 async function getIntradayBars(input) {
   const symbol = normalizeSymbol(input);
   const market2 = marketFromSymbol(symbol);
+  if (market2 === "US" && input?.ibkr !== false) {
+    const bars = await tws().ibkrBars(symbol, { duration: "1 D", barSize: "5 mins", what: "TRADES", useRTH: true }).catch(() => null);
+    if (bars) {
+      const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+      const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+      let cumVolume = 0, cumAmount = 0;
+      const rows = bars.bars.map((bar) => {
+        const at = new Date(bar.date);
+        cumVolume += bar.volume ?? 0;
+        cumAmount += (bar.volume ?? 0) * (bar.average ?? bar.close);
+        return { time: clock.format(at), date: day.format(at), price: bar.close, volume: bar.volume ?? 0, cumVolume, vwap: cumVolume ? cumAmount / cumVolume : bar.close };
+      });
+      const lastEnd = bars.bars.length ? Date.parse(bars.bars.at(-1).date) + 5 * 6e4 : null;
+      const lagMinutes = lastEnd ? Math.max(0, Math.round((Date.now() - lastEnd) / 6e4)) : null;
+      const open3 = getMarketSession("US").status === "open";
+      return { symbol, market: market2, period: "5m", source: "IBKR TWS", bars: rows, ...open3 && lagMinutes > 6 ? { delayed: true, delayMinutes: lagMinutes } : { delayed: false } };
+    }
+  }
   if (market2 === "US") {
     const quote = await getYahooQuote(symbol, { interval: "5m", range: "1d", historyLimit: 200 });
     let cumVolume = 0, cumAmount = 0;
@@ -9252,12 +10050,12 @@ async function getIntradayBars(input) {
 
 // mcp/foundation.mjs
 import { createHash } from "node:crypto";
-import { mkdir as mkdir3, readFile as readFile3, rename as rename3, writeFile as writeFile3 } from "node:fs/promises";
-import path3 from "node:path";
+import { mkdir as mkdir3, readFile as readFile4, rename as rename3, writeFile as writeFile3 } from "node:fs/promises";
+import path4 from "node:path";
 
 // mcp/research-validation.mjs
 var number2 = (value) => value === null || value === void 0 || value === "" ? null : Number.isFinite(Number(value)) ? Number(value) : null;
-var round2 = (value, digits = 6) => Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
+var round3 = (value, digits = 6) => Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
 function researchAsOf(value, now = /* @__PURE__ */ new Date()) {
   const date4 = value ? new Date(value) : now;
   if (!Number.isFinite(date4.getTime()) || date4 > now) throw new Error("asOf must be a valid timestamp no later than now");
@@ -9399,7 +10197,7 @@ function simulatePortfolio({ candidates, histories, initialCapital = 1e5, curren
       const proceeds = position.units * exitPrice * conversion(event.symbol) * (1 - fee);
       cash += proceeds;
       const pnl = proceeds + position.dividends - position.cost;
-      trades.push({ ...event.candidate, units: position.initialUnits, exitUnits: position.units, entryPrice: round2(position.entryPrice), exitPrice: round2(exitPrice), entryValue: round2(position.cost, 2), exitValue: round2(proceeds, 2), dividends: round2(position.dividends, 2), pnl: round2(pnl, 2), grossReturnPct: round2(((event.candidate.exitPrice * position.units * conversion(event.symbol) + position.dividends) / (event.candidate.entryPrice * position.initialUnits * conversion(event.symbol)) - 1) * 100, 3), netReturnPct: round2(pnl / position.cost * 100, 3), currency });
+      trades.push({ ...event.candidate, units: position.initialUnits, exitUnits: position.units, entryPrice: round3(position.entryPrice), exitPrice: round3(exitPrice), entryValue: round3(position.cost, 2), exitValue: round3(proceeds, 2), dividends: round3(position.dividends, 2), pnl: round3(pnl, 2), grossReturnPct: round3(((event.candidate.exitPrice * position.units * conversion(event.symbol) + position.dividends) / (event.candidate.entryPrice * position.initialUnits * conversion(event.symbol)) - 1) * 100, 3), netReturnPct: round3(pnl / position.cost * 100, 3), currency });
       active.delete(event.symbol);
     } else if (event.type === "entry") {
       if (position) {
@@ -9427,7 +10225,7 @@ function simulatePortfolio({ candidates, histories, initialCapital = 1e5, curren
       marks.set(event.symbol, event.candidate.entryPrice);
       active.set(event.symbol, { ...event.candidate, units, initialUnits: units, cost, dividends: 0, entryPrice });
     }
-    if (index === events.length - 1 || events[index + 1].time !== event.time) equityCurve.push({ at: event.time, equity: round2(cash + grossValue(), 2), cash: round2(cash, 2), grossExposure: round2(grossValue(), 2), openPositions: active.size });
+    if (index === events.length - 1 || events[index + 1].time !== event.time) equityCurve.push({ at: event.time, equity: round3(cash + grossValue(), 2), cash: round3(cash, 2), grossExposure: round3(grossValue(), 2), openPositions: active.size });
   }
   let peak = Number(initialCapital);
   let maximumDrawdownPct = 0;
@@ -9436,7 +10234,7 @@ function simulatePortfolio({ candidates, histories, initialCapital = 1e5, curren
     maximumDrawdownPct = Math.min(maximumDrawdownPct, (row.equity / peak - 1) * 100);
   }
   const finalEquity = cash + grossValue();
-  return { trades, skipped, openPositions: [...active.values()].map((item) => ({ symbol: item.symbol, entryAt: item.entryAt, units: item.units, marketValue: round2(valueOf(item), 2), cost: round2(item.cost, 2), status: "open-unrealized" })), equityCurve, metrics: { initialCapital: Number(initialCapital), finalEquity: round2(finalEquity, 2), cash: round2(cash, 2), currency, portfolioReturnPct: round2((finalEquity / initialCapital - 1) * 100, 3), maximumDrawdownPct: round2(maximumDrawdownPct, 3), realizedPnl: round2(trades.reduce((sum, item) => sum + item.pnl, 0), 2) } };
+  return { trades, skipped, openPositions: [...active.values()].map((item) => ({ symbol: item.symbol, entryAt: item.entryAt, units: item.units, marketValue: round3(valueOf(item), 2), cost: round3(item.cost, 2), status: "open-unrealized" })), equityCurve, metrics: { initialCapital: Number(initialCapital), finalEquity: round3(finalEquity, 2), cash: round3(cash, 2), currency, portfolioReturnPct: round3((finalEquity / initialCapital - 1) * 100, 3), maximumDrawdownPct: round3(maximumDrawdownPct, 3), realizedPnl: round3(trades.reduce((sum, item) => sum + item.pnl, 0), 2) } };
 }
 function purgedWalkForwardFolds(samples, { folds = 3, minimumTraining = 100, minimumEvaluation = 30, holdoutPct = 30 } = {}) {
   const ordered = [...samples].sort((left, right) => Date.parse(left.featureAt) - Date.parse(right.featureAt));
@@ -9524,12 +10322,12 @@ var MAX_EVIDENCE_ITEMS = 1e5;
 var evidenceWriteQueue = Promise.resolve();
 var providerWriteQueue = Promise.resolve();
 var predictionWriteQueue = Promise.resolve();
-function finite2(value) {
+function finite3(value) {
   if (value === null || value === void 0 || value === "") return null;
   const number5 = Number(value);
   return Number.isFinite(number5) ? number5 : null;
 }
-function round3(value, digits = 4) {
+function round4(value, digits = 4) {
   if (!Number.isFinite(value)) return null;
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
@@ -9570,26 +10368,26 @@ function hashValue(value) {
 }
 async function loadJson(filePath, fallback) {
   try {
-    return JSON.parse(await readFile3(filePath, "utf8"));
+    return JSON.parse(await readFile4(filePath, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function atomicWriteJson(filePath, value) {
-  await mkdir3(path3.dirname(filePath), { recursive: true });
+  await mkdir3(path4.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   await writeFile3(temporary, JSON.stringify(value, null, 2), "utf8");
   await rename3(temporary, filePath);
 }
 function foundationDirectory() {
-  return path3.join(getStorageDir(), "foundation-v1");
+  return path4.join(getStorageDir(), "foundation-v1");
 }
 function evidencePath() {
-  return path3.join(foundationDirectory(), "evidence.json");
+  return path4.join(foundationDirectory(), "evidence.json");
 }
 function providersPath() {
-  return path3.join(foundationDirectory(), "providers.json");
+  return path4.join(foundationDirectory(), "providers.json");
 }
 function normalizeProviderId(value) {
   const id = String(value ?? "").trim().toLowerCase();
@@ -9826,7 +10624,7 @@ async function normalizeExternalFeatureRows(rows = []) {
     const values = {};
     for (const [name, rawValue] of Object.entries(row.values ?? {})) {
       if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(name)) throw new Error(`\u5916\u90E8\u7279\u5F81\u540D\u79F0\u65E0\u6548: ${name}`);
-      const value = finite2(rawValue);
+      const value = finite3(rawValue);
       if (value === null) throw new Error(`\u5916\u90E8\u7279\u5F81 ${name} \u5FC5\u987B\u662F\u6709\u9650\u6570\u503C`);
       values[`external.${name}`] = value;
     }
@@ -9854,20 +10652,20 @@ function attachExternalFeatures(quote, row) {
 }
 function quoteFeature(quote, feature) {
   const indicators2 = quote.indicators ?? {};
-  if (feature === "price") return finite2(quote.price);
-  if (feature === "changePct") return finite2(quote.changePct);
-  if (feature === "rsi14") return finite2(indicators2.rsi14);
-  if (feature === "volumeRatio20d") return finite2(indicators2.volumeRatio20d);
-  if (feature === "annualizedVolatilityPct") return finite2(indicators2.annualizedVolatilityPct);
-  if (feature === "maxDrawdown60dPct") return finite2(indicators2.maxDrawdown60dPct);
+  if (feature === "price") return finite3(quote.price);
+  if (feature === "changePct") return finite3(quote.changePct);
+  if (feature === "rsi14") return finite3(indicators2.rsi14);
+  if (feature === "volumeRatio20d") return finite3(indicators2.volumeRatio20d);
+  if (feature === "annualizedVolatilityPct") return finite3(indicators2.annualizedVolatilityPct);
+  if (feature === "maxDrawdown60dPct") return finite3(indicators2.maxDrawdown60dPct);
   if (feature === "priceToSma20Pct") {
     return quote.price && indicators2.sma20 ? (quote.price / indicators2.sma20 - 1) * 100 : null;
   }
   if (feature === "macdHistogram") {
     return Number.isFinite(indicators2.macd) && Number.isFinite(indicators2.macdSignal) ? indicators2.macd - indicators2.macdSignal : null;
   }
-  if (feature === "crossCheckDifferencePct") return finite2(quote.crossCheck?.priceDifferencePct);
-  if (feature.startsWith("external.")) return finite2(quote.externalFeatures?.[feature]);
+  if (feature === "crossCheckDifferencePct") return finite3(quote.crossCheck?.priceDifferencePct);
+  if (feature.startsWith("external.")) return finite3(quote.externalFeatures?.[feature]);
   return null;
 }
 function ruleMatches(value, rule) {
@@ -9886,9 +10684,9 @@ function normalizeStrategy(strategy2 = {}) {
   const rules = (strategy2.rules ?? []).map((rule, index) => {
     if (!isStrategyFeature(rule.feature)) throw new Error(`\u89C4\u5219 ${index + 1} \u4F7F\u7528\u4E86\u4E0D\u652F\u6301\u7684 feature: ${rule.feature}`);
     if (!STRATEGY_OPERATORS.has(rule.operator)) throw new Error(`\u89C4\u5219 ${index + 1} \u4F7F\u7528\u4E86\u4E0D\u652F\u6301\u7684 operator: ${rule.operator}`);
-    const value = finite2(rule.value);
-    const value2 = rule.operator === "between" ? finite2(rule.value2) : null;
-    const points = finite2(rule.points);
+    const value = finite3(rule.value);
+    const value2 = rule.operator === "between" ? finite3(rule.value2) : null;
+    const points = finite3(rule.points);
     if (value === null || rule.operator === "between" && value2 === null) throw new Error(`\u89C4\u5219 ${index + 1} \u7684\u9608\u503C\u65E0\u6548`);
     if (points === null || points < -100 || points > 100) throw new Error(`\u89C4\u5219 ${index + 1} \u7684 points \u5FC5\u987B\u5728 -100 \u5230 100 \u4E4B\u95F4`);
     return {
@@ -9904,8 +10702,8 @@ function normalizeStrategy(strategy2 = {}) {
   return {
     name,
     version: version3,
-    baseScore: finite2(strategy2.baseScore) ?? 0,
-    minimumScore: finite2(strategy2.minimumScore) ?? 1,
+    baseScore: finite3(strategy2.baseScore) ?? 0,
+    minimumScore: finite3(strategy2.minimumScore) ?? 1,
     rules
   };
 }
@@ -9922,7 +10720,7 @@ function evaluateDeclarativeStrategy(quote, inputStrategy) {
     }
     if (!ruleMatches(value, rule)) continue;
     score += rule.points;
-    reasons.push({ label: rule.label, feature: rule.feature, value: round3(value), points: rule.points });
+    reasons.push({ label: rule.label, feature: rule.feature, value: round4(value), points: rule.points });
   }
   const effectiveTimes = [quote.asOf, quote.externalFeatureAvailableAt].filter(Boolean).map((value) => Date.parse(value)).filter(Number.isFinite);
   const marketDataEligible = quote.signalEligible !== void 0 ? quote.signalEligible === true : !quote.freshness || quote.freshness.signalEligible === true;
@@ -9932,7 +10730,7 @@ function evaluateDeclarativeStrategy(quote, inputStrategy) {
     symbol: quote.symbol,
     generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     effectiveAt: effectiveTimes.length ? new Date(Math.max(...effectiveTimes)).toISOString() : null,
-    score: round3(score),
+    score: round4(score),
     minimumScore: strategy2.minimumScore,
     selected: score >= strategy2.minimumScore && marketDataEligible,
     blockedReasons: marketDataEligible ? [] : [quote.freshness?.reason ?? `Market data is not eligible for new signals (${quote.crossCheck?.status ?? "unverified"})`],
@@ -9998,15 +10796,15 @@ function historicalQuote(symbol, rows, index) {
 function summarizeTrades(trades) {
   return {
     trades: trades.length,
-    hitRatePct: trades.length ? round3(trades.filter((trade) => trade.netReturnPct > 0).length / trades.length * 100, 2) : null,
-    averageReturnPct: trades.length ? round3(average2(trades.map((trade) => trade.netReturnPct)), 3) : null,
+    hitRatePct: trades.length ? round4(trades.filter((trade) => trade.netReturnPct > 0).length / trades.length * 100, 2) : null,
+    averageReturnPct: trades.length ? round4(average2(trades.map((trade) => trade.netReturnPct)), 3) : null,
     compoundedTradeReturnPct: null,
     distributionPct: trades.length ? {
-      minimum: round3(percentile(trades.map((trade) => trade.netReturnPct), 0), 3),
-      p25: round3(percentile(trades.map((trade) => trade.netReturnPct), 0.25), 3),
-      median: round3(percentile(trades.map((trade) => trade.netReturnPct), 0.5), 3),
-      p75: round3(percentile(trades.map((trade) => trade.netReturnPct), 0.75), 3),
-      maximum: round3(percentile(trades.map((trade) => trade.netReturnPct), 1), 3)
+      minimum: round4(percentile(trades.map((trade) => trade.netReturnPct), 0), 3),
+      p25: round4(percentile(trades.map((trade) => trade.netReturnPct), 0.25), 3),
+      median: round4(percentile(trades.map((trade) => trade.netReturnPct), 0.5), 3),
+      p75: round4(percentile(trades.map((trade) => trade.netReturnPct), 0.75), 3),
+      maximum: round4(percentile(trades.map((trade) => trade.netReturnPct), 1), 3)
     } : null
   };
 }
@@ -10017,8 +10815,8 @@ async function runHistoricalBacktest(input) {
   const range = ["1y", "2y", "5y"].includes(input.range) ? input.range : "2y";
   const warmupDays = Math.max(20, Math.min(252, Number(input.warmupDays) || 60));
   const holdingPeriodDays = Math.max(1, Math.min(20, Number(input.holdingPeriodDays) || 1));
-  const transactionCostBps = Math.max(0, Math.min(500, finite2(input.transactionCostBps) ?? 10));
-  const slippageBps = Math.max(0, Math.min(500, finite2(input.slippageBps) ?? 5));
+  const transactionCostBps = Math.max(0, Math.min(500, finite3(input.transactionCostBps) ?? 10));
+  const slippageBps = Math.max(0, Math.min(500, finite3(input.slippageBps) ?? 5));
   const asOf = researchAsOf(input.asOf);
   const externalFeatureRows = await normalizeExternalFeatureRows(input.externalFeatureRows ?? []);
   const startDate = input.startDate ? Date.parse(asIso(input.startDate, "startDate")) : null;
@@ -10159,16 +10957,16 @@ function normalizeResearchActions(actions, rows) {
     const row = rows.find((item) => item.sessionDate === String(date4).slice(0, 10));
     const effectiveAt = row?.openAt ?? action.effectiveAt;
     if (!["split", "dividend"].includes(type) || !Number.isFinite(Date.parse(effectiveAt))) throw new Error("Unsupported or undated corporate action");
-    const ratio = finite2(action.ratio ?? action.splitRatio);
-    const cashPerShare = finite2(action.cashPerShare ?? action.amount);
+    const ratio = finite3(action.ratio ?? action.splitRatio);
+    const cashPerShare = finite3(action.cashPerShare ?? action.amount);
     if (type === "split" && !(ratio > 0) || type === "dividend" && !(cashPerShare >= 0)) throw new Error("Invalid corporate action value");
     return { type, effectiveAt, ratio, cashPerShare };
   }).filter((action) => rows.length && Date.parse(action.effectiveAt) >= Date.parse(rows[0].openAt) && Date.parse(action.effectiveAt) <= Date.parse(rows.at(-1).closeAt));
 }
 function verifyActionCoverage(rows, actions) {
   for (let index = 1; index < rows.length; index += 1) {
-    const current = finite2(rows[index].adjustmentFactor) ?? (rows[index].adjustedClose > 0 ? rows[index].adjustedClose / rows[index].close : null);
-    const previous = finite2(rows[index - 1].adjustmentFactor) ?? (rows[index - 1].adjustedClose > 0 ? rows[index - 1].adjustedClose / rows[index - 1].close : null);
+    const current = finite3(rows[index].adjustmentFactor) ?? (rows[index].adjustedClose > 0 ? rows[index].adjustedClose / rows[index].close : null);
+    const previous = finite3(rows[index - 1].adjustmentFactor) ?? (rows[index - 1].adjustedClose > 0 ? rows[index - 1].adjustedClose / rows[index - 1].close : null);
     if (current && previous && Math.abs(current / previous - 1) > 1e-4 && !actions.some((action) => Date.parse(action.effectiveAt) > Date.parse(rows[index - 1].openAt) && Date.parse(action.effectiveAt) <= Date.parse(rows[index].closeAt))) throw new Error(`Unexplained adjustment-factor change at ${rows[index].sessionDate}; corporate-action records required`);
   }
 }
@@ -10198,8 +10996,8 @@ function fitLogisticBaseline(matrix, outcomes, options = {}) {
   const normalized = matrix.map((row) => row.map((value, index) => (value - means[index]) / deviations[index]));
   const weights = Array(featureCount + 1).fill(0);
   const iterations = Math.max(100, Math.min(2e3, Number(options.iterations) || 800));
-  const learningRate = Math.max(1e-3, Math.min(0.5, finite2(options.learningRate) ?? 0.05));
-  const l2 = Math.max(0, Math.min(1, finite2(options.l2) ?? 0.01));
+  const learningRate = Math.max(1e-3, Math.min(0.5, finite3(options.learningRate) ?? 0.05));
+  const l2 = Math.max(0, Math.min(1, finite3(options.l2) ?? 0.01));
   for (let iteration = 0; iteration < iterations; iteration += 1) {
     const gradient = Array(featureCount + 1).fill(0);
     for (let rowIndex = 0; rowIndex < normalized.length; rowIndex += 1) {
@@ -10280,7 +11078,7 @@ function predictionSamples(symbol, rows, features, horizonDays, transactionCostB
       resolvedAt: exit.availableAt,
       vector,
       outcome: netReturn > 0 ? 1 : 0,
-      netReturnPct: round3(netReturn * 100, 3)
+      netReturnPct: round4(netReturn * 100, 3)
     });
   }
   return samples;
@@ -10290,9 +11088,9 @@ async function runBaselinePrediction(input) {
   if (!symbols.length) throw new Error("run_prediction_model \u81F3\u5C11\u9700\u8981\u4E00\u4E2A symbol");
   const range = ["2y", "5y"].includes(input.range) ? input.range : "2y";
   const horizonDays = Math.max(1, Math.min(20, Number(input.horizonDays) || 5));
-  const holdoutPct = Math.max(20, Math.min(40, finite2(input.holdoutPct) ?? 30));
-  const transactionCostBps = Math.max(0, Math.min(500, finite2(input.transactionCostBps) ?? 10));
-  const slippageBps = Math.max(0, Math.min(500, finite2(input.slippageBps) ?? 5));
+  const holdoutPct = Math.max(20, Math.min(40, finite3(input.holdoutPct) ?? 30));
+  const transactionCostBps = Math.max(0, Math.min(500, finite3(input.transactionCostBps) ?? 10));
+  const slippageBps = Math.max(0, Math.min(500, finite3(input.slippageBps) ?? 5));
   const foldsRequested = Math.max(3, Math.min(5, Math.trunc(input.folds ?? 3)));
   const asOf = researchAsOf(input.asOf);
   const features = [...new Set(input.features?.length ? input.features : BASELINE_PREDICTION_FEATURES)];
@@ -10325,7 +11123,7 @@ async function runBaselinePrediction(input) {
         const baselineQuality = evaluateProbabilityCalibration({ predictions: baseline });
         holdoutPredictions.push(...predictions);
         baselinePredictions.push(...baseline);
-        folds.push({ fold: fold.fold, trainingObservations: fold.training.length, evaluationObservations: fold.evaluation.length, trainingEndAt: fold.training.at(-1).resolvedAt, evaluationStartAt: fold.evaluation[0].featureAt, evaluationEndAt: fold.evaluation.at(-1).resolvedAt, purgedObservations: fold.purged, brierScore: quality.brierScore, baselineBrierScore: baselineQuality.brierScore, brierSkill: round3(baselineQuality.brierScore - quality.brierScore, 6), rocAuc: round3(rocAuc(predictions), 4), purged: fold.training.every((sample) => Date.parse(sample.resolvedAt) < Date.parse(fold.evaluation[0].featureAt)) });
+        folds.push({ fold: fold.fold, trainingObservations: fold.training.length, evaluationObservations: fold.evaluation.length, trainingEndAt: fold.training.at(-1).resolvedAt, evaluationStartAt: fold.evaluation[0].featureAt, evaluationEndAt: fold.evaluation.at(-1).resolvedAt, purgedObservations: fold.purged, brierScore: quality.brierScore, baselineBrierScore: baselineQuality.brierScore, brierSkill: round4(baselineQuality.brierScore - quality.brierScore, 6), rocAuc: round4(rocAuc(predictions), 4), purged: fold.training.every((sample) => Date.parse(sample.resolvedAt) < Date.parse(fold.evaluation[0].featureAt)) });
       }
       const calibration = evaluateProbabilityCalibration({ predictions: holdoutPredictions, bins: 10 });
       const baselineCalibration = evaluateProbabilityCalibration({ predictions: baselinePredictions, bins: 10 });
@@ -10339,7 +11137,7 @@ async function runBaselinePrediction(input) {
       const modelVersion = `logistic-walk-forward-v2:${hashValue({ features, horizonDays, transactionCostBps, slippageBps, trainingEndAt: training.at(-1).resolvedAt, weights: model.weights }).slice(0, 16)}`;
       const generatedAt = (/* @__PURE__ */ new Date()).toISOString();
       const ledger = await recordPrediction({ symbol, model: "logistic-walk-forward-v2", modelVersion, featureAt: latestQuote.asOf, recordedAt: generatedAt, probability: currentProbability, qualification, horizonDays: Math.max(horizonDays, (getInstrumentRules(symbol).minimumHoldingSessions ?? 0) + 1), transactionCostBps, slippageBps, features, featureValues: latestVector, weights: model.weights, means: model.means, deviations: model.deviations, validation: { folds, calibration, baselineCalibration, driftStatus: drift.status }, researchAsOf: asOf });
-      const contributions = model.contributions(latestVector).map((impact, index) => ({ feature: features[index], value: round3(latestVector[index]), logOddsImpact: round3(impact) })).sort((left, right) => Math.abs(right.logOddsImpact) - Math.abs(left.logOddsImpact));
+      const contributions = model.contributions(latestVector).map((impact, index) => ({ feature: features[index], value: round4(latestVector[index]), logOddsImpact: round4(impact) })).sort((left, right) => Math.abs(right.logOddsImpact) - Math.abs(left.logOddsImpact));
       results.push({
         symbol,
         status: qualification.status,
@@ -10351,8 +11149,8 @@ async function runBaselinePrediction(input) {
         featureAt: latestQuote.asOf,
         predictionId: ledger.id,
         ledgerStatus: ledger.status,
-        probabilityPositive: qualification.qualified ? round3(currentProbability, 4) : null,
-        probabilityNegative: qualification.qualified ? round3(1 - currentProbability, 4) : null,
+        probabilityPositive: qualification.qualified ? round4(currentProbability, 4) : null,
+        probabilityNegative: qualification.qualified ? round4(1 - currentProbability, 4) : null,
         features: contributions,
         drift,
         excludedBars: prepared.excluded,
@@ -10361,14 +11159,14 @@ async function runBaselinePrediction(input) {
           observations: training.length,
           startAt: training[0].featureAt,
           endAt: training.at(-1).resolvedAt,
-          positiveRate: round3(average2(training.map((sample) => sample.outcome)), 4)
+          positiveRate: round4(average2(training.map((sample) => sample.outcome)), 4)
         },
         holdout: {
           observations: holdoutPredictions.length,
           startAt: holdoutPredictions[0].predictedAt,
           endAt: holdoutPredictions.at(-1).resolvedAt,
-          positiveRate: round3(average2(holdoutPredictions.map((sample) => sample.outcome)), 4),
-          rocAuc: round3(rocAuc(holdoutPredictions), 4),
+          positiveRate: round4(average2(holdoutPredictions.map((sample) => sample.outcome)), 4),
+          rocAuc: round4(rocAuc(holdoutPredictions), 4),
           brierScore: calibration.brierScore,
           logLoss: calibration.logLoss,
           expectedCalibrationError: calibration.expectedCalibrationError,
@@ -10381,7 +11179,7 @@ async function runBaselinePrediction(input) {
     }
   }
   const assessmentTask = predictionWriteQueue.then(async () => {
-    const target = path3.join(foundationDirectory(), "model-assessments.json");
+    const target = path4.join(foundationDirectory(), "model-assessments.json");
     const assessments = await loadJson(target, {});
     for (const result of results) assessments[result.symbol] = { evaluatedAt: (/* @__PURE__ */ new Date()).toISOString(), status: result.status, predictionId: result.predictionId ?? null };
     await atomicWriteJson(target, assessments);
@@ -10425,7 +11223,7 @@ async function recordPrediction(record2) {
   if (!Number.isFinite(record2.probability) || !(record2.probability >= 0 && record2.probability <= 1)) throw new Error("Prediction probability must be finite and within [0, 1]");
   const id = `prediction_${hashValue({ symbol: record2.symbol, modelVersion: record2.modelVersion, featureAt, horizonDays: record2.horizonDays }).slice(0, 32)}`;
   const task = predictionWriteQueue.then(async () => {
-    const target = path3.join(foundationDirectory(), "predictions.json");
+    const target = path4.join(foundationDirectory(), "predictions.json");
     const current = await loadJson(target, []);
     const existing = current.find((item) => item.id === id);
     if (existing) return existing;
@@ -10442,8 +11240,8 @@ async function recordPrediction(record2) {
 async function queryPredictionLedger(input = {}) {
   const symbol = input.symbol ? normalizeSymbol(input.symbol) : null;
   const limit = Math.max(1, Math.min(1e3, Math.trunc(input.limit ?? 100)));
-  const records = await loadJson(path3.join(foundationDirectory(), "predictions.json"), []);
-  const assessments = await loadJson(path3.join(foundationDirectory(), "model-assessments.json"), {});
+  const records = await loadJson(path4.join(foundationDirectory(), "predictions.json"), []);
+  const assessments = await loadJson(path4.join(foundationDirectory(), "model-assessments.json"), {});
   const matched = records.filter((record2) => (!symbol || record2.symbol === symbol) && (!input.status || record2.status === input.status)).sort((left, right) => Date.parse(right.recordedAt) - Date.parse(left.recordedAt));
   const latestBySymbol = new Map([...records].sort((left, right) => Date.parse(left.recordedAt) - Date.parse(right.recordedAt)).map((record2) => [record2.symbol, record2.id]));
   return {
@@ -10451,14 +11249,14 @@ async function queryPredictionLedger(input = {}) {
     records: matched.slice(0, limit).map(({ weights, means, deviations, featureValues, probability, ...record2 }) => {
       const assessment = assessments[record2.symbol];
       const latestAssessmentAllows = !assessment || Date.parse(assessment.evaluatedAt) < Date.parse(record2.recordedAt) || assessment.status === "qualified" && assessment.predictionId === record2.id;
-      return { ...record2, qualification: { ...record2.qualification, currentlyEligible: record2.qualification?.qualified === true && record2.status === "pending" && Date.parse(record2.qualification.validUntil) > Date.now() && latestBySymbol.get(record2.symbol) === record2.id && latestAssessmentAllows, supersededBy: latestBySymbol.get(record2.symbol) === record2.id ? null : latestBySymbol.get(record2.symbol), latestAssessment: assessment ?? null }, probability: record2.qualification?.qualified ? round3(probability, 4) : null };
+      return { ...record2, qualification: { ...record2.qualification, currentlyEligible: record2.qualification?.qualified === true && record2.status === "pending" && Date.parse(record2.qualification.validUntil) > Date.now() && latestBySymbol.get(record2.symbol) === record2.id && latestAssessmentAllows, supersededBy: latestBySymbol.get(record2.symbol) === record2.id ? null : latestBySymbol.get(record2.symbol), latestAssessment: assessment ?? null }, probability: record2.qualification?.qualified ? round4(probability, 4) : null };
     }),
     recordingPolicy: "Immutable forecast fields, server timestamp at first insertion, outcomes appended only from completed history after recording. Research eligibility expires after 24 hours, resolution, or a newer model/evaluation for the symbol."
   };
 }
 async function resolvePredictionOutcomes(input = {}) {
   const asOf = researchAsOf(input.asOf);
-  const records = await loadJson(path3.join(foundationDirectory(), "predictions.json"), []);
+  const records = await loadJson(path4.join(foundationDirectory(), "predictions.json"), []);
   const pending = records.filter((item) => item.status === "pending" && (!input.ids?.length || input.ids.includes(item.id)));
   const histories = /* @__PURE__ */ new Map();
   const updates = [];
@@ -10496,13 +11294,13 @@ async function resolvePredictionOutcomes(input = {}) {
       const entryCost = entry.open * (1 + record2.slippageBps / 1e4) * (1 + record2.transactionCostBps / 1e4);
       const proceeds = units * exit.close * (1 - record2.slippageBps / 1e4) * (1 - record2.transactionCostBps / 1e4) + dividends;
       const netReturnPct = (proceeds / entryCost - 1) * 100;
-      updates.push({ id: record2.id, status: "resolved", outcome: netReturnPct > 0 ? 1 : 0, netReturnPct: round3(netReturnPct, 4), entryAt: entry.openAt, entryPrice: entry.open, exitAt: exit.closeAt, exitPrice: exit.close, resolvedAt: exit.availableAt, checkedAt: (/* @__PURE__ */ new Date()).toISOString(), resolutionSource: "completed-daily-OHLC-with-corporate-actions" });
+      updates.push({ id: record2.id, status: "resolved", outcome: netReturnPct > 0 ? 1 : 0, netReturnPct: round4(netReturnPct, 4), entryAt: entry.openAt, entryPrice: entry.open, exitAt: exit.closeAt, exitPrice: exit.close, resolvedAt: exit.availableAt, checkedAt: (/* @__PURE__ */ new Date()).toISOString(), resolutionSource: "completed-daily-OHLC-with-corporate-actions" });
     } catch (error2) {
       errors.push({ id: record2.id, error: error2.message });
     }
   }
   const task = predictionWriteQueue.then(async () => {
-    const target = path3.join(foundationDirectory(), "predictions.json");
+    const target = path4.join(foundationDirectory(), "predictions.json");
     const current = await loadJson(target, []);
     const byId = new Map(updates.map((update) => [update.id, update]));
     const next = current.map((record2) => record2.status === "pending" && byId.has(record2.id) ? { ...record2, ...byId.get(record2.id) } : record2);
@@ -10521,8 +11319,8 @@ function evaluateProbabilityCalibration(input) {
   if (predictions.length > 1e4) throw new Error("\u5355\u6B21\u6700\u591A\u8BC4\u4F30 10000 \u6761\u6982\u7387\u9884\u6D4B");
   const bins = Math.max(5, Math.min(20, Number(input.bins) || 10));
   const normalized = predictions.map((item, index) => {
-    const probability = finite2(item.probability);
-    const outcome = item.outcome === true ? 1 : item.outcome === false ? 0 : finite2(item.outcome);
+    const probability = finite3(item.probability);
+    const outcome = item.outcome === true ? 1 : item.outcome === false ? 0 : finite3(item.outcome);
     if (probability === null || probability < 0 || probability > 1) throw new Error(`prediction ${index + 1} \u7684 probability \u5FC5\u987B\u5728 0 \u5230 1 \u4E4B\u95F4`);
     if (![0, 1].includes(outcome)) throw new Error(`prediction ${index + 1} \u7684 outcome \u5FC5\u987B\u662F 0 \u6216 1`);
     const predictedAt = asIso(item.predictedAt, "predictedAt");
@@ -10538,11 +11336,11 @@ function evaluateProbabilityCalibration(input) {
   }));
   for (const item of normalized) bucketRows[Math.min(bins - 1, Math.floor(item.probability * bins))].rows.push(item);
   const calibration = bucketRows.map((bucket) => ({
-    lower: round3(bucket.lower, 3),
-    upper: round3(bucket.upper, 3),
+    lower: round4(bucket.lower, 3),
+    upper: round4(bucket.upper, 3),
     count: bucket.rows.length,
-    meanProbability: bucket.rows.length ? round3(average2(bucket.rows.map((item) => item.probability)), 4) : null,
-    observedFrequency: bucket.rows.length ? round3(average2(bucket.rows.map((item) => item.outcome)), 4) : null
+    meanProbability: bucket.rows.length ? round4(average2(bucket.rows.map((item) => item.probability)), 4) : null,
+    observedFrequency: bucket.rows.length ? round4(average2(bucket.rows.map((item) => item.outcome)), 4) : null
   }));
   const brierScore = average2(normalized.map((item) => (item.probability - item.outcome) ** 2));
   const logLoss = average2(normalized.map((item) => {
@@ -10557,10 +11355,10 @@ function evaluateProbabilityCalibration(input) {
     schemaVersion: CONTRACT_VERSION,
     generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     observations: normalized.length,
-    brierScore: round3(brierScore, 6),
-    logLoss: round3(logLoss, 6),
-    expectedCalibrationError: round3(expectedCalibrationError, 6),
-    directionalAccuracyPct: round3(normalized.filter((item) => (item.probability >= 0.5 ? 1 : 0) === item.outcome).length / normalized.length * 100, 2),
+    brierScore: round4(brierScore, 6),
+    logLoss: round4(logLoss, 6),
+    expectedCalibrationError: round4(expectedCalibrationError, 6),
+    directionalAccuracyPct: round4(normalized.filter((item) => (item.probability >= 0.5 ? 1 : 0) === item.outcome).length / normalized.length * 100, 2),
     calibration,
     interpretation: "Lower Brier score, log loss, and calibration error are better. These metrics require outcomes resolved strictly after prediction time."
   };
@@ -10597,26 +11395,26 @@ function monitorFeatureDrift(input) {
     const name = String(item.feature ?? "").trim();
     const baselineRaw = Array.isArray(item.baseline) ? item.baseline : [];
     const currentRaw = Array.isArray(item.current) ? item.current : [];
-    const baseline = baselineRaw.map(finite2).filter(Number.isFinite);
-    const current = currentRaw.map(finite2).filter(Number.isFinite);
+    const baseline = baselineRaw.map(finite3).filter(Number.isFinite);
+    const current = currentRaw.map(finite3).filter(Number.isFinite);
     if (!name || baseline.length < 20 || current.length < 20) throw new Error(`${name || "feature"} \u7684 baseline \u548C current \u5404\u81F3\u5C11\u9700\u8981 20 \u4E2A\u6709\u6548\u503C`);
     const baselineMean = average2(baseline);
     const currentMean = average2(current);
     const baselineStd = standardDeviation2(baseline);
     const standardizedMeanShift = baselineStd ? Math.abs(currentMean - baselineMean) / baselineStd : null;
     const psi = populationStabilityIndex(baseline, current);
-    const missingRateDelta = currentRaw.length && baselineRaw.length ? currentRaw.filter((value) => finite2(value) === null).length / currentRaw.length - baselineRaw.filter((value) => finite2(value) === null).length / baselineRaw.length : null;
+    const missingRateDelta = currentRaw.length && baselineRaw.length ? currentRaw.filter((value) => finite3(value) === null).length / currentRaw.length - baselineRaw.filter((value) => finite3(value) === null).length / baselineRaw.length : null;
     const status = (psi ?? 0) >= 0.25 || (standardizedMeanShift ?? 0) >= 1 || Math.abs(missingRateDelta ?? 0) >= 0.2 ? "drift" : (psi ?? 0) >= 0.1 || (standardizedMeanShift ?? 0) >= 0.5 || Math.abs(missingRateDelta ?? 0) >= 0.1 ? "watch" : "stable";
     return {
       feature: name,
       status,
       baselineCount: baseline.length,
       currentCount: current.length,
-      baselineMean: round3(baselineMean),
-      currentMean: round3(currentMean),
-      standardizedMeanShift: round3(standardizedMeanShift),
-      populationStabilityIndex: round3(psi),
-      missingRateDelta: round3(missingRateDelta)
+      baselineMean: round4(baselineMean),
+      currentMean: round4(currentMean),
+      standardizedMeanShift: round4(standardizedMeanShift),
+      populationStabilityIndex: round4(psi),
+      missingRateDelta: round4(missingRateDelta)
     };
   });
   return {
@@ -10635,7 +11433,7 @@ function monitorFeatureDrift(input) {
 }
 
 // mcp/paper.mjs
-var finite3 = (v) => typeof v === "number" && Number.isFinite(v);
+var finite4 = (v) => typeof v === "number" && Number.isFinite(v);
 var hash = (v) => createHash2("sha256").update(JSON.stringify(v)).digest("hex");
 var fail = (message) => {
   throw new Error(message);
@@ -10670,9 +11468,9 @@ function account(input) {
 }
 function strategy(input) {
   if (!input || !Array.isArray(input.rules) || !input.rules.length || input.rules.length > 20) fail("Each paper strategy requires 1\u201320 rules");
-  if (!input.rules.every((r) => STRATEGY_FEATURES.includes(r.feature) && finite3(r.value) && finite3(r.points) && (r.operator !== "between" || finite3(r.value2)))) fail("Paper rules require finite built-in features; external/model probabilities are not execution inputs");
+  if (!input.rules.every((r) => STRATEGY_FEATURES.includes(r.feature) && finite4(r.value) && finite4(r.points) && (r.operator !== "between" || finite4(r.value2)))) fail("Paper rules require finite built-in features; external/model probabilities are not execution inputs");
   if (typeof input.name !== "string" || input.name.length > 100 || typeof input.version !== "string" || input.version.length > 40) fail("Strategy name/version invalid");
-  if (!finite3(input.minimumScore) || !finite3(input.baseScore)) fail("Explicit finite strategy scores required");
+  if (!finite4(input.minimumScore) || !finite4(input.baseScore)) fail("Explicit finite strategy scores required");
   evaluateDeclarativeStrategy({ price: 1, signalEligible: false }, input);
   return JSON.parse(JSON.stringify(input));
 }
@@ -10686,7 +11484,7 @@ function validatePaperPolicy(input) {
   const limits = {};
   for (const [name, max] of Object.entries({ maxOrderValue: 1e9, maxDailyOrderValue: 1e10, maxPositionValue: 1e9, maxOrdersPerDay: 1e3, maxQuoteAgeSeconds: 300, maxLimitDeviationPct: 5 })) {
     const v = input[name];
-    if (!finite3(v) || v <= 0 || v > max || ["maxOrdersPerDay", "maxQuoteAgeSeconds"].includes(name) && !Number.isInteger(v)) fail(`Explicit valid ${name} required (0 < value <= ${max})`);
+    if (!finite4(v) || v <= 0 || v > max || ["maxOrdersPerDay", "maxQuoteAgeSeconds"].includes(name) && !Number.isInteger(v)) fail(`Explicit valid ${name} required (0 < value <= ${max})`);
     limits[name] = v;
   }
   if (limits.maxOrderValue > limits.maxDailyOrderValue || limits.maxOrderValue > limits.maxPositionValue) fail("Single-order limit must not exceed daily or position limit");
@@ -10712,7 +11510,7 @@ function validatePaperOrder(input) {
   if (!input || input.environment && input.environment !== "SIMULATE") fail("REAL execution is forbidden");
   if (!/^[A-Za-z0-9_-]{8,80}$/.test(input.idempotencyKey || "")) fail("Stable idempotencyKey of 8\u201380 letters/digits/_/- required");
   if (!["BUY", "SELL"].includes(input.side)) fail("Only BUY and long-position SELL supported");
-  if (!Number.isInteger(input.quantity) || input.quantity <= 0 || input.quantity > 1e6 || !finite3(input.limitPrice) || input.limitPrice <= 0 || input.limitPrice > 1e6) fail("Positive whole-share quantity and finite limit price required");
+  if (!Number.isInteger(input.quantity) || input.quantity <= 0 || input.quantity > 1e6 || !finite4(input.limitPrice) || input.limitPrice <= 0 || input.limitPrice > 1e6) fail("Positive whole-share quantity and finite limit price required");
   if (typeof input.rationale !== "string" || !input.rationale.trim() || input.rationale.length > 2e3) fail("Record an explicit rationale (1\u20132000 characters)");
   return {
     symbol: paperSymbol(input.symbol),
@@ -10773,7 +11571,7 @@ function invokeFutu(request, config2 = paperConfig(), { timeoutMs = 45e3 } = {})
 }
 async function readJson(file, fallback) {
   try {
-    return JSON.parse(await readFile4(file, "utf8"));
+    return JSON.parse(await readFile5(file, "utf8"));
   } catch (e) {
     if (e.code === "ENOENT") return structuredClone(fallback);
     throw e;
@@ -10790,7 +11588,7 @@ async function writeJson(file, value) {
   }
   await rename4(temp, file);
   if (process.platform !== "win32") {
-    const directory = await open(path4.dirname(file), "r");
+    const directory = await open(path5.dirname(file), "r");
     try {
       await directory.sync();
     } finally {
@@ -10804,21 +11602,21 @@ function tradingDate(now, market2) {
 var limitation = "Actual Futu SIMULATE orders only, not real-money trades. Broker simulation is not live execution. Equity changes are unadjusted for deposits/resets; order status is not a complete fill/fee ledger. Experimental paper results do not qualify a strategy for real trading.";
 var PaperService = class {
   constructor({ dir, bridge, quote, config: config2, now } = {}) {
-    this.dir = dir || path4.join(getStorageDir(), "paper-futu");
+    this.dir = dir || path5.join(getStorageDir(), "paper-futu");
     this.config = config2 || paperConfig();
     this.bridge = bridge || ((r) => invokeFutu(r, this.config));
     this.quote = quote || ((symbol) => getQuote(symbol));
     this.now = now || (() => (/* @__PURE__ */ new Date()).toISOString());
   }
   async state() {
-    return readJson(path4.join(this.dir, "state.json"), { intents: [], samples: [] });
+    return readJson(path5.join(this.dir, "state.json"), { intents: [], samples: [] });
   }
   async policy() {
-    return readJson(path4.join(this.dir, "policy.json"), { enabled: false, environment: "SIMULATE" });
+    return readJson(path5.join(this.dir, "policy.json"), { enabled: false, environment: "SIMULATE" });
   }
   async exclusive(fn) {
     await mkdir4(this.dir, { recursive: true, mode: 448 });
-    const lock = path4.join(this.dir, "operation.lock");
+    const lock = path5.join(this.dir, "operation.lock");
     try {
       await mkdir4(lock);
     } catch (e) {
@@ -10840,7 +11638,7 @@ var PaperService = class {
         if (!accounts.some((a) => a.accountId === next.accountId && a.environment === "SIMULATE" && a.market === next.market)) fail("Select a verified SIMULATE account first");
       }
       const policy = { ...!next.enabled ? await this.policy() : {}, ...next, revision: randomUUID2(), updatedAt: this.now() };
-      await writeJson(path4.join(this.dir, "policy.json"), policy);
+      await writeJson(path5.join(this.dir, "policy.json"), policy);
       return policy;
     });
   }
@@ -10917,7 +11715,7 @@ var PaperService = class {
       });
       state.samples = state.samples.slice(-2e3);
       state.snapshots = [...(state.snapshots || []).filter((s) => s.accountId !== snap.accountId || s.market !== snap.market), snap].slice(-20);
-      await writeJson(path4.join(this.dir, "state.json"), state);
+      await writeJson(path5.join(this.dir, "state.json"), state);
       return { snapshot: snap, intents: state.intents.filter(matches).slice(-100).reverse(), samples: state.samples.filter(matches).slice(-300) };
     });
   }
@@ -10928,7 +11726,7 @@ var PaperService = class {
     const code = futuCode(input.symbol, policy.market);
     if (input.quantity % policy.lotSizes[input.symbol] !== 0) fail("Quantity does not match authorized board lot");
     const notional = input.quantity * input.limitPrice;
-    if (!finite3(notional) || notional > policy.maxOrderValue) fail("Single-order notional limit exceeded");
+    if (!finite4(notional) || notional > policy.maxOrderValue) fail("Single-order notional limit exceeded");
     const relevant = state.intents.filter((r) => r.accountId === policy.accountId && r.market === policy.market);
     if (relevant.some((r) => ["dispatching", "unknown"].includes(r.status))) fail("Unresolved broker request exists. Refresh/reconcile before new orders; do not retry with a new key.");
     const today = relevant.filter((r) => r.kind === "order" && r.dispatchedAt && tradingDate(r.dispatchedAt, policy.market) === tradingDate(this.now(), policy.market));
@@ -10937,7 +11735,7 @@ var PaperService = class {
     if (last && Date.parse(this.now()) - Date.parse(last.dispatchedAt) < 3e3) fail("Wait at least 3 seconds between broker writes");
     const quote = await this.quote(input.symbol);
     const age = Date.parse(this.now()) - Date.parse(quote.asOf);
-    if (quote.demo || quote.synthetic || quote.symbol !== input.symbol || quote.currency !== policy.currency || !finite3(quote.price) || quote.price <= 0 || !Number.isFinite(age) || age < -5e3 || age > policy.maxQuoteAgeSeconds * 1e3 || quote.signalEligible !== true || quote.freshness?.status !== "fresh" || quote.freshness?.signalEligible !== true || !["matched", "fallback", "unavailable"].includes(quote.crossCheck?.status)) fail("Real quote is missing, stale, market-closed or in conflict; simulation execution paused");
+    if (quote.demo || quote.synthetic || quote.symbol !== input.symbol || quote.currency !== policy.currency || !finite4(quote.price) || quote.price <= 0 || !Number.isFinite(age) || age < -5e3 || age > policy.maxQuoteAgeSeconds * 1e3 || quote.signalEligible !== true || quote.freshness?.status !== "fresh" || quote.freshness?.signalEligible !== true || !["matched", "fallback", "unavailable"].includes(quote.crossCheck?.status)) fail("Real quote is missing, stale, market-closed or in conflict; simulation execution paused");
     if (Math.abs(input.limitPrice / quote.price - 1) * 100 > policy.maxLimitDeviationPct) fail("Limit price deviates too far from current verified quote");
     const selectedStrategy = input.side === "BUY" ? policy.entryStrategy : policy.exitStrategy;
     const evaluation = evaluateDeclarativeStrategy(quote, selectedStrategy);
@@ -10946,16 +11744,16 @@ var PaperService = class {
     const holdings = snapshot2.positions.filter((p) => p.code === code);
     if (holdings.some((p) => p.currency !== policy.currency)) fail("Position currency is missing or mismatched");
     if (input.side === "SELL") {
-      const available = holdings.reduce((n, p) => n + (finite3(p.canSellQuantity) ? p.canSellQuantity : 0), 0);
+      const available = holdings.reduce((n, p) => n + (finite4(p.canSellQuantity) ? p.canSellQuantity : 0), 0);
       if (available < input.quantity) fail("Insufficient sellable long position; shorts are disabled");
     } else {
       const openBuys = snapshot2.orders.filter((o) => o.side === "BUY" && activeOrder(o));
-      if (openBuys.some((o) => !finite3(o.price) || !finite3(o.quantity) || !finite3(o.filledQuantity) || o.quantity < o.filledQuantity || o.price <= 0)) fail("Unverifiable open-order commitments; no new buys");
-      if (holdings.some((p) => !finite3(p.quantity) || p.quantity < 0 || !finite3(p.marketValue) || p.marketValue < 0)) fail("Unverifiable/short position; no new buys");
+      if (openBuys.some((o) => !finite4(o.price) || !finite4(o.quantity) || !finite4(o.filledQuantity) || o.quantity < o.filledQuantity || o.price <= 0)) fail("Unverifiable open-order commitments; no new buys");
+      if (holdings.some((p) => !finite4(p.quantity) || p.quantity < 0 || !finite4(p.marketValue) || p.marketValue < 0)) fail("Unverifiable/short position; no new buys");
       const commitments = openBuys.reduce((n, o) => n + (o.quantity - o.filledQuantity) * o.price, 0);
       const currentValue = holdings.reduce((n, p) => n + Math.max(p.marketValue, p.quantity * quote.price), 0);
       const symbolPending = openBuys.filter((o) => o.code === code).reduce((n, o) => n + (o.quantity - o.filledQuantity) * o.price, 0);
-      if (!finite3(snapshot2.funds?.cash) || snapshot2.funds.cash < commitments + notional) fail("Insufficient verified cash after open buy commitments; margin is not used");
+      if (!finite4(snapshot2.funds?.cash) || snapshot2.funds.cash < commitments + notional) fail("Insufficient verified cash after open buy commitments; margin is not used");
       if (currentValue + symbolPending + notional > policy.maxPositionValue) fail("Position notional limit including pending buys exceeded");
     }
     if (Date.parse(this.now()) - Date.parse(quote.asOf) > policy.maxQuoteAgeSeconds * 1e3) fail("Quote expired while checking broker account");
@@ -11012,13 +11810,13 @@ var PaperService = class {
         Object.assign(intent, { status: "blocked", error: e.message });
         intent.events.push({ at: this.now(), type: "blocked", error: e.message });
         state.intents.push(intent);
-        await writeJson(path4.join(this.dir, "state.json"), state);
+        await writeJson(path5.join(this.dir, "state.json"), state);
         return intent;
       }
       Object.assign(intent, { status: "dispatching", dispatchedAt: this.now() });
       intent.events.push({ at: intent.dispatchedAt, type: "dispatching" });
       state.intents.push(intent);
-      await writeJson(path4.join(this.dir, "state.json"), state);
+      await writeJson(path5.join(this.dir, "state.json"), state);
       try {
         const result = await this.bridge({
           action: "submit",
@@ -11037,7 +11835,7 @@ var PaperService = class {
         Object.assign(intent, { status: e.definitelyNotDispatched ? "blocked" : "unknown", error: e.message });
       }
       intent.events.push({ at: this.now(), type: intent.status, broker: intent.broker || null, error: intent.error || null });
-      await writeJson(path4.join(this.dir, "state.json"), state);
+      await writeJson(path5.join(this.dir, "state.json"), state);
       return intent;
     });
   }
@@ -11079,7 +11877,7 @@ var PaperService = class {
         events: [{ at: this.now(), type: "dispatching" }]
       };
       state.intents.push(intent);
-      await writeJson(path4.join(this.dir, "state.json"), state);
+      await writeJson(path5.join(this.dir, "state.json"), state);
       try {
         await this.bridge({ action: "cancel", ...account(original), orderId: input.orderId });
         intent.status = "acknowledged";
@@ -11090,7 +11888,7 @@ var PaperService = class {
         intent.error = e.message;
       }
       intent.events.push({ at: this.now(), type: intent.status, error: intent.error || null });
-      await writeJson(path4.join(this.dir, "state.json"), state);
+      await writeJson(path5.join(this.dir, "state.json"), state);
       return intent;
     });
   }
@@ -11103,31 +11901,31 @@ function getPaperService() {
 // mcp/ibkr.mjs
 import { spawn as spawn2 } from "node:child_process";
 import { randomUUID as randomUUID3, createHash as createHash3 } from "node:crypto";
-import { mkdir as mkdir5, readFile as readFile5, open as open2, rename as rename5, rm as rm2 } from "node:fs/promises";
+import { mkdir as mkdir5, readFile as readFile6, open as open2, rename as rename5, rm as rm2 } from "node:fs/promises";
 import os2 from "node:os";
-import path5 from "node:path";
+import path6 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var IBKR_ENVIRONMENTS = Object.freeze(["PAPER", "LIVE"]);
 var LIVE_ACKNOWLEDGEMENT = "\u6211\u786E\u8BA4\u4F7F\u7528\u771F\u5B9E\u8D44\u91D1";
 var ACCOUNT = { PAPER: /^D[UF]\d{1,12}$/, LIVE: /^U\d{4,12}$/ };
 var ACTIVE = ["ApiPending", "PendingSubmit", "PreSubmitted", "Submitted", "PendingCancel"];
 var MAX_PENDING_CONFIRMATIONS = 10;
-var finite4 = (v) => typeof v === "number" && Number.isFinite(v);
+var finite5 = (v) => typeof v === "number" && Number.isFinite(v);
 var hash2 = (v) => createHash3("sha256").update(JSON.stringify(v)).digest("hex");
 var fail2 = (message) => {
   throw new Error(message);
 };
 var tradingDate2 = (at) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at));
 function defaultIbkrPython(env = process.env) {
-  const base = env.HROUTER_IBKR_VENV || path5.join(env.LOCALAPPDATA || path5.join(os2.homedir(), ".local", "share"), "hrouter-market-pulse", "ibkr-venv");
-  return path5.join(base, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+  const base = env.HROUTER_IBKR_VENV || path6.join(env.LOCALAPPDATA || path6.join(os2.homedir(), ".local", "share"), "hrouter-market-pulse", "ibkr-venv");
+  return path6.join(base, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
 }
 function validateIbkrConfig(input = {}) {
   const port = Number(input.port ?? 7497), clientId = Number(input.clientId ?? 71);
   if (!Number.isInteger(port) || port < 1 || port > 65535) fail2("Invalid TWS / IB Gateway port");
   if (!Number.isInteger(clientId) || clientId < 1 || clientId > 32e3) fail2("API client ID must be 1\u201332000");
   const python = String(input.python ?? "").trim();
-  if (python && (!path5.isAbsolute(python) || python.length > 500)) fail2("Python must be an absolute path to the ibkr venv interpreter");
+  if (python && (!path6.isAbsolute(python) || python.length > 500)) fail2("Python must be an absolute path to the ibkr venv interpreter");
   return { enabled: input.enabled === true, host: "127.0.0.1", port, clientId, python: python || null };
 }
 function usSymbol(symbol) {
@@ -11148,7 +11946,7 @@ function validateIbkrPolicy(input) {
   const limits = {};
   for (const [name, max] of Object.entries({ maxOrderValue: 1e8, maxDailyOrderValue: 1e9, maxPositionValue: 1e9, maxOrdersPerDay: 1e3, maxQuoteAgeSeconds: 300, maxLimitDeviationPct: 5 })) {
     const v = input[name];
-    if (!finite4(v) || v <= 0 || v > max || ["maxOrdersPerDay", "maxQuoteAgeSeconds"].includes(name) && !Number.isInteger(v)) fail2(`Explicit valid ${name} required (0 < value <= ${max})`);
+    if (!finite5(v) || v <= 0 || v > max || ["maxOrdersPerDay", "maxQuoteAgeSeconds"].includes(name) && !Number.isInteger(v)) fail2(`Explicit valid ${name} required (0 < value <= ${max})`);
     limits[name] = v;
   }
   if (limits.maxOrderValue > limits.maxDailyOrderValue || limits.maxOrderValue > limits.maxPositionValue) fail2("Single-order limit must not exceed the daily or position limit");
@@ -11169,7 +11967,7 @@ function validateIbkrOrder(input) {
   if (!input) fail2("Order required");
   if (!/^[A-Za-z0-9_-]{8,80}$/.test(input.idempotencyKey || "")) fail2("Stable idempotencyKey of 8\u201380 letters/digits/_/- required");
   if (!["BUY", "SELL"].includes(input.side)) fail2("Only BUY and long-position SELL supported");
-  if (!Number.isInteger(input.quantity) || input.quantity <= 0 || input.quantity > 1e6 || !finite4(input.limitPrice) || input.limitPrice <= 0 || input.limitPrice > 1e6) fail2("Positive whole-share quantity and finite limit price required");
+  if (!Number.isInteger(input.quantity) || input.quantity <= 0 || input.quantity > 1e6 || !finite5(input.limitPrice) || input.limitPrice <= 0 || input.limitPrice > 1e6) fail2("Positive whole-share quantity and finite limit price required");
   if (typeof input.rationale !== "string" || !input.rationale.trim() || input.rationale.length > 2e3) fail2("Record an explicit rationale (1\u20132000 characters)");
   return { symbol: usSymbol(input.symbol), side: input.side, quantity: input.quantity, limitPrice: input.limitPrice, rationale: input.rationale.trim(), idempotencyKey: input.idempotencyKey };
 }
@@ -11218,7 +12016,7 @@ function invokeIbkr(request, config2, { timeoutMs = 6e4 } = {}) {
 }
 async function readJson2(file, fallback) {
   try {
-    return JSON.parse(await readFile5(file, "utf8"));
+    return JSON.parse(await readFile6(file, "utf8"));
   } catch (e) {
     if (e.code === "ENOENT") return structuredClone(fallback);
     throw e;
@@ -11239,14 +12037,14 @@ var limitation2 = "PAPER orders go to your IB paper account; LIVE orders use rea
 var IbkrService = class {
   constructor({ dir, bridge, quote, now, env = process.env, lockWaitMs = 12e4 } = {}) {
     this.lockWaitMs = lockWaitMs;
-    this.dir = dir || path5.join(getStorageDir(), "broker-ibkr");
+    this.dir = dir || path6.join(getStorageDir(), "broker-ibkr");
     this.env = env;
     this.customBridge = bridge;
     this.quote = quote || ((symbol) => getQuote(symbol));
     this.now = now || (() => (/* @__PURE__ */ new Date()).toISOString());
   }
   file(name) {
-    return path5.join(this.dir, name);
+    return path6.join(this.dir, name);
   }
   async config() {
     const stored = await readJson2(this.file("config.json"), { enabled: false });
@@ -11433,7 +12231,7 @@ var IbkrService = class {
     if (!policy.enabled) fail2("IBKR execution is paused. The owner enables it in the dashboard.");
     if (!policy.allowAnySymbol && !policy.allowedSymbols.includes(order.symbol)) fail2("Symbol is outside the owner's allowlist");
     const notional = order.quantity * order.limitPrice;
-    if (!finite4(notional) || notional > policy.maxOrderValue) fail2("Single-order notional limit exceeded");
+    if (!finite5(notional) || notional > policy.maxOrderValue) fail2("Single-order notional limit exceeded");
     const relevant = state.intents.filter((r) => r.accountId === policy.accountId && r.kind === "order");
     if (relevant.some((r) => ["dispatching", "unknown"].includes(r.status))) fail2("An earlier order has an unclear outcome. Refresh/reconcile before new orders; do not retry with a new key.");
     if (counting) {
@@ -11442,21 +12240,21 @@ var IbkrService = class {
     }
     const quote = await this.quote(order.symbol);
     const age = Date.parse(this.now()) - Date.parse(quote.asOf);
-    if (quote.demo || quote.synthetic || quote.symbol !== order.symbol || quote.currency !== "USD" || !finite4(quote.price) || quote.price <= 0 || !Number.isFinite(age) || age < -5e3 || age > policy.maxQuoteAgeSeconds * 1e3 || quote.signalEligible !== true || quote.freshness?.status !== "fresh" || !["matched", "fallback", "unavailable"].includes(quote.crossCheck?.status)) fail2("Real quote is missing, stale, market-closed or in conflict; no order");
+    if (quote.demo || quote.synthetic || quote.symbol !== order.symbol || quote.currency !== "USD" || !finite5(quote.price) || quote.price <= 0 || !Number.isFinite(age) || age < -5e3 || age > policy.maxQuoteAgeSeconds * 1e3 || quote.signalEligible !== true || quote.freshness?.status !== "fresh" || !["matched", "fallback", "unavailable"].includes(quote.crossCheck?.status)) fail2("Real quote is missing, stale, market-closed or in conflict; no order");
     if (Math.abs(order.limitPrice / quote.price - 1) * 100 > policy.maxLimitDeviationPct) fail2("Limit price deviates too far from the current verified quote");
     const snapshot2 = await this.snapshot(policy);
     const held = snapshot2.positions.filter((p) => p.symbol === order.symbol && p.secType === "STK" && p.currency === "USD");
     if (order.side === "SELL") {
-      const quantity = held.reduce((n, p) => n + (finite4(p.quantity) ? p.quantity : 0), 0);
+      const quantity = held.reduce((n, p) => n + (finite5(p.quantity) ? p.quantity : 0), 0);
       const openSells = snapshot2.orders.filter((o) => o.side === "SELL" && o.symbol === order.symbol && ACTIVE.includes(o.status)).reduce((n, o) => n + (o.remaining ?? o.quantity ?? 0), 0);
       if (quantity - openSells < order.quantity) fail2("Insufficient long position after open sell orders; shorts are disabled");
     } else {
       const openBuys = snapshot2.orders.filter((o) => o.side === "BUY" && ACTIVE.includes(o.status));
-      if (openBuys.some((o) => !finite4(o.price) || !finite4(o.quantity))) fail2("Unverifiable open buy orders; no new buys");
+      if (openBuys.some((o) => !finite5(o.price) || !finite5(o.quantity))) fail2("Unverifiable open buy orders; no new buys");
       const commitments = openBuys.reduce((n, o) => n + (o.remaining ?? o.quantity) * o.price, 0);
       const currentValue = held.reduce((n, p) => n + Math.abs(p.marketValue ?? (p.quantity ?? 0) * quote.price), 0);
       const symbolPending = openBuys.filter((o) => o.symbol === order.symbol).reduce((n, o) => n + (o.remaining ?? o.quantity) * o.price, 0);
-      if (!finite4(snapshot2.funds?.cash) || snapshot2.funds.cash < commitments + notional) fail2("Settled cash does not cover this buy plus open buy orders; margin is not used");
+      if (!finite5(snapshot2.funds?.cash) || snapshot2.funds.cash < commitments + notional) fail2("Settled cash does not cover this buy plus open buy orders; margin is not used");
       if (currentValue + symbolPending + notional > policy.maxPositionValue) fail2("Position limit including open buys exceeded");
     }
     if (Date.parse(this.now()) - Date.parse(quote.asOf) > policy.maxQuoteAgeSeconds * 1e3) fail2("Quote expired while checking the IB account");
@@ -11613,8 +12411,8 @@ function getIbkrService() {
 }
 var roundCents = (value) => Math.round(value * 100) / 100;
 function brokerLimitPrice(order, quotePrice, throughPct = 0.3) {
-  if (order.type === "limit" && finite4(order.limitPrice)) return roundCents(order.limitPrice);
-  if (!finite4(quotePrice) || quotePrice <= 0) fail2("No usable quote to price the order");
+  if (order.type === "limit" && finite5(order.limitPrice)) return roundCents(order.limitPrice);
+  if (!finite5(quotePrice) || quotePrice <= 0) fail2("No usable quote to price the order");
   return roundCents(order.side === "BUY" ? quotePrice * (1 + throughPct / 100) : quotePrice * (1 - throughPct / 100));
 }
 function createIbkrExecutor(service4 = getIbkrService()) {
@@ -12135,8 +12933,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path20, errorMaps, issueData } = params;
-  const fullPath = [...path20, ...issueData.path || []];
+  const { data, path: path21, errorMaps, issueData } = params;
+  const fullPath = [...path21, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -12252,11 +13050,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path20, key) {
+  constructor(parent, value, path21, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path20;
+    this._path = path21;
     this._key = key;
   }
   get path() {
@@ -15700,9 +16498,9 @@ var NEVER = INVALID;
 
 // mcp/arena.mjs
 import { randomBytes as randomBytes2, randomUUID as randomUUID5 } from "node:crypto";
-import { mkdir as mkdir7, readdir, readFile as readFile7, rename as rename7, rm as rm3, stat as stat2, writeFile as writeFile5 } from "node:fs/promises";
+import { mkdir as mkdir7, readdir, readFile as readFile8, rename as rename7, rm as rm3, stat as stat2, writeFile as writeFile5 } from "node:fs/promises";
 import os3 from "node:os";
-import path7 from "node:path";
+import path8 from "node:path";
 
 // mcp/paging.mjs
 var PAGE_DEFAULTS = Object.freeze({ limit: 20, maxLimit: 200 });
@@ -15731,10 +16529,10 @@ var matchesText = (q, ...values) => !q || values.some((value) => String(value ??
 
 // mcp/trader-settings.mjs
 import { randomBytes, randomUUID as randomUUID4 } from "node:crypto";
-import { mkdir as mkdir6, readFile as readFile6, rename as rename6, stat, writeFile as writeFile4 } from "node:fs/promises";
-import path6 from "node:path";
-var round4 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
-var finite5 = (value) => typeof value === "number" && Number.isFinite(value);
+import { mkdir as mkdir6, readFile as readFile7, rename as rename6, stat, writeFile as writeFile4 } from "node:fs/promises";
+import path7 from "node:path";
+var round5 = (value, digits = 2) => Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
+var finite6 = (value) => typeof value === "number" && Number.isFinite(value);
 var shortId = (prefix) => `${prefix}_${randomBytes(6).toString("hex")}`;
 var SettingsError = class extends Error {
   constructor(message, code = "invalid_request", status = 400) {
@@ -15782,12 +16580,12 @@ function sanitizeLimits(input = {}, current = {}) {
     const value = Number(raw);
     if (!Number.isFinite(value) || value < spec.min || value > spec.max || spec.type === "int" && !Number.isInteger(value))
       throw new SettingsError(`${key} must be ${spec.type === "int" ? "a whole number" : "a number"} between ${spec.min} and ${spec.max}, or empty to disable.`);
-    next[key] = spec.type === "int" ? value : round4(value, 2);
+    next[key] = spec.type === "int" ? value : round5(value, 2);
   }
   if (input.reduceToExposurePct !== void 0) {
     const value = input.reduceToExposurePct === null || input.reduceToExposurePct === "" ? DEFAULT_LIMITS.reduceToExposurePct : Number(input.reduceToExposurePct);
     if (!Number.isFinite(value) || value < 0 || value > 100) throw new SettingsError("reduceToExposurePct must be between 0 and 100, or empty to disable.");
-    next.reduceToExposurePct = round4(value, 2);
+    next.reduceToExposurePct = round5(value, 2);
   }
   if (input.onBreach !== void 0) {
     if (!["block", "reduce"].includes(input.onBreach)) throw new SettingsError("onBreach must be block or reduce.");
@@ -15824,74 +16622,74 @@ function industryExposure(account2, value, industries = knownIndustries(account2
   };
   for (const position of value.positions) add(industries[position.symbol], position.marketValue);
   for (const order of account2.orders) if (order.status === "open" && order.side === "BUY") add(industries[order.symbol], order.reserved);
-  return [...totals.entries()].map(([industry, amount]) => ({ industry, value: round4(amount), pct: value.equity > 0 ? round4(amount / value.equity * 100, 2) : 0 })).sort((a, b) => b.value - a.value);
+  return [...totals.entries()].map(([industry, amount]) => ({ industry, value: round5(amount), pct: value.equity > 0 ? round5(amount / value.equity * 100, 2) : 0 })).sort((a, b) => b.value - a.value);
 }
 function limitViolation(account2, limits, value, { symbol, addValue, quantity, price, stopPrice, quote, now, pending, industries: fresh = {} }) {
   if (value.equity <= 0) return null;
   const held = Boolean(account2.positions[symbol]);
   const pendingBuys = pending.filter((order) => order.side === "BUY");
   const label = (key) => `\u8FB9\u754C\u300C${LIMIT_SPECS[key].zh}\u300D`;
-  if (finite5(limits.minCashPct)) {
+  if (finite6(limits.minCashPct)) {
     const reserved = pendingBuys.reduce((sum, order) => sum + order.reserved, 0);
     const cashAfter = account2.cash - reserved - addValue;
     const pct = cashAfter / value.equity * 100;
     if (pct < limits.minCashPct - 1e-9) {
       const room = Math.max(0, account2.cash - reserved - value.equity * limits.minCashPct / 100);
-      return `${label("minCashPct")}\uFF1A\u4E70\u5165\u540E\u73B0\u91D1\u53EA\u5269 ${round4(pct, 1)}%\uFF0C\u4F4E\u4E8E\u4FDD\u7559\u7684 ${limits.minCashPct}%\uFF08\u73B0\u5728\u6700\u591A\u8FD8\u80FD\u4E70\u7EA6 ${round4(room)} ${account2.currency}\uFF09\u3002`;
+      return `${label("minCashPct")}\uFF1A\u4E70\u5165\u540E\u73B0\u91D1\u53EA\u5269 ${round5(pct, 1)}%\uFF0C\u4F4E\u4E8E\u4FDD\u7559\u7684 ${limits.minCashPct}%\uFF08\u73B0\u5728\u6700\u591A\u8FD8\u80FD\u4E70\u7EA6 ${round5(room)} ${account2.currency}\uFF09\u3002`;
     }
   }
-  if (finite5(limits.maxPositions) && !held && !pendingBuys.some((order) => order.symbol === symbol)) {
+  if (finite6(limits.maxPositions) && !held && !pendingBuys.some((order) => order.symbol === symbol)) {
     const count = (/* @__PURE__ */ new Set([...Object.keys(account2.positions), ...pendingBuys.map((order) => order.symbol)])).size;
     if (count >= limits.maxPositions) return `${label("maxPositions")}\uFF1A\u5DF2\u7ECF\u6301\u6709\u6216\u6302\u5355 ${count} \u53EA\uFF0C\u4E0A\u9650 ${limits.maxPositions} \u53EA\uFF1B\u5148\u5356\u51FA\u4E00\u53EA\u518D\u4E70\u65B0\u7684\u3002`;
   }
   const activity = todayActivity(account2, now);
-  if (finite5(limits.maxNewPerDay) && !held && !activity.newToday.has(symbol) && activity.newToday.size >= limits.maxNewPerDay)
+  if (finite6(limits.maxNewPerDay) && !held && !activity.newToday.has(symbol) && activity.newToday.size >= limits.maxNewPerDay)
     return `${label("maxNewPerDay")}\uFF1A\u4ECA\u5929\u5DF2\u7ECF\u65B0\u5F00 ${activity.newToday.size} \u53EA\uFF0C\u4E0A\u9650 ${limits.maxNewPerDay} \u53EA\u3002`;
-  if (finite5(limits.maxOrdersPerDay) && activity.ordersToday >= limits.maxOrdersPerDay)
+  if (finite6(limits.maxOrdersPerDay) && activity.ordersToday >= limits.maxOrdersPerDay)
     return `${label("maxOrdersPerDay")}\uFF1A\u4ECA\u5929\u5DF2\u7ECF\u4E0B\u4E86 ${activity.ordersToday} \u7B14\uFF0C\u4E0A\u9650 ${limits.maxOrdersPerDay} \u7B14\u3002`;
-  if (finite5(limits.maxRiskPerTradePct)) {
-    if (!finite5(stopPrice)) return `${label("maxRiskPerTradePct")}\uFF1A\u5F00\u4E86\u5355\u7B14\u98CE\u9669\u4E0A\u9650\uFF0C\u4E70\u5355\u5FC5\u987B\u5E26\u6B62\u635F\uFF08stopLossPct \u6216 stopLossPrice\uFF09\u3002`;
+  if (finite6(limits.maxRiskPerTradePct)) {
+    if (!finite6(stopPrice)) return `${label("maxRiskPerTradePct")}\uFF1A\u5F00\u4E86\u5355\u7B14\u98CE\u9669\u4E0A\u9650\uFF0C\u4E70\u5355\u5FC5\u987B\u5E26\u6B62\u635F\uFF08stopLossPct \u6216 stopLossPrice\uFF09\u3002`;
     const risk = Math.max(0, (price - stopPrice) * quantity) / value.equity * 100;
-    if (risk > limits.maxRiskPerTradePct + 1e-9) return `${label("maxRiskPerTradePct")}\uFF1A\u8FD9\u7B14\u6700\u591A\u4E8F ${round4(risk, 2)}% \u7684\u603B\u8D44\u4EA7\uFF0C\u4E0A\u9650 ${limits.maxRiskPerTradePct}%\u3002`;
+    if (risk > limits.maxRiskPerTradePct + 1e-9) return `${label("maxRiskPerTradePct")}\uFF1A\u8FD9\u7B14\u6700\u591A\u4E8F ${round5(risk, 2)}% \u7684\u603B\u8D44\u4EA7\uFF0C\u4E0A\u9650 ${limits.maxRiskPerTradePct}%\u3002`;
   }
-  if (finite5(limits.cooldownDays)) {
+  if (finite6(limits.cooldownDays)) {
     const lastSell = [...account2.trades].reverse().find((trade) => trade.symbol === symbol && trade.side === "SELL");
     if (lastSell) {
       const days = (Date.parse(`${dayOf(now, account2.market)}T00:00:00Z`) - Date.parse(`${dayOf(lastSell.at, account2.market)}T00:00:00Z`)) / 864e5;
       if (days < limits.cooldownDays) return `${label("cooldownDays")}\uFF1A${symbol} \u5728 ${dayOf(lastSell.at, account2.market)} \u5356\u51FA\uFF0C${limits.cooldownDays} \u5929\u5185\u4E0D\u80FD\u4E70\u56DE\u3002`;
     }
   }
-  if (finite5(limits.maxIndustryPct)) {
+  if (finite6(limits.maxIndustryPct)) {
     const industries = knownIndustries(account2, fresh);
     const industry = industries[symbol];
     if (industry) {
       const current = industryExposure(account2, value, industries).find((entry) => entry.industry === industry)?.value ?? 0;
       const pct = (current + addValue) / value.equity * 100;
-      if (pct > limits.maxIndustryPct + 1e-9) return `${label("maxIndustryPct")}\uFF1A\u4E70\u5165\u540E\u300C${industry}\u300D\u884C\u4E1A\u5360\u603B\u8D44\u4EA7 ${round4(pct, 1)}%\uFF0C\u4E0A\u9650 ${limits.maxIndustryPct}%\u3002`;
+      if (pct > limits.maxIndustryPct + 1e-9) return `${label("maxIndustryPct")}\uFF1A\u4E70\u5165\u540E\u300C${industry}\u300D\u884C\u4E1A\u5360\u603B\u8D44\u4EA7 ${round5(pct, 1)}%\uFF0C\u4E0A\u9650 ${limits.maxIndustryPct}%\u3002`;
     }
   }
   if (Array.isArray(limits.excludeBoards) && limits.excludeBoards.length) {
     const board = boardOf2(symbol, quote);
     if (board && limits.excludeBoards.includes(board)) return `${label("excludeBoards")}\uFF1A${symbol} \u5C5E\u4E8E${BOARD_LABELS[board]}\uFF0C\u5728\u7981\u6B62\u8303\u56F4\u91CC\u3002`;
   }
-  if (finite5(limits.minPrice) && finite5(quote?.price) && quote.price < limits.minPrice)
+  if (finite6(limits.minPrice) && finite6(quote?.price) && quote.price < limits.minPrice)
     return `${label("minPrice")}\uFF1A${symbol} \u73B0\u4EF7 ${quote.price}\uFF0C\u4F4E\u4E8E ${limits.minPrice}\u3002`;
-  if (finite5(limits.maxChangePct) && finite5(quote?.changePct) && quote.changePct > limits.maxChangePct)
-    return `${label("maxChangePct")}\uFF1A${symbol} \u4ECA\u5929\u5DF2\u7ECF\u6DA8\u4E86 ${round4(quote.changePct, 2)}%\uFF0C\u8D85\u8FC7 ${limits.maxChangePct}%\u3002`;
+  if (finite6(limits.maxChangePct) && finite6(quote?.changePct) && quote.changePct > limits.maxChangePct)
+    return `${label("maxChangePct")}\uFF1A${symbol} \u4ECA\u5929\u5DF2\u7ECF\u6DA8\u4E86 ${round5(quote.changePct, 2)}%\uFF0C\u8D85\u8FC7 ${limits.maxChangePct}%\u3002`;
   return null;
 }
 function limitStatus(account2, limits, value, now) {
   const pending = account2.orders.filter((order) => order.status === "open");
   const reserved = pending.filter((order) => order.side === "BUY").reduce((sum, order) => sum + order.reserved, 0);
-  const cashPct = value.equity > 0 ? round4((account2.cash - reserved) / value.equity * 100, 2) : 0;
+  const cashPct = value.equity > 0 ? round5((account2.cash - reserved) / value.equity * 100, 2) : 0;
   const activity = todayActivity(account2, now);
   const holdings = (/* @__PURE__ */ new Set([...Object.keys(account2.positions), ...pending.filter((order) => order.side === "BUY").map((order) => order.symbol)])).size;
   const status = { cashPct, holdings, newToday: activity.newToday.size, ordersToday: activity.ordersToday, active: LIMIT_KEYS.filter((key) => limits[key] !== null && limits[key] !== void 0 && !(Array.isArray(limits[key]) && !limits[key].length)) };
-  if (finite5(limits.minCashPct)) status.buyableValue = round4(Math.max(0, account2.cash - reserved - value.equity * limits.minCashPct / 100));
-  else status.buyableValue = round4(Math.max(0, account2.cash - reserved));
-  if (finite5(limits.maxPositions)) status.positionsLeft = Math.max(0, limits.maxPositions - holdings);
-  if (finite5(limits.maxNewPerDay)) status.newLeftToday = Math.max(0, limits.maxNewPerDay - activity.newToday.size);
-  if (finite5(limits.maxOrdersPerDay)) status.ordersLeftToday = Math.max(0, limits.maxOrdersPerDay - activity.ordersToday);
+  if (finite6(limits.minCashPct)) status.buyableValue = round5(Math.max(0, account2.cash - reserved - value.equity * limits.minCashPct / 100));
+  else status.buyableValue = round5(Math.max(0, account2.cash - reserved));
+  if (finite6(limits.maxPositions)) status.positionsLeft = Math.max(0, limits.maxPositions - holdings);
+  if (finite6(limits.maxNewPerDay)) status.newLeftToday = Math.max(0, limits.maxNewPerDay - activity.newToday.size);
+  if (finite6(limits.maxOrdersPerDay)) status.ordersLeftToday = Math.max(0, limits.maxOrdersPerDay - activity.ordersToday);
   const industries = industryExposure(account2, value);
   if (industries.length) status.industries = industries.slice(0, 8);
   return status;
@@ -15967,8 +16765,8 @@ function computeFees(market2, side, quantity, price, schedule = DEFAULT_FEES[mar
     parts.secFee = side === "SELL" ? value * fee.secFeeRate : 0;
     parts.taf = side === "SELL" ? Math.min(quantity * fee.tafPerShare, fee.tafMax) : 0;
   }
-  const breakdown = Object.fromEntries(Object.entries(parts).filter(([, amount]) => amount > 0).map(([key, amount]) => [key, round4(amount)]));
-  return { total: round4(Object.values(breakdown).reduce((sum, amount) => sum + amount, 0)), breakdown };
+  const breakdown = Object.fromEntries(Object.entries(parts).filter(([, amount]) => amount > 0).map(([key, amount]) => [key, round5(amount)]));
+  return { total: round5(Object.values(breakdown).reduce((sum, amount) => sum + amount, 0)), breakdown };
 }
 var DEFAULT_WORKBENCH_SETTINGS = Object.freeze({
   schemaVersion: 1,
@@ -15995,13 +16793,13 @@ function changedBy(caller) {
 }
 var isOwner = (caller) => !caller?.client || caller.client === "dashboard";
 function createWorkbenchSettings(root2, now = () => (/* @__PURE__ */ new Date()).toISOString()) {
-  const file = path6.join(root2, "settings.json");
+  const file = path7.join(root2, "settings.json");
   let cache3 = null;
   async function read() {
     try {
       const info = await stat(file);
       if (cache3 && cache3.mtimeMs === info.mtimeMs) return cache3.value;
-      const saved = JSON.parse(await readFile6(file, "utf8"));
+      const saved = JSON.parse(await readFile7(file, "utf8"));
       const value = {
         ...DEFAULT_WORKBENCH_SETTINGS,
         ...saved,
@@ -16039,554 +16837,6 @@ function sanitizePrompt(text2) {
   const value = String(text2 ?? "");
   if (value.length > PROMPT_LIMIT) throw new SettingsError(`Prompt must be at most ${PROMPT_LIMIT} characters.`);
   return value.trim();
-}
-
-// mcp/market-data.mjs
-var UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
-var DATACENTER = "https://datacenter-web.eastmoney.com/api/data/v1/get";
-var POOLS = "https://push2ex.eastmoney.com";
-var POOL_UT = "7eea3edcaed734bea9cbfc24409ed989";
-var ULIST = "https://push2.eastmoney.com/api/qt/ulist.np/get";
-var SOURCE = "East Money";
-var finite6 = (value) => typeof value === "number" && Number.isFinite(value) ? value : null;
-var round5 = (value, digits = 2) => finite6(value) === null ? null : Math.round((value + Number.EPSILON) * 10 ** digits) / 10 ** digits;
-var MarketDataError = class extends Error {
-};
-async function getJson(url, timeoutMs = 1e4) {
-  const response = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json", Referer: "https://data.eastmoney.com/" }, signal: AbortSignal.timeout(timeoutMs) });
-  if (!response.ok) throw new MarketDataError(`${SOURCE} HTTP ${response.status}`);
-  return response.json();
-}
-var cache = /* @__PURE__ */ new Map();
-async function cached(key, ttlMs, load) {
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < ttlMs) return hit.value;
-  const value = await load();
-  cache.set(key, { at: Date.now(), value });
-  if (cache.size > 500) cache.delete(cache.keys().next().value);
-  return value;
-}
-var addDays = (date4, days) => new Date(Date.parse(`${date4}T12:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
-function aShareDataDate(at = (/* @__PURE__ */ new Date()).toISOString()) {
-  const today = getMarketSession("A", at);
-  if (!["closed", "premarket"].includes(today.status)) return today.date;
-  const local = localMarketTime(at, "A")?.date ?? at.slice(0, 10);
-  for (let offset = 1; offset <= 14; offset += 1) {
-    const date4 = addDays(local, -offset);
-    if (getMarketSession("A", marketLocalToIso(date4, 720, "A")).status !== "closed") return date4;
-  }
-  return local;
-}
-var compactDate = (date4) => date4.replaceAll("-", "");
-var isoDate = (value) => value ? String(value).slice(0, 10) : null;
-function validDate(date4) {
-  if (date4 === void 0 || date4 === null || date4 === "") return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date4))) throw new MarketDataError("date must be YYYY-MM-DD.");
-  return String(date4);
-}
-function symbolFromCode(code, market2 = "A") {
-  const value = String(code).trim();
-  if (market2 === "HK") return `${String(Number(value)).padStart(4, "0")}.HK`;
-  if (/^(92|8|4)/.test(value)) return `${value}.BJ`;
-  return `${value}.${/^[569]/.test(value) ? "SS" : "SZ"}`;
-}
-function secidsFor(symbol) {
-  const value = String(symbol).toUpperCase();
-  if (value.endsWith(".SS")) return [`1.${value.slice(0, -3)}`];
-  if (value.endsWith(".SZ") || value.endsWith(".BJ")) return [`0.${value.slice(0, -3)}`];
-  if (value.endsWith(".HK")) return [`116.${value.slice(0, -3).padStart(5, "0")}`];
-  if (/^[A-Z][A-Z0-9.-]{0,9}$/.test(value)) return ["105", "106", "107"].map((prefix) => `${prefix}.${value.replace(/-/g, "_")}`);
-  return [];
-}
-function parseIndustries(payload, symbols) {
-  const byCode = new Map((payload?.data?.diff ?? []).map((row) => [String(row.f12).toUpperCase(), row.f100 && row.f100 !== "-" ? String(row.f100) : null]));
-  const result = {};
-  for (const symbol of symbols) {
-    const code = String(symbol).toUpperCase().replace(/\.(SS|SZ|BJ)$/, "").replace(/\.HK$/, "").replace(/-/g, "_");
-    const hk = /\.HK$/i.test(symbol) ? code.padStart(5, "0") : null;
-    const industry = byCode.get(hk ?? code) ?? byCode.get(code);
-    if (industry) result[symbol] = industry;
-  }
-  return result;
-}
-var industryCache = /* @__PURE__ */ new Map();
-var INDUSTRY_TTL_MS = 24 * 36e5;
-async function industriesOf(symbols, { fetchImpl = getJson } = {}) {
-  const wanted = [...new Set(symbols.filter(Boolean).map(String))];
-  const result = {};
-  const missing = [];
-  for (const symbol of wanted) {
-    const hit = industryCache.get(symbol);
-    if (hit && Date.now() - hit.at < INDUSTRY_TTL_MS) {
-      if (hit.industry) result[symbol] = hit.industry;
-    } else missing.push(symbol);
-  }
-  for (let index = 0; index < missing.length; index += 40) {
-    const batch = missing.slice(index, index + 40);
-    const secids = batch.flatMap(secidsFor);
-    if (!secids.length) continue;
-    const payload = await fetchImpl(`${ULIST}?fltt=2&secids=${secids.join(",")}&fields=f12,f14,f100`);
-    const found = parseIndustries(payload, batch);
-    for (const symbol of batch) {
-      industryCache.set(symbol, { at: Date.now(), industry: found[symbol] ?? null });
-      if (found[symbol]) result[symbol] = found[symbol];
-    }
-  }
-  return result;
-}
-function parseDragonTiger(payload) {
-  const rows = payload?.result?.data ?? [];
-  return rows.map((row) => ({
-    symbol: symbolFromCode(row.SECURITY_CODE),
-    name: row.SECURITY_NAME_ABBR,
-    date: isoDate(row.TRADE_DATE),
-    reason: row.EXPLANATION ?? null,
-    close: finite6(row.CLOSE_PRICE),
-    changePct: round5(finite6(row.CHANGE_RATE)),
-    netBuy: round5(finite6(row.BILLBOARD_NET_AMT), 0),
-    buy: round5(finite6(row.BILLBOARD_BUY_AMT), 0),
-    sell: round5(finite6(row.BILLBOARD_SELL_AMT), 0),
-    shareOfTurnoverPct: round5(finite6(row.DEAL_AMOUNT_RATIO))
-  }));
-}
-async function dragonTiger({ date: date4, limit = 50, at } = {}) {
-  const day = validDate(date4) ?? aShareDataDate(at);
-  const bounded2 = Math.max(1, Math.min(200, Number(limit) || 50));
-  return cached(`lhb:${day}:${bounded2}`, 3e5, async () => {
-    const columns = "SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,EXPLANATION,CLOSE_PRICE,CHANGE_RATE,BILLBOARD_NET_AMT,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT,DEAL_AMOUNT_RATIO";
-    const payload = await getJson(`${DATACENTER}?reportName=RPT_DAILYBILLBOARD_DETAILSNEW&columns=${columns}&sortColumns=BILLBOARD_NET_AMT&sortTypes=-1&pageSize=${bounded2}&pageNumber=1&filter=${encodeURIComponent(`(TRADE_DATE='${day}')`)}`);
-    const rows = parseDragonTiger(payload);
-    return { date: day, source: `${SOURCE} \u9F99\u864E\u699C`, total: payload?.result?.count ?? rows.length, rows, note: rows.length ? null : `${day} \u6CA1\u6709\u9F99\u864E\u699C\u6570\u636E\uFF08\u975E\u4EA4\u6613\u65E5\uFF0C\u6216\u6536\u76D8\u540E\u7EA6 18:00 \u624D\u516C\u5E03\uFF09\u3002` };
-  });
-}
-function parseSeats(payload, side) {
-  return (payload?.result?.data ?? []).map((row) => ({
-    side,
-    seat: row.OPERATEDEPT_NAME,
-    buy: round5(finite6(row.BUY), 0),
-    sell: round5(finite6(row.SELL), 0),
-    net: round5(finite6(row.NET), 0),
-    rise3dPct: round5(finite6(row.RISE_PROBABILITY_3DAY), 1),
-    seatTimes3d: finite6(row.TOTAL_BUYER_SALESTIMES_3DAY),
-    institution: /机构专用/.test(row.OPERATEDEPT_NAME ?? ""),
-    connect: /沪股通|深股通/.test(row.OPERATEDEPT_NAME ?? "")
-  }));
-}
-async function dragonTigerSeats(symbol, { date: date4, at } = {}) {
-  const code = String(symbol).replace(/\.(SS|SZ|BJ)$/i, "");
-  if (!/^\d{6}$/.test(code)) throw new MarketDataError("Dragon-tiger seats exist for A-shares only (6-digit code).");
-  const day = validDate(date4) ?? aShareDataDate(at);
-  return cached(`seats:${code}:${day}`, 3e5, async () => {
-    const query = (report, sort) => getJson(`${DATACENTER}?reportName=${report}&columns=ALL&filter=${encodeURIComponent(`(TRADE_DATE='${day}')(SECURITY_CODE="${code}")`)}&pageNumber=1&pageSize=10&sortTypes=-1&sortColumns=${sort}`);
-    const [buys, sells] = await Promise.all([query("RPT_BILLBOARD_DAILYDETAILSBUY", "BUY"), query("RPT_BILLBOARD_DAILYDETAILSSELL", "SELL")]);
-    const buyers = parseSeats(buys, "buy");
-    const sellers = parseSeats(sells, "sell");
-    return { symbol: symbolFromCode(code), date: day, source: `${SOURCE} \u9F99\u864E\u699C\u8425\u4E1A\u90E8`, buyers, sellers, note: buyers.length || sellers.length ? null : `${symbolFromCode(code)} \u5728 ${day} \u6CA1\u6709\u4E0A\u9F99\u864E\u699C\u3002` };
-  });
-}
-var poolTime = (value) => {
-  const text2 = String(value ?? "").padStart(6, "0");
-  return /^\d{6}$/.test(text2) && value ? `${text2.slice(0, 2)}:${text2.slice(2, 4)}:${text2.slice(4, 6)}` : null;
-};
-function parsePool(payload, kind) {
-  const data = payload?.data;
-  const rows = (data?.pool ?? []).map((row) => ({
-    symbol: symbolFromCode(row.c),
-    name: row.n,
-    price: finite6(row.p) === null ? null : row.p / 1e3,
-    changePct: round5(finite6(row.zdp)),
-    amount: round5(finite6(row.amount), 0),
-    floatCap: round5(finite6(row.ltsz), 0),
-    turnoverPct: round5(finite6(row.hs)),
-    industry: row.hybk ?? null,
-    ...kind === "up" ? {
-      boards: finite6(row.lbc),
-      firstSealAt: poolTime(row.fbt),
-      lastSealAt: poolTime(row.lbt),
-      sealFund: round5(finite6(row.fund), 0),
-      breaks: finite6(row.zbc),
-      streak: row.zttj ? { days: finite6(row.zttj.days), limitUps: finite6(row.zttj.ct) } : null
-    } : {},
-    ...kind === "broken" ? { limitUpPrice: finite6(row.ztp) === null ? null : row.ztp / 1e3, firstSealAt: poolTime(row.fbt), breaks: finite6(row.zbc), amplitudePct: round5(finite6(row.zf)) } : {},
-    ...kind === "down" ? { sealFund: round5(finite6(row.fund), 0), lastSealAt: poolTime(row.lbt), boards: finite6(row.days) } : {}
-  }));
-  return { total: finite6(data?.tc) ?? rows.length, date: data?.qdate ? `${String(data.qdate).slice(0, 4)}-${String(data.qdate).slice(4, 6)}-${String(data.qdate).slice(6, 8)}` : null, rows };
-}
-var POOL_PATHS = { up: ["getTopicZTPool", "fbt:asc"], broken: ["getTopicZBPool", "fbt:asc"], down: ["getTopicDTPool", "fund:asc"] };
-async function limitPool(kind = "up", { date: date4, at, limit = 200 } = {}) {
-  if (!POOL_PATHS[kind]) throw new MarketDataError("kind must be up, broken or down.");
-  const day = validDate(date4) ?? aShareDataDate(at);
-  const [pathName, sort] = POOL_PATHS[kind];
-  const bounded2 = Math.max(1, Math.min(500, Number(limit) || 200));
-  return cached(`pool:${kind}:${day}:${bounded2}`, 6e4, async () => {
-    const payload = await getJson(`${POOLS}/${pathName}?ut=${POOL_UT}&dpt=wz.ztzt&Pageindex=0&pagesize=${bounded2}&sort=${encodeURIComponent(sort)}&date=${compactDate(day)}`);
-    const parsed = parsePool(payload, kind);
-    return { kind, date: parsed.date ?? day, source: `${SOURCE} ${{ up: "\u6DA8\u505C\u677F\u884C\u60C5", broken: "\u70B8\u677F\u6C60", down: "\u8DCC\u505C\u6C60" }[kind]}`, total: parsed.total, rows: parsed.rows, note: parsed.rows.length ? null : `${day} \u6CA1\u6709\u6570\u636E\uFF08\u975E\u4EA4\u6613\u65E5\u6216\u8FD8\u6CA1\u5F00\u76D8\uFF09\u3002` };
-  });
-}
-function sentimentFrom(up, broken, down) {
-  const ladder = /* @__PURE__ */ new Map();
-  for (const row of up.rows) {
-    const boards = row.boards ?? 1;
-    ladder.set(boards, [...ladder.get(boards) ?? [], { symbol: row.symbol, name: row.name, industry: row.industry, firstSealAt: row.firstSealAt }]);
-  }
-  const attempts = up.total + broken.total;
-  const industries = /* @__PURE__ */ new Map();
-  for (const row of up.rows) if (row.industry) industries.set(row.industry, (industries.get(row.industry) ?? 0) + 1);
-  return {
-    limitUps: up.total,
-    broken: broken.total,
-    limitDowns: down.total,
-    brokenRatePct: attempts ? round5(broken.total / attempts * 100, 1) : null,
-    highestBoard: up.rows.reduce((max, row) => Math.max(max, row.boards ?? 1), 0) || null,
-    ladder: [...ladder.entries()].sort((a, b) => b[0] - a[0]).map(([boards, stocks]) => ({ boards, count: stocks.length, stocks })),
-    hotIndustries: [...industries.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([industry, count]) => ({ industry, limitUps: count }))
-  };
-}
-async function limitUpSentiment({ date: date4, at } = {}) {
-  const [up, broken, down] = await Promise.all([limitPool("up", { date: date4, at }), limitPool("broken", { date: date4, at }), limitPool("down", { date: date4, at })]);
-  return { date: up.date, source: `${SOURCE} \u6DA8\u505C\u677F\u884C\u60C5`, ...sentimentFrom(up, broken, down) };
-}
-function parseMarketMargin(payload) {
-  return (payload?.result?.data ?? []).map((row) => ({
-    date: isoDate(row.DIM_DATE),
-    financingBalance: round5(finite6(row.RZYE), 0),
-    financingBuy: round5(finite6(row.RZMRE), 0),
-    financingNet: round5(finite6(row.RZJME), 0),
-    shortBalance: round5(finite6(row.RQYE), 0),
-    financingShareOfFloatPct: round5(finite6(row.RZYEZB))
-  }));
-}
-function parseStockMargin(payload) {
-  return (payload?.result?.data ?? []).map((row) => ({
-    date: isoDate(row.DATE),
-    symbol: symbolFromCode(row.SCODE),
-    name: row.SECNAME,
-    financingBalance: round5(finite6(row.RZYE), 0),
-    financingBuy: round5(finite6(row.RZMRE), 0),
-    financingNet: round5(finite6(row.RZJME), 0),
-    shortBalance: round5(finite6(row.RQYE), 0),
-    total: round5(finite6(row.RZRQYE), 0)
-  }));
-}
-async function marketMargin({ days = 20 } = {}) {
-  const bounded2 = Math.max(1, Math.min(120, Number(days) || 20));
-  return cached(`margin:${bounded2}`, 6e5, async () => {
-    const rows = parseMarketMargin(await getJson(`${DATACENTER}?reportName=RPTA_RZRQ_LSHJ&columns=ALL&sortColumns=DIM_DATE&sortTypes=-1&pageSize=${bounded2}&pageNumber=1`));
-    return { source: `${SOURCE} \u878D\u8D44\u878D\u5238`, unit: "CNY", rows };
-  });
-}
-async function stockMargin(symbol, { days = 20 } = {}) {
-  const code = String(symbol).replace(/\.(SS|SZ|BJ)$/i, "");
-  if (!/^\d{6}$/.test(code)) throw new MarketDataError("Margin data exists for A-shares only (6-digit code).");
-  const bounded2 = Math.max(1, Math.min(120, Number(days) || 20));
-  return cached(`margin:${code}:${bounded2}`, 6e5, async () => {
-    const rows = parseStockMargin(await getJson(`${DATACENTER}?reportName=RPTA_WEB_RZRQ_GGMX&columns=DATE,SCODE,SECNAME,RZYE,RZMRE,RZJME,RQYE,RZRQYE&filter=${encodeURIComponent(`(SCODE="${code}")`)}&sortColumns=DATE&sortTypes=-1&pageSize=${bounded2}&pageNumber=1`));
-    return { symbol: symbolFromCode(code), source: `${SOURCE} \u878D\u8D44\u878D\u5238`, unit: "CNY", rows, note: rows.length ? null : `${symbolFromCode(code)} \u4E0D\u662F\u878D\u8D44\u878D\u5238\u6807\u7684\uFF0C\u6216\u6CA1\u6709\u6570\u636E\u3002` };
-  });
-}
-var CONNECT_TYPES = { "001": "\u6CAA\u80A1\u901A", "003": "\u6DF1\u80A1\u901A", "005": "\u5317\u5411\u5408\u8BA1", "006": "\u5357\u5411\u5408\u8BA1" };
-function parseConnect(payload) {
-  return (payload?.result?.data ?? []).map((row) => ({
-    channel: CONNECT_TYPES[row.MUTUAL_TYPE] ?? row.MUTUAL_TYPE,
-    date: isoDate(row.TRADE_DATE),
-    // Amounts are published in millions of CNY.
-    turnover: finite6(row.DEAL_AMT) === null ? null : round5(row.DEAL_AMT * 1e6, 0),
-    netBuy: finite6(row.NET_DEAL_AMT) === null ? null : round5(row.NET_DEAL_AMT * 1e6, 0),
-    trades: finite6(row.DEAL_NUM),
-    leader: row.LEAD_STOCKS_NAME ?? null,
-    leaderChangePct: round5(finite6(row.LS_CHANGE_RATE))
-  }));
-}
-async function stockConnect({ days = 10 } = {}) {
-  const bounded2 = Math.max(1, Math.min(60, Number(days) || 10));
-  return cached(`connect:${bounded2}`, 6e5, async () => {
-    const channels = await Promise.all(Object.keys(CONNECT_TYPES).map((type) => getJson(`${DATACENTER}?reportName=RPT_MUTUAL_DEAL_HISTORY&columns=ALL&sortColumns=TRADE_DATE&sortTypes=-1&pageSize=${bounded2}&pageNumber=1&filter=${encodeURIComponent(`(MUTUAL_TYPE="${type}")`)}`).then(parseConnect)));
-    return {
-      source: `${SOURCE} \u6CAA\u6DF1\u6E2F\u901A`,
-      unit: "CNY",
-      rows: channels.flat(),
-      note: "\u5317\u5411\u8D44\u91D1\u81EA 2024 \u5E74 8 \u6708\u8D77\u4E0D\u518D\u516C\u5E03\u5F53\u65E5\u51C0\u4E70\u5165\uFF0C\u8FD9\u91CC\u53EA\u6709\u6210\u4EA4\u989D\uFF08\u51C0\u4E70\u5165\u4E3A\u7A7A\uFF09\uFF1B\u5357\u5411\u8D44\u91D1\u4ECD\u516C\u5E03\u51C0\u4E70\u5165\u3002"
-    };
-  });
-}
-var BREADTH_INDICES = [["1.000001", "000001.SS", "\u4E0A\u8BC1\u6307\u6570"], ["0.399001", "399001.SZ", "\u6DF1\u8BC1\u6210\u6307"], ["0.399006", "399006.SZ", "\u521B\u4E1A\u677F\u6307"], ["1.000688", "000688.SS", "\u79D1\u521B50"], ["0.899050", "899050.BJ", "\u5317\u8BC150"]];
-function parseBreadth(payload) {
-  const rows = (payload?.data?.diff ?? []).map((row) => {
-    const known = BREADTH_INDICES.find(([, symbol]) => symbol.startsWith(String(row.f12)));
-    return { symbol: known?.[1] ?? row.f12, name: row.f14, price: finite6(row.f2), changePct: round5(finite6(row.f3)), amount: round5(finite6(row.f6), 0), advancers: finite6(row.f104), decliners: finite6(row.f105), unchanged: finite6(row.f106) };
-  });
-  const sum = (key, list) => list.reduce((total, row) => total + (row[key] ?? 0), 0);
-  const whole = rows.filter((row) => ["000001.SS", "399001.SZ"].includes(row.symbol));
-  return { indices: rows, advancers: whole.length === 2 ? sum("advancers", whole) : null, decliners: whole.length === 2 ? sum("decliners", whole) : null, unchanged: whole.length === 2 ? sum("unchanged", whole) : null, turnover: whole.length === 2 ? sum("amount", whole) : null };
-}
-async function marketBreadth() {
-  return cached("breadth", 6e4, async () => ({ asOf: (/* @__PURE__ */ new Date()).toISOString(), source: `${SOURCE} \u6307\u6570\u884C\u60C5`, ...parseBreadth(await getJson(`${ULIST}?fltt=2&secids=${BREADTH_INDICES.map(([secid]) => secid).join(",")}&fields=f2,f3,f6,f12,f14,f104,f105,f106`)) }));
-}
-function boardsWorthShowing(result) {
-  const seen = /* @__PURE__ */ new Set();
-  const rows = (result?.rows ?? []).filter((row) => {
-    const members = (row.advancers ?? 0) + (row.decliners ?? 0);
-    if (row.advancers !== null && row.decliners !== null && members < 5) return false;
-    const key = `${row.changePct}:${row.amount}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  return { ...result, rows: rows.slice(0, 10) };
-}
-async function marketRadar({ at, scan } = {}) {
-  const settle = async (promise) => {
-    try {
-      return { ok: true, value: await promise };
-    } catch (error2) {
-      return { ok: false, error: error2.message };
-    }
-  };
-  const [breadth, sentiment, lhb, margin, connect, sectors, concepts] = await Promise.all([
-    settle(marketBreadth()),
-    settle(limitUpSentiment({ at })),
-    settle(dragonTiger({ at, limit: 20 })),
-    settle(marketMargin({ days: 10 })),
-    settle(stockConnect({ days: 5 })),
-    scan ? settle(scan({ market: "A", view: "sectors", sort: "change", limit: 40 }).then(boardsWorthShowing)) : Promise.resolve({ ok: false, error: "no scanner" }),
-    scan ? settle(scan({ market: "A", view: "concepts", sort: "change", limit: 40 }).then(boardsWorthShowing)) : Promise.resolve({ ok: false, error: "no scanner" })
-  ]);
-  const part = (result) => result.ok ? result.value : { error: result.error };
-  return { generatedAt: (/* @__PURE__ */ new Date()).toISOString(), date: aShareDataDate(at), breadth: part(breadth), sentiment: part(sentiment), dragonTiger: part(lhb), margin: part(margin), connect: part(connect), sectors: part(sectors), concepts: part(concepts) };
-}
-function previousTradingDate(date4) {
-  for (let offset = 1; offset <= 14; offset += 1) {
-    const day = addDays(date4, -offset);
-    if (getMarketSession("A", marketLocalToIso(day, 720, "A")).status !== "closed") return day;
-  }
-  return null;
-}
-function promotionRates(today, yesterday) {
-  const boardsToday = new Map(today.rows.map((row) => [row.symbol, row.boards ?? 1]));
-  const groups = /* @__PURE__ */ new Map();
-  for (const row of yesterday.rows) {
-    const boards = row.boards ?? 1;
-    const group = groups.get(boards) ?? { boards, candidates: 0, promoted: 0, names: [] };
-    group.candidates += 1;
-    if ((boardsToday.get(row.symbol) ?? 0) > boards) {
-      group.promoted += 1;
-      group.names.push(row.name);
-    }
-    groups.set(boards, group);
-  }
-  return [...groups.values()].sort((a, b) => a.boards - b.boards).map((group) => ({ ...group, ratePct: round5(group.promoted / group.candidates * 100, 1) }));
-}
-var CYCLE_WEIGHTS = ["limitUps", "highestBoard", "brokenRatePct"];
-var minmax = (values) => {
-  const low = Math.min(...values), high = Math.max(...values);
-  return values.map((value) => high > low ? (value - low) / (high - low) : 0.5);
-};
-function emotionCycle(days) {
-  const usable = days.filter((day) => CYCLE_WEIGHTS.every((key) => finite6(day[key]) !== null));
-  if (usable.length < 3) return { days: usable, score: null, note: "\u53EF\u7528\u4EA4\u6613\u65E5\u4E0D\u8DB3 3 \u5929\uFF0C\u7B97\u4E0D\u51FA\u5468\u671F\u4F4D\u7F6E\u3002" };
-  const [zt, top, broken] = CYCLE_WEIGHTS.map((key) => minmax(usable.map((day) => day[key])));
-  const series = usable.map((day, index) => ({ ...day, score: round5((zt[index] + top[index] + (1 - broken[index])) / 3, 3) }));
-  const trough = series.reduce((low, day) => day.score < low.score ? day : low, series[0]);
-  const peak = Math.max(...series.map((day) => day.score));
-  const current = series.at(-1);
-  const [a, b, c] = series.slice(-3).map((day) => day.score);
-  const trend = c - b > 0.03 && b - a > -0.03 ? "\u56DE\u6696" : c - b < -0.03 && b - a < 0.03 ? "\u8F6C\u5F31" : "\u9707\u8361";
-  const daysFromTrough = series.length - 1 - series.indexOf(trough);
-  return {
-    days: series,
-    current: current.score,
-    trough: { date: trough.date, score: trough.score },
-    daysFromTrough,
-    trend,
-    positionPct: peak > trough.score ? round5((current.score - trough.score) / (peak - trough.score) * 100, 0) : null,
-    note: "\u5206\u6570\u53EA\u5728\u8FD9\u4E2A\u7A97\u53E3\u5185\u6BD4\u8F83\uFF080 = \u7A97\u53E3\u6700\u51B7\uFF0C1 = \u6700\u70ED\uFF09\uFF0C\u4E0D\u540C\u7A97\u53E3\u4E4B\u95F4\u4E0D\u53EF\u76F4\u63A5\u6BD4\u8F83\u3002"
-  };
-}
-async function lastTradingDates(end, count) {
-  const dates = [end];
-  while (dates.length < count) {
-    const previous = previousTradingDate(dates.at(-1));
-    if (!previous) break;
-    dates.push(previous);
-  }
-  return dates.reverse();
-}
-async function shortlineEmotion({ date: date4, at, lookback = 10, quotesImpl = getJson } = {}) {
-  const day = validDate(date4) ?? aShareDataDate(at);
-  const window = Math.max(3, Math.min(20, Number(lookback) || 10));
-  return cached(`emotion:${day}:${window}`, 12e4, async () => {
-    const dates = await lastTradingDates(day, window);
-    const daily = await Promise.all(dates.map(async (entry) => {
-      try {
-        const [up, broken, down] = await Promise.all([limitPool("up", { date: entry }), limitPool("broken", { date: entry }), limitPool("down", { date: entry })]);
-        const sentiment = sentimentFrom(up, broken, down);
-        return { date: entry, up, limitUps: sentiment.limitUps, broken: sentiment.broken, limitDowns: sentiment.limitDowns, brokenRatePct: sentiment.brokenRatePct, highestBoard: sentiment.highestBoard };
-      } catch (error2) {
-        return { date: entry, error: error2.message };
-      }
-    }));
-    const today = daily.at(-1);
-    const yesterday = daily.at(-2);
-    const promotion = today?.up && yesterday?.up ? promotionRates(today.up, yesterday.up) : [];
-    let moneyEffect = null;
-    if (yesterday?.up?.rows.length && day === aShareDataDate(at)) {
-      try {
-        const symbols = yesterday.up.rows.map((row) => row.symbol);
-        const payload = await quotesImpl(`${ULIST}?fltt=2&secids=${symbols.flatMap(secidsFor).join(",")}&fields=f12,f3`);
-        const changes = (payload?.data?.diff ?? []).map((row) => finite6(row.f3)).filter((value) => value !== null);
-        const covered = changes.length / symbols.length;
-        moneyEffect = covered < 0.5 ? { note: `\u53EA\u53D6\u5230 ${changes.length}/${symbols.length} \u53EA\u7684\u884C\u60C5\uFF0C\u4E0D\u8DB3\u4EE5\u4EE3\u8868\u5168\u4F53\uFF0C\u4E0D\u7ED9\u7ED3\u8BBA\u3002` } : {
-          samples: changes.length,
-          of: symbols.length,
-          avgChangePct: round5(changes.reduce((sum, value) => sum + value, 0) / changes.length),
-          upRatioPct: round5(changes.filter((value) => value > 0).length / changes.length * 100, 1),
-          relimitUps: yesterday.up.rows.filter((row) => today.up?.rows.some((entry) => entry.symbol === row.symbol)).length,
-          partial: covered < 0.9
-        };
-      } catch (error2) {
-        moneyEffect = { note: `\u884C\u60C5\u53D6\u4E0D\u5230\uFF1A${error2.message}` };
-      }
-    }
-    const cycle = emotionCycle(daily.filter((entry) => !entry.error).map(({ up: _, ...entry }) => entry));
-    return { date: day, previousDate: yesterday?.date ?? null, source: `${SOURCE} \u6DA8\u505C\u677F\u884C\u60C5`, promotion, moneyEffect, cycle, failedDates: daily.filter((entry) => entry.error).map((entry) => entry.date) };
-  });
-}
-var CLIST = "https://push2.eastmoney.com/api/qt/clist/get";
-var SINA_HK = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHKStockData";
-var SINA_US = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/x/US_CategoryService.getList";
-var GLOBAL_MARKETS = {
-  HK: { fs: "m:128+t:3,m:128+t:4,m:128+t:1,m:128+t:2", currency: "HKD", indices: [["100.HSI", "hkHSI"], ["100.HSCEI", "hkHSCEI"], ["124.HSTECH", "hkHSTECH"]] },
-  US: { fs: "m:105,m:106,m:107", currency: "USD", indices: [["100.DJIA", "usDJI"], ["100.SPX", "us.INX"], ["100.NDX", "us.IXIC"]] }
-};
-var MIN_MOVER_AMOUNT = 5e6;
-var eastmoneyDownUntil = 0;
-async function eastmoneyFirst(primary, fallback) {
-  if (Date.now() >= eastmoneyDownUntil) {
-    try {
-      return await primary();
-    } catch {
-      eastmoneyDownUntil = Date.now() + 5 * 6e4;
-    }
-  }
-  return fallback();
-}
-async function getText(url, { referer = "https://finance.sina.com.cn/", encoding = "utf-8", timeoutMs = 1e4 } = {}) {
-  const response = await fetch(url, { headers: { "User-Agent": UA, Referer: referer }, signal: AbortSignal.timeout(timeoutMs) });
-  if (!response.ok) throw new MarketDataError(`HTTP ${response.status}`);
-  return new TextDecoder(encoding).decode(await response.arrayBuffer());
-}
-function globalSymbol(code, market2) {
-  return market2 === "HK" ? `${String(Number(code)).padStart(4, "0")}.HK` : String(code).replace(/_/g, "-");
-}
-function parseMovers(payload, market2) {
-  return (payload?.data?.diff ?? []).map((row) => ({ symbol: globalSymbol(row.f12, market2), name: row.f14, price: finite6(row.f2), changePct: round5(finite6(row.f3)), amount: round5(finite6(row.f6), 0) }));
-}
-function parseSinaHk(rows) {
-  return (Array.isArray(rows) ? rows : []).map((row) => ({ symbol: globalSymbol(row.symbol, "HK"), name: row.name, price: finite6(Number(row.lasttrade)), changePct: round5(finite6(Number(row.changepercent))), amount: round5(finite6(Number(row.amount)), 0) }));
-}
-function parseSinaUs(text2) {
-  const json = String(text2).slice(String(text2).indexOf("x(") + 2, String(text2).lastIndexOf(")"));
-  const payload = JSON.parse(json || "{}");
-  return {
-    total: Number(payload.count) || null,
-    rows: (payload.data ?? []).map((row) => {
-      const price = finite6(Number(row.price));
-      const volume = finite6(Number(row.volume));
-      return { symbol: globalSymbol(row.symbol, "US"), name: row.cname || row.name, price, changePct: round5(finite6(Number(row.chg))), amount: price && volume ? round5(price * volume, 0) : null };
-    })
-  };
-}
-async function rankedPage(market2, { sort = "change", asc = false, page = 1, size = 100 } = {}) {
-  const spec = GLOBAL_MARKETS[market2];
-  return eastmoneyFirst(async () => {
-    const payload = await getJson(`${CLIST}?pn=${page}&pz=${size}&po=${asc ? 0 : 1}&np=1&fltt=2&invt=2&fid=${sort === "amount" ? "f6" : "f3"}&fs=${spec.fs}&fields=f2,f3,f6,f12,f14`);
-    return { source: SOURCE, total: payload?.data?.total ?? null, rows: parseMovers(payload, market2) };
-  }, async () => {
-    if (market2 === "HK") return { source: "Sina Finance", total: null, rows: parseSinaHk(JSON.parse(await getText(`${SINA_HK}?page=${page}&num=${size}&sort=${sort === "amount" ? "amount" : "changepercent"}&asc=${asc ? 1 : 0}&node=qbgg_hk`))) };
-    return { source: "Sina Finance", ...parseSinaUs(await getText(`${SINA_US}?page=${page}&num=${size}&sort=${sort === "amount" ? "volume" : "chg"}&asc=${asc ? 1 : 0}&market=&id=`)) };
-  });
-}
-async function countSigned(load, { asc = false, maxPages = 200, pageSize = 100 } = {}) {
-  const hit = (value) => value !== null && (asc ? value < 0 : value > 0);
-  const changes = async (page) => (await load(page)).map((row) => row.changePct);
-  let low = 1, high = maxPages;
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2);
-    const rows = await changes(middle);
-    if (rows.length && hit(rows.at(-1))) low = middle + 1;
-    else high = middle;
-  }
-  return (low - 1) * pageSize + (await changes(low)).filter(hit).length;
-}
-async function globalBreadth(market2) {
-  return cached(`breadth:${market2}`, 3e5, async () => {
-    const first = await rankedPage(market2, { size: 100 });
-    if (market2 === "HK" && first.source !== SOURCE) throw new MarketDataError("\u4E1C\u65B9\u8D22\u5BCC\u6682\u65F6\u62D2\u7EDD\u8FDE\u63A5\uFF0C\u5907\u7528\u6765\u6E90\u4E0D\u63D0\u4F9B\u6E2F\u80A1\u5168\u5E02\u573A\u6DA8\u8DCC\u5BB6\u6570");
-    const pageSize = Math.max(1, first.rows.length);
-    const maxPages = first.total ? Math.ceil(first.total / pageSize) : 60;
-    const load = (asc) => (page) => rankedPage(market2, { asc, page, size: pageSize }).then((result) => result.rows);
-    const [advancers, decliners] = await Promise.all([countSigned(load(false), { maxPages, pageSize }), countSigned(load(true), { asc: true, maxPages, pageSize })]);
-    return { source: first.source, total: first.total, advancers, decliners };
-  });
-}
-function parseTencentIndices(text2) {
-  return String(text2).split(";").map((line) => line.match(/v_([^=]+)="([^"]*)"/)).filter(Boolean).map(([, code, body]) => {
-    const parts = body.split("~");
-    return { code, name: parts[1], price: finite6(Number(parts[3])), change: round5(finite6(Number(parts[31]))), changePct: round5(finite6(Number(parts[32]))), at: parts[30] || null };
-  }).filter((row) => row.price);
-}
-async function globalIndices(market2) {
-  const spec = GLOBAL_MARKETS[market2];
-  return cached(`indices:${market2}`, 6e4, () => eastmoneyFirst(
-    async () => ((await getJson(`${ULIST}?fltt=2&secids=${spec.indices.map(([secid]) => secid).join(",")}&fields=f2,f3,f4,f12,f14`))?.data?.diff ?? []).map((row) => ({ code: row.f12, name: row.f14, price: finite6(row.f2), change: round5(finite6(row.f4)), changePct: round5(finite6(row.f3)) })),
-    async () => parseTencentIndices(await getText(`https://qt.gtimg.cn/q=${spec.indices.map(([, code]) => code).join(",")}`, { referer: "https://gu.qq.com/", encoding: "gbk" }))
-  ));
-}
-async function globalRadar(market2, { at } = {}) {
-  const spec = GLOBAL_MARKETS[market2];
-  if (!spec) throw new MarketDataError(`Unknown market ${market2}`);
-  const settle = async (promise) => {
-    try {
-      return { ok: true, value: await promise };
-    } catch (error2) {
-      return { ok: false, error: error2.message };
-    }
-  };
-  const part = (result) => result.ok ? result.value : { error: result.error };
-  const movers = (asc) => cached(`movers:${market2}:${asc}`, 6e4, async () => {
-    const result = await rankedPage(market2, { asc });
-    return { source: result.source, rows: result.rows.filter((row) => row.price && (row.amount ?? 0) >= MIN_MOVER_AMOUNT).slice(0, 12) };
-  });
-  const active = () => cached(`active:${market2}`, 6e4, async () => {
-    const result = await rankedPage(market2, { sort: "amount" });
-    return { source: result.source, rows: result.rows.filter((row) => row.price).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)).slice(0, 12) };
-  });
-  const [indices, breadth, gainers, losers, mostActive, extra] = await Promise.all([
-    settle(globalIndices(market2)),
-    settle(globalBreadth(market2)),
-    settle(movers(false)),
-    settle(movers(true)),
-    settle(active()),
-    market2 === "HK" ? settle(stockConnect({ days: 10 }).then((connect) => ({ southbound: { source: connect.source, rows: connect.rows.filter((row) => row.channel === "\u5357\u5411\u5408\u8BA1") } }))) : settle(cached("china-adr", 6e4, () => eastmoneyFirst(
-      async () => ({ chinaAdrs: { source: SOURCE, rows: parseMovers(await getJson(`${CLIST}?pn=1&pz=12&po=1&np=1&fltt=2&invt=2&fid=f6&fs=b:MK0201&fields=f2,f3,f6,f12,f14`), "US").filter((row) => row.price) } }),
-      async () => {
-        throw new MarketDataError("\u4E1C\u65B9\u8D22\u5BCC\u6682\u65F6\u62D2\u7EDD\u8FDE\u63A5\uFF0C\u4E2D\u6982\u80A1\u5217\u8868\u53EA\u6709\u5B83\u63D0\u4F9B\uFF0C\u7A0D\u540E\u4F1A\u81EA\u52A8\u91CD\u8BD5");
-      }
-    )))
-  ]);
-  return {
-    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    market: market2,
-    currency: spec.currency,
-    session: getMarketSession(market2, at ?? (/* @__PURE__ */ new Date()).toISOString()),
-    indices: part(indices),
-    breadth: part(breadth),
-    gainers: part(gainers),
-    losers: part(losers),
-    active: part(mostActive),
-    ...extra.ok ? extra.value : market2 === "HK" ? { southbound: { error: extra.error } } : { chinaAdrs: { error: extra.error } }
-  };
 }
 
 // mcp/approvals.mjs
@@ -17244,12 +17494,12 @@ function processAlive(pid) {
     return error2.code === "EPERM";
   }
 }
-function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, industryProvider = null, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS, executor = null } = {}) {
-  const accountDir = path7.join(root2, "accounts");
-  const digestDir = path7.join(root2, "digests");
-  const lockDir = path7.join(root2, ".lock");
-  const leaseFile = path7.join(root2, "matcher-lease.json");
-  const statusFile = path7.join(root2, "matcher-status.json");
+function createArena({ root: root2 = path8.join(getStorageDir(), "arena"), quoteProvider = getTradeQuote, corporateActionProvider = null, intradayProvider = null, industryProvider = null, now = () => (/* @__PURE__ */ new Date()).toISOString(), quoteCacheMs = QUOTE_CACHE_MS, executor = null } = {}) {
+  const accountDir = path8.join(root2, "accounts");
+  const digestDir = path8.join(root2, "digests");
+  const lockDir = path8.join(root2, ".lock");
+  const leaseFile = path8.join(root2, "matcher-lease.json");
+  const statusFile2 = path8.join(root2, "matcher-status.json");
   const workbench = createWorkbenchSettings(root2, now);
   const quoteCache = /* @__PURE__ */ new Map();
   const minuteCache = /* @__PURE__ */ new Map();
@@ -17261,13 +17511,13 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
     for (; ; ) {
       try {
         await mkdir7(lockDir);
-        await writeFile5(path7.join(lockDir, "owner.json"), JSON.stringify({ pid: process.pid, at: Date.now() }));
+        await writeFile5(path8.join(lockDir, "owner.json"), JSON.stringify({ pid: process.pid, at: Date.now() }));
         break;
       } catch (error2) {
         if (error2.code !== "EEXIST") throw error2;
         let stale = false;
         try {
-          const owner = JSON.parse(await readFile7(path7.join(lockDir, "owner.json"), "utf8"));
+          const owner = JSON.parse(await readFile8(path8.join(lockDir, "owner.json"), "utf8"));
           stale = Date.now() - owner.at > LOCK_STALE_MS || !processAlive(owner.pid);
         } catch {
           try {
@@ -17294,7 +17544,7 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
   }
   const accountPath = (id) => {
     if (!/^acc_[a-f0-9]{12}$/.test(id ?? "")) throw new ArenaError(`Invalid account id: ${id}`, "invalid_account");
-    return path7.join(accountDir, `${id}.json`);
+    return path8.join(accountDir, `${id}.json`);
   };
   async function prepare(account2) {
     migrateAccount(account2, now());
@@ -17303,7 +17553,7 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
   }
   async function load(id) {
     try {
-      return await prepare(JSON.parse(await readFile7(accountPath(id), "utf8")));
+      return await prepare(JSON.parse(await readFile8(accountPath(id), "utf8")));
     } catch (error2) {
       if (error2.code === "ENOENT") throw new ArenaError(`Account ${id} not found. Call arena_my_accounts or arena_register_account.`, "not_found", 404);
       throw error2;
@@ -17327,7 +17577,7 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
     const accounts = [];
     for (const name of names.filter((entry) => /^acc_[a-f0-9]{12}\.json$/.test(entry))) {
       try {
-        accounts.push(await prepare(JSON.parse(await readFile7(path7.join(accountDir, name), "utf8"))));
+        accounts.push(await prepare(JSON.parse(await readFile8(path8.join(accountDir, name), "utf8"))));
       } catch {
       }
     }
@@ -18830,12 +19080,12 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
     // held by a dead local process, or already ours.
     async acquireLease(name, ownerId, leaseMs) {
       if (!/^[a-z-]+$/.test(name)) throw new ArenaError(`Invalid lease name ${name}`);
-      const file = path7.join(root2, `${name}-lease.json`);
+      const file = path8.join(root2, `${name}-lease.json`);
       return withLock(async () => {
         const at = now();
         let lease = null;
         try {
-          lease = JSON.parse(await readFile7(file, "utf8"));
+          lease = JSON.parse(await readFile8(file, "utf8"));
         } catch {
           lease = null;
         }
@@ -18847,10 +19097,10 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
       });
     },
     async releaseLease(name, ownerId) {
-      const file = path7.join(root2, `${name}-lease.json`);
+      const file = path8.join(root2, `${name}-lease.json`);
       return withLock(async () => {
         try {
-          const lease = JSON.parse(await readFile7(file, "utf8"));
+          const lease = JSON.parse(await readFile8(file, "utf8"));
           if (lease.ownerId === ownerId) await rm3(file, { force: true });
         } catch {
         }
@@ -18862,7 +19112,7 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
         const at = now();
         let lease = null;
         try {
-          lease = JSON.parse(await readFile7(leaseFile, "utf8"));
+          lease = JSON.parse(await readFile8(leaseFile, "utf8"));
         } catch {
           lease = null;
         }
@@ -18883,7 +19133,7 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
     async releaseMatcherLease(ownerId) {
       return withLock(async () => {
         try {
-          const lease = JSON.parse(await readFile7(leaseFile, "utf8"));
+          const lease = JSON.parse(await readFile8(leaseFile, "utf8"));
           if (lease.ownerId === ownerId) await rm3(leaseFile, { force: true });
         } catch {
         }
@@ -18891,20 +19141,20 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
     },
     async writeMatcherStatus(status) {
       await mkdir7(root2, { recursive: true });
-      const temporary = `${statusFile}.${process.pid}.${randomUUID5()}.tmp`;
+      const temporary = `${statusFile2}.${process.pid}.${randomUUID5()}.tmp`;
       await writeFile5(temporary, JSON.stringify(status, null, 1), "utf8");
-      await rename7(temporary, statusFile);
+      await rename7(temporary, statusFile2);
     },
     // Status visible from any process: who leads, when it last ran and whether the lease is live.
     async matcherStatus() {
       const read = async (file) => {
         try {
-          return JSON.parse(await readFile7(file, "utf8"));
+          return JSON.parse(await readFile8(file, "utf8"));
         } catch {
           return null;
         }
       };
-      const [lease, status] = await Promise.all([read(leaseFile), read(statusFile)]);
+      const [lease, status] = await Promise.all([read(leaseFile), read(statusFile2)]);
       const at = now();
       const live = Boolean(lease && Date.parse(lease.expiresAt) > Date.parse(at));
       return {
@@ -18985,16 +19235,16 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
       };
       await withLock(async () => {
         await mkdir7(digestDir, { recursive: true });
-        await writeFile5(path7.join(digestDir, `${digest.id}.json`), JSON.stringify(digest, null, 1), "utf8");
+        await writeFile5(path8.join(digestDir, `${digest.id}.json`), JSON.stringify(digest, null, 1), "utf8");
         const names = (await readdir(digestDir)).filter((name) => name.endsWith(".json")).sort();
-        for (const name of names.slice(0, Math.max(0, names.length - LIMITS.digests))) await rm3(path7.join(digestDir, name), { force: true });
+        for (const name of names.slice(0, Math.max(0, names.length - LIMITS.digests))) await rm3(path8.join(digestDir, name), { force: true });
       });
       return digest;
     },
     async getDigest(id) {
       if (!/^dig_\d{4}-\d{2}-\d{2}_[A-Za-z]+$/.test(id ?? "")) throw new ArenaError(`Invalid digest id: ${id}`);
       try {
-        return JSON.parse(await readFile7(path7.join(digestDir, `${id}.json`), "utf8"));
+        return JSON.parse(await readFile8(path8.join(digestDir, `${id}.json`), "utf8"));
       } catch (error2) {
         if (error2.code === "ENOENT") return null;
         throw error2;
@@ -19010,7 +19260,7 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
       const digests = [];
       for (const name of names.filter((entry) => /^dig_.+\.json$/.test(entry))) {
         try {
-          digests.push(JSON.parse(await readFile7(path7.join(digestDir, name), "utf8")));
+          digests.push(JSON.parse(await readFile8(path8.join(digestDir, name), "utf8")));
         } catch {
         }
       }
@@ -19018,8 +19268,8 @@ function createArena({ root: root2 = path7.join(getStorageDir(), "arena"), quote
     },
     async recordDigestDelivery(id, delivery) {
       return withLock(async () => {
-        const file = path7.join(digestDir, `${id}.json`);
-        const digest = JSON.parse(await readFile7(file, "utf8"));
+        const file = path8.join(digestDir, `${id}.json`);
+        const digest = JSON.parse(await readFile8(file, "utf8"));
         digest.delivery = { ...delivery, attempts: (digest.delivery?.attempts ?? 0) + 1 };
         await writeFile5(file, JSON.stringify(digest, null, 1), "utf8");
         return digest;
@@ -19195,9 +19445,9 @@ function callerFromClient(clientInfo) {
 import { spawn as spawn4 } from "node:child_process";
 import { randomBytes as randomBytes3, randomUUID as randomUUID7 } from "node:crypto";
 import { existsSync } from "node:fs";
-import { appendFile, mkdir as mkdir9, mkdtemp, readFile as readFile11, rename as rename9, rm as rm4, writeFile as writeFile7 } from "node:fs/promises";
+import { appendFile, mkdir as mkdir9, mkdtemp, readFile as readFile12, rename as rename9, rm as rm4, writeFile as writeFile7 } from "node:fs/promises";
 import os5 from "node:os";
-import path12 from "node:path";
+import path13 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // mcp/prompts.mjs
@@ -19406,9 +19656,9 @@ function parseLine(format, line, state) {
         state.text.push(text2);
         events.push({ t: "text", text: text2 });
       }
-      for (const call of message.tool_calls ?? []) events.push({ t: "tool", id: call.id, name: call.function?.name ?? call.name ?? "tool", input: (() => {
+      for (const call2 of message.tool_calls ?? []) events.push({ t: "tool", id: call2.id, name: call2.function?.name ?? call2.name ?? "tool", input: (() => {
         try {
-          return JSON.parse(call.function?.arguments ?? "{}");
+          return JSON.parse(call2.function?.arguments ?? "{}");
         } catch {
           return {};
         }
@@ -19664,9 +19914,9 @@ function runAcpAgent({ command, args = [], env, cwd, prompt, mcpServers = [], ti
 }
 
 // mcp/trader-strategies.mjs
-import { mkdir as mkdir8, readFile as readFile8, rename as rename8, writeFile as writeFile6 } from "node:fs/promises";
+import { mkdir as mkdir8, readFile as readFile9, rename as rename8, writeFile as writeFile6 } from "node:fs/promises";
 import { randomUUID as randomUUID6 } from "node:crypto";
-import path9 from "node:path";
+import path10 from "node:path";
 
 // mcp/strategy-sandbox.mjs
 import { spawn as spawn3 } from "node:child_process";
@@ -19855,7 +20105,7 @@ function sandboxedStrategy({ id, code, meta = {}, market: market2 }) {
 
 // mcp/strategies/index.mjs
 import { readdir as readdir2 } from "node:fs/promises";
-import path8 from "node:path";
+import path9 from "node:path";
 import { pathToFileURL } from "node:url";
 
 // mcp/strategies/ma-trend.mjs
@@ -20040,7 +20290,7 @@ function validateStrategy(module, origin = "builtin") {
   if (!ID.test(strategy2.id ?? "")) throw new Error(`Strategy id "${strategy2.id}" must be 2\u201341 lowercase letters, digits or dashes.`);
   return { name: strategy2.id, version: "0.0.0", markets: ["A", "HK", "US"], params: {}, description: "", ...strategy2, origin };
 }
-async function loadStrategies({ dir = path8.join(getStorageDir(), "strategies") } = {}) {
+async function loadStrategies({ dir = path9.join(getStorageDir(), "strategies") } = {}) {
   const strategies = new Map(BUILTIN_STRATEGIES.map((strategy2) => [strategy2.id, validateStrategy(strategy2)]));
   const errors = [];
   let names = [];
@@ -20051,7 +20301,7 @@ async function loadStrategies({ dir = path8.join(getStorageDir(), "strategies") 
   }
   for (const name of names.filter((entry) => entry.endsWith(".mjs"))) {
     try {
-      const file = path8.join(dir, name);
+      const file = path9.join(dir, name);
       const strategy2 = validateStrategy(await import(`${pathToFileURL(file).href}?v=${Date.now()}`), file);
       strategies.set(strategy2.id, strategy2);
     } catch (error2) {
@@ -20231,11 +20481,11 @@ var accountOfStrategy = (strategyId) => /^trader-[a-f0-9]{12}$/.test(strategyId 
 function createTraderStrategyStore(root2, now = () => (/* @__PURE__ */ new Date()).toISOString()) {
   const dirOf = (accountId2) => {
     if (!/^acc_[a-f0-9]{12}$/.test(accountId2 ?? "")) throw new Error(`Invalid account id: ${accountId2}`);
-    return path9.join(root2, "trader-strategies", accountId2);
+    return path10.join(root2, "trader-strategies", accountId2);
   };
   async function meta(accountId2) {
     try {
-      return JSON.parse(await readFile8(path9.join(dirOf(accountId2), "meta.json"), "utf8"));
+      return JSON.parse(await readFile9(path10.join(dirOf(accountId2), "meta.json"), "utf8"));
     } catch (error2) {
       if (error2.code === "ENOENT") return { accountId: accountId2, live: null, versions: [] };
       throw error2;
@@ -20243,7 +20493,7 @@ function createTraderStrategyStore(root2, now = () => (/* @__PURE__ */ new Date(
   }
   async function saveMeta(accountId2, value) {
     await mkdir8(dirOf(accountId2), { recursive: true });
-    const file = path9.join(dirOf(accountId2), "meta.json");
+    const file = path10.join(dirOf(accountId2), "meta.json");
     const temporary = `${file}.${process.pid}.${randomUUID6()}.tmp`;
     await writeFile6(temporary, JSON.stringify(value, null, 1), "utf8");
     await rename8(temporary, file);
@@ -20254,13 +20504,13 @@ function createTraderStrategyStore(root2, now = () => (/* @__PURE__ */ new Date(
       const info = await meta(accountId2);
       const target = version3 ?? info.live;
       if (!target) return null;
-      return { version: target, code: await readFile8(path9.join(dirOf(accountId2), `v${target}.mjs`), "utf8"), entry: info.versions.find((entry) => entry.version === target) ?? null };
+      return { version: target, code: await readFile9(path10.join(dirOf(accountId2), `v${target}.mjs`), "utf8"), entry: info.versions.find((entry) => entry.version === target) ?? null };
     },
     async addVersion(accountId2, { code, changeNote, by, params = {}, intervalMinutes = null, universe = null }) {
       const info = await meta(accountId2);
       const version3 = (info.versions.at(-1)?.version ?? 0) + 1;
       await mkdir8(dirOf(accountId2), { recursive: true });
-      await writeFile6(path9.join(dirOf(accountId2), `v${version3}.mjs`), code, "utf8");
+      await writeFile6(path10.join(dirOf(accountId2), `v${version3}.mjs`), code, "utf8");
       const entry = { version: version3, at: now(), by, changeNote: changeNote ? String(changeNote).slice(0, 500) : null, params, intervalMinutes, universe, status: "checking", lines: String(code).split("\n").length };
       info.versions.push(entry);
       await saveMeta(accountId2, info);
@@ -20512,16 +20762,16 @@ async function rollbackTraderStrategy({ arena, scheduler, store, accountId: acco
 
 // mcp/skill-library.mjs
 import { createHash as createHash4 } from "node:crypto";
-import { readdir as readdir3, readFile as readFile9 } from "node:fs/promises";
-import path10 from "node:path";
+import { readdir as readdir3, readFile as readFile10 } from "node:fs/promises";
+import path11 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
-var here = path10.dirname(fileURLToPath3(import.meta.url));
+var here = path11.dirname(fileURLToPath3(import.meta.url));
 var cached2 = null;
 function libraryDir() {
-  return process.env.HROUTER_LIBRARY_DIR || path10.resolve(here, "..", "library");
+  return process.env.HROUTER_LIBRARY_DIR || path11.resolve(here, "..", "library");
 }
 function importedDir() {
-  return path10.join(getStorageDir(), "skills-imported");
+  return path11.join(getStorageDir(), "skills-imported");
 }
 function invalidateLibrary() {
   cached2 = null;
@@ -20536,7 +20786,7 @@ async function importedSkills() {
   const skills = [];
   for (const entry of entries.filter((item) => item.isDirectory() && /^imp-[a-z0-9-]{2,56}$/.test(item.name))) {
     try {
-      const meta = JSON.parse(await readFile9(path10.join(importedDir(), entry.name, "meta.json"), "utf8"));
+      const meta = JSON.parse(await readFile10(path11.join(importedDir(), entry.name, "meta.json"), "utf8"));
       skills.push({
         id: entry.name,
         name: meta.name,
@@ -20555,7 +20805,7 @@ async function importedSkills() {
   return skills;
 }
 async function readJson3(name) {
-  return JSON.parse(await readFile9(path10.join(libraryDir(), name), "utf8"));
+  return JSON.parse(await readFile10(path11.join(libraryDir(), name), "utf8"));
 }
 async function loadLibrary() {
   if (cached2 && cached2.dir === libraryDir()) return cached2.value;
@@ -20572,12 +20822,12 @@ async function loadLibrary() {
 }
 async function skillBody(id) {
   if (!/^[a-z0-9-]{2,60}$/.test(id ?? "")) throw new Error(`Invalid skill id ${id}`);
-  if (id.startsWith("imp-")) return readFile9(path10.join(importedDir(), id, "SKILL.md"), "utf8");
-  return readFile9(path10.join(libraryDir(), "skills", id, "SKILL.md"), "utf8");
+  if (id.startsWith("imp-")) return readFile10(path11.join(importedDir(), id, "SKILL.md"), "utf8");
+  return readFile10(path11.join(libraryDir(), "skills", id, "SKILL.md"), "utf8");
 }
 async function starterStrategyCode(id) {
   if (!/^[a-z0-9-]{2,60}$/.test(id ?? "")) throw new Error(`Invalid strategy id ${id}`);
-  return readFile9(path10.join(libraryDir(), "strategies", `${id}.mjs`), "utf8");
+  return readFile10(path11.join(libraryDir(), "strategies", `${id}.mjs`), "utf8");
 }
 async function skillsFor(account2) {
   const library = await loadLibrary();
@@ -20676,9 +20926,9 @@ function createPaperBroker({ arena, accountId: accountId2, caller }) {
 }
 
 // mcp/agent-models.mjs
-import { readFile as readFile10 } from "node:fs/promises";
+import { readFile as readFile11 } from "node:fs/promises";
 import os4 from "node:os";
-import path11 from "node:path";
+import path12 from "node:path";
 var EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 var DEFAULT_EFFORT = "high";
 var CLAUDE = [
@@ -20691,22 +20941,22 @@ var FALLBACK = { codex: ["gpt-5.6-sol"], kimi: ["k3"] };
 var home = () => process.env.HOME || os4.homedir();
 async function readText(file) {
   try {
-    return await readFile10(file, "utf8");
+    return await readFile11(file, "utf8");
   } catch {
     return null;
   }
 }
-async function codexModels(root2 = path11.join(home(), ".codex")) {
-  const cache3 = JSON.parse(await readText(path11.join(root2, "models_cache.json")) ?? "{}");
-  const config2 = await readText(path11.join(root2, "config.toml")) ?? "";
+async function codexModels(root2 = path12.join(home(), ".codex")) {
+  const cache3 = JSON.parse(await readText(path12.join(root2, "models_cache.json")) ?? "{}");
+  const config2 = await readText(path12.join(root2, "config.toml")) ?? "";
   const configured = config2.match(/^model\s*=\s*"([^"]+)"/m)?.[1] ?? null;
   const listed = (cache3.models ?? []).filter((model) => model.slug && model.visibility !== "hide").sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999)).map((model) => ({ id: model.slug, label: model.display_name ?? model.slug, efforts: (model.supported_reasoning_levels ?? []).map((level) => level.effort).filter((effort) => EFFORTS.includes(effort)) }));
   const models = listed.length ? listed : FALLBACK.codex.map((id) => ({ id, label: id }));
   if (configured && !models.some((model) => model.id === configured)) models.push({ id: configured, label: `${configured} (config.toml)` });
   return { models: models.map((model, index) => ({ ...model, latest: index === 0 })), configured, source: listed.length ? "~/.codex/models_cache.json" : "built-in" };
 }
-async function kimiModels(root2 = path11.join(home(), ".kimi-code")) {
-  const config2 = await readText(path11.join(root2, "config.toml")) ?? "";
+async function kimiModels(root2 = path12.join(home(), ".kimi-code")) {
+  const config2 = await readText(path12.join(root2, "config.toml")) ?? "";
   const configured = config2.match(/^default_model\s*=\s*"([^"]+)"/m)?.[1] ?? null;
   const models = [];
   for (const block of config2.split(/^\[models\."/m).slice(1)) {
@@ -20954,15 +21204,15 @@ function sanitizeJob(input, current = {}) {
 }
 function onPath(name, envPath = process.env.PATH ?? "") {
   const names = process.platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name];
-  for (const dir of envPath.split(path12.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path12.join(dir, candidate))) return path12.join(dir, candidate);
+  for (const dir of envPath.split(path13.delimiter).filter(Boolean)) for (const candidate of names) if (existsSync(path13.join(dir, candidate))) return path13.join(dir, candidate);
   return null;
 }
 function workbuddyConfigDir(env = process.env) {
-  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path12.join(os5.homedir(), ".workbuddy");
+  return (env.WORKBUDDY_CONFIG_DIR || env.CODEBUDDY_CONFIG_DIR || "").trim() || path13.join(os5.homedir(), ".workbuddy");
 }
 function defaultCommand(type) {
   if (type === "claude") return onPath("claude") ?? "claude";
-  if (type === "kimi") return onPath("kimi") ?? path12.join(os5.homedir(), ".local", "bin", "kimi");
+  if (type === "kimi") return onPath("kimi") ?? path13.join(os5.homedir(), ".local", "bin", "kimi");
   if (type === "workbuddy") {
     const bundled = "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy";
     return onPath("codebuddy") ?? (process.platform === "darwin" && existsSync(bundled) ? bundled : "codebuddy");
@@ -21094,7 +21344,7 @@ function createScheduler({
   spawnImpl = spawn4,
   strategyLoader = loadStrategies,
   nodePath = process.execPath,
-  bundlePath: bundlePath2 = fileURLToPath4(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath4(import.meta.url) : path12.resolve(path12.dirname(fileURLToPath4(import.meta.url)), "server.bundle.mjs"),
+  bundlePath: bundlePath2 = fileURLToPath4(import.meta.url).endsWith("server.bundle.mjs") ? fileURLToPath4(import.meta.url) : path13.resolve(path13.dirname(fileURLToPath4(import.meta.url)), "server.bundle.mjs"),
   skillPath,
   tickMs = SCHEDULER_DEFAULTS.tickMs,
   leaseMs = SCHEDULER_DEFAULTS.leaseMs,
@@ -21104,9 +21354,9 @@ function createScheduler({
   onError = () => {
   }
 } = {}) {
-  const file = path12.join(arena.root, "schedules.json");
-  const runDir = path12.join(arena.root, "runs");
-  const eventDir = path12.join(runDir, "events");
+  const file = path13.join(arena.root, "schedules.json");
+  const runDir = path13.join(arena.root, "runs");
+  const eventDir = path13.join(runDir, "events");
   const ownerId = `${os5.hostname()}:${process.pid}:${randomBytes3(4).toString("hex")}`;
   const running = /* @__PURE__ */ new Map();
   const agentRuns = /* @__PURE__ */ new Set();
@@ -21129,7 +21379,7 @@ function createScheduler({
   };
   async function readState() {
     try {
-      const state = JSON.parse(await readFile11(file, "utf8"));
+      const state = JSON.parse(await readFile12(file, "utf8"));
       return { jobs: state.jobs ?? [], done: state.done ?? {}, pools: state.pools ?? {}, reviews: state.reviews ?? {}, gate: state.gate ?? {} };
     } catch (error2) {
       if (error2.code === "ENOENT") return { jobs: [], done: {}, pools: {}, reviews: {}, gate: {} };
@@ -21155,7 +21405,7 @@ function createScheduler({
   const workbench = async () => arena.workbenchSettings ? arena.workbenchSettings().catch(() => ({})) : {};
   async function appendRun(accountId2, record2) {
     await mkdir9(runDir, { recursive: true });
-    await appendFile(path12.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
+    await appendFile(path13.join(runDir, `${accountId2}.jsonl`), `${JSON.stringify(record2)}
 `, "utf8");
   }
   function eventWriter(runId) {
@@ -21163,7 +21413,7 @@ function createScheduler({
     });
     return {
       push(event) {
-        chain = chain.then(() => appendFile(path12.join(eventDir, `${runId}.jsonl`), `${JSON.stringify(event)}
+        chain = chain.then(() => appendFile(path13.join(eventDir, `${runId}.jsonl`), `${JSON.stringify(event)}
 `, "utf8")).catch(() => {
         });
       },
@@ -21174,7 +21424,7 @@ function createScheduler({
     if (!/^acc_[a-f0-9]{12}$/.test(accountId2 ?? "")) throw new ArenaError("accountId required.");
     let text2 = "";
     try {
-      text2 = await readFile11(path12.join(runDir, `${accountId2}.jsonl`), "utf8");
+      text2 = await readFile12(path13.join(runDir, `${accountId2}.jsonl`), "utf8");
     } catch (error2) {
       if (error2.code !== "ENOENT") throw error2;
     }
@@ -21192,7 +21442,7 @@ function createScheduler({
     if (!/^run_[a-f0-9]{12}$/.test(runId ?? "")) throw new ArenaError("Invalid run id.");
     if (live.has(runId)) return { runId, running: true, run: live.get(runId).record, events: live.get(runId).events };
     try {
-      const text2 = await readFile11(path12.join(eventDir, `${runId}.jsonl`), "utf8");
+      const text2 = await readFile12(path13.join(eventDir, `${runId}.jsonl`), "utf8");
       return { runId, running: false, events: text2.split("\n").filter(Boolean).map((line) => JSON.parse(line)) };
     } catch (error2) {
       if (error2.code === "ENOENT") return { runId, running: false, events: [] };
@@ -21201,10 +21451,10 @@ function createScheduler({
   }
   async function skillText(account2) {
     let base = null;
-    const candidates = [skillPath, path12.resolve(path12.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
+    const candidates = [skillPath, path13.resolve(path13.dirname(bundlePath2), "..", "skills", "hrouter-agent-arena", "SKILL.md")].filter(Boolean);
     for (const candidate of candidates) {
       try {
-        base = (await readFile11(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
+        base = (await readFile12(candidate, "utf8")).replace(/^---[\s\S]*?---\s*/, "");
         break;
       } catch {
       }
@@ -21260,7 +21510,7 @@ function createScheduler({
     const writer = eventWriter(record2.id);
     live.set(record2.id, entry);
     emit({ type: "run-start", run: record2 });
-    const workDir = await mkdtemp(path12.join(os5.tmpdir(), "hrouter-round-"));
+    const workDir = await mkdtemp(path13.join(os5.tmpdir(), "hrouter-round-"));
     try {
       const effective = { ...job, runner };
       const baseIdentity = account2.agent.client ?? `${job.runner.type}-${(job.runner.model ?? "default").replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}`;
@@ -21437,10 +21687,10 @@ ${prompt}` : prompt,
       });
     }
   }
-  const researchFile = path12.join(arena.root, "research.json");
+  const researchFile = path13.join(arena.root, "research.json");
   async function readResearch() {
     try {
-      return JSON.parse(await readFile11(researchFile, "utf8")).tasks ?? [];
+      return JSON.parse(await readFile12(researchFile, "utf8")).tasks ?? [];
     } catch (error2) {
       if (error2.code === "ENOENT") return [];
       throw error2;
@@ -21468,7 +21718,7 @@ ${prompt}` : prompt,
     const writer = eventWriter(record2.id);
     live.set(record2.id, entry);
     emit({ type: "run-start", run: record2 });
-    const workDir = await mkdtemp(path12.join(os5.tmpdir(), "hrouter-research-"));
+    const workDir = await mkdtemp(path13.join(os5.tmpdir(), "hrouter-research-"));
     let outcome;
     try {
       const skill = task.kind === "investor-panel" ? (await skillBody("investor-panel").catch(() => "")).replace(/^#\s.*\n/, "").trim() : null;
@@ -22510,26 +22760,26 @@ function registerMarketDataTools(server2, { toolResult: toolResult2, toolError: 
 }
 
 // mcp/update-coordination.mjs
-import { mkdir as mkdir10, readFile as readFile12, writeFile as writeFile8, rename as rename10, rm as rm5, readdir as readdir4, stat as stat3 } from "node:fs/promises";
+import { mkdir as mkdir10, readFile as readFile13, writeFile as writeFile8, rename as rename10, rm as rm5, readdir as readdir4, stat as stat3 } from "node:fs/promises";
 import { rmSync } from "node:fs";
 import { randomUUID as randomUUID8 } from "node:crypto";
 import os6 from "node:os";
-import path13 from "node:path";
+import path14 from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 function updateHome(env = process.env, platform = process.platform, home2 = os6.homedir()) {
-  if (env.HROUTER_UPDATE_HOME) return path13.resolve(env.HROUTER_UPDATE_HOME);
-  return platform === "win32" ? path13.join(env.LOCALAPPDATA || path13.join(home2, "AppData", "Local"), "HrouterMarketPulseUpdater") : path13.join(env.XDG_DATA_HOME || path13.join(home2, ".local", "share"), "hrouter-market-pulse-updater");
+  if (env.HROUTER_UPDATE_HOME) return path14.resolve(env.HROUTER_UPDATE_HOME);
+  return platform === "win32" ? path14.join(env.LOCALAPPDATA || path14.join(home2, "AppData", "Local"), "HrouterMarketPulseUpdater") : path14.join(env.XDG_DATA_HOME || path14.join(home2, ".local", "share"), "hrouter-market-pulse-updater");
 }
 async function readJson4(file, fallback = null) {
   try {
-    return JSON.parse(await readFile12(file, "utf8"));
+    return JSON.parse(await readFile13(file, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function atomicJson(file, data) {
-  await mkdir10(path13.dirname(file), { recursive: true, mode: 448 });
+  await mkdir10(path14.dirname(file), { recursive: true, mode: 448 });
   const temp = `${file}.${randomUUID8()}.tmp`;
   try {
     await writeFile8(temp, JSON.stringify(data, null, 2) + "\n", { mode: 384, flag: "wx" });
@@ -22549,18 +22799,18 @@ function processAlive2(pid) {
 }
 async function acquireLock(home2, name, { waitMs = 0, alive = processAlive2 } = {}) {
   await mkdir10(home2, { recursive: true, mode: 448 });
-  const dir = path13.join(home2, `${name}.lock`);
+  const dir = path14.join(home2, `${name}.lock`);
   const deadline = Date.now() + waitMs;
   for (; ; ) {
     try {
       await mkdir10(dir, { mode: 448 });
-      await atomicJson(path13.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
+      await atomicJson(path14.join(dir, "owner.json"), { pid: process.pid, createdAt: Date.now() });
       return async () => {
         await rm5(dir, { recursive: true, force: true });
       };
     } catch (error2) {
       if (error2.code !== "EEXIST") throw error2;
-      const owner = await readJson4(path13.join(dir, "owner.json"));
+      const owner = await readJson4(path14.join(dir, "owner.json"));
       let stale = owner && !alive(owner.pid);
       if (!owner) {
         try {
@@ -22576,7 +22826,7 @@ async function acquireLock(home2, name, { waitMs = 0, alive = processAlive2 } = 
         try {
           await mkdir10(reaping, { mode: 448 });
           reaper = true;
-          const current = await readJson4(path13.join(dir, "owner.json"));
+          const current = await readJson4(path14.join(dir, "owner.json"));
           let removable = current && !alive(current.pid);
           if (!current) {
             try {
@@ -22602,11 +22852,11 @@ async function acquireLock(home2, name, { waitMs = 0, alive = processAlive2 } = 
   }
 }
 async function acquireRuntimeLease(home2 = updateHome()) {
-  if (!await readJson4(path13.join(home2, "state.json"))) return () => {
+  if (!await readJson4(path14.join(home2, "state.json"))) return () => {
   };
   const unlock = await acquireLock(home2, "activation", { waitMs: 12e4 });
   if (!unlock) throw new Error("A Market Pulse update is still being activated. Please retry shortly.");
-  const file = path13.join(home2, "running", `${process.pid}-${randomUUID8()}.json`);
+  const file = path14.join(home2, "running", `${process.pid}-${randomUUID8()}.json`);
   try {
     await atomicJson(file, { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() });
   } finally {
@@ -22623,18 +22873,18 @@ async function acquireRuntimeLease(home2 = updateHome()) {
 }
 
 // mcp/service.mjs
-import { mkdir as mkdir11, readFile as readFile13, rename as rename11, stat as stat4, writeFile as writeFile9 } from "node:fs/promises";
+import { mkdir as mkdir11, readFile as readFile14, rename as rename11, stat as stat4, writeFile as writeFile9 } from "node:fs/promises";
 import { randomUUID as randomUUID9 } from "node:crypto";
 import os7 from "node:os";
-import path14 from "node:path";
+import path15 from "node:path";
 var SERVICE_HEARTBEAT_MS = 3e4;
 var SERVICE_STALE_MS = 12e4;
 function serviceStatusFile(arenaRoot) {
-  return path14.join(arenaRoot, "service-status.json");
+  return path15.join(arenaRoot, "service-status.json");
 }
 async function readServiceStatus(arenaRoot, now = Date.now()) {
   try {
-    const status = JSON.parse(await readFile13(serviceStatusFile(arenaRoot), "utf8"));
+    const status = JSON.parse(await readFile14(serviceStatusFile(arenaRoot), "utf8"));
     const alive = now - Date.parse(status.heartbeatAt) < SERVICE_STALE_MS;
     return { ...status, state: alive ? "running" : "stopped" };
   } catch (error2) {
@@ -22689,10 +22939,116 @@ function startServiceLoop({ arena, scheduler, bundlePath: bundlePath2, version: 
   } };
 }
 
+// mcp/ibkr-data.mjs
+import { spawn as spawn5 } from "node:child_process";
+import { fileURLToPath as fileURLToPath5 } from "node:url";
+var PREFIX = "HROUTER_IBKR_DATA=";
+var IBKR_DATA_CLIENT_OFFSET = 1;
+function createIbkrDataSession({ service: service4 = getIbkrService(), spawnImpl = spawn5, checkEveryMs = 3e4 } = {}) {
+  let child = null, buffer = "", nextId = 1, lastStatus = null, stopped = false, timer = null, config2 = null, startedAt = null, exits = 0;
+  const pending = /* @__PURE__ */ new Map();
+  function handleLine(line) {
+    if (!line.startsWith(PREFIX)) return;
+    let message;
+    try {
+      message = JSON.parse(line.slice(PREFIX.length));
+    } catch {
+      return;
+    }
+    const waiter = pending.get(message.id);
+    if (!waiter) return;
+    pending.delete(message.id);
+    clearTimeout(waiter.timer);
+    message.ok ? waiter.resolve(message.data) : waiter.reject(new Error(message.error));
+  }
+  function launch() {
+    const script = fileURLToPath5(new URL("../bridges/ibkr/data_server.py", import.meta.url));
+    child = spawnImpl(config2.python, ["-B", script], {
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+      env: { ...process.env, HROUTER_IBKR_PORT: String(config2.port), HROUTER_IBKR_DATA_CLIENT_ID: String(config2.clientId + IBKR_DATA_CLIENT_OFFSET) }
+    });
+    startedAt = (/* @__PURE__ */ new Date()).toISOString();
+    buffer = "";
+    child.stdout.on("data", (bytes) => {
+      buffer += bytes.toString();
+      let index;
+      while ((index = buffer.indexOf("\n")) >= 0) {
+        handleLine(buffer.slice(0, index));
+        buffer = buffer.slice(index + 1);
+      }
+      if (buffer.length > 8e6) buffer = "";
+    });
+    child.stderr.on("data", () => {
+    });
+    child.on("error", () => {
+    });
+    child.on("exit", () => {
+      exits += 1;
+      child = null;
+      lastStatus = null;
+      for (const [id, waiter] of pending) {
+        clearTimeout(waiter.timer);
+        waiter.reject(new Error("TWS data session exited"));
+        pending.delete(id);
+      }
+    });
+  }
+  async function check2() {
+    if (stopped) return;
+    try {
+      const next = await service4.config();
+      const wanted = next.enabled && next.python;
+      const changed = config2 && (config2.port !== next.port || config2.clientId !== next.clientId || config2.python !== next.python);
+      if (child && (!wanted || changed)) {
+        child.kill();
+        child = null;
+      }
+      config2 = next;
+      if (wanted && !child) launch();
+      if (child) lastStatus = await session.request("status", {}, { timeoutMs: 5e3 }).catch(() => lastStatus);
+    } catch {
+    }
+  }
+  const session = {
+    async start() {
+      await check2();
+      timer = setInterval(check2, checkEveryMs);
+      timer.unref?.();
+      setLocalIbkrDataSession(session);
+      return session;
+    },
+    stop() {
+      stopped = true;
+      clearInterval(timer);
+      child?.kill();
+      child = null;
+      setLocalIbkrDataSession(null);
+    },
+    connected: () => Boolean(child && lastStatus?.connected),
+    request(op, payload = {}, { timeoutMs = 2e4 } = {}) {
+      if (!child) return Promise.reject(new Error("TWS data session is not running (set up IBKR under \u8BBE\u7F6E \u2192 \u5238\u5546\u8FDE\u63A5)"));
+      const id = nextId++;
+      return new Promise((resolve, reject) => {
+        const timer2 = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`TWS data request timed out (${op})`));
+        }, timeoutMs);
+        pending.set(id, { resolve, reject, timer: timer2 });
+        child.stdin.write(`${JSON.stringify({ id, op, ...payload })}
+`);
+      });
+    },
+    status: () => ({ state: child ? lastStatus?.connected ? "connected" : "connecting" : config2?.enabled ? "stopped" : "not-configured", startedAt, restarts: Math.max(0, exits), ...lastStatus ?? {} }),
+    refresh: check2
+  };
+  return session;
+}
+
 // mcp/alerts.mjs
-import { mkdir as mkdir12, readFile as readFile14, rename as rename12, writeFile as writeFile10 } from "node:fs/promises";
+import { mkdir as mkdir12, readFile as readFile15, rename as rename12, writeFile as writeFile10 } from "node:fs/promises";
 import { randomUUID as randomUUID10 } from "node:crypto";
-import path15 from "node:path";
+import path16 from "node:path";
 var ALERT_INTERVAL_MS = 6e4;
 var KEEP = 500;
 var MAX_PER_PASS = 10;
@@ -22733,14 +23089,14 @@ ${alert.text}` } };
 }
 async function readSent(file) {
   try {
-    return JSON.parse(await readFile14(file, "utf8"));
+    return JSON.parse(await readFile15(file, "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
   }
 }
 async function writeSent(file, value) {
-  await mkdir12(path15.dirname(file), { recursive: true });
+  await mkdir12(path16.dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.${randomUUID10()}.tmp`;
   await writeFile10(temporary, JSON.stringify(value, null, 1), "utf8");
   await rename12(temporary, file);
@@ -22748,7 +23104,7 @@ async function writeSent(file, value) {
 async function sendAlerts({ arena, scheduler, loadPreferences: loadPreferences2, fetchImpl = fetch, timeoutMs = 1e4, now = () => (/* @__PURE__ */ new Date()).toISOString() }) {
   const webhook = (await loadPreferences2())?.digestWebhook;
   if (!webhook?.url || webhook.enabled === false) return { sent: [], skipped: "no-webhook" };
-  const file = path15.join(arena.root, "alerts.json");
+  const file = path16.join(arena.root, "alerts.json");
   const state = await readSent(file);
   const alerts = await collectAlerts({ arena, scheduler });
   if (!state) {
@@ -22797,14 +23153,14 @@ function startAlertLoop(options, intervalMs = ALERT_INTERVAL_MS) {
 }
 
 // mcp/server.mjs
-import { fileURLToPath as fileURLToPath7 } from "node:url";
+import { fileURLToPath as fileURLToPath8 } from "node:url";
 
 // mcp/skill-import.mjs
 import { execFile as execFile2 } from "node:child_process";
 import { createHash as createHash5 } from "node:crypto";
-import { cp, mkdir as mkdir13, mkdtemp as mkdtemp2, readdir as readdir5, readFile as readFile15, rm as rm6, stat as stat5, writeFile as writeFile11 } from "node:fs/promises";
+import { cp, mkdir as mkdir13, mkdtemp as mkdtemp2, readdir as readdir5, readFile as readFile16, rm as rm6, stat as stat5, writeFile as writeFile11 } from "node:fs/promises";
 import os8 from "node:os";
-import path16 from "node:path";
+import path17 from "node:path";
 import { promisify as promisify2 } from "node:util";
 var run = promisify2(execFile2);
 var MAX_FILES = 20;
@@ -22826,9 +23182,9 @@ async function markdownFiles(dir) {
     if (depth > 2 || files.length >= MAX_FILES) return;
     for (const entry of await readdir5(current, { withFileTypes: true })) {
       if (entry.name.startsWith(".")) continue;
-      const full = path16.join(current, entry.name);
+      const full = path17.join(current, entry.name);
       if (entry.isDirectory() && depth < 2 && ["references", "api-reference", "docs"].includes(entry.name)) await walk(full, depth + 1);
-      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md") && files.length < MAX_FILES && (await stat5(full)).size <= MAX_BYTES) files.push(path16.relative(dir, full));
+      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md") && files.length < MAX_FILES && (await stat5(full)).size <= MAX_BYTES) files.push(path17.relative(dir, full));
     }
   }
   await walk(dir, 0);
@@ -22837,23 +23193,23 @@ async function markdownFiles(dir) {
 async function copySkill(sourceDir, { source, markets, name }) {
   let skillText;
   try {
-    skillText = await readFile15(path16.join(sourceDir, "SKILL.md"), "utf8");
+    skillText = await readFile16(path17.join(sourceDir, "SKILL.md"), "utf8");
   } catch {
     throw new SkillImportError(`${sourceDir} has no SKILL.md.`);
   }
   if (skillText.length > MAX_BYTES) throw new SkillImportError("SKILL.md is larger than 200 KB.");
   const described = describeSkill(skillText);
-  const folder = path16.basename(path16.resolve(sourceDir));
+  const folder = path17.basename(path17.resolve(sourceDir));
   const title = String(name || described.name || folder).slice(0, 60);
   const readable = [name, described.name, folder === "repo" ? null : folder].filter(Boolean).map(slug).find((value) => value !== "skill");
   const id = `imp-${readable ?? createHash5("sha1").update(title).digest("hex").slice(0, 10)}`.slice(0, 60);
-  const target = path16.join(importedDir(), id);
+  const target = path17.join(importedDir(), id);
   await rm6(target, { recursive: true, force: true });
   await mkdir13(target, { recursive: true });
   const files = await markdownFiles(sourceDir);
   for (const file of files) {
-    await mkdir13(path16.dirname(path16.join(target, file)), { recursive: true });
-    await cp(path16.join(sourceDir, file), path16.join(target, file));
+    await mkdir13(path17.dirname(path17.join(target, file)), { recursive: true });
+    await cp(path17.join(sourceDir, file), path17.join(target, file));
   }
   const meta = {
     id,
@@ -22865,12 +23221,12 @@ async function copySkill(sourceDir, { source, markets, name }) {
     files,
     importedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
-  await writeFile11(path16.join(target, "meta.json"), JSON.stringify(meta, null, 1));
+  await writeFile11(path17.join(target, "meta.json"), JSON.stringify(meta, null, 1));
   invalidateLibrary();
   return meta;
 }
 async function listClaudeSkills(home2 = os8.homedir()) {
-  const dir = path16.join(home2, ".claude", "skills");
+  const dir = path17.join(home2, ".claude", "skills");
   let entries = [];
   try {
     entries = await readdir5(dir, { withFileTypes: true });
@@ -22880,8 +23236,8 @@ async function listClaudeSkills(home2 = os8.homedir()) {
   const skills = [];
   for (const entry of entries.filter((item) => item.isDirectory() || item.isSymbolicLink())) {
     try {
-      const text2 = await readFile15(path16.join(dir, entry.name, "SKILL.md"), "utf8");
-      skills.push({ name: entry.name, ...describeSkill(text2), path: path16.join(dir, entry.name) });
+      const text2 = await readFile16(path17.join(dir, entry.name, "SKILL.md"), "utf8");
+      skills.push({ name: entry.name, ...describeSkill(text2), path: path17.join(dir, entry.name) });
     } catch {
     }
   }
@@ -22889,12 +23245,12 @@ async function listClaudeSkills(home2 = os8.homedir()) {
 }
 async function importSkill({ kind, path: folder, url, name, subdir, markets, home: home2 = os8.homedir(), gitImpl = run } = {}) {
   if (kind === "folder") {
-    if (!folder || !path16.isAbsolute(folder)) throw new SkillImportError("Give the absolute path of a folder that contains SKILL.md.");
+    if (!folder || !path17.isAbsolute(folder)) throw new SkillImportError("Give the absolute path of a folder that contains SKILL.md.");
     return copySkill(folder, { source: { kind, path: folder }, markets, name });
   }
   if (kind === "claude") {
     if (!/^[A-Za-z0-9._-]{1,80}$/.test(name ?? "")) throw new SkillImportError("Give the skill's folder name under ~/.claude/skills.");
-    return copySkill(path16.join(home2, ".claude", "skills", name), { source: { kind, name }, markets });
+    return copySkill(path17.join(home2, ".claude", "skills", name), { source: { kind, name }, markets });
   }
   if (kind === "git") {
     let parsed;
@@ -22905,11 +23261,11 @@ async function importSkill({ kind, path: folder, url, name, subdir, markets, hom
     }
     if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new SkillImportError("Only public https Git URLs without credentials.");
     if (subdir && (!/^[A-Za-z0-9._/-]{1,200}$/.test(subdir) || subdir.includes(".."))) throw new SkillImportError("subdir must be a plain relative path.");
-    const temp = await mkdtemp2(path16.join(os8.tmpdir(), "hrouter-skill-"));
+    const temp = await mkdtemp2(path17.join(os8.tmpdir(), "hrouter-skill-"));
     try {
-      await gitImpl("git", ["clone", "--depth", "1", "--", parsed.href, path16.join(temp, "repo")], { timeout: 9e4, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
-      const { stdout } = await gitImpl("git", ["-C", path16.join(temp, "repo"), "rev-parse", "HEAD"], { timeout: 1e4 });
-      return await copySkill(path16.join(temp, "repo", subdir ?? ""), { source: { kind, url: parsed.href, subdir: subdir ?? null, commit: stdout.trim() }, markets, name });
+      await gitImpl("git", ["clone", "--depth", "1", "--", parsed.href, path17.join(temp, "repo")], { timeout: 9e4, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+      const { stdout } = await gitImpl("git", ["-C", path17.join(temp, "repo"), "rev-parse", "HEAD"], { timeout: 1e4 });
+      return await copySkill(path17.join(temp, "repo", subdir ?? ""), { source: { kind, url: parsed.href, subdir: subdir ?? null, commit: stdout.trim() }, markets, name });
     } finally {
       await rm6(temp, { recursive: true, force: true }).catch(() => {
       });
@@ -22919,12 +23275,12 @@ async function importSkill({ kind, path: folder, url, name, subdir, markets, hom
 }
 async function removeImported(id) {
   if (!/^imp-[a-z0-9-]{2,56}$/.test(id ?? "")) throw new SkillImportError("Only imported skills can be removed.");
-  await rm6(path16.join(importedDir(), id), { recursive: true, force: true });
+  await rm6(path17.join(importedDir(), id), { recursive: true, force: true });
   invalidateLibrary();
   return { removed: id };
 }
 async function updateImported(id, { gitImpl = run } = {}) {
-  const meta = JSON.parse(await readFile15(path16.join(importedDir(), id, "meta.json"), "utf8"));
+  const meta = JSON.parse(await readFile16(path17.join(importedDir(), id, "meta.json"), "utf8"));
   if (meta.source?.kind !== "git") throw new SkillImportError("Only skills imported from Git can be updated; re-import a folder to refresh it.");
   return importSkill({ kind: "git", url: meta.source.url, subdir: meta.source.subdir ?? void 0, name: meta.name, markets: meta.markets, gitImpl });
 }
@@ -22935,10 +23291,10 @@ async function github(pathname, fetchImpl) {
   if (!response.ok) throw new SkillImportError(`GitHub API HTTP ${response.status}`);
   return response.json();
 }
-async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, cacheFile = path16.join(importedDir(), ".upstream.json") } = {}) {
+async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, cacheFile = path17.join(importedDir(), ".upstream.json") } = {}) {
   if (!force) {
     try {
-      const cached4 = JSON.parse(await readFile15(cacheFile, "utf8"));
+      const cached4 = JSON.parse(await readFile16(cacheFile, "utf8"));
       if (Date.now() - Date.parse(cached4.checkedAt) < CACHE_MS) return cached4;
     } catch {
     }
@@ -22976,7 +23332,7 @@ async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, c
     }
   }
   const value = { checkedAt: (/* @__PURE__ */ new Date()).toISOString(), results, note: "\u5185\u7F6E skill \u662F\u6539\u7F16\u7248\uFF0C\u4E0A\u6E38\u66F4\u65B0\u4E0D\u4F1A\u81EA\u52A8\u8986\u76D6\uFF1A\u770B\u5DEE\u5F02\u540E\u7531\u7EF4\u62A4\u8005\u51B3\u5B9A\u662F\u5426\u8DDF\u8FDB\uFF1B\u5BFC\u5165\u7684 Git skill \u53EF\u4EE5\u4E00\u952E\u66F4\u65B0\u3002" };
-  await mkdir13(path16.dirname(cacheFile), { recursive: true }).catch(() => {
+  await mkdir13(path17.dirname(cacheFile), { recursive: true }).catch(() => {
   });
   await writeFile11(cacheFile, JSON.stringify(value, null, 1)).catch(() => {
   });
@@ -22984,10 +23340,10 @@ async function checkUpdates({ fetchImpl = fetch, gitImpl = run, force = false, c
 }
 
 // mcp/env-check.mjs
-import { spawn as spawn5 } from "node:child_process";
+import { spawn as spawn6 } from "node:child_process";
 import { existsSync as existsSync2 } from "node:fs";
 import { readdir as readdir6, stat as stat6 } from "node:fs/promises";
-import path17 from "node:path";
+import path18 from "node:path";
 var AGENTS = [
   { id: "claude", name: "Claude Code", kind: "claude-cli" },
   { id: "codex", name: "Codex", kind: "codex-cli" },
@@ -23000,7 +23356,7 @@ function version(command, timeoutMs = 6e3) {
     let out = "";
     let child;
     try {
-      child = spawn5(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true, env: { ...process.env, NO_COLOR: "1" } });
+      child = spawn6(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true, env: { ...process.env, NO_COLOR: "1" } });
     } catch {
       resolve(null);
       return;
@@ -23047,7 +23403,7 @@ async function dirSize(dir, depth = 0) {
     return 0;
   }
   for (const entry of entries) {
-    const full = path17.join(dir, entry.name);
+    const full = path18.join(dir, entry.name);
     if (entry.isDirectory()) total += await dirSize(full, depth + 1);
     else {
       try {
@@ -23064,7 +23420,7 @@ async function checkEnvironment({ arena, scheduler, language = "zh" }) {
   const pools = scheduler ? await scheduler.listPools().catch(() => []) : [];
   const agents = await Promise.all(AGENTS.map(async (agent) => {
     const command = agent.kind === "acp" ? onPath(agent.command) : defaultCommand(agent.id);
-    const installed = Boolean(command && (path17.isAbsolute(command) ? existsSync2(command) : onPath(command)));
+    const installed = Boolean(command && (path18.isAbsolute(command) ? existsSync2(command) : onPath(command)));
     const ver = installed ? await version(command) : null;
     const used = jobs.filter((job) => job.runner?.type === agent.id || agent.kind === "acp" && job.runner?.command === agent.command);
     const authFailure = used.find((job) => job.paused?.kind === "auth");
@@ -23116,13 +23472,13 @@ async function checkEnvironment({ arena, scheduler, language = "zh" }) {
 
 // mcp/http.mjs
 import { createServer } from "node:http";
-import { readFile as readFile17 } from "node:fs/promises";
-import { fileURLToPath as fileURLToPath5 } from "node:url";
+import { readFile as readFile18 } from "node:fs/promises";
+import { fileURLToPath as fileURLToPath6 } from "node:url";
 
 // mcp/workspace.mjs
 import { randomUUID as randomUUID11, createHash as createHash6 } from "node:crypto";
-import { mkdir as mkdir14, readFile as readFile16, rename as rename13, writeFile as writeFile12 } from "node:fs/promises";
-import path18 from "node:path";
+import { mkdir as mkdir14, readFile as readFile17, rename as rename13, writeFile as writeFile12 } from "node:fs/promises";
+import path19 from "node:path";
 
 // mcp/research.mjs
 function researchAsOf2(value = (/* @__PURE__ */ new Date()).toISOString()) {
@@ -23383,15 +23739,15 @@ var cleanText = (value, limit = 2e3) => String(value ?? "").trim().slice(0, limi
 var finite11 = (value) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
 async function readStore(name, fallback = []) {
   try {
-    return JSON.parse(await readFile16(path18.join(getStorageDir(), name), "utf8"));
+    return JSON.parse(await readFile17(path19.join(getStorageDir(), name), "utf8"));
   } catch (error2) {
     if (error2.code === "ENOENT") return fallback;
     throw error2;
   }
 }
 async function writeStore(name, data) {
-  const target = path18.join(getStorageDir(), name);
-  await mkdir14(path18.dirname(target), { recursive: true });
+  const target = path19.join(getStorageDir(), name);
+  await mkdir14(path19.dirname(target), { recursive: true });
   const temp = `${target}.${randomUUID11()}.tmp`;
   await writeFile12(temp, JSON.stringify(data, null, 2));
   await rename13(temp, target);
@@ -24235,7 +24591,20 @@ data: ${JSON.stringify(message)}
           return respond(response, 200, { ...await arena.getAccount(arenaAccount[1], { limit: 200, sync: url.searchParams.get("sync") === "1" || await needsSync(arena) }) });
         }
         if (url.pathname === "/api/paper/status") return respond(response, 200, await getPaperService().status());
-        if (url.pathname === "/api/ibkr/status") return respond(response, 200, await getIbkrService().status());
+        if (url.pathname === "/api/ibkr/status") return respond(response, 200, { ...await getIbkrService().status(), data: await ibkrDataStatus() });
+        if (url.pathname.startsWith("/api/ibkr/data/")) {
+          const op = url.pathname.slice("/api/ibkr/data/".length);
+          const q = (name) => url.searchParams.get(name);
+          if (op === "status") return respond(response, 200, await ibkrDataStatus());
+          let result = null;
+          if (op === "quotes") {
+            const quotes = await ibkrQuotes((q("symbols") ?? "").split(",").filter(Boolean).map((symbol) => normalizeSymbol(symbol)));
+            result = quotes.length ? { quotes } : null;
+          } else if (op === "bars") result = await ibkrBars(normalizeSymbol(q("symbol") ?? ""), { duration: q("duration") ?? void 0, barSize: q("barSize") ?? void 0, what: q("what") ?? void 0, useRTH: q("useRTH") !== "0" });
+          else if (op === "scan") result = await ibkrScan({ scanCode: q("scanCode"), rows: Number(q("rows") ?? 30), abovePrice: q("abovePrice") ? Number(q("abovePrice")) : void 0, aboveVolume: q("aboveVolume") ? Number(q("aboveVolume")) : void 0, marketCapAbove: q("marketCapAbove") ? Number(q("marketCapAbove")) : void 0 });
+          else return respond(response, 404, { error: "Unknown TWS data request" });
+          return respond(response, result ? 200 : 503, result ?? { error: "TWS data is not available (TWS not connected or no data for this request)" });
+        }
         if (url.pathname === "/api/evidence") {
           const evidence = await queryEvidence({
             symbols: url.searchParams.get("symbol") ? [url.searchParams.get("symbol")] : void 0,
@@ -24257,7 +24626,7 @@ data: ${JSON.stringify(message)}
           return respond(
             response,
             200,
-            await readFile17(fileURLToPath5(new URL(name, assetRoot))),
+            await readFile18(fileURLToPath6(new URL(name, assetRoot))),
             type
           );
         }
@@ -24287,7 +24656,7 @@ data: ${JSON.stringify(message)}
           const extension = rest.split(".").at(-1);
           if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\.[a-z0-9]+$/.test(rest) || rest.includes("..") || !types[extension]) return respond(response, 404, { error: "Not found" });
           try {
-            const body = await readFile17(fileURLToPath5(new URL(`app/${rest}`, assetRoot)));
+            const body = await readFile18(fileURLToPath6(new URL(`app/${rest}`, assetRoot)));
             response.writeHead(200, { "Content-Type": types[extension], "Cache-Control": rest.startsWith("files/") ? "public, max-age=31536000, immutable" : "no-cache", "X-Content-Type-Options": "nosniff", "Content-Length": body.length });
             return response.end(body);
           } catch {
@@ -24748,10 +25117,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path20) {
-  if (!path20)
+function getElementAtPath(obj, path21) {
+  if (!path21)
     return obj;
-  return path20.reduce((acc, key) => acc?.[key], obj);
+  return path21.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -25071,11 +25440,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path20, issues) {
+function prefixIssues(path21, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path20);
+    iss.path.unshift(path21);
     return iss;
   });
 }
@@ -28488,11 +28857,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path20) {
-  if (path20.length === 0) {
+function getDotPath(path21) {
+  if (path21.length === 0) {
     return "object root";
   }
-  return path20.reduce((acc, seg, index) => {
+  return path21.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -35665,13 +36034,18 @@ var dashboard = headless ? null : startDashboard({ scheduler: service3 });
 await dashboard?.ready;
 var serviceLoop = null;
 var alertLoop = null;
+var ibkrData = null;
 if (service3) {
+  ibkrData = await createIbkrDataSession().start().catch((error2) => {
+    console.error(`TWS data session: ${error2.message}`);
+    return null;
+  });
   alertLoop = startAlertLoop({ arena: await dashboard.arena, scheduler: await dashboard.scheduler, loadPreferences });
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena,
     scheduler: await dashboard.scheduler,
     version: true ? "1.8.3" : "development",
-    bundlePath: fileURLToPath7(import.meta.url),
+    bundlePath: fileURLToPath8(import.meta.url),
     port: dashboard.address()?.port,
     onExit: () => shutdown()
   });
@@ -35682,6 +36056,7 @@ async function shutdown() {
   setTimeout(() => process.exit(0), 1e4).unref();
   serviceLoop?.stop();
   alertLoop?.stop();
+  ibkrData?.stop();
   await new Promise((resolve) => {
     if (!dashboard) return resolve();
     dashboard.close(() => resolve());

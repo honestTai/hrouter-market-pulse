@@ -40,6 +40,7 @@ export function IbkrPanel() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2">
         <Pill tone={data.config?.connected ? 'ok' : 'warn'}>{data.config?.connected ? t('已设置 TWS 连接 · 端口 {port}', { port: data.config.port }) : t('还没设置 TWS 连接')}</Pill>
+        <Pill tone={data.data?.connected ? (data.data.liveQuotes ? 'ok' : 'warn') : 'neutral'}>{data.data?.connected ? (data.data.liveQuotes ? t('美股行情走 TWS · 实时') : t('美股行情走 TWS · 延迟 15 分钟，下单价格仍用公开实时行情')) : t('TWS 行情未连接 · 用公开数据源')}</Pill>
         <Pill tone={policy.enabled ? (policy.environment === 'LIVE' ? 'bad' : 'ok') : 'neutral'}>{policy.enabled ? (policy.environment === 'LIVE' ? t('实盘 · 每笔要你确认') : t('模拟账户 · Agent 可在限额内下单')) : t('Agent 下单已暂停')}</Pill>
       </div>
       <ErrorNote error={error || status.error} />

@@ -4,9 +4,11 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { assessQuoteFreshness, dailyBarMetadata, getInstrumentRules, localMarketTime, marketLocalToIso, sameTimeVolumeRatio } from "./market-rules.mjs";
+import { assessQuoteFreshness, dailyBarMetadata, getInstrumentRules, getMarketSession, localMarketTime, marketLocalToIso, sameTimeVolumeRatio } from "./market-rules.mjs";
 import { updateMonitorState } from "./monitor.mjs";
 import { buildReportHtml } from "./dashboard.mjs";
+import { configureIbkrDataClient, ibkrBars, ibkrQuote, ibkrScan } from "./ibkr-data-client.mjs";
+import { rankedPage } from "./market-data.mjs";
 export { buildReportHtml, buildEmptyHtml } from "./dashboard.mjs";
 
 const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
@@ -358,7 +360,76 @@ export function parseYahooChart(input, payload, options = {}) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// TWS first for US stocks. The workbench service keeps one read-only TWS data session; when it is
+// connected, US quotes, bars and scans come from Interactive Brokers and the public sources below
+// become the cross-check and fallback. Delayed TWS data (a login without a real-time subscription)
+// is only attached as a labelled reference; it never becomes the price a decision or order uses.
+// ---------------------------------------------------------------------------
+
+let ibkrClientConfigured = false;
+function tws() {
+  if (!ibkrClientConfigured) { configureIbkrDataClient({ storageDir: getStorageDir() }); ibkrClientConfigured = true; }
+  return { ibkrQuote, ibkrBars, ibkrScan };
+}
+const usStock = (symbol) => marketFromSymbol(symbol) === "US" && !symbol.startsWith("^");
+const twsReference = (quote) => ({ provider: "IBKR TWS", price: quote.price, bid: quote.bid ?? null, ask: quote.ask ?? null, asOf: quote.asOf, delayed: Boolean(quote.delayed), delayMinutes: quote.delayMinutes ?? 0, basis: quote.basis ?? "stream" });
+
+// Make a live TWS quote the primary of an already cross-checked public quote; keep delayed ones as a reference.
+export function applyIbkrQuote(quote, twsQuote, options = {}) {
+  const reference = twsReference(twsQuote);
+  quote.ibkr = reference;
+  const candidate = { ...quote, provider: "IBKR TWS", price: twsQuote.price, asOf: twsQuote.asOf };
+  const freshness = assessQuoteFreshness(candidate, options);
+  if (twsQuote.delayed || freshness.status !== "fresh") {
+    quote.dataSources.push({ ...reference, role: "reference", note: twsQuote.delayed ? `IBKR TWS is ${twsQuote.delayMinutes} minutes delayed on this login (no real-time subscription); not used as the price.` : `IBKR TWS quote is ${freshness.status}; not used as the price.` });
+    return quote;
+  }
+  const publicQuote = { ...quote };
+  const compared = crossCheckQuotes(candidate, publicQuote, options);
+  Object.assign(quote, {
+    provider: "IBKR TWS", source: `IBKR TWS + ${publicQuote.provider}`, price: twsQuote.price, asOf: twsQuote.asOf, bid: twsQuote.bid ?? null, ask: twsQuote.ask ?? null, freshness,
+    changePct: quote.previousClose > 0 ? (twsQuote.price / quote.previousClose - 1) * 100 : quote.changePct,
+  });
+  quote.crossCheck = compared.status === "time-mismatch" && compared.primaryFreshness.signalEligible
+    ? { ...compared, status: "fallback", error: `${publicQuote.provider} lags IBKR TWS by ${Math.round(compared.timestampSkewSeconds ?? 0)}s` } : compared;
+  quote.dataSources = [{ ...reference, role: "primary", freshness }, ...(publicQuote.dataSources ?? []).map((entry) => ({ ...entry, role: ["primary", "fallback"].includes(entry.role) ? "cross-check" : entry.role }))];
+  quote.dataQuality.warnings = quote.dataQuality.warnings.filter((warning) => !String(warning).startsWith("Cross-check"));
+  if (quote.crossCheck.status !== "matched") quote.dataQuality.warnings.push(`Cross-check: ${quote.crossCheck.status}`);
+  quote.dataQuality.status = quote.dataQuality.warnings.length ? "warning" : "ok";
+  quote.signalEligible = freshness.signalEligible && ["matched", "unavailable", "fallback"].includes(quote.crossCheck.status);
+  return quote;
+}
+
+// TWS daily bars (dividend- and split-adjusted) in the shape of the other history providers.
+export function historyFromIbkrBars(symbol, bars, options = {}) {
+  const rows = bars.map((bar) => {
+    const timestamp = marketLocalToIso(String(bar.date).slice(0, 10), 12 * 60, "US");
+    return { timestamp, open: bar.open, close: bar.close, high: bar.high, low: bar.low, volume: bar.volume ?? 0, adjustedClose: bar.close, adjustmentFactor: 1, ...dailyBarMetadata(timestamp, "US", options) };
+  }).filter((row) => [row.open, row.close, row.high, row.low].every((value) => value > 0));
+  if (!rows.length) throw new Error("TWS returned no usable daily bars");
+  const completed = rows.filter((row) => row.complete);
+  const indicators = computeIndicators(completed.map((row) => row.close), completed.map((row) => row.high), completed.map((row) => row.low), completed.map((row) => row.volume));
+  indicators.asOf = completed.at(-1)?.availableAt ?? null;
+  indicators.priceBasis = "adjusted (IB ADJUSTED_LAST)";
+  const latest = rows.at(-1), previous = rows.at(-2);
+  return {
+    symbol, market: "US", name: symbol, currency: "USD", provider: "IBKR TWS", source: "Interactive Brokers TWS historical bars (ADJUSTED_LAST)", period: "1d",
+    price: latest.close, previousClose: previous?.close ?? null, changePct: previous ? (latest.close / previous.close - 1) * 100 : null,
+    asOf: latest.availableAt, indicators, history: rows.slice(-(options.historyLimit ?? 60)), historyPriceBasis: "adjusted", corporateActions: [],
+    dataQuality: { status: "warning", warnings: ["IBKR adjusted daily bars; corporate-action records are not supplied."] },
+  };
+}
+
 export async function getHistoricalQuote(input, options = {}) {
+  const twsSymbol = normalizeSymbol(input);
+  if (usStock(twsSymbol) && options.ibkr !== false) {
+    const duration = { "1y": "1 Y", "2y": "2 Y", "5y": "5 Y" }[options.range] ?? "2 Y";
+    const bars = await tws().ibkrBars(twsSymbol, { duration, barSize: "1 day", what: "ADJUSTED_LAST", useRTH: true }).catch(() => null);
+    if (bars) {
+      try { return historyFromIbkrBars(twsSymbol, bars.bars, { ...options, historyLimit: 2000 }); } catch { /* fall through to public history */ }
+    }
+  }
   const allowedRanges = new Set(["1y", "2y", "5y"]);
   const range = allowedRanges.has(options.range) ? options.range : "2y";
   const historyOptions = { ...options, range, interval: "1d", historyLimit: 2000 };
@@ -537,6 +608,21 @@ async function getTencentQuote(input, timeoutMs = 15000) {
  * falling back to a Yahoo daily snapshot. No history or indicators are fetched.
  */
 export async function getTradeQuote(input, options = {}) {
+  const symbol = normalizeSymbol(input);
+  if (usStock(symbol) && options.ibkr !== false) {
+    const [twsQuote, publicQuote] = await Promise.all([tws().ibkrQuote(symbol).catch(() => null), publicTradeQuote(symbol, options).catch((error) => error)]);
+    if (twsQuote && !twsQuote.delayed) {
+      const base = publicQuote instanceof Error ? { symbol, name: symbol, market: "US", currency: "USD", previousClose: twsQuote.previousClose ?? null, history: [], dataQuality: { status: "warning", warnings: [`Public quote unavailable: ${publicQuote.message}`] } } : publicQuote;
+      const quote = { ...base, provider: "IBKR TWS", source: "IBKR TWS", price: twsQuote.price, bid: twsQuote.bid ?? null, ask: twsQuote.ask ?? null, asOf: twsQuote.asOf, ibkr: twsReference(twsQuote) };
+      return { ...quote, freshness: assessQuoteFreshness(quote, { maxAgeSeconds: options.maxAgeSeconds ?? 300 }) };
+    }
+    if (publicQuote instanceof Error) throw publicQuote;
+    return twsQuote ? { ...publicQuote, ibkr: twsReference(twsQuote) } : publicQuote;
+  }
+  return publicTradeQuote(symbol, options);
+}
+
+async function publicTradeQuote(input, options = {}) {
   const symbol = normalizeSymbol(input);
   const timeoutMs = options.timeoutMs ?? 8000;
   const code = tencentCodeForSymbol(symbol);
@@ -720,6 +806,7 @@ export async function getQuote(input, options = {}) {
   const calendarOverrides = options.calendarOverrides ?? (await loadPreferences()).calendarOverrides;
   const normalizedOptions = { ...options, calendarOverrides, now: options.now ?? new Date().toISOString() };
   const wantsIntraday = options.phase === "intraday" || options.includeIntraday === true;
+  const twsPromise = usStock(symbol) && options.ibkr !== false ? tws().ibkrQuote(symbol).catch(() => null) : Promise.resolve(null);
   const [yahooResult, tencentResult, intradayResult] = await Promise.allSettled([
     getYahooQuote(symbol, { ...normalizedOptions, interval: "1d" }),
     getTencentQuote(symbol, options.timeoutMs ?? 15000),
@@ -780,6 +867,8 @@ export async function getQuote(input, options = {}) {
   if (quote.crossCheck.status !== "matched") quote.dataQuality.warnings.push(`Cross-check: ${quote.crossCheck.status}`);
   quote.dataQuality.status = quote.freshness.status === "stale" || quote.freshness.status === "future" ? "stale" : quote.dataQuality.warnings.length ? "warning" : "ok";
   quote.signalEligible = quote.freshness.signalEligible && ["matched", "unavailable", "fallback"].includes(quote.crossCheck.status);
+  const twsQuote = await twsPromise;
+  if (twsQuote) applyIbkrQuote(quote, twsQuote, normalizedOptions);
   if (wantsIntraday) {
     quote.intraday = intradayResult.status === "fulfilled" && intradayResult.value ? {
       status: "available", period: "5m", history: intradayResult.value.history,
@@ -1583,7 +1672,38 @@ export function parseEastmoneyList(payload, { market = "A" } = {}) {
   }).filter((row) => row.price !== null);
 }
 
-export async function scanMarket({ market = "A", view = "stocks", sort = "change", order = "desc", boards, includeST = true, sector, minAmount = 0, limit = 30 } = {}) {
+// IB scanner codes for the scanMarket sorts TWS can rank by; other sorts use the public lists.
+const IBKR_SCANS = { "change:desc": "TOP_PERC_GAIN", "change:asc": "TOP_PERC_LOSE", "amount:desc": "MOST_ACTIVE_USD", "turnover:desc": "HOT_BY_VOLUME", "volumeRatio:desc": "HOT_BY_VOLUME", "speed:desc": "TOP_TRADE_RATE" };
+
+export async function scanMarket(input = {}) {
+  const { market = "A", view = "stocks", sort = "change", order = "desc", sector, minAmount = 0, limit = 30 } = input;
+  const scanCode = market === "US" && view === "stocks" && !sector && input.ibkr !== false ? IBKR_SCANS[`${sort}:${order === "asc" ? "asc" : "desc"}`] : null;
+  if (scanCode) {
+    const bounded = Math.max(1, Math.min(50, Number(limit) || 30));
+    const result = await tws().ibkrScan({ scanCode, rows: Math.min(50, bounded * (minAmount > 0 ? 2 : 1)), abovePrice: 1 }).catch(() => null);
+    if (result) {
+      const rows = result.rows.map((row) => {
+        const price = Number.isFinite(row.price) ? row.price : null;
+        return { symbol: row.symbol, name: row.name, market: "US", board: null, st: false, industry: null, price,
+          changePct: price && row.previousClose > 0 ? (price / row.previousClose - 1) * 100 : null, amount: price && row.volume ? price * row.volume : null,
+          turnoverPct: null, volumeRatio: null, speedPct: null, mainNetInflow: null, amplitudePct: null, open: row.open ?? null, high: row.high ?? null, low: row.low ?? null,
+          previousClose: row.previousClose ?? null, marketCap: null, floatMarketCap: null, rank: row.rank, delayed: Boolean(row.delayed), delayMinutes: row.delayMinutes ?? 0 };
+      }).filter((row) => !(minAmount > 0) || row.amount === null || row.amount >= minAmount).slice(0, bounded);
+      const delayed = rows.some((row) => row.delayed);
+      return { market, view, sort, order, boards: null, includeST: true, sector: null, total: null, asOf: new Date().toISOString(), source: `IBKR TWS scanner (${scanCode})`, rows,
+        ...(delayed ? { note: "IB ranks the list live; prices on this login are delayed about 15 minutes (no real-time subscription). Confirm with get_quote before trading." } : {}) };
+    }
+  }
+  try { return await publicScan(input); }
+  catch (error) {
+    if (market !== "US" && market !== "HK" || view !== "stocks" || sector) throw error;
+    // East Money refuses connections at times (it rate-limits by IP); rank from Sina instead.
+    const fallback = await rankedPage(market, { sort: sort === "amount" ? "amount" : "change", asc: order === "asc", size: Math.max(1, Math.min(100, Number(limit) || 30)) });
+    return { market, view, sort, order, boards: null, includeST: true, sector: null, total: fallback.total ?? null, asOf: new Date().toISOString(), source: fallback.source, rows: fallback.rows.filter((row) => row.price).map((row) => ({ ...row, market })), note: `East Money unavailable (${error.message}); ranked by ${fallback.source}.` };
+  }
+}
+
+async function publicScan({ market = "A", view = "stocks", sort = "change", order = "desc", boards, includeST = true, sector, minAmount = 0, limit = 30 } = {}) {
   const bounded = Math.max(1, Math.min(100, Number(limit) || 30));
   const fid = SCAN_SORTS[sort] ?? "f3";
   if (view === "sectors" || view === "concepts") {
@@ -1636,6 +1756,23 @@ export function parseTencentMinutes(payload, code, market) {
 export async function getIntradayBars(input) {
   const symbol = normalizeSymbol(input);
   const market = marketFromSymbol(symbol);
+  if (market === "US" && input?.ibkr !== false) {
+    const bars = await tws().ibkrBars(symbol, { duration: "1 D", barSize: "5 mins", what: "TRADES", useRTH: true }).catch(() => null);
+    if (bars) {
+      const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+      const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+      let cumVolume = 0, cumAmount = 0;
+      const rows = bars.bars.map((bar) => {
+        const at = new Date(bar.date);
+        cumVolume += bar.volume ?? 0; cumAmount += (bar.volume ?? 0) * (bar.average ?? bar.close);
+        return { time: clock.format(at), date: day.format(at), price: bar.close, volume: bar.volume ?? 0, cumVolume, vwap: cumVolume ? cumAmount / cumVolume : bar.close };
+      });
+      const lastEnd = bars.bars.length ? Date.parse(bars.bars.at(-1).date) + 5 * 60000 : null;
+      const lagMinutes = lastEnd ? Math.max(0, Math.round((Date.now() - lastEnd) / 60000)) : null;
+      const open = getMarketSession("US").status === "open";
+      return { symbol, market, period: "5m", source: "IBKR TWS", bars: rows, ...(open && lagMinutes > 6 ? { delayed: true, delayMinutes: lagMinutes } : { delayed: false }) };
+    }
+  }
   if (market === "US") {
     const quote = await getYahooQuote(symbol, { interval: "5m", range: "1d", historyLimit: 200 });
     let cumVolume = 0, cumAmount = 0;

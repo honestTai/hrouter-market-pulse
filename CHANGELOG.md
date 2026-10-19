@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.2 — HK / US market radar, run process drawer
+
+- **Market radar covers Hong Kong and US.** The radar page switches between A-shares, HK and US. HK/US show headline indices, whole-market advancers / decliners, top gainers and losers (names under 5M turnover left out), the most traded names, southbound flow (HK) and US-listed Chinese stocks (US). Agents get the same with `get_market_radar` `market=HK|US`.
+- **Data source fallback.** East Money's quote host rate-limits by IP and drops connections; the HK/US radar backs off for 5 minutes and uses Tencent (indices) and Sina (rankings, US breadth) meanwhile. HK breadth says it is unavailable rather than count Sina's inconsistent pages.
+- **Trader page: run process in a side drawer.** "看过程" and timeline entries open the review's process in a drawer next to what you clicked instead of a block at the bottom of the page; one compact row per tool call (click for the full input and result), the agent's text rendered as Markdown.
+
 ## 1.8.1 — install fixes
 
 - The plugin's dashboard honors `HROUTER_REPORT_PORT=0` and falls back to a free port when 8787–8797 are all taken; the installer's health check no longer fails on machines with many agent sessions open.

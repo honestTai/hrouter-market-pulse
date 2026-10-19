@@ -23542,7 +23542,7 @@ data: ${JSON.stringify(message)}
           return respond(response, 200, {
             ok: true,
             service: "hrouter-market-pulse",
-            version: true ? "1.8.1" : "development"
+            version: true ? "1.8.2" : "development"
           });
         if (assets.has(url.pathname)) {
           const [name, type] = assets.get(url.pathname);
@@ -34036,7 +34036,7 @@ var StdioServerTransport = class {
 // mcp/server.mjs
 var server = new McpServer({
   name: "hrouter-market-pulse",
-  version: true ? "1.8.1" : "development"
+  version: true ? "1.8.2" : "development"
 }, {
   instructions: [
     "Hrouter Market Pulse: A-share, Hong Kong and US quotes, evidence, research tools and an Agent Arena for paper trading.",
@@ -34931,7 +34931,7 @@ if (service2) {
   serviceLoop = startServiceLoop({
     arena: await dashboard.arena,
     scheduler: await dashboard.scheduler,
-    version: true ? "1.8.1" : "development",
+    version: true ? "1.8.2" : "development",
     bundlePath: fileURLToPath6(import.meta.url),
     port: dashboard.address()?.port,
     onExit: () => shutdown()

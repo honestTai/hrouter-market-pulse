@@ -1,6 +1,6 @@
 {
   "name": "hrouter-market-pulse",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "Local multi-agent stock trader workbench: A/HK/US paper trading with real quotes and rules, agent-written strategies, hard limits, layered prompts and built-in trader skills — for Claude Code, Codex, Kimi, WorkBuddy and any MCP or ACP agent",
   "homepage": "https://hrouter.net/",
   "license": "MIT",

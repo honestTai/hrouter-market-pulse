@@ -81,7 +81,9 @@ export async function resolveCodex(explicit, env = process.env, platform = proce
 export async function requestBytes(input, limit = MAX_DOWNLOAD) {
   let url = new URL(input);
   const allowed = new Set(["api.github.com", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]);
-  const signal = AbortSignal.timeout(30_000);
+  // Release metadata is small; the bundle is several MB and a direct (unproxied) connection to
+  // GitHub's asset CDN can take minutes, so large downloads get a longer deadline.
+  const signal = AbortSignal.timeout(limit > 2 * 1024 * 1024 ? 600_000 : 30_000);
   for (let redirects = 0; redirects <= 4; redirects++) {
     if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443") || !allowed.has(url.hostname)) throw new Error("Refusing an untrusted update URL");
     const response = await fetch(url, { redirect: "manual", signal, headers: { "User-Agent": "Hrouter-Market-Pulse-Updater", Accept: url.hostname === "api.github.com" ? "application/vnd.github+json" : "application/octet-stream" } });

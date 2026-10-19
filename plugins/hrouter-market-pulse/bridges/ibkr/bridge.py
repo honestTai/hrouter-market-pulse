@@ -12,7 +12,7 @@ import sys
 import time
 
 PREFIX = "HROUTER_IBKR_RESULT="
-ACCOUNT_PATTERNS = {"PAPER": r"D[UF]\d{4,12}", "LIVE": r"U\d{4,12}"}
+ACCOUNT_PATTERNS = {"PAPER": r"D[UF]\d{1,12}", "LIVE": r"U\d{4,12}"}
 SYMBOL = r"[A-Z][A-Z0-9.\-]{0,14}"
 ACTIVE = ("ApiPending", "PendingSubmit", "PreSubmitted", "Submitted", "PendingCancel")
 ACKNOWLEDGED = ("PreSubmitted", "Submitted", "Filled", "PendingCancel", "ApiCancelled", "Cancelled", "Inactive")
@@ -30,6 +30,17 @@ def number(value):
         return None
 
 
+def readable(message):
+    """TWS sends non-ASCII text as \\uXXXX escapes; turn them back into characters."""
+    text = str(message or "")
+    if "\\u" in text:
+        try:
+            return text.encode("latin-1", "backslashreplace").decode("unicode_escape")
+        except Exception:
+            return text
+    return text
+
+
 def order_row(trade):
     order, status, contract = trade.order, trade.orderStatus, trade.contract
     filled = number(getattr(status, "filled", None))
@@ -42,7 +53,7 @@ def order_row(trade):
         "filledQuantity": filled, "remaining": number(getattr(status, "remaining", None)),
         "filledAveragePrice": number(status.avgFillPrice) if (filled or 0) > 0 else None,
         "orderRef": getattr(order, "orderRef", "") or "",
-        "messages": [entry.message for entry in getattr(trade, "log", []) if getattr(entry, "message", "")][-3:],
+        "messages": [readable(entry.message) for entry in getattr(trade, "log", []) if getattr(entry, "message", "")][-3:],
     }
 
 
@@ -108,7 +119,19 @@ def run(request, sdk=None):
                 positions.append({"symbol": c.symbol, "secType": c.secType, "currency": c.currency, "quantity": number(row.position),
                                   "averageCost": number(row.avgCost), "marketPrice": number(getattr(item, "marketPrice", None)),
                                   "marketValue": number(getattr(item, "marketValue", None)), "unrealizedPnl": number(getattr(item, "unrealizedPNL", None))})
-            trades = list(ib.reqAllOpenOrders()) + list(ib.reqCompletedOrders(True))
+            trades, notes = list(ib.reqAllOpenOrders()), []
+            # Some TWS builds (the demo system among them) never finish the completed-orders
+            # list; read it best-effort and rely on executions for fills when it does not answer.
+            ib.RequestTimeout = 10
+            try:
+                trades += list(ib.reqCompletedOrders(True))
+            except Exception:
+                notes.append("TWS did not return completed orders; fills come from today's executions")
+            try:
+                fills = [f for f in ib.reqExecutions() if f.execution.acctNumber == account]
+            except Exception:
+                fills, notes = [], notes + ["TWS did not return executions"]
+            ib.RequestTimeout = 0
             seen, orders = set(), []
             for trade in trades:
                 row = order_row(trade)
@@ -121,7 +144,11 @@ def run(request, sdk=None):
                               "availableFunds": values.get("AvailableFunds"), "buyingPower": values.get("BuyingPower"),
                               "marketValue": values.get("GrossPositionValue")},
                     "positions": positions, "orders": orders,
-                    "orderScope": "IB open orders plus this session's completed API orders; not a full fill history"}
+                    "executions": [{"orderId": str(f.execution.permId) if f.execution.permId else None, "orderRef": getattr(f.execution, "orderRef", "") or "",
+                                    "symbol": f.contract.symbol, "side": "BUY" if f.execution.side == "BOT" else "SELL", "quantity": number(f.execution.shares),
+                                    "price": number(f.execution.price), "time": str(f.execution.time)} for f in fills],
+                    "notes": notes,
+                    "orderScope": "IB open orders, completed API orders when TWS returns them, and today's executions; not a full fill history"}
         if action == "submit":
             symbol, side = request.get("symbol"), request.get("side")
             quantity, price = request.get("quantity"), request.get("limitPrice")
@@ -162,6 +189,10 @@ def run(request, sdk=None):
             except Exception as error:
                 raise DispatchedError(str(error)) from error
             row = order_row(trade)
+            # Refused by TWS before transmission (read-only API, invalid order, precautions):
+            # nothing reached the exchange, so report a plain rejection with TWS's reason.
+            if not row["orderId"] and row["status"] in ("ValidationError", "Inactive", "Cancelled", "ApiCancelled"):
+                raise ValueError("TWS rejected the order before sending it: " + ("; ".join(row["messages"]) or row["status"]))
             if not row["orderId"] or row["status"] not in ACKNOWLEDGED:
                 raise DispatchedError("No unambiguous acknowledgement from IB; reconcile before retrying")
             return {"orders": [row]}

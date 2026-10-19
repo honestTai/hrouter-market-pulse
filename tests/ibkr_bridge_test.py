@@ -29,7 +29,13 @@ class FakeIB:
     def portfolio(self, account): return []
     def positions(self, account): return [NS(contract=NS(conId=265598, symbol="AAPL", secType="STK", currency="USD"), position=self.world["held"], avgCost=200.0)]
     def reqAllOpenOrders(self): return self.world.get("open", [])
-    def reqCompletedOrders(self, apiOnly): return []
+    def reqCompletedOrders(self, apiOnly):
+        if self.world.get("completed_hangs"):
+            raise TimeoutError()
+        return []
+
+    def reqExecutions(self):
+        return [NS(contract=NS(symbol="AAPL"), execution=NS(acctNumber="DU1234567", permId=1234567, orderRef="hrouter:x", side="BOT", shares=1, price=200.5, time="2026-10-19 14:00:00"))]
     def openTrades(self): return self.world.get("open", [])
 
     def qualifyContracts(self, contract):
@@ -39,8 +45,11 @@ class FakeIB:
         self.placed.append(order)
         if self.world.get("broker_error"):
             raise RuntimeError("socket closed")
-        order.permId = 0 if self.world.get("no_ack") else 1234567
-        return trade(contract, order, "Submitted")
+        order.permId = 0 if self.world.get("no_ack") or self.world.get("read_only") else 1234567
+        placed = trade(contract, order, "ValidationError" if self.world.get("read_only") else "Submitted")
+        if self.world.get("read_only"):
+            placed.log = [NS(message="Warning 321: \\u539f\\u56e0 - API\\u63a5\\u53e3\\u73b0\\u5904\\u4e8e\\u53ea\\u8bfb\\u6a21\\u5f0f")]
+        return placed
 
     def cancelOrder(self, order): self.cancelled.append(order.permId)
     def sleep(self, seconds): pass
@@ -92,6 +101,12 @@ class BridgeTest(unittest.TestCase):
         bridge.run(request(action="snapshot", accountId="DU1234567"), module)
         self.assertTrue(world["connect"]["readonly"])
         self.assertTrue(world["disconnected"])
+
+    def test_snapshot_survives_a_hanging_completed_orders_request(self):
+        module, _ = sdk(self.world(completed_hangs=True))
+        snap = bridge.run(request(action="snapshot", accountId="DU1234567"), module)
+        self.assertEqual(snap["executions"][0]["side"], "BUY")
+        self.assertTrue(snap["notes"])
 
     def test_live_account_cannot_be_used_as_paper_and_vice_versa(self):
         module, _ = sdk(self.world())
@@ -146,6 +161,12 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(holder["ib"].cancelled, [1234567])
         with self.assertRaises(ValueError):
             bridge.run(request(action="cancel", accountId="DU1234567", orderId="999"), module)
+
+    def test_tws_refusal_is_a_plain_rejection_with_its_reason(self):
+        module, _ = sdk(self.world(read_only=True))
+        with self.assertRaisesRegex(ValueError, "只读模式") as caught:
+            bridge.run(order_request(), module)
+        self.assertFalse(getattr(caught.exception, "dispatched", False))
 
     def test_connection_failure_says_how_to_fix_it(self):
         module, _ = sdk(self.world(down=True))

@@ -18,7 +18,7 @@ import { getStorageDir, getQuote, normalizeSymbol } from "./core.mjs";
 
 export const IBKR_ENVIRONMENTS = Object.freeze(["PAPER", "LIVE"]);
 export const LIVE_ACKNOWLEDGEMENT = "我确认使用真实资金";
-const ACCOUNT = { PAPER: /^D[UF]\d{4,12}$/, LIVE: /^U\d{4,12}$/ };
+const ACCOUNT = { PAPER: /^D[UF]\d{1,12}$/, LIVE: /^U\d{4,12}$/ };
 const ACTIVE = ["ApiPending", "PendingSubmit", "PreSubmitted", "Submitted", "PendingCancel"];
 const MAX_PENDING_CONFIRMATIONS = 10;
 
@@ -191,6 +191,25 @@ export class IbkrService {
     }
     return { policy, cancellations };
   }
+  // Clear an "unknown" order after the owner checked TWS: only when IB has no order and no
+  // execution carrying its trace ID. If IB has it, refresh() reconciles it instead.
+  async resolve({ id } = {}) {
+    if (typeof id !== "string" || !id) fail("Order ID required");
+    await this.refresh();
+    return this.exclusive(async () => {
+      const state = await this.state();
+      const intent = state.intents.find((r) => r.id === id);
+      if (!intent) fail("Order not found");
+      if (!["unknown", "dispatching"].includes(intent.status)) fail(`This order is ${intent.status}; nothing to resolve`);
+      const snap = state.snapshots.find((s) => s.accountId === intent.accountId);
+      const seen = (snap?.orders ?? []).some((o) => o.orderRef === `hrouter:${intent.id}`) || (snap?.executions ?? []).some((f) => f.orderRef === `hrouter:${intent.id}`);
+      if (!snap || seen) fail("IB still reports this order, or the account could not be read; refresh instead");
+      Object.assign(intent, { status: "blocked", error: `${intent.error ?? ""} — owner checked TWS: not placed`.trim(), resolvedAt: this.now() });
+      intent.events.push({ at: this.now(), type: "resolved-not-placed" });
+      await writeJson(this.file("state.json"), state);
+      return intent;
+    });
+  }
   async confirm({ id } = {}) { return this.decide(id, true); }
   async reject({ id } = {}) { return this.decide(id, false); }
   async decide(id, approve) {
@@ -237,6 +256,11 @@ export class IbkrService {
       if (!policy.accountId) fail("Pick an IB account in the dashboard first");
       const snap = await this.snapshot(policy); const state = await this.state();
       for (const intent of state.intents.filter((r) => r.accountId === snap.accountId && r.kind === "order")) {
+        const fills = (snap.executions ?? []).filter((f) => (intent.brokerOrderId && f.orderId === intent.brokerOrderId) || f.orderRef === `hrouter:${intent.id}`);
+        if (fills.length) {
+          const quantity = fills.reduce((n, f) => n + (f.quantity ?? 0), 0);
+          intent.fills = { quantity, averagePrice: quantity ? fills.reduce((n, f) => n + (f.quantity ?? 0) * (f.price ?? 0), 0) / quantity : null, executions: fills, observedAt: snap.observedAt };
+        }
         const order = snap.orders.find((o) => (intent.brokerOrderId && o.orderId === intent.brokerOrderId) || o.orderRef === `hrouter:${intent.id}`);
         if (!order) continue;
         if (hash(intent.broker || {}) !== hash(order)) (intent.events ||= []).push({ at: snap.observedAt, type: "broker-observed", broker: order });

@@ -1356,4 +1356,6 @@ export const EN: Record<string, string> = {
   '连接 TWS': 'Connect TWS',
   '连接后选择': 'Pick after connecting',
   '通过本机 TWS / IB Gateway 交易美股。模拟账户（DU…）里 Agent 可以在你设的白名单和限额内自己下单；实盘账户（U…）里 Agent 只能提议，每一笔都要你在这里确认才会发出。': 'Trade US stocks through TWS / IB Gateway on this computer. On the paper account (DU…) agents order on their own within your allowlist and limits; on a live account (U…) agents can only propose and each order is sent only after you confirm it here.',
+  '已核对：TWS 里没有这笔，新单不再被它阻塞': 'Checked: TWS has no such order; it no longer blocks new orders',
+  'TWS 里没有这笔，解除阻塞': 'Not in TWS — unblock',
 }

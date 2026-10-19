@@ -40,6 +40,8 @@ test("ibkr: policy keeps paper and live accounts apart and live needs the typed 
   assert.throws(() => validateIbkrPolicy({ ...live, liveAcknowledgement: "yes" }), /真实资金/);
   assert.throws(() => validateIbkrPolicy({ ...paper, allowedSymbols: ["0700.HK"] }), /US stock/);
   assert.equal(validateIbkrPolicy(live).requiresConfirmation, true);
+  assert.equal(validateIbkrPolicy({ ...paper, accountId: "DU001" }).accountId, "DU001", "IB demo logins use short DU ids");
+  assert.throws(() => validateIbkrPolicy({ ...live, accountId: "U001" }), /LIVE account/);
 });
 
 test("ibkr: saving a policy checks the account exists in the TWS login", async () => {
@@ -77,6 +79,9 @@ test("ibkr: an unclear outcome blocks new orders until the account is reconciled
     assert.equal((await ctx.service.submit(order("unclear-01"))).status, "unknown");
     ctx.broker.bridge.fail = null;
     assert.match((await ctx.service.submit(order("unclear-02"))).error, /unclear outcome/);
+    const stuck = (await ctx.service.status()).intents.find((r) => r.status === "unknown");
+    assert.equal((await ctx.service.resolve({ id: stuck.id })).status, "blocked", "owner clears it once IB has no trace of it");
+    assert.equal((await ctx.service.submit(order("unclear-03"))).status, "acknowledged");
   } finally { await ctx.cleanup(); }
 });
 

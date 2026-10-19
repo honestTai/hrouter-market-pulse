@@ -456,7 +456,7 @@ export function startDashboard({ port = getReportPort(), arena: arenaOption = nu
         }
         // Interactive Brokers: connection, policy, confirmations and halt are owner-only (never MCP).
         if (url.pathname.startsWith("/api/ibkr/")) {
-          const actions = { config: "saveConfig", connect: "accounts", policy: "savePolicy", refresh: "refresh", evaluate: "evaluate", submit: "submit", cancel: "cancel", confirm: "confirm", reject: "reject", halt: "halt" };
+          const actions = { config: "saveConfig", connect: "accounts", policy: "savePolicy", refresh: "refresh", evaluate: "evaluate", submit: "submit", cancel: "cancel", confirm: "confirm", reject: "reject", resolve: "resolve", halt: "halt" };
           const action = actions[url.pathname.slice("/api/ibkr/".length)];
           if (!action) return respond(response, 404, { error: "Unknown IBKR action" });
           const ibkr = getIbkrService();

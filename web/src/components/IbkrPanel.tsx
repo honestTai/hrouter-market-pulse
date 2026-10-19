@@ -73,6 +73,7 @@ export function IbkrPanel() {
           <div key={entry.id} className="border-t border-line pt-2 text-[13px] first:border-t-0">
             <div className="flex flex-wrap items-center gap-2"><strong>{entry.symbol ?? entry.brokerOrderId} · {entry.side ?? t('撤单')} {entry.quantity ? `${entry.quantity} @ ${entry.limitPrice}` : ''}</strong><Pill tone={entry.environment === 'LIVE' ? 'bad' : 'neutral'}>{entry.environment}</Pill><Pill tone={entry.status === 'unknown' ? 'bad' : ['blocked', 'expired', 'rejected'].includes(entry.status) ? 'warn' : 'neutral'}>{STATES[entry.status] ?? entry.status}</Pill><span className="font-mono text-xs text-ink-3">{dateTime(entry.createdAt)}</span></div>
             {entry.rationale && <p className="m-0 mt-1 text-ink-2">{entry.rationale}</p>}{entry.error && <p className="m-0 text-xs text-bad">{entry.error}</p>}
+            {entry.status === 'unknown' && <Button size="sm" className="mt-1" disabled={Boolean(busy)} loading={busy === entry.id} onClick={() => act(entry.id, async () => { await post('/api/ibkr/resolve', { id: entry.id }); refreshStatus(); toast.success(t('已核对：TWS 里没有这笔，新单不再被它阻塞')) })}>{t('TWS 里没有这笔，解除阻塞')}</Button>}
           </div>
         )) : <Empty title={t('还没有下单记录')}>{t('Agent 的每次下单、拦截和你的确认都会记在这里。')}</Empty>)}
       </Card>

@@ -11109,7 +11109,7 @@ import path5 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var IBKR_ENVIRONMENTS = Object.freeze(["PAPER", "LIVE"]);
 var LIVE_ACKNOWLEDGEMENT = "\u6211\u786E\u8BA4\u4F7F\u7528\u771F\u5B9E\u8D44\u91D1";
-var ACCOUNT = { PAPER: /^D[UF]\d{4,12}$/, LIVE: /^U\d{4,12}$/ };
+var ACCOUNT = { PAPER: /^D[UF]\d{1,12}$/, LIVE: /^U\d{4,12}$/ };
 var ACTIVE = ["ApiPending", "PendingSubmit", "PreSubmitted", "Submitted", "PendingCancel"];
 var MAX_PENDING_CONFIRMATIONS = 10;
 var finite4 = (v) => typeof v === "number" && Number.isFinite(v);
@@ -11327,6 +11327,25 @@ var IbkrService = class {
     }
     return { policy, cancellations };
   }
+  // Clear an "unknown" order after the owner checked TWS: only when IB has no order and no
+  // execution carrying its trace ID. If IB has it, refresh() reconciles it instead.
+  async resolve({ id } = {}) {
+    if (typeof id !== "string" || !id) fail2("Order ID required");
+    await this.refresh();
+    return this.exclusive(async () => {
+      const state = await this.state();
+      const intent = state.intents.find((r) => r.id === id);
+      if (!intent) fail2("Order not found");
+      if (!["unknown", "dispatching"].includes(intent.status)) fail2(`This order is ${intent.status}; nothing to resolve`);
+      const snap = state.snapshots.find((s) => s.accountId === intent.accountId);
+      const seen = (snap?.orders ?? []).some((o) => o.orderRef === `hrouter:${intent.id}`) || (snap?.executions ?? []).some((f) => f.orderRef === `hrouter:${intent.id}`);
+      if (!snap || seen) fail2("IB still reports this order, or the account could not be read; refresh instead");
+      Object.assign(intent, { status: "blocked", error: `${intent.error ?? ""} \u2014 owner checked TWS: not placed`.trim(), resolvedAt: this.now() });
+      intent.events.push({ at: this.now(), type: "resolved-not-placed" });
+      await writeJson2(this.file("state.json"), state);
+      return intent;
+    });
+  }
   async confirm({ id } = {}) {
     return this.decide(id, true);
   }
@@ -11385,6 +11404,11 @@ var IbkrService = class {
       const snap = await this.snapshot(policy);
       const state = await this.state();
       for (const intent of state.intents.filter((r) => r.accountId === snap.accountId && r.kind === "order")) {
+        const fills = (snap.executions ?? []).filter((f) => intent.brokerOrderId && f.orderId === intent.brokerOrderId || f.orderRef === `hrouter:${intent.id}`);
+        if (fills.length) {
+          const quantity = fills.reduce((n, f) => n + (f.quantity ?? 0), 0);
+          intent.fills = { quantity, averagePrice: quantity ? fills.reduce((n, f) => n + (f.quantity ?? 0) * (f.price ?? 0), 0) / quantity : null, executions: fills, observedAt: snap.observedAt };
+        }
         const order = snap.orders.find((o) => intent.brokerOrderId && o.orderId === intent.brokerOrderId || o.orderRef === `hrouter:${intent.id}`);
         if (!order) continue;
         if (hash2(intent.broker || {}) !== hash2(order)) (intent.events ||= []).push({ at: snap.observedAt, type: "broker-observed", broker: order });
@@ -24198,7 +24222,7 @@ data: ${JSON.stringify(message)}
           return respond(response, 404, { error: "Unknown workbench action" });
         }
         if (url.pathname.startsWith("/api/ibkr/")) {
-          const actions = { config: "saveConfig", connect: "accounts", policy: "savePolicy", refresh: "refresh", evaluate: "evaluate", submit: "submit", cancel: "cancel", confirm: "confirm", reject: "reject", halt: "halt" };
+          const actions = { config: "saveConfig", connect: "accounts", policy: "savePolicy", refresh: "refresh", evaluate: "evaluate", submit: "submit", cancel: "cancel", confirm: "confirm", reject: "reject", resolve: "resolve", halt: "halt" };
           const action = actions[url.pathname.slice("/api/ibkr/".length)];
           if (!action) return respond(response, 404, { error: "Unknown IBKR action" });
           const ibkr = getIbkrService();
